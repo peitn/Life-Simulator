@@ -26,7 +26,7 @@ The character creator is the **current top priority** of development. It is buil
 | `character_schema.gd` | The **only** description of fields, ranges, defaults and catalogues. The validator, randomizer, migrations and the future editor's sliders are all generated from it. Field types: `f`, `i`, `b`, `e` (enum), `set`, `name`, `text`, `color`. |
 | `character_data.gd` | The Resource: `to_dict` / `set_from_dict`, `public_snapshot()` (an allowlist from the schema) and `private_part()`. |
 | `character_validator.gd` | `strict` mode for the server (any bad field rejects the data) and `repair` mode for imports (clamp, drop unknowns, fall back to defaults). Details below. |
-| `character_codec.gd` | Canonical JSON for template files, the share code `LSC1.<base64url(zlib(JSON))>.<crc32>`, and migrations v0 → v1 → v2 → v3. Every external input goes through size limits → CRC → JSON → migration → validator. |
+| `character_codec.gd` | Canonical JSON for template files, the share code `LSC1.<base64url(zlib(JSON))>.<crc32>`, and migrations v0 → v1 → v2 → v3 → v4. Every external input goes through size limits → CRC → JSON → migration → validator. |
 | `character_randomizer.gd` | A random character "with a sensible distribution, not chaos". Appearance is sampled independently of identity and gender. Supports attribute locks. |
 | `character_history.gd` | Undo/redo over whole canonical dictionaries (a few kB each). Slider drags merge into one step. |
 
@@ -41,6 +41,32 @@ Schema history:
   0..1.
 - **v3** adds `skin.detail_seed`, the explicit placement of freckles, moles, scars and tattoos, controlled
   by a "re-roll placement" button and never taken from the name.
+- **v4** (run 13) adds `body.neck_length` (−1..1, default 0). Migration v3 → v4 fills in 0 and changes
+  nothing else. 0 means the corrected default neck described below.
+
+### Neck length and neck base (run 13)
+
+The default neck was measured on the exported GLB (model height H = 1.78 m) against adult anthropometric
+ratios. The suprasternal notch (jugulum, ≈ 0.82 H) was already right, but the seventh cervical vertebra
+(C7, ≈ 0.868 H ≈ 1.546 m) sat at about 1.51–1.52 m and the neck–shoulder point (≈ 1.50 m) at 1.47 m, so the
+trapezius and the back of the neck base were 2.5–4 cm too low. That is why the head seemed to sit high above
+the shoulders, mostly in profile and from behind. `CharacterAssembly.lift_neck_base` now raises the body's
+neck base with a direction-dependent field: 4 mm at the front, 30 mm at the sides and 46 mm at the back
+(a smooth monotonic function of the angle), fading out towards the shoulders (radius 0.07 → 0.22 m) and down
+the upper back (1.26 → 1.45 m). The same field is applied to the base mesh, all body blend shapes and the
+clothing, so clothes still fit. After the change: C7 1.545 m, neck–shoulder point 1.503 m, chin 1.557 m,
+front neck (chin to jugulum) 9.1 cm = 0.41 of the head height.
+
+`body.neck_length` moves the whole head above the neck by ±15 mm (about ±16 % of the front neck). It is a
+single linear blend shape of the head, `b_neck_len`: a vertical shift times a ramp that is 0 in the fully
+fitted seam band (loop height in that direction + 2 cm) and 1 below the chin at the front and at the base
+of the skull at the back. Eyes, mouth and ears move with the head; hair gets the key through morph transfer.
+The seam edge does not move, so the seam tests hold for ±1 combined with fat, muscle and a bent neck.
+`BodyMorphs.scales()` includes the shift, so the crown still lands exactly on `height_cm`. The value goes
+`BodyMorphs.head_links()` → `FaceMorphs.weights()` (signed link) → the head's blend shape. A blend shape
+was chosen over moving the head bone because the neck below the chin has mixed head/neck bone weights, so
+a bone translation would drag the underside of the chin. The randomizer draws N(0, 0.3) clipped to ±0.8,
+independent of gender, grammar and identity.
 
 Czech grammar: the grammatical gender (on / ona / ono / oni) is its own choice, and verb forms are
 generated from it. Neuter and plural are opt-in. The editor previews sentences (`Grammar.preview`), and a
@@ -68,7 +94,7 @@ from the same snapshot.
 | **C1** | Data model, schema, codec and share code, migration v0→v1, validator with name filter, randomizer with locks, undo/redo, Czech grammar, deterministic `AppearanceResolver`, multiplayer join with your own character | ✅ |
 | **C2** | Body: one gender-neutral control mesh (868 vertices, quads) with 10 shape keys (frame, shoulders, chest, bust, waist, hips, plus muscle and fat pairs), LSX v4 with morph targets, Catmull-Clark matching Blender, GLB blend shapes, `BodyMorphs` | ✅ |
 | **C3** | Face: procedural `HeadBuilder` (fixed topology of 3,890 vertices; eyelids, lips and ears as real geometry; eyeballs with cornea), 29 morphs plus 3 asymmetry axes, 62+ blend shapes incl. in-between and corrective shapes, morph transfer to hair, schema v2 | ✅ (visual check in Blender) |
-| **C3+** | A: neck and head–body seam (fitted band, body morphs on the head neck, blended skinning) – B: lips with volume, eye size and opening, damping of extremes in the editor | ✅ A (run 12), ⬜ B |
+| **C3+** | A: neck and head–body seam (fitted band, body morphs on the head neck, blended skinning); A2: anatomical neck base and `body.neck_length` (schema v4) – B: lips with volume, eye size and opening, head size, damping of extremes in the editor | ✅ A (run 12), ✅ A2 (run 13), ⬜ B |
 | **C4a** | Skin: `SkinModel` (two-layer Beer–Lambert with melanin, haemoglobin and carotene) and `SkinLayers` (freckles, moles, acne with post-inflammatory pigmentation, vitiligo, wrinkles and age spots, scars, tattoos, make-up, eyebrows, stubble). `skin.gdshader` adds SSS and masks in rest-pose coordinates (CUSTOM0), so the details follow morphs. Schema v3. | ✅ |
 | **C4b** | Hair, beards and eyebrows as geometry (hair cards): short, long, curly, afro, braids, cornrows, locs, bun, ponytail, bald, receding hairline, greying | ⬜ next |
 | **C5** | Clothing: everyday, work, formal, sleepwear and sport. Cuts follow body morphs. Changing clothes in game, replicated in multiplayer. | ⬜ |
@@ -85,7 +111,17 @@ Geometric tests are not enough, so every visual change is checked by rendering:
 
 See [asset-pipeline.md](asset-pipeline.md#visual-verification).
 
-Findings from the latest render (run 12, `docs/images/c3-neck-seam-run12-a.jpg` and `-b.jpg`):
+Findings from the run 13 render (`docs/images/c3-neck-length-run13-a.jpg`: default, neck −1, neck +1;
+`-b.jpg`: muscular and heavy, heavy with neck −1, slim with neck +1):
+- fixed: the head no longer looks lifted above the shoulders; the back of the neck and the trapezius rise to
+  C7; the neck length slider stays within believable adult proportions at both ends;
+- found in the render pipeline: Blender clamps shape-key values to 0..1 by default, so negative weights
+  were rendered as 0 until run 13 (the lib now sets `slider_min = -1`). Earlier "min" render rows were
+  therefore not exact;
+- open: the head is about 1 cm short (crown–chin 22.3 cm against ~23 cm) and can look small on a very
+  muscular body (C3+ B).
+
+Findings from the run 12 render (`docs/images/c3-neck-seam-run12-a.jpg` and `-b.jpg`):
 - fixed: the head–body seam (no gap or jagged line from any angle), the long thin neck without a chin–neck angle,
   the dark band above the upper lip at the max extreme, and a light "collar" on muscular or heavy bodies;
 - open: hair is still a shell ("helmet", C4b), the face looks empty without geometric eyebrows (C4b), the lips are

@@ -7,6 +7,70 @@ Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --
 
 ---
 
+## 2026-10-21 (běh 13, ~18:20–19:30 UTC) – C3+ A2 krk: anatomie báze krku + body.neck_length (schéma v4)
+
+**Rozsah:** `scripts/assets/character_assembly.gd` (pole zvednutí báze krku podle směru), `scripts/assets/head_builder.gd`
+(blend shape `b_neck_len`, `neck_len_ramp`, `SEAM_Y_TOP` 1,64, robustní `loop_hit`), `scripts/character/body_morphs.gd`
+(`NECK_LEN_RANGE`, `head_links`, `neck_offset`, `scales`/`crown_height`), `face_morphs.gd` (podepsaná vazba + výkon),
+`appearance_resolver.gd`, `character_schema.gd` (v4), `character_codec.gd` (`_v3_to_v4`), `character_randomizer.gd`,
+`skin_layers.gd` (body krku), testy `tests/test_neck_length.gd` (nový, 36), `tests/test_neck_seam.gd` (32 → 56),
+`tests/test_skin.gd`; `character.glb` přeimportováno.
+
+**Měření (vstup):** GLB 1,78 m – jugulum 1,466 (0,82 H ✓), C7 ~1,51–1,52 (cíl 0,868 H = 1,546), bod krk–rameno
+(|x| 0,10) 1,47 (cíl ~1,50), trapéz (0,14) 1,46. Krk nebyl „dlouhý“ vpředu, ale báze krku vzadu a po stranách ležela
+2,5–4 cm nízko. **Po změně:** C7 1,545, bod krk–rameno 1,503, trapéz 1,475, brada 1,557, výška hlavy 22,3 cm,
+přední krk 9,1 cm = 0,41 výšky hlavy (reference ~0,36–0,41).
+
+**a) Self-review** (každý změněný soubor znovu přečten):
+- `lift_dir(c)`: L(1)=4 mm, L(0)=30 mm, L(−1)=46 mm; derivace a1 + 4·a2·c < 0 na celém ⟨−1; 1⟩ → monotónní, bez
+  překmitu. Řez krku dál podle výšky PŘED zvednutím (topologie smyčky beze změny, 16 vrcholů).
+- `neck_len_ramp` se počítá z polohy po `_apply_seam` (přilnutí je jen radiální, y se nemění) → lineární v dl,
+  v pásu plného přilnutí rampa 0 (okraj krku se nehne). Pojistka `bot ≤ top − 1 cm`. Komprese při −1: nejmenší
+  poměr výšek 1 − 0,015·ṙ > 0 (test monotónnosti v 12 směrech).
+- `SEAM_Y_TOP` 1,60 by po zvednutí useknul pás švu vzadu (smyčka 1,544 + 6,5 cm) → 1,64.
+- `BodyMorphs.weights()` NEnese klíč krku (síť těla ho nemá; test vah těla by jinak selhal) → `head_links()`.
+- Výkon: `FaceMorphs.value()` skládal `Schema.fields("face")` pro každé pole (0,9 ms/postavu) → slovník jednou;
+  odezva posuvníku 4,2 → 3,7 ms (limit 4 ms; dřív hlášené kolísání 3,6–6,3 ms mělo tuto příčinu).
+- Testy: v `test_neck_seam` opravené vlastní chyby (formát `%.1e` Godot nepodporuje; počáteční hodnota v testu rampy;
+  brada se měří svislým paprskem, protože střední řada sítě mezi hrdlem 1,552 a spodkem brady 1,566 nemá vrchol);
+  test řezu hledá zbytky krku nad 1,555 (smyčka vzadu je nově 1,545); počet vrcholů u smyčky pro srovnání normál
+  ≥ 6 (dřív 8; jiná výška řad mřížky, nejhorší odchylka 2,0°).
+- `skin_layers.gd`: body krku pro jizvy/tetování přeměřené paprskem na novém krku (hrdlo 1,535, boky 1,54,
+  zátylek nad C7 1,565).
+
+**b) Testy:** `godot_check` 60/60. test_neck_length 36/36 (nový), test_neck_seam 56/56, test_head 43/43, test_skin
+60/60, test_assets 150/150, test_body_morphs 62/62, test_character 157/157 (posuvník 3,68 ms), test_character_v2 39/39,
+test_character_net 28/28, test_multiplayer 67/67, test_depression 92/92, test_mental_health 95/95, test_reconciliation
+58/58, test_player_commands 40/40, test_psyche_presentation 19/19, test_net_protocol 34/34, `--test 7` OK.
+
+**Vizuální kontrola (Blender Cycles, 6 postav × 5 pohledů, prohlédnuto):** výchozí, krk −1, krk +1, svaly+tuk,
+tuk + krk −1, štíhlá + krk +1 (tmavá kůže). Hlava už „nevisí“ nad rameny, zadní strana krku a trapéz stoupají k C7,
+±1 vypadá jako běžná variabilita dospělých (ne „žirafa“ ani „bez krku“). Profil: temeno při ±1 přesně ±10 px
+(= ±15 mm). **Nález v postupu renderu:** Blender ořezává hodnoty shape keys na 0..1 (`slider_min` = 0) → záporné
+váhy se dřív renderovaly jako 0 (řádky „min“ v renderech běhů 10b–12 nebyly přesné). Opraveno v render knihovně
+(`slider_min = -1`) a v docs/asset-pipeline.md.
+
+**c) Nezávislý audit – Gemini (flash-lite; 3.5-flash přetížený):** 4 nálezy, všechny zdůvodněně odmítnuté:
+1. „chybí clamp neck_length“ – `_val()` ořezává do rozsahu schématu, NaN/typ → výchozí; server navíc validuje
+   striktně (test fuzz 400 hodnot + 11 nevalidních typů).
+2. „dělení nulou ve scales()“ – b ≥ 1,48 (nohy 0,92–1,08), h ≥ 1,45 (ořez), `maxf` pojistky už existují.
+3. „rel.length() ≈ 0 v rampě“ – ošetřeno (c = 1); body na ose krku jsou jen víčko uvnitř trupu (rampa 0) nebo
+   temeno (rampa 1), výsledek na volbě c nezávisí.
+4. „migrace spadne bez body“ – `typeof(body) == TYPE_DICTIONARY` už je; chybějící body doplní validátor.
+**ChatGPT #111:** loop_hit → nejbližší průsečík + test nehvězdicové a degenerované smyčky; invarianty Catmull-Rom
+(192 směrů: součet vah 1, konečné body, odchylka od polygonu ≤ 1,08 mm, pořadí zachované) – zapracováno.
+**Grok #113:** test ±30° ohnutí × neck ±1 × tuk/svaly – zapracováno; „posunout kost hlavy a přepočítat váhy“ –
+zdůvodněně jinak: posun je blend shape hlavy (krk pod bradou má smíšené váhy head/neck, posun kosti by táhl
+podbradek), okraj švu má váhy těla a nehne se, šev drží i při ohnutí (test); temeno a vlasy se posouvají s hlavou
+(test „vlasy převzaly b_neck_len“, temeno +15,00 mm); sešikmené rozdělení randomizéru ne – N(0; 0,3) s ořezem
+±0,8 dává extrémy |v| > 0,7 u 1,5 % postav. Review diffu poslané do místnosti (#115) – odpověď zatím nepřišla.
+
+**Otevřené:** hlava o ~1 cm nižší než reference (22,3 vs ~23 cm) a u svalnaté postavy působí malá (C3+ B);
+přední krk 9,1 cm je na horní hraně reference. Vlasy = helma (C4b). GitHub push nejde (repo mimo autorizované zdroje
+session) – viz DEVLOG.
+
+---
+
 ## 2026-10-21 (běh 12, ~13:55–15:50 UTC) – C3+ krk a šev hlava–tělo (dokončení přerušeného běhu 11)
 
 **Rozsah:** `scripts/assets/head_builder.gd` (šev, vyhlazení u očí/úst, mezitvary), `scripts/character/skin_layers.gd`

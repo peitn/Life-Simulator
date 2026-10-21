@@ -65,7 +65,9 @@ closed.
    - In Blender, fetch the parts from the Godot server's public plain-text document endpoint
      (`/doc/file:lifesim/<path>`), join them and check the MD5 against the value printed in Godot.
    - Import the GLB and set the shape keys from `AppearanceResolver` weights (face weights, plus body weights,
-     which apply to the body and to the head's neck band under the same names).
+     which apply to the body and to the head's neck band under the same names). Set `slider_min = -1` on every
+     shape key first: Blender clamps values to 0..1 by default, so negative weights (linear morphs, neck length)
+     would otherwise render as 0 (found in run 13).
    - Render with Cycles: orthographic camera, 32–40 samples, several characters (default, random, extremes,
      asymmetry, heavy and muscular builds) × 5 views (front, 35°, profile, back, low angle), as one contact sheet.
    - Send the sheet back as base64 parts (≤ 140,000 characters each, because file reads are truncated at about
@@ -85,6 +87,11 @@ The body's neck is cut above a 16-vertex loop at import (`CharacterAssembly.cut_
   edge, and quads in the band are split along the more convex diagonal (the neck sleeve is a diagonal grid, and the
   other diagonal could sag below the edge).
 `tests/test_neck_seam.gd` checks the result on the real GLB; renders are in `docs/images/c3-neck-seam-run12-*.jpg`.
+
+Run 13: before the cut, the body's neck base and trapezius are raised by a direction-dependent field
+(4 / 30 / 46 mm front / side / back, see [character-creator.md](character-creator.md#neck-length-and-neck-base-run-13)),
+and the head gets the linear `b_neck_len` blend shape (neck length ±15 mm). Renders:
+`docs/images/c3-neck-length-run13-*.jpg`.
 
 ## Planned
 

@@ -1,5 +1,5 @@
 extends RefCounted
-## Schéma CharacterData v2 – JEDINÝ popis toho, jaká pole postava má, jaké mají rozsahy,
+## Schéma CharacterData (verze VERSION níže) – JEDINÝ popis toho, jaká pole postava má, jaké mají rozsahy,
 ## výchozí hodnoty a katalogy povolených hodnot. Používá ho validátor (server i import),
 ## náhodný generátor, migrace i budoucí editor (posuvníky se generují ze schématu).
 ##
@@ -30,7 +30,9 @@ extends RefCounted
 ##     Migrace v1 → v2: CharacterCodec.migrate.
 ## v3 (běh 10, C4): skin.detail_seed – explicitní „rozmístění“ pih, znamének, jizev a tetování (editor:
 ##     tlačítko „jiné rozmístění“), nikdy ze jména. Migrace v2 → v3 ho jednou odvodí z náhodného uid postavy.
-const VERSION := 3
+## v4 (běh 13): body.neck_length −1..1 (délka krku ±15 mm ≈ ±17 %, 0 = anatomicky upravená výchozí délka).
+##     Migrace v3 → v4 doplní 0; ostatní proporce se nemění.
+const VERSION := 4
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -178,6 +180,7 @@ const GROUPS := {
 		"hips": ["f", 0.0, 1.0, 0.5],
 		"leg_length": ["f", 0.0, 1.0, 0.5],
 		"head_size": ["f", -1.0, 1.0, 0.0],     # velikost hlavy vůči proporční výchozí (±6 %), nezávislá na výšce
+		"neck_length": ["f", -1.0, 1.0, 0.0],   # délka krku (±15 mm ≈ ±17 %), nezávislá na výšce, rodu i identitě
 	}},
 	"face": {"public": true, "fields": {}},   # doplní se z FACE_MORPHS (−1..1) + asymmetry
 	"skin": {"public": true, "fields": {

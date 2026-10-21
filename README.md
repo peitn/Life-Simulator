@@ -30,7 +30,7 @@ automated development process (see [Development process](docs/development-proces
 | Mental health: stress, anxiety, panic, depression, coping, intrusive thoughts | ✅ base done, 🟡 expanding |
 | Relationships: grudges, guilt, apologies, reconciliation, jealousy | ✅ |
 | Multiplayer: authoritative ENet server, private state, validation | ✅ |
-| Character creator: data model (C1), body (C2), face (C3), skin (C4a) | ✅ C1–C3 (neck and seam done), ✅ C4a |
+| Character creator: data model (C1), body (C2), face (C3), skin (C4a) | ✅ C1–C3 (neck, seam, neck length done), ✅ C4a |
 | Character creator: hair (C4b), clothing (C5), editor UI (C6–C7), integration (C8) | ⬜ planned |
 | Visuals: Blender asset pipeline, day/night cycle, PsycheFX | ✅ |
 | Audio: custom synthesizer, 5 songs, ambience, 3D object sounds, anxiety audio | ✅ |

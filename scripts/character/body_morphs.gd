@@ -33,6 +33,10 @@ const LEG_MAX := 1.08            # … při leg_length = 1
 ## ChatGPT 49); hráč ji posune vlastním posuvníkem body.head_size (±HEAD_SIZE_RANGE) nezávisle na výšce.
 const HEAD_EXP := 0.5
 const HEAD_SIZE_RANGE := 0.06
+## Délka krku (běh 13): body.neck_length −1..1 posune hlavu nad krkem o ±NECK_LEN_RANGE (v souřadnicích modelu,
+## blend shape hlavy b_neck_len; musí souhlasit s HeadBuilder.NECK_LEN_RANGE – hlídá test). Temeno se tím zvedne
+## o stejnou vzdálenost × měřítko hlavy, proto ho scales() započítá a výška postavy dál přesně sedí na height_cm.
+const NECK_LEN_RANGE := 0.015
 ## Kvantizace: měřítko výšky na 1e-4, hlava se pak dopočítá z KVANTOVANÉHO měřítka (1e-5), takže temeno
 ## sedí na height_cm s chybou v řádu mikrometrů (dřív se obojí kvantovalo zvlášť na 1e-3 – review ChatGPT 49 B).
 const Q_SCALE := 10000.0
@@ -72,13 +76,25 @@ static func weights(body: Dictionary) -> Dictionary:
 	return w
 
 
+## Váhy klíčů HLAVY řízených tělem, které nejsou tvary těla (běh 13: délka krku −1..1). Předávají se do
+## FaceMorphs.weights spolu s weights() (AppearanceResolver); síť těla je nemá.
+static func head_links(body: Dictionary) -> Dictionary:
+	return {"neck_len": _q(_val(body, "neck_length"))}
+
+
+## Posun hlavy nad krkem v souřadnicích modelu (m) – stejná kvantizace jako váha blend shape.
+static func neck_offset(body: Dictionary) -> float:
+	return NECK_LEN_RANGE * _q(_val(body, "neck_length"))
+
+
 ## Měřítko stehenní kosti po délce (1.0 = výchozí délka nohou).
 static func leg_scale(body: Dictionary) -> float:
 	return _q(lerpf(LEG_MIN, LEG_MAX, _val(body, "leg_length")))
 
 
 ## Uniformní měřítko modelu a měřítko kosti hlavy tak, aby temeno bylo přesně ve výšce height_cm:
-##   H = s·B + k·s^HEAD_EXP·C,  B = kloub hlavy (+ prodloužení nohou), C = hlava nad kloubem,
+##   H = s·B + k·s^HEAD_EXP·C,  B = kloub hlavy (+ prodloužení nohou), C = hlava nad kloubem (+ posun délky krku –
+##   blend shape posouvá hlavu v prostoru kosti hlavy, takže se škáluje spolu s ní),
 ##   k = 1 + HEAD_SIZE_RANGE·head_size (vlastní velikost hlavy).
 ## Pro HEAD_EXP = 0,5 je to kvadratická rovnice v x = √s. Hlava se pak dopočítá z kvantovaného s.
 static func scales(body: Dictionary) -> Dictionary:
@@ -86,7 +102,8 @@ static func scales(body: Dictionary) -> Dictionary:
 	var ls := leg_scale(body)
 	var lift := _q((ls - 1.0) * LEG_LENGTH)   # zvednutí modelu (v jeho souřadnicích), aby chodidla zůstala na zemi
 	var b := HEAD_PIVOT + lift
-	var c := MODEL_HEIGHT - HEAD_PIVOT
+	var nk := neck_offset(body)
+	var c := MODEL_HEIGHT - HEAD_PIVOT + nk
 	var k := 1.0 + HEAD_SIZE_RANGE * _val(body, "head_size")
 	# b > 0 a h ∈ ⟨1,45; 2,05⟩ (_val ořezává) → diskriminant je vždy kladný; maxf jen jako pojistka (review Gemini).
 	var x := (-c * k + sqrt(maxf(0.0, c * c * k * k + 4.0 * b * h))) / (2.0 * maxf(b, 0.5))
@@ -94,13 +111,13 @@ static func scales(body: Dictionary) -> Dictionary:
 	# kost hlavy: absolutní velikost = s · head; z rovnice s kvantovaným s → temeno přesně v h.
 	s = maxf(s, 0.1)   # pojistka (audit Gemini): _val ořezává výšku, takže s ≈ 0,8–1,2 – nula nenastane
 	var head := roundf((h - s * b) / (s * c) * Q_HEAD) / Q_HEAD
-	return {"height_scale": s, "head_scale": head, "leg_scale": ls, "lift": lift}
+	return {"height_scale": s, "head_scale": head, "leg_scale": ls, "lift": lift, "neck": nk}
 
 
 ## Výška temene (m) pro dané parametry – kontrola v testech.
 static func crown_height(sc: Dictionary) -> float:
 	var s := float(sc["height_scale"])
-	return s * (HEAD_PIVOT + float(sc["lift"])) + s * float(sc["head_scale"]) * (MODEL_HEIGHT - HEAD_PIVOT)
+	return s * (HEAD_PIVOT + float(sc["lift"])) + s * float(sc["head_scale"]) * (MODEL_HEIGHT - HEAD_PIVOT + float(sc.get("neck", 0.0)))
 
 
 ## Kosti, které smí tabulka z manifestu posouvat, a největší povolený posun (m) – manifest je soubor

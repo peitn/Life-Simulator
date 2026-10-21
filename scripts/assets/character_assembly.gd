@@ -16,17 +16,23 @@ const HeadBuilder := preload("res://scripts/assets/head_builder.gd")
 ## Smyčka těla leží v y 1,4985–1,4993, řada pod ní v 1,487–1,490 → řez mezi nimi.
 const CUT_Y := 1.4935
 const CUT_R := 0.075
-## Zvednutí báze krku těla (běh 11, render s tělem): okraj krku těla byl vzadu v ~1,49 m, ale u dospělého
-## (výška modelu 1,78 m) leží obratel C7 kolem 0,86 H ≈ 1,53 m a trapéz stoupá ke krku – krk proto působil
-## dlouze (hlavně zezadu a z boku). Pole posunu NAHORU: LIFT × směr (vpředu 15 %, do stran ~64 %, vzadu 100 %)
-## × blízkost ose krku (LIFT_R0..R1) × výška (LIFT_Y0..Y1). Posun se počítá z polohy v ZÁKLADU a přičte se
-## stejně k základu i ke všem cílům blend shapes (výchylky morfů zůstanou beze změny); normály se otočí
-## o rozdíl normál spočítaných před a po posunu (mimo pole se nezmění vůbec nic).
-const LIFT := 0.022
+## Zvednutí báze krku a trapézu těla. Běh 11: okraj krku těla byl vzadu v ~1,49 m – posun o 22 mm.
+## Běh 13 (měření GLB proti antropometrii dospělého, výška modelu H = 1,78 m): jugulum 1,466 ≈ 0,82 H sedělo,
+## ale obratel C7 byl ~1,51–1,52 (má být ~0,868 H ≈ 1,546) a bod krk–rameno (|x| 0,10) 1,47 (má být ~1,50) –
+## trapéz a báze krku vzadu a po stranách ležely 2,5–4 cm nízko, takže hlava „visela“ nad rameny (hlavně
+## z profilu a zezadu). Pole posunu NAHORU: L(c) × blízkost ose (LIFT_R0..R1) × výška (LIFT_Y0..Y1), kde
+## c = cos úhlu kolem svislé osy (1 vpředu, 0 do stran, −1 vzadu) a L je hladká monotónní funkce
+##   L(c) = a0 + a1·c + a2·(2c² − 1)  s  L(1) = LIFT_FRONT, L(0) = LIFT_SIDE, L(−1) = LIFT_BACK.
+## Posun se počítá z polohy v ZÁKLADU a přičte se stejně k základu i ke všem cílům blend shapes (výchylky
+## morfů zůstanou beze změny) a ke všem sítím skupiny body (kůže, tričko…) – stejné pole, takže oblečení
+## sedí na těle jako předtím; normály se otočí o rozdíl normál spočítaných před a po posunu.
+const LIFT_FRONT := 0.004
+const LIFT_SIDE := 0.030
+const LIFT_BACK := 0.046
 const LIFT_R0 := 0.07
-const LIFT_R1 := 0.17
-const LIFT_Y0 := 1.34
-const LIFT_Y1 := 1.44
+const LIFT_R1 := 0.22
+const LIFT_Y0 := 1.26
+const LIFT_Y1 := 1.45
 ## Přenos morfů: k nejbližších zdrojových vrcholů, jen klíče s výchylkou nad prahem.
 const TRANSFER_K := 4
 const TRANSFER_MIN := 0.0001
@@ -94,15 +100,23 @@ static func attach_head(scene: Node3D, hair_groups: Array = ["hair_short", "hair
 		"seam_head_verts": (seam["idx"] as PackedInt32Array).size(), "seam_cap_verts": seam["caps"]}
 
 
-## Posun báze krku nahoru (viz LIFT) z polohy v základu. Bod → posun v metrech (≥ 0).
+## Posun báze krku nahoru (viz LIFT_*) z polohy v základu. Bod → posun v metrech (≥ 0).
 static func lift_amount(p: Vector3) -> float:
 	var r := Vector2(p.x, p.z).length()
 	var g := HeadBuilder._smooth(LIFT_R1, LIFT_R0, r)
 	var h := HeadBuilder._smooth(LIFT_Y0, LIFT_Y1, p.y)
 	if g <= 0.0 or h <= 0.0:
 		return 0.0
-	var back := 0.5 * (1.0 - (p.z / r if r > 1e-6 else 0.0))
-	return LIFT * (0.15 + 0.85 * pow(back, 0.8)) * g * h
+	return lift_dir(p.z / r if r > 1e-6 else 0.0) * g * h
+
+
+## Velikost zvednutí podle směru: c = cos úhlu od předního směru (1 vpředu, 0 do stran, −1 vzadu).
+static func lift_dir(c: float) -> float:
+	c = clampf(c, -1.0, 1.0)
+	var a1 := 0.5 * (LIFT_FRONT - LIFT_BACK)
+	var a0 := 0.5 * (0.5 * (LIFT_FRONT + LIFT_BACK) + LIFT_SIDE)
+	var a2 := 0.5 * (0.5 * (LIFT_FRONT + LIFT_BACK) - LIFT_SIDE)
+	return a0 + a1 * c + a2 * (2.0 * c * c - 1.0)
 
 
 ## Plošně vážené normály vrcholů (jen pro rozdíl před/po posunu – metoda se ruší).

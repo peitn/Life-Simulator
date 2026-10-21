@@ -3,7 +3,8 @@ extends RefCounted
 ##   - kanonický JSON (seřazené klíče) pro soubory šablon (user://characters/*.json),
 ##   - krátký sdílecí kód  LSC1.<base64url(zlib(JSON))>.<crc32 hex>  (do chatu, na fórum, do hello v MP),
 ##   - migrace starších verzí (v0 = původní formát domácnosti: jméno + pohlaví + barva + hash jména;
-##     v1 → v2: jedna „asymmetry“ → tři osy asymetrie obličeje, důlek v bradě 0..1; v2 → v3: skin.detail_seed).
+##     v1 → v2: jedna „asymmetry“ → tři osy asymetrie obličeje, důlek v bradě 0..1; v2 → v3: skin.detail_seed;
+##     v3 → v4: body.neck_length = 0).
 ## Každý vstup z venku (soubor, kód, síť) projde: limity velikosti → CRC → JSON → migrace → validátor.
 
 const Schema := preload("res://scripts/character/character_schema.gd")
@@ -150,6 +151,8 @@ static func migrate(d) -> Dictionary:
 		data = _v1_to_v2(data)
 	if v <= 2:
 		data = _v2_to_v3(data)
+	if v <= 3:
+		data = _v3_to_v4(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -185,6 +188,17 @@ static func _v2_to_v3(src: Dictionary) -> Dictionary:
 	if typeof(skin) == TYPE_DICTIONARY and not skin.has("detail_seed"):
 		var uid = d.get("uid", "")
 		skin["detail_seed"] = int(LSX.crc32(String(uid).to_utf8_buffer()) & 0xFFFF) if typeof(uid) == TYPE_STRING and String(uid) != "" else 0
+	return d
+
+
+## v3 → v4: přibyla body.neck_length. Chybějící = 0 (nová, anatomicky upravená výchozí délka krku – rozhodnutí
+## #110); existující hodnota se nepřepisuje (validátor ji ořeže do rozsahu) a žádné jiné pole se nemění.
+static func _v3_to_v4(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 4
+	var body = d.get("body", null)
+	if typeof(body) == TYPE_DICTIONARY and not body.has("neck_length"):
+		body["neck_length"] = 0.0
 	return d
 
 

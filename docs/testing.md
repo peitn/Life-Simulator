@@ -37,12 +37,14 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 | `test_character_net` | Multiplayer join with your own character, strict validation, public snapshot replication, privacy, determinism across peers | 28 ✅ |
 | `test_body_morphs` | C2: Catmull-Clark versus Blender, LSX v4 morphs, GLB blend shapes, data → weights, bones and scales, normals, CPU skinning, performance | 62 ✅ |
 | `test_head` | C3: every face field has a visible morph, weights match the data, in-between and corrective shapes, symmetry, determinism, no skin–eye or lip intersections across extreme combinations, no folded faces, GLB and SimVisual, server and client weights identical | 43 ✅ |
-| `test_neck_seam` | C3+: head–body seam on the real GLB: a single closed loop, no gap or overlap at rest, for random bodies and with the neck bent (CPU skinning), bone weights, normals and flipped triangles, neck width, no collar under body morphs | 32 ✅ |
+| `test_neck_seam` | C3+: head–body seam on the real GLB: a single closed loop, no gap or overlap at rest, for random bodies and with the neck bent (CPU skinning), bone weights, normals and flipped triangles, neck width, no collar under body morphs; run 13: neck-base anatomy, neck length ±1 × fat/muscle × ±30° bend, linear `b_neck_len`, seam edge fixed, crown height, Catmull-Rom invariants and nearest-hit `loop_hit` | 56 ✅ |
+| `test_neck_length` | Run 13 data side of `body.neck_length`: schema v4, migration v3 → v4 (and v1 → v4), JSON / share code / file round trips, strict server validation with fuzzing, public snapshot, determinism, independence from gender and name, randomizer distribution and locks | 36 ✅ |
 | `test_skin` | C4a: SkinModel continuity, spectrum, saturation and hue over 1,386 combinations, determinism, layer placement on the surface, shader compiles, CUSTOM0 holds the rest pose | 60 ✅ |
 | `test_assets` | LSX format (CRC, corrupted data), sources ↔ manifest ↔ GLB, furniture dimensions, orientation, winding and PBR, character skeleton, skin weights and variants, animations, SimVisual, primitive fallback | 150 ✅ |
 
-"Last known" is the state after run 12 (21 October 2026); all suites pass. The slider-latency check in
-`test_character` (limit 4 ms) can exceed the limit when several suites run at the same time on the server.
+"Last known" is the state after run 13 (21 October 2026); all 17 suites pass. The slider-latency check in
+`test_character` (limit 4 ms) was over the limit at 4.2 ms; run 13 removed a hot spot in
+`FaceMorphs.weights()` (the face field table was rebuilt for every field), which brought it to 3.7 ms.
 
 ## Quality gate for every change
 

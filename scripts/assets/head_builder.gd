@@ -30,6 +30,8 @@ const FACE_KEYS := ["head_width", "head_height", "forehead_slope", "brow_ridge",
 const ASYM_KEYS := ["asym_eyes", "asym_mouth", "asym_jaw"]
 ## Klíče řízené tělem (BodyMorphs: fat_hi, muscle_hi) – jen kladný směr.
 const BODY_KEYS := ["b_fat", "b_muscle"]
+## Klíče řízené tělem, které jsou LINEÁRNÍ v obou směrech (váha −1..1): délka krku (body.neck_length, běh 13).
+const BODY_LINEAR_KEYS := ["b_neck_len"]
 
 const NX := 24
 const NY := 26
@@ -61,11 +63,23 @@ const SEAM_HOLD := 0.02
 const SEAM_BODY_BAND := 0.08
 ## Pás, ve kterém se normály krku hlavy plynule stáčejí k normálám okraje těla.
 const SEAM_NRM_BAND := 0.012
-const SEAM_Y_TOP := 1.60
+## Běh 13: báze krku těla vzadu zvednutá až na ~1,544 m → pás švu (smyčka + SEAM_BAND / SEAM_BODY_BAND) sahá
+## vzadu do ~1,625 m; se starou mezí 1,60 se jeho horní část useknula (skok ve váze ~6 %).
+const SEAM_Y_TOP := 1.64
 const SEAM_EPS := 0.0004
 const CAP_Y := 1.476
 const CAP_SHRINK := 0.80
 const EYE_CLEAR := 0.0028
+## Délka krku (běh 13, body.neck_length −1..1 → blend shape b_neck_len): svislý posun NECK_LEN_RANGE × váha ×
+## rampa. Rampa = 0 v pásu plného přilnutí švu (výška smyčky těla v daném směru + SEAM_HOLD, okraj krku se nehne)
+## → 1 pod bradou vpředu (NL_TOP_FRONT, menton ~1,557) a u spodiny týlu vzadu (NL_TOP_BACK); nad rampou se celá
+## hlava (oči, ústa, uši; vlasy přenosem morfů) posune vcelku. ±15 mm ≈ ±17 % délky menton–jugulum (~8,8 cm).
+const NECK_LEN_RANGE := 0.015
+const NL_TOP_FRONT := 1.556
+const NL_TOP_BACK := 1.62
+## Samostatná hlava bez švu (testy obličeje): dolní mez rampy místo smyčky těla.
+const NL_BOT_FRONT := 1.522
+const NL_BOT_BACK := 1.566
 ## Výška nosu ve spodině (subnasale) jako podíl výšky špičky (běh 11: 0,20 → 0,15).
 const SUB_K := 0.15
 const RELAX_ITERS := 4
@@ -253,6 +267,7 @@ static func derive(p: Dictionary) -> Dictionary:
 	d["cheekf"] = v.call("cheeks_fullness") + 0.8 * v.call("b_fat")
 	d["fat"] = v.call("b_fat")
 	d["muscle"] = v.call("b_muscle")
+	d["neck_len"] = v.call("b_neck_len")
 	d["neck_r"] = NECK_R
 	# Běh 11: tuk a svaly krk rozšiřovaly až o 40 % („balón“ pod čelistí) – reálně obvod krku roste
 	# s tukem/svaly řádově o 10–20 %; spodek krku navíc řídí morfy těla přes šev.
@@ -1042,6 +1057,37 @@ static func positions(t: Topo, params: Dictionary) -> PackedVector3Array:
 			p[vi] = push_out(p[vi], d)
 	if not _conform.is_empty():
 		p = _apply_seam(p)
+	var nl := float(d["neck_len"])
+	if nl != 0.0:
+		p = _neck_shift(p, NECK_LEN_RANGE * nl)
+	return p
+
+
+## Rampa délky krku pro bod q (poloha PŘED posunem): 0 v pásu plného přilnutí švu, 1 nad bradou / spodinou týlu.
+## Směr se měří kolem osy krku (θ = 0 vpředu); s aktivním švem je dolní mez výška smyčky těla v tomto směru.
+static func neck_len_ramp(q: Vector3) -> float:
+	var rel := Vector2(float(q.x), float(q.z) - neck_zc(float(q.y)))
+	var c := rel.y / rel.length() if rel.length() > 1e-6 else 1.0
+	var back := 0.5 * (1.0 - c)
+	var top := lerpf(NL_TOP_FRONT, NL_TOP_BACK, back)
+	var bot := lerpf(NL_BOT_FRONT, NL_BOT_BACK, back)
+	if not _conform.is_empty() and _conform.has("loop"):
+		var loop: Array = _conform["loop"]
+		var cen: Vector2 = _conform["center"]
+		var hit := loop_hit(loop, cen, atan2(float(q.x) - cen.x, float(q.z) - cen.y))
+		if float(hit[0]) > 0.0:
+			bot = lerpf(float(loop[hit[1]].y), float(loop[hit[2]].y), float(hit[3])) + SEAM_HOLD
+	# pojistka: rampa musí mít kladnou délku (při rozumné smyčce je bot < top o ≥ 3 cm)
+	bot = minf(bot, top - 0.01)
+	return _smooth(bot, top, float(q.y))
+
+
+## Svislý posun hlavy nad krkem o dl × rampa (lineární v dl → jeden blend shape b_neck_len pro obě strany).
+static func _neck_shift(p: PackedVector3Array, dl: float) -> PackedVector3Array:
+	for i in p.size():
+		var r := neck_len_ramp(p[i])
+		if r > 0.0:
+			p[i] = p[i] + Vector3(0.0, dl * r, 0.0)
 	return p
 
 
@@ -1076,6 +1122,15 @@ static func morph_targets(t: Topo, p0: PackedVector3Array) -> Dictionary:
 			if mn > 1e-5:
 				out[k + "_neg"] = dn
 	for k in BODY_KEYS:
+		var pp := positions(t, {k: 1.0})
+		var dp := PackedVector3Array()
+		dp.resize(p0.size())
+		for i in p0.size():
+			dp[i] = pp[i] - p0[i]
+		out[k] = dp
+		spec[k] = [k]
+	# Lineární klíče těla (délka krku): jeden tvar pro +1, záporná váha = přesně opačný posun (ověřeno v testu).
+	for k in BODY_LINEAR_KEYS:
 		var pp := positions(t, {k: 1.0})
 		var dp := PackedVector3Array()
 		dp.resize(p0.size())
@@ -1281,10 +1336,15 @@ static func neck_ellipse_r(theta: float) -> float:
 
 
 ## Průsečík vodorovného paprsku ze středu smyčky ve směru θ s polygonem smyčky (rovina xz).
-## Vrací [vzdálenost, index a, index b, f] – bod = lerp(loop[a], loop[b], f). Smyčka je uzavřená a seřazená podle úhlu.
+## Vrací [vzdálenost, index a, index b, f] – bod = lerp(loop[a], loop[b], f); [0, 0, 0, 0] = žádný průsečík.
+## Smyčka je uzavřená a seřazená podle úhlu (hvězdicová vůči středu → průsečík je jediný). Kdyby nebyla (poškozená
+## data, review ChatGPT #111), vrátí se NEJBLIŽŠÍ průsečík (nejmenší kladné s), ne první v pořadí hran.
 static func loop_hit(loop: Array, center: Vector2, theta: float) -> Array:
 	var dir := Vector2(sin(theta), cos(theta))
 	var n := loop.size()
+	var best: Array = [0.0, 0, 0, 0.0]
+	if n < 3:
+		return best
 	for a in n:
 		var b := (a + 1) % n
 		var pa := Vector2(float(loop[a].x), float(loop[a].z)) - center
@@ -1294,9 +1354,9 @@ static func loop_hit(loop: Array, center: Vector2, theta: float) -> Array:
 			continue
 		var s := (e.x * pa.y - pa.x * e.y) / den
 		var f := (dir.x * pa.y - pa.x * dir.y) / den
-		if s > 0.0 and f >= -1e-6 and f <= 1.0 + 1e-6:
-			return [s, a, b, clampf(f, 0.0, 1.0)]
-	return [0.0, 0, 0, 0.0]
+		if s > 1e-9 and is_finite(s) and f >= -1e-6 and f <= 1.0 + 1e-6 and (float(best[0]) <= 0.0 or s < float(best[0])):
+			best = [s, a, b, clampf(f, 0.0, 1.0)]
+	return best
 
 
 ## Připraví šev z poloh základu BEZ švu: pro každý vrchol mřížky v pásu váhu, cílový bod na smyčce

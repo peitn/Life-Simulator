@@ -475,7 +475,7 @@ func _test_visual() -> void:
 
 func _test_schema_v3() -> void:
 	section("Schéma v3: skin.detail_seed")
-	check(Schema.VERSION == 3, "verze schématu 3")
+	check(Schema.VERSION >= 3, "verze schématu ≥ 3 (v4 od běhu 13 přidala body.neck_length)")
 	check(Schema.defaults()["skin"].has("detail_seed"), "výchozí data mají detail_seed")
 	check(Schema.is_public("skin", "detail_seed"), "detail_seed je ve veřejném snapshotu (ostatní hráči vidí stejné rozmístění)")
 	var v2 := _valid_base()

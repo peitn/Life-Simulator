@@ -637,3 +637,64 @@ tento běh na něj navázal podle CHECKPOINT.md. Plán poslán do místnosti (zp
 ### Návrh dalšího kroku
 - C4b: vlasy, vousy a obočí jako karty (hair cards; shell jen jako LOD), podle review Groka 103 a ChatGPT 104/106.
 - Potom C3+ část B (rty s objemem, oči) v kontextu hotové hlavy a první osa psychiky (společný rámec dimenzí).
+
+
+## 2026-10-21 (běh 13, ~18:20–19:35 UTC) – C3+ A2 krk: anatomická báze krku + posuvník délky krku (schéma v4)
+**Oblast:** (0) TVORBA POSTAVY – rozhodnutí uživatelky v místnosti #110 (krk působí dlouze → obojí: výchozí anatomie
+i posuvník). Běh 12 skončil korektně („běh dokončen“). Plán poslán do místnosti (zpráva 114). C4b přesunuto na další běh.
+
+### Průběžné checkpointy
+- ~19:10 checkpoint: měření, kód, reimport GLB, test_neck_length 36/36, test_neck_seam 56/56.
+- ~19:20 checkpoint: celá regrese 17 sad OK (+ oprava výkonu FaceMorphs, body krku v SkinLayers).
+- ~19:25 checkpoint: Blender rendery prohlédnuté (docs/images/c3-neck-length-run13-a.jpg, -b.jpg).
+
+### Co přibylo / změnilo se
+- **Měření GLB proti antropometrii** (H = 1,78 m): jugulum 1,466 (0,82 H) sedělo, ale C7 ~1,51–1,52 místo ~1,546
+  a bod krk–rameno 1,47 místo ~1,50 → hlava „visela“ nad rameny kvůli nízké bázi krku vzadu a po stranách.
+- `character_assembly.gd` – zvednutí báze krku a trapézu polem podle směru L(c) (vpředu 4 / do stran 30 / vzadu
+  46 mm, hladké a monotónní), dosah r 0,07→0,22, výška 1,26→1,45. Po importu C7 1,545, bod krk–rameno 1,503,
+  přední krk (brada–jugulum) 9,1 cm = 0,41 výšky hlavy.
+- `head_builder.gd` – lineární blend shape **`b_neck_len`** (±15 mm): svislý posun × rampa od pásu plného přilnutí
+  švu (smyčka + 2 cm) k bradě (1,556) / spodině týlu (1,62); oči, ústa, uši i vlasy (přenos morfů) jdou s hlavou,
+  okraj švu se nehne. `SEAM_Y_TOP` 1,60 → 1,64. `loop_hit` vrací nejbližší průsečík (review ChatGPT #111).
+- `body_morphs.gd` – `NECK_LEN_RANGE`, `head_links()` (klíče hlavy řízené tělem), `neck_offset()`, `scales()` /
+  `crown_height()` počítají s posunem (temeno dál přesně v height_cm). `face_morphs.gd` – podepsaná vazba
+  `b_neck_len`; výkon: slovník polí obličeje jednou místo 32× (odezva posuvníku 4,2 → 3,7 ms).
+- **Schéma v4**: `body.neck_length` −1..1 (veřejné), migrace v3→v4 (chybějící = 0, nic jiného se nemění),
+  randomizér N(0; 0,3) ořez ±0,8 nezávisle na rodu.
+- `skin_layers.gd` – body krku přeměřené na novém krku.
+- Testy: nový `tests/test_neck_length` (36), `tests/test_neck_seam` 32 → 56 (anatomie, délka krku × tuk/svaly ×
+  ohnutí ±30°, linearita, okraj švu, temeno, Catmull-Rom, nehvězdicová a degenerovaná smyčka).
+- Render v Blenderu: 6 postav × 5 pohledů; **opravená chyba v render knihovně** – Blender ořezával záporné váhy
+  shape keys na 0 (slider_min), dřívější řádky „min“ tedy nebyly přesné.
+- Dev nástroj `previews/devtools/apply_bundle.gd` (svazky textových záplat pro víc souborů; mimo repozitář).
+
+### Ověření
+- Všechny testy OK (17 sad, viz AUDIT.md), `godot_check` 60/60, `--test 7` OK.
+- Render prohlédnutý okem: výchozí krk přirozenější, ±1 v mezích běžné variability dospělých.
+- Gemini (flash-lite): 4 nálezy, všechny zdůvodněně odmítnuté (už ošetřeno). ChatGPT #111 a Grok #113 zapracováno
+  (kromě posunu kosti hlavy – zdůvodněno). Diff poslán do místnosti k review (#115).
+
+### Známé problémy
+- Hlava ~1 cm nižší než reference (22,3 vs ~23 cm), u svalnatého těla působí malá → C3+ B.
+- Vlasy = helma, obočí jen v shaderu → C4b (další běh).
+- GitHub: push zase nejde (repo není v autorizovaných zdrojích naplánované session); klon a commit lokálně OK.
+- Domácnost dál ve „studené válce“ (vztahy −45…−58 po týdnu).
+
+### GitHub
+- Lokální commit v klonu připraven, `git push` odmítnut proxy (403, repo mimo autorizované zdroje session). Godot projekt
+  je kompletní; synchronizaci je potřeba udělat ručně z hlavního chatu (jako u běhu 12).
+
+### room_last_id: 116
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 (rev. 10 – výřez běhu 13)
+- ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f (rev. 6 – v tomto běhu neaktualizováno, nový řádek C3+ A2 popsán ve zprávě 116)
+- (kód k review, jednorázově: run13_neck_length.diff 74e3037fe1304d06a27447efc8ba7344)
+- Projektová paměť místnosti: stav cdf19b25a96e48f4924a7c5fd49a2617, rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced,
+  otevřené body 6c717c0ead454018979d105fa5dc58ab, plán psychiky 4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C4b: vlasy, vousy a obočí jako hair cards (shell jen LOD) – teď už na správných proporcích krku; render s
+  `slider_min = -1` (knihovna /tmp/render_lib.py v Blenderu je dočasná).
+- Potom C3+ B (rty, oči, výška/velikost hlavy) a první osa psychiky.

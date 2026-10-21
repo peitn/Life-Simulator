@@ -182,6 +182,7 @@ static func _body(rng: RandomNumberGenerator, d: Dictionary, age: int) -> void:
 	b["hips"] = _n(rng, 0.5, 0.15, 0.05, 0.95)
 	b["leg_length"] = _n(rng, 0.5, 0.13, 0.08, 0.92)
 	b["head_size"] = _n(rng, 0.0, 0.3, -0.8, 0.8)
+	b["neck_length"] = _n(rng, 0.0, 0.3, -0.8, 0.8)   # běh 13: nezávislé na pohlaví, výšce i identitě
 
 
 static func _face(rng: RandomNumberGenerator, d: Dictionary) -> void:

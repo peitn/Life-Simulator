@@ -59,7 +59,7 @@
       "body",
       "character_head"
     ],
-    "glb_bytes": 2657616,
+    "glb_bytes": 2759524,
     "lsx_crc": {
       "body": "fb77b75a",
       "character_head": "d674db1b"
@@ -118,6 +118,9 @@
         ],
         "b_muscle": [
           "b_muscle"
+        ],
+        "b_neck_len": [
+          "b_neck_len"
         ],
         "brow_height": [
           "brow_height_pos",
@@ -228,16 +231,16 @@
       },
       "fine_tris": 6928.0,
       "hair_morphs": {
-        "hair_long__hair_long__hair_main": 19,
-        "hair_short__hair_short__hair_main": 6
+        "hair_long__hair_long__hair_main": 27,
+        "hair_short__hair_short__hair_main": 7
       },
       "head": {
         "faces": 3948,
         "keys": {
-          "eyes": 7,
-          "head": 73
+          "eyes": 8,
+          "head": 74
         },
-        "morphs": 73,
+        "morphs": 74,
         "topo_verts": 3890,
         "tris": 7760,
         "verts": 4102
@@ -397,9 +400,9 @@
         }
       },
       "neck_cut_tris": 192,
-      "neck_lifted_verts": 323,
+      "neck_lifted_verts": 547,
       "seam_cap_verts": 11,
-      "seam_head_verts": 329,
+      "seam_head_verts": 427,
       "seam_loop_verts": 16
     },
     "morphs": 10,

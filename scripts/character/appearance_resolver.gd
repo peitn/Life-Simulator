@@ -139,7 +139,7 @@ static func resolve(snap: Dictionary) -> Dictionary:
 		"lift": sc["lift"],
 		"width_scale": _q(w),
 		"body": body_w,
-		"face": FaceMorphs.weights(face, body_w),
+		"face": FaceMorphs.weights(face, body_w.merged(BodyMorphs.head_links(body))),
 		"lips": lip_color(skin, float(_g(snap, "makeup", "lipstick", 0.0)),
 			String(_g(snap, "makeup", "lip_color", "#9e3a42"))),
 		"hair_variant": "" if style == "holy" else ("hair_long" if Schema.LONG_HAIR.has(style) else "hair_short"),

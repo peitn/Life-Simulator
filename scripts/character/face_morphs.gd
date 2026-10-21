@@ -12,8 +12,8 @@ extends RefCounted
 ##    délka nosu): váha 1 − |2|v| − 1| – Godot nemá nativní in-between tvary,
 ##  - KOREKČNÍ tvar „cx_<a>_<p|n>__<b>_<p|n>“ pro dvojice s interakcí: váha = součin vah obou polí.
 ## Výstup obsahuje oba tvary pro každé pole – síť má vždy jen jeden z nich (podle manifest meta face_spec),
-## takže se nic neaplikuje dvakrát. Tělo ovlivní obličej jen přes tuk (plnější tváře, podbradek, krk)
-## a svaly (krk, úhel čelisti) – ne přes identitu, rod ani jméno.
+## takže se nic neaplikuje dvakrát. Tělo ovlivní obličej jen přes tuk (plnější tváře, podbradek, krk),
+## svaly (krk, úhel čelisti) a délku krku (posun celé hlavy nad krkem) – ne přes identitu, rod ani jméno.
 
 const Schema := preload("res://scripts/character/character_schema.gd")
 
@@ -23,6 +23,8 @@ const CORRECTIVE_PAIRS := [["nose_length", "nose_bridge"], ["nose_length", "nose
 
 ## Klíče hlavy řízené tělem (BodyMorphs.weights) – jen nárůst; hubnutí obličej nemění (hlava je štíhlá v základu).
 const BODY_LINKS := {"b_fat": "fat_hi", "b_muscle": "muscle_hi"}
+## Klíče hlavy řízené tělem v OBOU směrech (váha −1..1): délka krku (body.neck_length → BodyMorphs.head_links „neck_len“).
+const BODY_SIGNED_LINKS := {"b_neck_len": "neck_len"}
 
 
 static func _q(x: float) -> float:
@@ -30,8 +32,11 @@ static func _q(x: float) -> float:
 
 
 ## Hodnota pole ořezaná do rozsahu schématu; chybějící / neplatná = výchozí.
-static func value(face: Dictionary, field: String) -> float:
-	var fs: Dictionary = Schema.fields("face")
+## fs = Schema.fields("face") – volající ve smyčce ho předá jednou (běh 13: skládání slovníku polí pro každé pole
+## zvlášť stálo ~0,8 ms na postavu a shodilo odezvu posuvníku přes 4 ms).
+static func value(face: Dictionary, field: String, fs: Dictionary = {}) -> float:
+	if fs.is_empty():
+		fs = Schema.fields("face")
 	if not fs.has(field):
 		return 0.0
 	var spec: Array = fs[field]
@@ -54,8 +59,9 @@ static func morph_fields() -> Array:
 ## Váhy (název blend shape → float). body_w = výstup BodyMorphs.weights().
 static func weights(face: Dictionary, body_w: Dictionary = {}) -> Dictionary:
 	var w := {}
+	var fs: Dictionary = Schema.fields("face")
 	for k in morph_fields():
-		var v := _q(value(face, k))
+		var v := _q(value(face, k, fs))
 		w[k] = v
 		w[k + "_pos"] = maxf(0.0, v)
 		w[k + "_neg"] = maxf(0.0, -v)
@@ -72,6 +78,10 @@ static func weights(face: Dictionary, body_w: Dictionary = {}) -> Dictionary:
 		var b = body_w.get(BODY_LINKS[k], 0.0)
 		var bf := float(b) if (typeof(b) == TYPE_FLOAT or typeof(b) == TYPE_INT) and is_finite(float(b)) else 0.0
 		w[k] = _q(clampf(bf, 0.0, 1.0))
+	for k in BODY_SIGNED_LINKS:
+		var b = body_w.get(BODY_SIGNED_LINKS[k], 0.0)
+		var bf := float(b) if (typeof(b) == TYPE_FLOAT or typeof(b) == TYPE_INT) and is_finite(float(b)) else 0.0
+		w[k] = _q(clampf(bf, -1.0, 1.0))
 	return w
 
 
