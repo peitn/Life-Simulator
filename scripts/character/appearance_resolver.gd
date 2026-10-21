@@ -1,0 +1,153 @@
+extends RefCounted
+## AppearanceResolver – čistá deterministická funkce: veřejný vzhledový snapshot → parametry
+## vykreslení (barvy, měřítka, varianty sítí, vrstvy kůže). Žádná náhoda, žádný hash jména: stejný snapshot
+## dá na serveru i všech klientech bit po bitu stejný výsledek (výstup je kvantovaný).
+##
+## Kůže (od C4) = fyzikálně inspirovaný model SkinModel (melanin / hemoglobin / karoten, Beer–Lambert) –
+## jedna spojitá funkce bez kotev a předvoleb; detaily kůže (pihy, znaménka, akné, vitiligo, stárnutí,
+## jizvy, tetování, make-up, obočí, strniště) = SkinLayers. Vlasy a oči: spojité modely pigmentu.
+## Tvar těla (od C2) = váhy blend shapes jedné neutrální sítě + měřítka kostí (BodyMorphs), obličej (od C3)
+## = váhy blend shapes procedurální hlavy (FaceMorphs) – vše jen z EXPLICITNÍCH atributů skupin `body`,
+## `face`, `skin`, `hair`, `makeup`, nikdy z identity, rodu ani jména.
+
+const Schema := preload("res://scripts/character/character_schema.gd")
+const BodyMorphs := preload("res://scripts/character/body_morphs.gd")
+const FaceMorphs := preload("res://scripts/character/face_morphs.gd")
+const SkinModel := preload("res://scripts/character/skin_model.gd")
+const SkinLayers := preload("res://scripts/character/skin_layers.gd")
+
+const IRIS_ANCHORS := [
+	[0.0, Color(0.42, 0.58, 0.74)], [0.2, Color(0.45, 0.56, 0.6)], [0.4, Color(0.42, 0.53, 0.33)],
+	[0.6, Color(0.5, 0.4, 0.2)], [0.8, Color(0.33, 0.2, 0.1)], [1.0, Color(0.13, 0.08, 0.05)],
+]
+## Výška referenčního modelu character.glb (m).
+const MODEL_HEIGHT := BodyMorphs.MODEL_HEIGHT
+
+
+static func _q(x: float) -> float:
+	return roundf(x * 1000.0) / 1000.0
+
+
+static func _qc(c: Color) -> Color:
+	return Color(_q(clampf(c.r, 0.0, 1.0)), _q(clampf(c.g, 0.0, 1.0)), _q(clampf(c.b, 0.0, 1.0)), 1.0)
+
+
+static func _anchor(anchors: Array, t: float) -> Color:
+	t = clampf(t, 0.0, 1.0)
+	for i in range(1, anchors.size()):
+		if t <= float(anchors[i][0]):
+			var a: Array = anchors[i - 1]
+			var b: Array = anchors[i]
+			var u := (t - float(a[0])) / (float(b[0]) - float(a[0]))
+			# Interpolace v lineárním prostoru (fyzikálně věrnější míchání pigmentů).
+			return (a[1] as Color).srgb_to_linear().lerp((b[1] as Color).srgb_to_linear(), u).linear_to_srgb()
+	return anchors[-1][1]
+
+
+static func _g(snap: Dictionary, group: String, key: String, fallback):
+	var g = snap.get(group, {})
+	if typeof(g) != TYPE_DICTIONARY:
+		return fallback
+	var v = g.get(key, fallback)
+	var num := typeof(fallback) == TYPE_FLOAT or typeof(fallback) == TYPE_INT
+	if num and (typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT):
+		if is_nan(float(v)) or is_inf(float(v)):
+			return fallback
+		return float(v) if typeof(fallback) == TYPE_FLOAT else int(v)
+	return v if typeof(v) == typeof(fallback) else fallback
+
+
+## Albedo kůže (sRGB, kvantované) ze SkinModel – stejná rovnice jako skin.gdshader bez lokálních jevů.
+static func skin_color(tone: float, undertone: float, redness: float) -> Color:
+	return _qc(SkinModel.albedo(tone, undertone, redness))
+
+
+## Koncentrace chromoforů pro shader (kvantované na 1/10000 → stejné na všech peerech).
+static func skin_chromophores(tone: float, undertone: float, redness: float) -> Vector3:
+	var c := SkinModel.chromophores(tone, undertone, redness)
+	return Vector3(roundf(c.x * 10000.0) / 10000.0, roundf(c.y * 10000.0) / 10000.0, roundf(c.z * 10000.0) / 10000.0)
+
+
+static func hair_color(melanin: float, red: float, grey: float) -> Color:
+	var m := clampf(melanin, 0.0, 1.0)
+	var base := Color(0.9, 0.82, 0.62).srgb_to_linear().lerp(Color(0.04, 0.035, 0.03).srgb_to_linear(), pow(m, 0.7)).linear_to_srgb()
+	var ginger := Color(0.62, 0.25, 0.1).lerp(Color(0.28, 0.1, 0.05), m)
+	base = base.lerp(ginger, clampf(red, 0.0, 1.0) * (1.0 - 0.5 * m))
+	base = base.lerp(Color(0.8, 0.8, 0.79), clampf(grey, 0.0, 1.0))
+	return _qc(base)
+
+
+## Rty: kůže s víc prokrvenou sliznicí (tmavší a červenější, u tmavé kůže hlavně tmavší), rtěnka překryje
+## podle intenzity. Žádná „barva rtů podle rasy“ – jen tentýž spojitý model jako kůže.
+static func lip_color(skin: Color, lipstick: float, lip_hex: String) -> Color:
+	var c := skin.srgb_to_linear() * Color(0.78, 0.52, 0.52)
+	var out := c.linear_to_srgb()
+	var ls := clampf(lipstick, 0.0, 1.0)
+	if ls > 0.0 and lip_hex.length() == 7 and lip_hex.substr(1).is_valid_hex_number(false):
+		out = out.lerp(Color.html(lip_hex), ls * 0.85)
+	return _qc(out)
+
+
+static func iris_color(iris: float) -> Color:
+	return _qc(_anchor(IRIS_ANCHORS, iris))
+
+
+## Hlavní výstup pro SimVisual.
+static func resolve(snap: Dictionary) -> Dictionary:
+	var body = snap.get("body", {})
+	if typeof(body) != TYPE_DICTIONARY:
+		body = {}
+	var sc := BodyMorphs.scales(body)
+	var body_w := BodyMorphs.weights(body)
+	var face = snap.get("face", {})
+	if typeof(face) != TYPE_DICTIONARY:
+		face = {}
+	var frame := clampf(float(_g(snap, "body", "frame", 0.5)), 0.0, 1.0)
+	var fat := clampf(float(_g(snap, "body", "body_fat", 0.3)), 0.0, 1.0)
+	var muscle := clampf(float(_g(snap, "body", "muscle", 0.35)), 0.0, 1.0)
+	var age := clampi(int(_g(snap, "body", "age", 30)), 18, 95)
+	var style := String(_g(snap, "hair", "style", "kratke"))
+	var hc := hair_color(float(_g(snap, "hair", "melanin", 0.6)), float(_g(snap, "hair", "red", 0.15)),
+		float(_g(snap, "hair", "grey", 0.0)))
+	if bool(_g(snap, "hair", "dyed", false)):
+		var dc := String(_g(snap, "hair", "dye_color", ""))
+		if dc.length() == 7 and dc.substr(1).is_valid_hex_number(false):
+			hc = _qc(Color.html(dc).lerp(Color(0.8, 0.8, 0.79), clampf(float(_g(snap, "hair", "grey", 0.0)), 0.0, 1.0) * 0.3))
+	var outfit: Dictionary = {}
+	var cl = snap.get("clothing", {})
+	if typeof(cl) == TYPE_DICTIONARY and typeof(cl.get("bezne")) == TYPE_DICTIONARY:
+		outfit = cl["bezne"]
+	var top := _color_or(outfit.get("top_color", ""), Color(0.36, 0.42, 0.48))
+	var bottom := _color_or(outfit.get("bottom_color", ""), Color(0.18, 0.23, 0.29))
+	# Šířka jen pro náhradu z primitiv (model z Blenderu má tvar z blend shapes).
+	var w := 0.9 + 0.16 * frame + 0.14 * fat + 0.06 * muscle
+	var tone := float(_g(snap, "skin", "tone", 0.45))
+	var under := float(_g(snap, "skin", "undertone", 0.0))
+	var red := float(_g(snap, "skin", "redness", 0.3))
+	var skin := skin_color(tone, under, red)
+	return {
+		"skin": skin,
+		"chrom": skin_chromophores(tone, under, red),
+		"skin_layers": SkinLayers.resolve(snap),
+		"hair": hc,
+		"iris": iris_color(float(_g(snap, "eyes", "iris", 0.6))),
+		"top": top,
+		"bottom": bottom,
+		"height_scale": sc["height_scale"],
+		"head_scale": sc["head_scale"],
+		"leg_scale": sc["leg_scale"],
+		"lift": sc["lift"],
+		"width_scale": _q(w),
+		"body": body_w,
+		"face": FaceMorphs.weights(face, body_w),
+		"lips": lip_color(skin, float(_g(snap, "makeup", "lipstick", 0.0)),
+			String(_g(snap, "makeup", "lip_color", "#9e3a42"))),
+		"hair_variant": "" if style == "holy" else ("hair_long" if Schema.LONG_HAIR.has(style) else "hair_short"),
+		"age": age,
+	}
+
+
+static func _color_or(v, fallback: Color) -> Color:
+	if typeof(v) == TYPE_STRING and String(v).length() == 7 and String(v).substr(1).is_valid_hex_number(false):
+		return _qc(Color.html(v))
+	return fallback

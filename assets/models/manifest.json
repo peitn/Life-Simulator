@@ -1,0 +1,455 @@
+{
+  "bed_double": {
+    "aabb_max": [
+      0.870000004768372,
+      1.00128996372223,
+      1.04999995231628
+    ],
+    "aabb_min": [
+      -0.870000004768372,
+      0.0,
+      -1.07000005245209
+    ],
+    "bones": 0.0,
+    "glb_bytes": 142316.0,
+    "lsx_crc": "c103a927",
+    "meta": {},
+    "morphs": 0.0,
+    "ok": true,
+    "parts": 4.0,
+    "source": "tools/blender/furn.py",
+    "tris": 4200.0,
+    "verts": 2786.0
+  },
+  "bed_single": {
+    "aabb_max": [
+      0.5,
+      0.894999980926514,
+      1.04999995231628
+    ],
+    "aabb_min": [
+      -0.5,
+      0.0,
+      -1.04999995231628
+    ],
+    "bones": 0.0,
+    "glb_bytes": 84708.0,
+    "lsx_crc": "ff49f3dc",
+    "meta": {},
+    "morphs": 0.0,
+    "ok": true,
+    "parts": 3.0,
+    "source": "tools/blender/furn.py",
+    "tris": 2472.0,
+    "verts": 1638.0
+  },
+  "character": {
+    "aabb_max": [
+      0.330579996109009,
+      1.57351005077362,
+      0.121820002794266
+    ],
+    "aabb_min": [
+      -0.330579996109009,
+      0.0132200000807643,
+      -0.095260001718998
+    ],
+    "bones": 17,
+    "composed_from": [
+      "body",
+      "character_head"
+    ],
+    "glb_bytes": 2613596,
+    "lsx_crc": {
+      "body": "fb77b75a",
+      "character_head": "d674db1b"
+    },
+    "meta": {
+      "basis_defaults": {
+        "body_fat": 0.3,
+        "bust": 0.2,
+        "chest": 0.5,
+        "frame": 0.5,
+        "hips": 0.5,
+        "leg_length": 0.5,
+        "muscle": 0.35,
+        "shoulders": 0.5,
+        "waist": 0.5
+      },
+      "face_spec": {
+        "_body_keys": [
+          "bust",
+          "chest",
+          "fat_hi",
+          "fat_lo",
+          "frame",
+          "muscle_hi",
+          "muscle_lo",
+          "shoulders"
+        ],
+        "_correctives": [
+          "cx_nose_length_p__nose_bridge_p",
+          "cx_nose_length_p__nose_bridge_n",
+          "cx_nose_length_n__nose_bridge_p",
+          "cx_nose_length_n__nose_bridge_n",
+          "cx_nose_length_p__nose_tip_p",
+          "cx_nose_length_p__nose_tip_n",
+          "cx_nose_length_n__nose_tip_p",
+          "cx_nose_length_n__nose_tip_n"
+        ],
+        "_inbetweens": [
+          "nose_length_pos_mid",
+          "nose_length_neg_mid",
+          "nose_tip_angle_neg_mid"
+        ],
+        "asym_eyes": [
+          "asym_eyes"
+        ],
+        "asym_jaw": [
+          "asym_jaw"
+        ],
+        "asym_mouth": [
+          "asym_mouth_pos",
+          "asym_mouth_neg"
+        ],
+        "b_fat": [
+          "b_fat"
+        ],
+        "b_muscle": [
+          "b_muscle"
+        ],
+        "brow_height": [
+          "brow_height_pos",
+          "brow_height_neg"
+        ],
+        "brow_ridge": [
+          "brow_ridge"
+        ],
+        "cheekbones": [
+          "cheekbones_pos",
+          "cheekbones_neg"
+        ],
+        "cheeks_fullness": [
+          "cheeks_fullness"
+        ],
+        "chin_cleft": [
+          "chin_cleft_pos",
+          "chin_cleft_neg"
+        ],
+        "chin_length": [
+          "chin_length_pos",
+          "chin_length_neg"
+        ],
+        "chin_width": [
+          "chin_width_pos",
+          "chin_width_neg"
+        ],
+        "ear_angle": [
+          "ear_angle_pos",
+          "ear_angle_neg"
+        ],
+        "ear_size": [
+          "ear_size"
+        ],
+        "eye_depth": [
+          "eye_depth_pos",
+          "eye_depth_neg"
+        ],
+        "eye_distance": [
+          "eye_distance_pos",
+          "eye_distance_neg"
+        ],
+        "eye_size": [
+          "eye_size_pos",
+          "eye_size_neg"
+        ],
+        "eye_tilt": [
+          "eye_tilt_pos",
+          "eye_tilt_neg"
+        ],
+        "eyelid_hood": [
+          "eyelid_hood"
+        ],
+        "forehead_slope": [
+          "forehead_slope_pos",
+          "forehead_slope_neg"
+        ],
+        "head_height": [
+          "head_height"
+        ],
+        "head_width": [
+          "head_width_pos",
+          "head_width_neg"
+        ],
+        "jaw_angle": [
+          "jaw_angle"
+        ],
+        "jaw_width": [
+          "jaw_width_pos",
+          "jaw_width_neg"
+        ],
+        "lip_lower": [
+          "lip_lower"
+        ],
+        "lip_upper": [
+          "lip_upper"
+        ],
+        "mouth_width": [
+          "mouth_width"
+        ],
+        "neck_width": [
+          "neck_width_pos",
+          "neck_width_neg"
+        ],
+        "nose_bridge": [
+          "nose_bridge_pos",
+          "nose_bridge_neg"
+        ],
+        "nose_length": [
+          "nose_length_pos",
+          "nose_length_neg"
+        ],
+        "nose_tip": [
+          "nose_tip_pos",
+          "nose_tip_neg"
+        ],
+        "nose_tip_angle": [
+          "nose_tip_angle_pos",
+          "nose_tip_angle_neg"
+        ],
+        "nose_width": [
+          "nose_width_pos",
+          "nose_width_neg"
+        ],
+        "philtrum": [
+          "philtrum"
+        ]
+      },
+      "fine_tris": 6928.0,
+      "hair_morphs": {
+        "hair_long__hair_long__hair_main": 19,
+        "hair_short__hair_short__hair_main": 6
+      },
+      "head": {
+        "faces": 3948,
+        "keys": {
+          "eyes": 7,
+          "head": 72
+        },
+        "morphs": 72,
+        "topo_verts": 3890,
+        "tris": 7760,
+        "verts": 4102
+      },
+      "height": 1.78,
+      "key_resid": {
+        "bust": 0.0118,
+        "chest": 0.0006,
+        "fat_hi": 0.003,
+        "fat_lo": 0.0006,
+        "frame": 0.0006,
+        "hips": 0.0012,
+        "muscle_hi": 0.0014,
+        "muscle_lo": 0.0008,
+        "shoulders": 0.0008,
+        "waist": 0.0007
+      },
+      "key_stats": {
+        "bust": 0.0508,
+        "chest": 0.0129,
+        "fat_hi": 0.1067,
+        "fat_lo": 0.0169,
+        "frame": 0.0121,
+        "hips": 0.0247,
+        "muscle_hi": 0.0278,
+        "muscle_lo": 0.0121,
+        "shoulders": 0.0262,
+        "waist": 0.0167
+      },
+      "leg_length": 0.93,
+      "morph_bones": {
+        "chest": {
+          "upper_arm_l": [
+            0.006,
+            0.0,
+            0.0
+          ],
+          "upper_arm_r": [
+            -0.006,
+            0.0,
+            0.0
+          ]
+        },
+        "fat_hi": {
+          "thigh_l": [
+            0.02,
+            0.0,
+            0.0
+          ],
+          "thigh_r": [
+            -0.02,
+            0.0,
+            0.0
+          ],
+          "upper_arm_l": [
+            0.022,
+            0.0,
+            0.0
+          ],
+          "upper_arm_r": [
+            -0.022,
+            0.0,
+            0.0
+          ]
+        },
+        "fat_lo": {
+          "thigh_l": [
+            -0.006,
+            0.0,
+            0.0
+          ],
+          "thigh_r": [
+            0.006,
+            0.0,
+            0.0
+          ],
+          "upper_arm_l": [
+            -0.006,
+            0.0,
+            0.0
+          ],
+          "upper_arm_r": [
+            0.006,
+            0.0,
+            0.0
+          ]
+        },
+        "frame": {
+          "thigh_l": [
+            0.006,
+            0.0,
+            0.0
+          ],
+          "thigh_r": [
+            -0.006,
+            0.0,
+            0.0
+          ],
+          "upper_arm_l": [
+            0.008,
+            0.0,
+            0.0
+          ],
+          "upper_arm_r": [
+            -0.008,
+            0.0,
+            0.0
+          ]
+        },
+        "hips": {
+          "thigh_l": [
+            0.018,
+            0.0,
+            0.0
+          ],
+          "thigh_r": [
+            -0.018,
+            0.0,
+            0.0
+          ]
+        },
+        "muscle_hi": {
+          "upper_arm_l": [
+            0.012,
+            0.0,
+            0.0
+          ],
+          "upper_arm_r": [
+            -0.012,
+            0.0,
+            0.0
+          ]
+        },
+        "muscle_lo": {
+          "upper_arm_l": [
+            -0.005,
+            0.0,
+            0.0
+          ],
+          "upper_arm_r": [
+            0.005,
+            0.0,
+            0.0
+          ]
+        },
+        "shoulders": {
+          "upper_arm_l": [
+            0.025,
+            0.0,
+            0.0
+          ],
+          "upper_arm_r": [
+            -0.025,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "neck_cut_tris": 192,
+      "neck_lifted_verts": 323,
+      "seam_cap_verts": 11,
+      "seam_head_verts": 178,
+      "seam_loop_verts": 16
+    },
+    "morphs": 10,
+    "ok": true,
+    "parts": 13,
+    "source": "tools/blender/char.py + scripts/assets/head_builder.gd",
+    "tris": 16876,
+    "verts": 8860
+  },
+  "fridge": {
+    "aabb_max": [
+      0.340000003576279,
+      1.87000000476837,
+      0.356000006198883
+    ],
+    "aabb_min": [
+      -0.340000003576279,
+      0.0,
+      -0.349999994039536
+    ],
+    "bones": 0.0,
+    "glb_bytes": 43744.0,
+    "lsx_crc": "e01a5da5",
+    "meta": {},
+    "morphs": 0.0,
+    "ok": true,
+    "parts": 5.0,
+    "source": "tools/blender/furn.py",
+    "tris": 868.0,
+    "verts": 800.0
+  },
+  "sofa": {
+    "aabb_max": [
+      1.10000002384186,
+      0.824999988079071,
+      0.439999997615814
+    ],
+    "aabb_min": [
+      -1.10000002384186,
+      0.0,
+      -0.449999988079071
+    ],
+    "bones": 0.0,
+    "glb_bytes": 94356.0,
+    "lsx_crc": "c6abd3ee",
+    "meta": {},
+    "morphs": 0.0,
+    "ok": true,
+    "parts": 3.0,
+    "source": "tools/blender/furn.py",
+    "tris": 2896.0,
+    "verts": 1856.0
+  }
+}

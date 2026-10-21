@@ -1,0 +1,18 @@
+# Godot
+.godot/
+.import/
+export/
+*.translation
+export_credentials.cfg
+
+# Generated audio (render with: godot --headless -s res://tools/build_audio.gd)
+audio/**/*.wav
+
+# Temporary transfer parts and preview renders
+assets/src/*.part
+previews/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.tmp
