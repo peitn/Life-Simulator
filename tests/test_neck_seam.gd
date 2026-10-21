@@ -48,6 +48,7 @@ func _ready() -> void:
 	_test_cut_and_loop()
 	_test_coverage()
 	_test_skinning()
+	_test_normals_and_flips()
 	_test_neck_shape()
 	await _test_simvisual()
 	root.free()
@@ -55,6 +56,14 @@ func _ready() -> void:
 
 
 # ------------------------------------------------------------------ pomocné
+## Index blend shape podle názvu (ArrayMesh nemá find_blend_shape_by_name – to je metoda MeshInstance3D).
+static func _bs_index(m: ArrayMesh, nm: String) -> int:
+	for i in m.get_blend_shape_count():
+		if String(m.get_blend_shape_name(i)) == nm:
+			return i
+	return -1
+
+
 static func _arrays(m: ArrayMesh) -> Array:
 	return m.surface_get_arrays(0)
 
@@ -183,8 +192,13 @@ func _test_helpers() -> void:
 	check(sk.size() <= 4 and absf(tot - 1.0) < 1e-5 and int(sk[0][0]) == 3, "seam_skin: max. 4 kosti, součet 1, převládá krk (%s)" % str(sk))
 	var sk0: Array = HB.seam_skin({"w": PackedFloat32Array([0.0]), "a": PackedInt32Array([0]), "b": PackedInt32Array([0]), "f": PackedFloat32Array([0.0])}, 0, 4, 3, 0.25)
 	check(sk0.size() == 2 and absf(float(sk0[0][1]) - 0.75) < 1e-6, "seam_skin bez dat těla = vlastní váhy hlavy")
+	var bad := {"w": PackedFloat32Array([1.0]), "a": PackedInt32Array([0]), "b": PackedInt32Array([1]), "f": PackedFloat32Array([0.5]),
+		"bones": [PackedInt32Array([3, 2, 0, 0]), PackedInt32Array([3, 2, 0, 0])], "weights": [PackedFloat32Array([0, 0, 0, 0]), PackedFloat32Array([0, 0, 0, 0])]}
+	var skb: Array = HB.seam_skin(bad, 0, 4, 3, 0.5)
+	check(skb.size() == 1 and int(skb[0][0]) == 3 and is_equal_approx(float(skb[0][1]), 1.0), "seam_skin s nulovými vahami těla: vrchol dostane krk (ne prázdné váhy)")
 	check(is_equal_approx(HB.seam_weight(1.50, 1.50), 1.0) and is_equal_approx(HB.seam_weight(1.40, 1.50), 1.0)
-		and HB.seam_weight(1.50 + HB.SEAM_BAND, 1.50) == 0.0, "seam_weight: 1 na smyčce a pod ní, 0 od SEAM_BAND nad ní")
+		and is_equal_approx(HB.seam_weight(1.50 + HB.SEAM_HOLD, 1.50), 1.0)
+		and HB.seam_weight(1.50 + HB.SEAM_BAND, 1.50) == 0.0, "seam_weight: 1 pod smyčkou a do SEAM_HOLD nad ní, 0 od SEAM_BAND nad ní")
 
 
 func _test_standalone_head() -> void:
@@ -220,7 +234,7 @@ func _test_manifest() -> void:
 	check(bk.has("fat_hi") and bk.has("muscle_hi") and bk.has("frame"), "hlava nese klíče těla %s" % str(bk))
 	var missing: Array = []
 	for k in bk:
-		if head_mesh.find_blend_shape_by_name(StringName(k)) < 0:
+		if _bs_index(head_mesh, String(k)) < 0:
 			missing.append(k)
 	check(missing.is_empty(), "klíče těla jsou blend shapes sítě hlavy", str(missing))
 
@@ -249,11 +263,36 @@ func _test_cut_and_loop() -> void:
 		if cnt[e] == 1 and v[e.x].y > 1.45 and Vector2(v[e.x].x, v[e.x].z).length() < 0.08:
 			deg[e.x] = int(deg.get(e.x, 0)) + 1
 			deg[e.y] = int(deg.get(e.y, 0)) + 1
-	var closed := true
+	# Okraj kůže těla má i jiné hrany (výstřih trička – hranice materiálu kůže/tričko ~1,46–1,49 m):
+	# smyčka švu = komponenta okraje obsahující NEJVYŠŠÍ vrchol.
+	var adj := {}
+	for e in cnt:
+		if cnt[e] == 1 and deg.has(e.x) and deg.has(e.y):
+			if not adj.has(e.x):
+				adj[e.x] = []
+			if not adj.has(e.y):
+				adj[e.y] = []
+			adj[e.x].append(e.y)
+			adj[e.y].append(e.x)
+	var top := -1
 	for i in deg:
+		if top < 0 or v[i].y > v[top].y:
+			top = i
+	var comp := {}
+	var stack: Array = [top] if top >= 0 else []
+	while not stack.is_empty():
+		var cur: int = stack.pop_back()
+		if comp.has(cur):
+			continue
+		comp[cur] = true
+		for nb in adj.get(cur, []):
+			if not comp.has(nb):
+				stack.append(nb)
+	var closed := not comp.is_empty()
+	for i in comp:
 		if deg[i] != 2:
 			closed = false
-	loop_idx = deg.keys()
+	loop_idx = comp.keys()
 	var cen := Vector2.ZERO
 	for i in loop_idx:
 		cen += Vector2(v[i].x, v[i].z)
@@ -359,12 +398,82 @@ static func _skin(arr: Array, rot: Quaternion, j: Vector3, neck: int, head: int)
 	return out
 
 
+## Review ChatGPT #104: po přilnutí ověřit normály a zvrácené trojúhelníky – v základu, při morfech těla
+## i obličeje a při ohnutí krku. Uložené normály pásu = normály těla na smyčce (stínování se na švu neláme).
+func _test_normals_and_flips() -> void:
+	section("Normály a zvrácené trojúhelníky v pásu švu")
+	var ah := _arrays(head_mesh)
+	var ph0: PackedVector3Array = ah[Mesh.ARRAY_VERTEX]
+	var nh: PackedVector3Array = ah[Mesh.ARRAY_NORMAL]
+	var ab := _arrays(body_mesh)
+	var pb0: PackedVector3Array = ab[Mesh.ARRAY_VERTEX]
+	var nb: PackedVector3Array = ab[Mesh.ARRAY_NORMAL]
+	var tris := _neck_tris(ph0)
+	# 1) Uložené normály: ven z osy krku a u smyčky shodné s normálou těla.
+	var loop := _loop_points(pb0)
+	var cen := _centroid(loop)
+	var inward := 0
+	var worst_dev := 0.0
+	var near := 0
+	for i in ph0.size():
+		var q := ph0[i]
+		if q.y > 1.56 or q.y < 1.44:
+			continue
+		var rad := Vector3(q.x - cen.x, 0.0, q.z - cen.y)
+		if rad.length() < 0.03:
+			continue  # víčko uvnitř trupu
+		if nh[i].dot(rad.normalized()) < 0.2:
+			inward += 1
+		# nejbližší vrchol smyčky do 4 mm → porovnat normály
+		var best := 1e9
+		var bn := Vector3.ZERO
+		for li in loop_idx:
+			var dd := pb0[li].distance_to(q)
+			if dd < best:
+				best = dd
+				bn = nb[li]
+		if best < 0.004:
+			near += 1
+			worst_dev = maxf(worst_dev, rad_to_deg(acos(clampf(nh[i].normalized().dot(bn.normalized()), -1.0, 1.0))))
+	check(inward == 0, "normály pásu míří ven z krku (%d špatně)" % inward)
+	check(near >= 8 and worst_dev < 20.0, "normály hlavy u smyčky = normály těla (%d vrcholů, nejhůř %.1f°)" % [near, worst_dev])
+	# 2) Zvrácené trojúhelníky krku hlavy proti základu.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 104
+	var worst := 0
+	var neck := skel.find_bone("neck")
+	var head := skel.find_bone("head")
+	var j: Vector3 = skel.get_bone_global_rest(neck).origin
+	var rots := [Quaternion(), Quaternion(Vector3.RIGHT, deg_to_rad(25.0)), Quaternion(Vector3.FORWARD, deg_to_rad(-20.0)), Quaternion(Vector3.UP, deg_to_rad(-35.0))]
+	for s in 16:
+		var bw := _rand_body(rng)
+		var fw := {"b_fat": bw["fat_hi"], "b_muscle": bw["muscle_hi"], "neck_width": rng.randf_range(-1.0, 1.0),
+			"jaw_width": rng.randf_range(-1.0, 1.0), "chin_length": rng.randf_range(-1.0, 1.0), "jaw_angle": rng.randf_range(-1.0, 1.0)}
+		var dph := _deform(head_mesh, fw.merged(bw))
+		var arr := ah.duplicate()
+		arr[Mesh.ARRAY_VERTEX] = dph
+		var phs := _skin(arr, rots[s % rots.size()], j, neck, head)
+		worst = maxi(worst, _flips(ph0, phs, tris))
+	check(worst == 0, "16 kombinací morfů těla/obličeje × ohnutí krku: žádný zvrácený trojúhelník krku (nejhůř %d z %d)" % [worst, tris.size() / 3])
+
+
+static func _flips(a: PackedVector3Array, b: PackedVector3Array, tris: PackedInt32Array) -> int:
+	var n := 0
+	for t in range(0, tris.size(), 3):
+		var na := (a[tris[t + 1]] - a[tris[t]]).cross(a[tris[t + 2]] - a[tris[t]])
+		var nb := (b[tris[t + 1]] - b[tris[t]]).cross(b[tris[t + 2]] - b[tris[t]])
+		if na.length() > 1e-12 and nb.length() > 1e-12 and na.dot(nb) < 0.0:
+			n += 1
+	return n
+
+
 func _test_neck_shape() -> void:
 	section("Tvar krku")
 	var ph: PackedVector3Array = _arrays(head_mesh)[Mesh.ARRAY_VERTEX]
 	var half := 0.0
+	# Poloviční šířka krku pod čelistí (osa krku leží za osou hlavy, proto bez omezení z).
 	for q in ph:
-		if absf(q.y - 1.535) < 0.004 and absf(q.z) < 0.02:
+		if q.y > 1.53 and q.y < 1.548:
 			half = maxf(half, absf(q.x))
 	check(half > 0.050 and half < 0.062, "šířka krku pod čelistí %.1f cm (dospělý ~10–12 cm)" % (half * 200.0))
 	# S maximem tuku a svalů nesmí krk pod čelistí přerůst okraj těla o víc než 15 % („balón“).
@@ -380,6 +489,25 @@ func _test_neck_shape() -> void:
 		if q.y > 1.53 and q.y < 1.55 and absf(q.z) < 0.02:
 			top = maxf(top, absf(q.x))
 	check(top < lr * 1.15, "tuk + svaly: krk pod čelistí %.1f cm vs. báze krku %.1f cm (bez balónu)" % [top * 200.0, lr * 200.0])
+	# Bez „límce“ (běh 12, render svalnaté postavy): přírůstek poloměru krku od morfů těla se s výškou mění
+	# plynule – žádný skok mezi spodkem krku (přilnutým k okraji těla) a horním krkem. Bočně a vzadu (vpředu
+	# paprsek nad hrdlem přeskočí na spodek brady, tam je kout přirozený).
+	var idx: PackedInt32Array = _arrays(head_mesh)[Mesh.ARRAY_INDEX]
+	var p0: PackedVector3Array = _arrays(head_mesh)[Mesh.ARRAY_VERTEX]
+	var worst := 0.0
+	for bw2 in [{"fat_hi": 1.0, "frame": 0.6}, {"muscle_hi": 1.0, "shoulders": 1.0, "frame": -0.7}]:
+		var fw2 := {"b_fat": float(bw2.get("fat_hi", 0.0)), "b_muscle": float(bw2.get("muscle_hi", 0.0))}
+		var pd := _deform(head_mesh, fw2.merged(bw2))
+		for ang in range(60, 301, 30):
+			var dir := Vector3(sin(deg_to_rad(ang)), 0.0, cos(deg_to_rad(ang)))
+			var prev := INF
+			for yi in 12:
+				var start := Vector3(0.0, 1.525 + yi * 0.005, -0.0005)
+				var d := _ray_far(start, dir, pd, idx) - _ray_far(start, dir, p0, idx)
+				if prev != INF:
+					worst = maxf(worst, absf(d - prev))
+				prev = d
+	check(worst < 0.0025, "morfy těla rozšíří krk plynule, bez límce (největší skok %.1f mm na 5 mm výšky)" % (worst * 1000.0))
 
 
 func _test_simvisual() -> void:
@@ -398,7 +526,7 @@ func _test_simvisual() -> void:
 	for mi in AssetLibrary.parts_in_group(v._model, "head"):
 		var m: ArrayMesh = mi.mesh
 		for k in bw:
-			var i := m.find_blend_shape_by_name(StringName(k))
+			var i: int = _bs_index(m, String(k))
 			if i < 0:
 				continue
 			seen += 1

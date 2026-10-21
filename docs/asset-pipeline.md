@@ -60,13 +60,31 @@ closed.
    game's blend-shape weights and normals and produces contact sheets. Helpers `tools/neck_sheet.gd` and
    `tools/face_sheet.gd` build specific sheets.
 2. **Blender render** of the real GLB:
-   - Split the GLB as base64 into parts in the project.
-   - Fetch the parts in Blender through the Godot server's MCP endpoint.
-   - Import the GLB and set the shape keys from `AppearanceResolver` weights (face keys, plus body keys
-     with and without the `b_` prefix).
-   - Render with Cycles: orthographic camera, about 40 samples, several faces (default, random, extremes,
-     asymmetry) × 5 views (front, 35°, profile, back, low angle).
-   - The renders are uploaded to an image repository and inspected.
+   - Split the GLB as base64 into parts of 150,000 characters in `res://previews/glb_parts/` (`previews/` is not
+     exported or mirrored to this repository).
+   - In Blender, fetch the parts from the Godot server's public plain-text document endpoint
+     (`/doc/file:lifesim/<path>`), join them and check the MD5 against the value printed in Godot.
+   - Import the GLB and set the shape keys from `AppearanceResolver` weights (face weights, plus body weights,
+     which apply to the body and to the head's neck band under the same names).
+   - Render with Cycles: orthographic camera, 32–40 samples, several characters (default, random, extremes,
+     asymmetry, heavy and muscular builds) × 5 views (front, 35°, profile, back, low angle), as one contact sheet.
+   - Send the sheet back as base64 parts (≤ 140,000 characters each, because file reads are truncated at about
+     200,000) with the Godot server's `godot_file_write` tool, decode it, check the MD5 and inspect it.
+   - No access tokens are used for this; nothing is uploaded to third-party repositories.
+
+## Head–body seam (C3+)
+
+The body's neck is cut above a 16-vertex loop at import (`CharacterAssembly.cut_body_neck`). The procedural head
+(`HeadBuilder`) is then built against that loop:
+- vertices of the head's neck band move onto a Catmull-Rom curve through the loop vertices (plus 0.4 mm), fully up to
+  2 cm above the edge and fading out over 6.5 cm; the curve is a linear combination of loop vertices, so body morphs
+  stay exact;
+- the head carries blend shapes named after the body keys (`fat_hi`, `muscle_hi`, `frame`…): the loop's displacement,
+  weighted along the whole neck tube (8 cm, not the jaw), so a heavy or muscular build widens the whole neck;
+- bone weights in the band are blended with the loop's weights, normals are matched to the body within 12 mm of the
+  edge, and quads in the band are split along the more convex diagonal (the neck sleeve is a diagonal grid, and the
+  other diagonal could sag below the edge).
+`tests/test_neck_seam.gd` checks the result on the real GLB; renders are in `docs/images/c3-neck-seam-run12-*.jpg`.
 
 ## Planned
 

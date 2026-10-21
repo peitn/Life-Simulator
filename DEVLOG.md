@@ -579,3 +579,61 @@ Předchozí přerušený pokus o C4 zanechal `skin_model.gd` a `skin_layers.gd` 
 - Arch: https://huggingface.co/peiti/blender-renders-files/resolve/main/c3_blender_sheet_1792568558.jpg (PNG ve stejném repu).
 - Nálezy: (1) KRK příliš dlouhý a úzký, splývá s čelistí – v profilu chybí úhel pod bradou; (2) viditelný zubatý šev na přechodu krk–tělo (přední i zadní strana); (3) vlasy = tvrdá skořepina „helma“, dlouhé vlasy hranaté desky → C4b; (4) bez obočí a s malýma hluboko posazenýma očima působí obličej prázdně (obočí je jen v shaderu); (5) extrém max: velký široký nos a tmavý pás nad horním rtem – prověřit philtrum/lip_upper; (6) náhodná 1 ve 3/4 pohledu: světlá skvrna pod nosem – možný průnik/artefakt; (7) extrémy min/asym věrohodné, bez průniků víček a rtů.
 - C3 tedy NEuzavřeno: krk a šev krk–tělo opravit před C4b (nebo jako jeho první část).
+
+## 2026-10-21 (běh 12, ~13:55–15:50 UTC) – C3+ krk a šev hlava–tělo (dokončení přerušeného běhu 11)
+**Oblast:** (0) TVORBA POSTAVY – C3+ část A (krk a šev). Běh 11 spadl v 08:24 na limit (checkpoint dopsán zpětně);
+tento běh na něj navázal podle CHECKPOINT.md. Plán poslán do místnosti (zpráva 107).
+
+### Průběžné checkpointy
+- ~14:05 checkpoint: test_head 43/43 (přeložené plochy pod okem opraveny – tečné vyhlazení jen u úst).
+- ~14:15 checkpoint: test_neck_seam 30/30 (šev na křivce přes smyčku, plné přilnutí ploch přes okraj, konvexní úhlopříčky).
+- ~14:45 checkpoint: regrese vzhledu OK (test_skin 60, assets 150, body 62, character 157, v2 39, net 28).
+- ~15:25 checkpoint: Blender rendery prohlédnuté, šev čistý; opraven „límec“ (normály + morfy těla na celé trubici krku), test_neck_seam 31/31.
+
+### Co přibylo / změnilo se
+- `head_builder.gd` – šev: cíl na Catmull-Rom křivce přes vrcholy smyčky těla (`cr_weights`, lineární → morfy těla
+  přesné), `SEAM_HOLD` 2 cm plného přilnutí nad okrajem, přechod do `SEAM_BAND` 6,5 cm, konvexní volba úhlopříčky
+  čtyřúhelníků v pásu (`_seam_alt_diagonal`), normály k tělu jen do 12 mm nad okrajem (`SEAM_NRM_BAND`), morfy těla na
+  celé trubici krku (`body_weight`, `SEAM_BODY_BAND` 8 cm), pojistky z auditu (prázdné váhy kostí, nulová normála).
+  Vyhlazení okolí: tečné + návrat na povrch jen u úst (`Topo.relax_mouth`), u očí plné + `push_out`. Mezitvar pro obě
+  strany, když ho potřebuje jedna.
+- `skin_layers.gd` – body krku přeměřené na novém krku (1,525 m).
+- `tests/test_neck_seam.gd` (32 kontrol): pomocné funkce, samostatná hlava, manifest, řez a smyčka, krytí okraje
+  (základ, 12 náhodných těl, ohnutí krku), váhy kostí, normály + zvrácené trojúhelníky (16 kombinací × ohnutí),
+  tvar krku, „bez límce“, SimVisual. `tests/test_skin.gd` upraven (krk z obou sítí, počet blend shapes z manifestu).
+- Vizuální kontrola v Blenderu bez HF tokenu: GLB do Blenderu přes `https://peiti-godot-mcp.hf.space/doc/file:lifesim/…`
+  (veřejný endpoint vlastního Godot serveru), arch zpět přes MCP `godot_file_write` do `res://previews/*.b64` (díly
+  ≤ 140 000 znaků, protože `godot_file_read` ořezává na ~200 000), u mě dekódováno a ověřeno MD5. Skript renderu je
+  v Blenderu v `/tmp/render_lib.py` (dočasný; postup popsán v docs/asset-pipeline.md).
+- `docs/images/c3-neck-seam-run12-a.jpg`, `-b.jpg` – archy po opravě (8 postav × 5 pohledů).
+
+### Ověření
+- Všechny testy OK (viz AUDIT.md): test_neck_seam 32/32, test_head 43/43, test_skin 60/60 a celá regrese; `--test 7` OK.
+- Render prohlédnutý okem: šev čistý ve všech pohledech, „límec“ z renderu opraven a znovu vyrenderován.
+- Gemini (flash-lite): 2 pojistky zapracované, 2 nálezy zdůvodněně odmítnuté.
+
+### Známé problémy
+- Vlasy = helma/desky, bez obočí (C4b). Rty ploché, oči malé (C3+ část B). Hlava u svalnatého těla působí malá.
+- Výkon posuvníku 3,6–6,3 ms podle zatížení (limit 4 ms) – v editoru C6 aplikovat jen změněnou skupinu.
+- Import postavy ~45 s (výpočet tvarů hlavy) – jen offline.
+- Domácnost dál ve „studené válce“ (vztahy −45…−58 po týdnu).
+
+### GitHub
+- Commit `c22cc35` („C3+: fit the head neck to the body seam…“) připravený v klonu, **push selhal**: repo peitn/Life-Simulator
+  není v autorizovaných zdrojích této session (nástroj add_repo nebyl k dispozici, git proxy nevložila přihlášení).
+  Klonování a fetch fungovaly. Příští běh sync zopakuje (Godot projekt je kompletní).
+- Export ZIP z Godotu vynechává skryté soubory (`.gitignore`, `.gitattributes` – `DirAccess.get_files_at` bez skrytých);
+  v klonu jsem je obnovila z HEAD. Příště v exportu použít `DirAccess.open(...).include_hidden = true`.
+
+### room_last_id: 109
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 (rev. 9 – jen výřez posledního běhu)
+- ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f (rev. 6 – v tomto běhu neaktualizováno, změna C3+ A ✅ / C3+ B popsána ve zprávě 109)
+- (kód k review, jednorázově: head_builder_seam_run12.gd 483fe80f445f46c6b46eff5de212077f)
+- Projektová paměť místnosti: stav cdf19b25a96e48f4924a7c5fd49a2617 (rev. 7), rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced,
+  otevřené body 6c717c0ead454018979d105fa5dc58ab (rev. 9), plán psychiky 4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C4b: vlasy, vousy a obočí jako karty (hair cards; shell jen jako LOD), podle review Groka 103 a ChatGPT 104/106.
+- Potom C3+ část B (rty s objemem, oči) v kontextu hotové hlavy a první osa psychiky (společný rámec dimenzí).

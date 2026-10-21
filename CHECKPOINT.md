@@ -1,39 +1,32 @@
 # CHECKPOINT
 
-**Stav: běh NEDOKONČEN – spadl na limit využití (USAGE_LIMIT_REACHED) 21. 10. 2026 v 08:24 UTC.**
-(Checkpoint dopsán zpětně z časů změn souborů, protože běh ho nestihl zapsat.)
+**Stav: běh dokončen (běh 12, 21. 10. 2026, ~13:55–15:10 UTC).**
 
-## Cíl přerušeného běhu (ruční spuštění 07:56 UTC)
-Pořádně uzavřít C3 (obličej) s vizuální kontrolou v Blenderu. Nálezy:
-1. krk moc dlouhý a úzký, splývá s čelistí, v profilu chybí úhel pod bradou;
-2. zubatý šev krk–tělo (zepředu i zezadu);
-3. extrém max: obří nos a tmavý pás nad horním rtem;
-4. náhodná postava 1 ve 3/4 pohledu: světlá skvrna pod nosem;
-5. bez obočí působí obličej prázdně (obočí jen v shaderu).
-Viz DEVLOG, sekce „C3 – vizuální kontrola v Blenderu“, a zprávy v místnosti #100, #103 (Grok) a #104 (ChatGPT).
+## Shrnutí
+- C3+ část A (krk a šev hlava–tělo) uzavřena: implementováno, automaticky testováno (test_neck_seam 32/32),
+  vizuálně ověřeno renderem v Blenderu (8 postav × 5 pohledů, prohlédnuto okem), integrováno v GLB.
+- Opraveno navíc: 6 přeložených ploch pod okem (test_head 43/43), jednostranný mezitvar nos_tip_angle, body krku
+  v SkinLayers, „límec“ na krku u svalnaté/tlusté postavy (nález z renderu).
+- Celá regrese 15 sad OK, godot_check 60/60, --test 7 OK. Gemini: 2 pojistky přijaté, 2 nálezy zdůvodněně odmítnuté.
+- Místnost: plán (107), kód (108), shrnutí (109), AUDIT.md rev. 9, paměť (stav rev. 7, otevřené body rev. 9).
+- GitHub: commit c22cc35 připraven, **push selhal** (repo není v autorizovaných zdrojích session) – příští běh sync zopakuje.
 
-## Co běh stihl (podle časů změn, UTC)
-- 07:59–08:13 rendery krku a švu (res://previews/neck_before.b64, neck_after1–3.b64, seam_close*.b64, face_close*.b64).
-- head_builder.gd upraven 6× (poslední 08:19), character_assembly.gd 08:09, character.glb přeimportován 08:19.
-- Rozepsaný nový test res://tests/test_neck_seam.gd a úprava test_head (08:20).
-- Do DEVLOG, AUDIT, místnosti ani paměti se nic nezapsalo.
-
-## Stav testů (ověřeno 21. 10. 11:40 UTC)
-- godot_check: 59/60 – **res://tests/test_neck_seam.gd má parse error na ř. 401** (nelze odvodit typ proměnné `i`).
-- test_head: **42/43 – SELHÁVÁ „žádné přeložené plochy (nejhůř 6 z 3948)“** – nejspíš důsledek nedokončené úpravy krku.
-- test_assets: 150/150 OK.
-- Ostatní testy po změnách nespuštěné.
-
-## Přesný další krok
-1. Prohlédnout poslední úpravy head_builder.gd a character_assembly.gd (krk a šev) a dokončit je.
-2. Opravit parse error v test_neck_seam.gd a test dopsat. Má pokrýt šev i při rotaci hlavy a kombinacích body morphů a kontrolovat normály a zvrácené trojúhelníky (ChatGPT #104).
-3. Odstranit 6 přeložených ploch, aby test_head prošel celý.
-4. Přeimportovat GLB, vyrenderovat v Blenderu (postup v DEVLOG) i s několika náhodnými kombinacemi morfů a render si prohlédnout. Pak opravit body 3–4 (nos, skvrna).
-5. Spustit regresi všech testů, udělat Gemini audit a zapsat DEVLOG, AUDIT, místnost a paměť.
-6. Pořadí podle review: krk a šev teď, pak C4b (vlasy, vousy, obočí jako karty). Rty a oči doladit až v kontextu hotové hlavy.
+## Další krok (příští běh)
+1. GitHub sync (pokud je k dispozici add_repo / přístup), v exportu ZIP zahrnout skryté soubory (.gitignore, .gitattributes).
+2. C4b: vlasy, vousy a obočí jako hair cards (shell jen jako LOD) – s renderem v Blenderu (postup v docs/asset-pipeline.md;
+   knihovna renderu je jen dočasně v Blenderu /tmp/render_lib.py, při restartu Space ji napsat znovu).
 
 ## Poslední render
-https://huggingface.co/peiti/blender-renders-files/resolve/main/c3_blender_sheet_1792568558.jpg (stav PŘED opravou krku)
+docs/images/c3-neck-seam-run12-a.jpg (výchozí, 2 náhodné, extrém max) a -b.jpg (min, asymetrie, tuk, svaly) – v projektu;
+zdroj v res://previews/blender_c3p_e_*.b64 a blender_c3p_d_*.b64.
+
+## Stav testů
+test_neck_seam 32, test_head 43, test_skin 60, test_assets 150, test_body_morphs 62, test_character 157, test_character_v2 39,
+test_character_net 28, test_multiplayer 67, test_depression 92, test_mental_health 95, test_reconciliation 58,
+test_player_commands 40, test_psyche_presentation 19, test_net_protocol 34 – vše OK.
 
 ## Změněné soubory
-scripts/assets/head_builder.gd, scripts/assets/character_assembly.gd, assets/models/character.glb, tests/test_neck_seam.gd (nový, nedokončený), tests/test_head.gd, previews/*
+scripts/assets/head_builder.gd, scripts/character/skin_layers.gd, tests/test_neck_seam.gd, tests/test_skin.gd,
+assets/models/character.glb + manifest.json, docs/images/c3-neck-seam-run12-a.jpg, -b.jpg, AUDIT.md, DEVLOG.md, ROADMAP.md,
+README.md, docs/asset-pipeline.md, docs/character-creator.md, docs/roadmap.md, docs/testing.md, CHECKPOINT.md
+(+ dev nástroj previews/devtools/patch.gd mimo repozitář)

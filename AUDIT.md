@@ -7,6 +7,66 @@ Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --
 
 ---
 
+## 2026-10-21 (běh 12, ~13:55–15:50 UTC) – C3+ krk a šev hlava–tělo (dokončení přerušeného běhu 11)
+
+**Rozsah:** `scripts/assets/head_builder.gd` (šev, vyhlazení u očí/úst, mezitvary), `scripts/character/skin_layers.gd`
+(body krku), testy `tests/test_neck_seam.gd` (nový, 32), `tests/test_skin.gd`, `character.glb` přeimportováno.
+
+**a) Self-review** (každý změněný soubor znovu přečten):
+- Přerušený běh nechal `test_neck_seam.gd` s parse errorem: `ArrayMesh` nemá `find_blend_shape_by_name` (to je metoda
+  `MeshInstance3D`) → vlastní `_bs_index()`. Stejná chyba by v `_test_manifest` spadla až za běhu.
+- `test_head` 6 přeložených ploch pod okem: běh 11 změnil vyhlazení okolí očí i úst na tečné s návratem na povrch
+  (kvůli tmavému pásu nad rtem). U očí to rozbilo návaznost řady mřížky na vnější prstenec víček (ten jede s okem
+  0,85 × posun středu). Oprava: tečné vyhlazení + návrat na povrch jen u úst (`Topo.relax_mouth`), u očí plné
+  vyhlazení + `push_out`. Ověřeno přes 4 seedy × 48 kombinací: 0 přeložených ploch, vůle oka 0,71 mm.
+- Šev: detekce smyčky v testu brala i výstřih trička (hranice materiálu je taky okraj sítě) → komponenta okraje
+  s nejvyšším vrcholem. Hlava ve výšce okraje zapadala až 2 mm pod okraj těla. Diagnostika paprsky ukázala tětivu
+  přes 32° mezi vrcholy rukávu (šikmá mřížka spodní stěny krychle) – úhlopříčka čtyřúhelníku vedla vodorovně ve výšce
+  okraje. Oprava: `_seam_alt_diagonal()` (konvexnější úhlopříčka v pásu), cíl švu na Catmull-Rom křivce přes vrcholy
+  smyčky (lineární kombinace → morfy těla přesné). Zkoušené a vrácené: plné přilnutí ploch přes okraj (bez účinku),
+  kompenzace prověšení (zbytečná po úhlopříčkách).
+- Mezitvar `nose_tip_angle` existoval jen pro zápornou stranu (změna vyhlazení u úst shodila kladnou pod práh) →
+  když mezitvar potřebuje jedna strana, dostanou ho obě.
+- `test_skin`: body krku (jizvy/tetování) byly na starém krku (14–25 mm od povrchu) → přeměřeny ve výšce 1,525 m na
+  novém krku; test krku teď počítá se sítí hlavy i těla; počet blend shapes hlavy se kontroluje proti manifestu.
+
+**b) Testy:** `godot_check` 60/60; test_neck_seam **32/32**, test_head 43/43, test_skin 60/60, test_assets 150/150,
+test_body_morphs 62/62, test_character 157/157, test_character_v2 39/39, test_character_net 28/28, test_multiplayer 67/67,
+test_depression 92/92, test_mental_health 95/95, test_reconciliation 58/58, test_player_commands 40/40,
+test_psyche_presentation 19/19, test_net_protocol 34/34; `--test 7` OK (26,1 ms/herní hodinu).
+- Šev: odstup hlava–okraj těla −0,13…+1,38 mm v základu, −0,20…+1,72 mm u 12 náhodných těl a krků, −0,16…+1,42 mm
+  při předklonu 25°, úklonu 20° a otočení 35° (CPU skinning); 0 zvrácených trojúhelníků u 16 kombinací morfů ×
+  ohnutí; normály u smyčky = tělo (≤ 3,8°); „bez límce“ (skok přírůstku poloměru ≤ 2,2 mm na 5 mm výšky).
+- Výkon posuvníku v test_character kolísá 3,6–6,3 ms podle zatížení serveru (při souběžných během testů);
+  samostatně 3,56 ms (limit 4 ms) – otevřený bod pro C6 (aplikovat jen změněnou skupinu).
+
+**Vizuální kontrola (Blender Cycles, prohlédnuto okem):** 8 postav × 5 pohledů (výchozí, 2 náhodné, extrém max,
+extrém min, asymetrie, kombinace tuk, kombinace svaly + ramena). GLB přeneseno do Blenderu přes `/doc/` endpoint Godot
+serveru (MD5 ověřeno), arch zpět přes `godot_file_write` (bez tokenů a cizích přístupů). Archy: `docs/images/c3-neck-seam-run12-a.jpg`,
+`-b.jpg`.
+- Šev u výstřihu čistý zepředu, z boku, zezadu i zespodu (dřív zubatá čára).
+- Nový nález z renderu: svalnatá/tlustá postava měla na krku světlý „límec“ → normály pásu se k normálám okraje těla
+  stáčí jen do 12 mm nad smyčkou (dřív celý pás 2 cm se sklonem trapézu) a morfy těla působí na celou trubici krku
+  (`body_weight`, 8 cm, ne na spodek čelisti). Po opravě znovu vyrenderováno – límec pryč, zůstává přirozený kout pod bradou.
+- Nos/philtrum u extrému max: tmavý pás nad rtem už není (oprava vyhlazení u úst z běhu 11 zachována). Světlá ploška
+  pod nosem u náhodné 1 je odlesk hřebene filtra, ne průnik (test rtů a ploch bez nálezu).
+- Zbývá (mimo tento krok): vlasy jako helma/desky (C4b), bez obočí působí obličej prázdně (C4b), rty ploché a oči
+  malé (C3+ část B po C4b), hlava působí u svalnatého těla malá (zvážit vazbu head_size v generátoru), bílé odlesky
+  u ucha v pohledu zespodu (rim světlo, ne geometrie).
+
+**c) Gemini (3.5-flash přetížený → flash-lite):** 4 nálezy.
+1. „lerp v `_apply_seam` není lineární vůči morfům“ – **neoprávněné**: w a cíl jsou pevné ze základu, takže výsledek
+   je lineární v poloze; morfy těla jsou samostatné blend shapes (výchylka smyčky × váha). Pokryto testem 12 náhodných těl.
+2. „fallback `loop_hit` [0,…] hodí vrchol do počátku“ – **neoprávněné**: `_seam_setup` při s ≤ 0 vrací {} a import
+   selže nahlas (attach_head → {}); tolerance f ±1e-6 kryje paprsek přes vrchol.
+3. „normalizace vah po ořezu na 4“ – **částečně oprávněné**: normalizace tam je, ale při nulových vahách těla by
+   vrchol zůstal bez kosti → pojistka `[[neck, 1]]` + test.
+4. „nulová normála v `_seam_normals`“ – **oprávněné jako pojistka**: kontrola nulové délky přidána (GLB se nezměnil).
+
+**ChatGPT #104/#106:** šev testován v pohybu a při kombinacích morfů těla, normály a zvrácené trojúhelníky, render
+z více úhlů vč. náhodných kombinací – splněno. Stavy podle #106: implementováno ✅ / automaticky testováno ✅ /
+vizuálně ověřeno ✅ (Blender, okem) / integrováno ✅ (GLB ve hře, SimVisual) – C3+ část A uzavřena.
+
 ## 2026-10-21 (běh 10b, ~07:25–08:10 UTC, ruční spuštění) – vizuální kontrola obličeje C3 a opravy podle ní
 
 ### Jak se kontrolovalo

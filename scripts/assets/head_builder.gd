@@ -52,7 +52,15 @@ const NECK_CAP_Y := 1.49
 ## polohy v ZÁKLADU a výšky smyčky v daném směru – vzadu je okraj těla výš než vpředu) posunou na radiální
 ## profil smyčky okraje krku těla + SEAM_EPS; pod smyčkou je přilnutí úplné. Víčko krku se zanoří do trupu
 ## (CAP_Y, CAP_SHRINK). Smyčku, normály, váhy kostí a výchylky morfů těla dodá CharacterAssembly.cut_body_neck().
-const SEAM_BAND := 0.036
+const SEAM_BAND := 0.065
+## Plné přilnutí ještě SEAM_HOLD nad smyčkou, pak plynulý přechod do vlastního tvaru krku do SEAM_BAND.
+## (Běh 12: zkoušené plné přilnutí všech ploch přes výšku okraje dělalo nepravidelnou horní hranu pásu – při
+## velkém tuku z toho byl na krku viditelný prstenec – a na krytí okraje nemělo vliv; to vyřešila volba úhlopříček.)
+const SEAM_HOLD := 0.02
+## Dosah morfů těla na krku hlavy (body_weight).
+const SEAM_BODY_BAND := 0.08
+## Pás, ve kterém se normály krku hlavy plynule stáčejí k normálám okraje těla.
+const SEAM_NRM_BAND := 0.012
 const SEAM_Y_TOP := 1.60
 const SEAM_EPS := 0.0004
 const CAP_Y := 1.476
@@ -724,6 +732,7 @@ class Topo:
 	var blocks := {}
 	var relax_idx := PackedInt32Array()
 	var relax_nb: Array = []         # Array[PackedInt32Array]
+	var relax_mouth := PackedByteArray()  # 1 = vrchol mřížky u úst (tečné vyhlazení + návrat na povrch)
 
 	func v(rec: Array) -> int:
 		var key := ",".join(PackedStringArray(rec.map(func(x): return str(x))))
@@ -894,18 +903,31 @@ static func _relax_setup(t: Topo) -> void:
 			nb[a][b] = true
 			nb[b][a] = true
 	var sel: Array = []
+	var mouth := {}
 	for i in t.recipes.size():
 		var rec: Array = t.recipes[i]
 		if rec[0] == "er" and int(rec[2]) == 1:
 			sel.append(i)
 		elif rec[0] == "g" and int(rec[3]) == NZ:
+			var in_eye := false
+			var in_mouth := false
 			for k in t.blocks:
 				var b: Array = t.blocks[k]
 				if int(rec[1]) >= b[0] - 1 and int(rec[1]) <= b[0] + b[2] + 1 and int(rec[2]) >= b[1] - 1 and int(rec[2]) <= b[1] + b[3] + 1:
-					sel.append(i)
-					break
+					if String(k) == "mouth":
+						in_mouth = true
+					else:
+						in_eye = true
+			if in_eye or in_mouth:
+				sel.append(i)
+				if in_mouth and not in_eye:
+					mouth[i] = true
 	sel.sort()
 	t.relax_idx = PackedInt32Array(sel)
+	t.relax_mouth = PackedByteArray()
+	t.relax_mouth.resize(sel.size())
+	for r in sel.size():
+		t.relax_mouth[r] = 1 if mouth.has(sel[r]) else 0
 	t.relax_nb = []
 	for i in sel:
 		var l: Array = (nb[i] as Dictionary).keys()
@@ -988,9 +1010,13 @@ static func positions(t: Topo, params: Dictionary) -> PackedVector3Array:
 	var newp := PackedVector3Array()
 	newp.resize(n_rel)
 	var c: Vector3 = d["C"]
-	# Běh 11 (nález 5): vyhlazení okolí očí a úst je jen TEČNÉ (bez složky ve směru od středu hlavy) a vrcholy
-	# mřížky se pak vrátí na povrch – dřív plné laplaceovské vyhlazení táhlo vrchol nad horním rtem ke spodině
-	# nosu (u velkého nosu o 5 mm dopředu), filtrum se svažovalo a tvořilo tmavý pás nad rtem.
+	# Běh 11 (nález 5): u ÚST je vyhlazení jen TEČNÉ (bez složky ve směru od středu hlavy) a vrcholy mřížky
+	# se pak vrátí na povrch – plné laplaceovské vyhlazení táhlo vrchol nad horním rtem ke spodině nosu
+	# (u velkého nosu o 5 mm dopředu), filtrum se svažovalo a tvořilo tmavý pás nad rtem.
+	# U OČÍ zůstává plné vyhlazení bez návratu na povrch: vnější prstenec víček sleduje hloubku a vzdálenost
+	# oka (0,85 × posun středu) a sousední řada mřížky ho musí následovat, jinak se pruh pod okem přeloží
+	# (běh 12: eye_depth +1 se zúžením eye_distance −1 → 6 obrácených ploch v test_head).
+	var has_kind := t.relax_mouth.size() == n_rel
 	for _it in RELAX_ITERS:
 		for r in n_rel:
 			var nbs: PackedInt32Array = t.relax_nb[r]
@@ -999,14 +1025,19 @@ static func positions(t: Topo, params: Dictionary) -> PackedVector3Array:
 				acc += p[j]
 			var cur := p[t.relax_idx[r]]
 			var delta := RELAX_L * (acc / float(nbs.size()) - cur)
-			var rad := (cur - c).normalized()
-			newp[r] = cur + delta - rad * delta.dot(rad)
+			if has_kind and t.relax_mouth[r] == 1:
+				var rad := (cur - c).normalized()
+				delta -= rad * delta.dot(rad)
+			newp[r] = cur + delta
 		for r in n_rel:
 			p[t.relax_idx[r]] = newp[r]
 	for r in n_rel:
 		var vi := t.relax_idx[r]
 		if t.recipes[vi][0] == "g":
-			p[vi] = surface(_dir_to(float(p[vi].x) - float(c.x), float(p[vi].y) - float(c.y), float(p[vi].z) - float(c.z)), d)
+			if has_kind and t.relax_mouth[r] == 1:
+				p[vi] = surface(_dir_to(float(p[vi].x) - float(c.x), float(p[vi].y) - float(c.y), float(p[vi].z) - float(c.z)), d)
+			else:
+				p[vi] = push_out(p[vi], d)  # vyhlazená řada u oka nesmí vniknout do oční koule
 		else:
 			p[vi] = push_out(p[vi], d)
 	if not _conform.is_empty():
@@ -1055,8 +1086,13 @@ static func morph_targets(t: Topo, p0: PackedVector3Array) -> Dictionary:
 	# Mezitvary: morf, jehož tvar v polovině není polovinou plného tvaru (délka nosu mění profil nelineárně),
 	# dostane navíc tvar δ = P(±0,5) − P0 − ½·d(±1) s „trojúhelníkovou“ vahou 1 − |2|v| − 1| (FaceMorphs) –
 	# Godot nemá nativní in-between blend shapes, tohle je jejich přesná náhrada v bodech 0, ½ a 1.
+	# Když mezitvar potřebuje jedna strana, dostane ho i druhá (je-li ta strana samostatný tvar) – jinak by
+	# drobná změna jinde v hlavě (běh 12: vyhlazení u úst) mohla jednu stranu shodit pod práh a profil by
+	# se na ní lámal jinak než na druhé.
 	var inb: Array = []
 	for k in FACE_KEYS + ASYM_KEYS:
+		var cand := {}
+		var need := false
 		for sg in [1, -1]:
 			var p1 := positions(t, {k: float(sg)})
 			var ph := positions(t, {k: 0.5 * float(sg)})
@@ -1066,9 +1102,14 @@ static func morph_targets(t: Topo, p0: PackedVector3Array) -> Dictionary:
 			for i in p0.size():
 				dm[i] = ph[i] - p0[i] - (p1[i] - p0[i]) * 0.5
 				mx = maxf(mx, dm[i].length())
-			if mx > INB_MIN:
+			cand[sg] = [dm, mx]
+			need = need or mx > INB_MIN
+		if not need:
+			continue
+		for sg in [1, -1]:
+			if float(cand[sg][1]) > INB_MIN or (out.has(k + "_pos") and out.has(k + "_neg")):
 				var nm := FaceMorphs.inbetween_name(k, sg)
-				out[nm] = dm
+				out[nm] = cand[sg][0]
 				inb.append(nm)
 	spec["_inbetweens"] = inb
 	# Korekční (kombinační) tvary: dvojice morfů, které se navzájem ovlivňují (délka nosu × hřbet mění
@@ -1216,10 +1257,20 @@ static func build_data(conform: Dictionary = {}) -> Dictionary:
 # C3+ (běh 11) – šev hlava–tělo
 # ======================================================================================
 ## Váha přilnutí podle výšky vrcholu v ZÁKLADU vůči výšce smyčky v jeho směru: 1 na smyčce a pod ní,
-## 0 od SEAM_BAND nad ní. Váha z polohy v základu (ne z polohy cíle) drží morfy lineární: výchylka
+## (a ještě SEAM_HOLD nad ní), 0 od SEAM_BAND nad ní. Váha z polohy v základu (ne z polohy cíle) drží morfy lineární: výchylka
 ## obličejového morfu v pásu = (1 − w) × vlastní výchylka.
 static func seam_weight(y: float, y_loop: float) -> float:
-	return _smooth(y_loop + SEAM_BAND, y_loop, y)
+	return _smooth(y_loop + SEAM_BAND, y_loop + SEAM_HOLD, y)
+
+
+## Váha morfů TĚLA na krku hlavy (tuk, svaly, stavba…): 1 do SEAM_HOLD nad smyčkou, pak pomalu k nule do
+## SEAM_BODY_BAND – jen na trubici krku (vrcholy blízko poloměru okraje), ne na spodku čelisti a brady.
+## Běh 12 (render svalnaté postavy): s váhou švu w (6,5 cm) se okraj krku rozšířil se svaly/tukem těla,
+## ale horní krk ne → světlý „límec“. Silný krk má být silný celý.
+static func body_weight(q: Vector3, y_loop: float, r_loop: float, cen: Vector2) -> float:
+	var r := Vector2(float(q.x) - cen.x, float(q.z) - cen.y).length()
+	var tube := _smooth(1.25 * r_loop, 1.08 * r_loop, r)
+	return _smooth(y_loop + SEAM_BODY_BAND, y_loop + SEAM_HOLD, float(q.y)) * tube
 
 
 ## Poloměr eliptického krku hlavy u těla ve směru θ = atan2(x, z) (bez morfů).
@@ -1265,7 +1316,14 @@ static func _seam_setup(t: Topo, raw: PackedVector3Array, conform: Dictionary) -
 	var ha := PackedInt32Array()
 	var hb := PackedInt32Array()
 	var hf := PackedFloat32Array()
+	var cri := PackedInt32Array()
+	var crw := PackedFloat32Array()
+	var hdy := PackedFloat32Array()
+	var hwb := PackedFloat32Array()
+	var n_loop := loop.size()
 	var caps := 0
+	# 1) výška smyčky ve směru každého vrcholu mřížky v dosahu švu
+	var hits := {}
 	for i in t.recipes.size():
 		if t.recipes[i][0] != "g":
 			continue
@@ -1274,32 +1332,65 @@ static func _seam_setup(t: Topo, raw: PackedVector3Array, conform: Dictionary) -
 			continue
 		var th := atan2(float(q.x) - cen.x, float(q.z) - cen.y)
 		var hit := loop_hit(loop, cen, th)
-		var rl := float(hit[0])
-		if rl <= 0.0:
+		if float(hit[0]) <= 0.0:
 			return {}
-		var yl := lerpf(float(loop[hit[1]].y), float(loop[hit[2]].y), float(hit[3]))
+		hits[i] = [th, hit, lerpf(float(loop[hit[1]].y), float(loop[hit[2]].y), float(hit[3]))]
+	for i in t.recipes.size():
+		if not hits.has(i):
+			continue
+		var q := raw[i]
+		var th := float(hits[i][0])
+		var hit: Array = hits[i][1]
+		var rl := float(hit[0])
+		var yl := float(hits[i][2])
 		var w := seam_weight(q.y, yl)
-		if w <= 0.0:
+		var wb := body_weight(q, yl, rl, cen)
+		if w <= 0.0 and wb <= 0.0:
 			continue
 		var rel := Vector2(float(q.x), float(q.z) - neck_zc(q.y))
 		var re := neck_ellipse_r(atan2(rel.x, rel.y))
-		var tp: Vector3
-		if q.y < NECK_CAP_Y + 0.0002 and rel.length() < 0.985 * re:
+		var tp := Vector3.ZERO
+		var is_cap := q.y < NECK_CAP_Y + 0.0002 and rel.length() < 0.985 * re
+		if is_cap:
 			var rho := rel.length() / re
 			tp = Vector3(cen.x + sin(th) * rl * CAP_SHRINK * rho, CAP_Y, cen.y + cos(th) * rl * CAP_SHRINK * rho)
 			w = 1.0
 			caps += 1
-		else:
-			tp = Vector3(cen.x + sin(th) * (rl + SEAM_EPS), q.y, cen.y + cos(th) * (rl + SEAM_EPS))
+		var cw := cr_weights(float(hit[3]))
+		var ci := PackedInt32Array([(int(hit[1]) - 1 + n_loop) % n_loop, int(hit[1]), int(hit[2]), (int(hit[2]) + 1) % n_loop])
+		if not is_cap:
+			# Boční stěna: bod na hladké křivce (Catmull-Rom) PROCHÁZEJÍCÍ vrcholy smyčky, ne na polygonu –
+			# tětivy mezi vrcholy hlavy pak neřežou rohy polygonu těla (dřív hlava zapadla až o 2,7 mm pod okraj
+			# těla u rohů smyčky). Křivka je lineární kombinací vrcholů smyčky → morfy těla zůstanou přesné.
+			var cp := Vector2.ZERO
+			for m in 4:
+				cp += Vector2(float(loop[ci[m]].x), float(loop[ci[m]].z)) * cw[m]
+			var rd := cp - cen
+			var rr := rd.length()
+			if rr > 1e-6:
+				cp += rd / rr * SEAM_EPS
+			tp = Vector3(cp.x, q.y, cp.y)
 		idx.append(i)
 		ws.append(w)
 		tg.append(tp)
 		ha.append(int(hit[1]))
 		hb.append(int(hit[2]))
 		hf.append(float(hit[3]))
-	return {"idx": idx, "w": ws, "target": tg, "a": ha, "b": hb, "f": hf, "center": cen, "caps": caps,
+		cri.append_array(ci)
+		crw.append_array(cw)
+		hdy.append(float(q.y) - yl)
+		hwb.append(maxf(w, wb))
+	return {"idx": idx, "w": ws, "target": tg, "a": ha, "b": hb, "f": hf, "cr_i": cri, "cr_w": crw, "dy": hdy, "wb": hwb, "center": cen, "caps": caps,
 		"loop": loop, "loop_n": conform.get("normals", []), "bones": conform.get("bones", []),
 		"weights": conform.get("weights", []), "deltas": conform.get("deltas", {}), "dnormals": conform.get("dnormals", {})}
+
+
+## Váhy uniformního Catmull-Rom splajnu pro parametr t ∈ [0, 1] mezi body 1 a 2 (body 0..3). Součet 1.
+static func cr_weights(t: float) -> PackedFloat32Array:
+	var t2 := t * t
+	var t3 := t2 * t
+	return PackedFloat32Array([0.5 * (-t3 + 2.0 * t2 - t), 0.5 * (3.0 * t3 - 5.0 * t2 + 2.0),
+		0.5 * (-3.0 * t3 + 4.0 * t2 + t), 0.5 * (t3 - t2)])
 
 
 ## Poslední krok positions(): p = lerp(p, cíl na smyčce, w). Cíl nezávisí na parametrech obličeje.
@@ -1312,8 +1403,9 @@ static func _apply_seam(p: PackedVector3Array) -> PackedVector3Array:
 	return p
 
 
-## Blend shapes hlavy se jmény klíčů těla: výchylka = w × interpolovaná výchylka smyčky – okraj krku hlavy
-## sleduje tuk, svaly, ramena… přesně jako okraj těla (SimVisual nastaví váhu z lp["body"]).
+## Blend shapes hlavy se jmény klíčů těla: výchylka = max(w, body_weight) × výchylka smyčky interpolovaná
+## stejnými váhami Catmull-Rom jako poloha – okraj krku hlavy sleduje tuk, svaly, ramena… přesně jako okraj
+## těla a nad ním se vliv pomalu vytrácí po celé trubici krku (SimVisual nastaví váhu z lp["body"]).
 static func _seam_body_targets(seam: Dictionary, n: int) -> Dictionary:
 	var out := {}
 	var deltas: Dictionary = seam["deltas"]
@@ -1324,13 +1416,26 @@ static func _seam_body_targets(seam: Dictionary, n: int) -> Dictionary:
 	var ha: PackedInt32Array = seam["a"]
 	var hb: PackedInt32Array = seam["b"]
 	var hf: PackedFloat32Array = seam["f"]
+	var cri: PackedInt32Array = seam.get("cr_i", PackedInt32Array())
+	var crw: PackedFloat32Array = seam.get("cr_w", PackedFloat32Array())
+	var has_cr := cri.size() == idx.size() * 4 and crw.size() == cri.size()
+	var wbs: PackedFloat32Array = seam.get("wb", ws)
+	if wbs.size() != idx.size():
+		wbs = ws
 	for key in keys:
 		var dl: Array = deltas[key]
 		var arr := PackedVector3Array()
 		arr.resize(n)
 		var mx := 0.0
 		for k in idx.size():
-			var dv: Vector3 = (dl[ha[k]] as Vector3).lerp(dl[hb[k]] as Vector3, hf[k]) * ws[k]
+			var dv := Vector3.ZERO
+			if has_cr:
+				# stejné váhy křivky jako pro polohu (víčko: posun víčka je jen přibližný, je uvnitř trupu)
+				for m in 4:
+					dv += (dl[cri[k * 4 + m]] as Vector3) * crw[k * 4 + m]
+			else:
+				dv = (dl[ha[k]] as Vector3).lerp(dl[hb[k]] as Vector3, hf[k])
+			dv *= wbs[k]
 			arr[idx[k]] = dv
 			mx = maxf(mx, dv.length())
 		if mx > 1e-5:
@@ -1365,6 +1470,8 @@ static func seam_skin(seam: Dictionary, k: int, head_bone: int, neck_bone: int, 
 			l.append([int(b), float(acc[b])])
 	l.sort_custom(func(x, y): return x[1] > y[1] or (x[1] == y[1] and x[0] < y[0]))
 	l = l.slice(0, 4)
+	if l.is_empty():
+		return [[neck_bone, 1.0]]  # poškozená data těla (samé nulové váhy) – vrchol nesmí zůstat bez kosti (audit Gemini)
 	var tot := 0.0
 	for e in l:
 		tot += float(e[1])
@@ -1373,7 +1480,7 @@ static func seam_skin(seam: Dictionary, k: int, head_bone: int, neck_bone: int, 
 	return l
 
 
-## Normály v pásu švu: od w ≥ 0,55 plynule k normále těla na smyčce (základ, nebo cíl klíče těla),
+## Normály v pásu švu: od SEAM_NRM_BAND nad smyčkou plynule k normále těla na smyčce (základ, nebo cíl klíče těla),
 ## aby se stínování krku hlavy a těla na švu nelámalo.
 static func _seam_normals(seam: Dictionary, n: PackedVector3Array, key: String) -> PackedVector3Array:
 	if seam.is_empty():
@@ -1388,13 +1495,35 @@ static func _seam_normals(seam: Dictionary, n: PackedVector3Array, key: String) 
 	var ha: PackedInt32Array = seam["a"]
 	var hb: PackedInt32Array = seam["b"]
 	var hf: PackedFloat32Array = seam["f"]
+	var hdy: PackedFloat32Array = seam.get("dy", PackedFloat32Array())
 	for k in idx.size():
-		var s := _smooth(0.55, 1.0, ws[k])
+		# Jen těsně u okraje (do SEAM_NRM_BAND nad smyčkou): s plným přilnutím 2 cm nad okraj (SEAM_HOLD) by
+		# normály celého spodku krku převzaly sklon trapézu z okraje těla a krk by měl světlý „límec“ (běh 12, render).
+		var s := _smooth(SEAM_NRM_BAND, 0.0, hdy[k]) if hdy.size() == idx.size() else _smooth(0.55, 1.0, ws[k])
 		if s <= 0.0:
 			continue
-		var nl: Vector3 = (src[ha[k]] as Vector3).lerp(src[hb[k]] as Vector3, hf[k]).normalized()
-		n[idx[k]] = n[idx[k]].lerp(nl, s).normalized()
+		var nl: Vector3 = (src[ha[k]] as Vector3).lerp(src[hb[k]] as Vector3, hf[k])
+		if nl.length_squared() < 1e-12:
+			continue  # protilehlé/nulové normály smyčky – ponechat vlastní normálu (audit Gemini)
+		var nn: Vector3 = n[idx[k]].lerp(nl.normalized(), s)
+		if nn.length_squared() > 1e-12:
+			n[idx[k]] = nn.normalized()
 	return n
+
+
+## Čtyřúhelník v pásu švu rozdělit druhou úhlopříčkou (1–3 místo 0–2)? Ano, když je její střed dál od osy
+## krku: rukáv krku je šikmá mřížka a úhlopříčka 0–2 tam místy vede vodorovně ve výšce okraje mezi vrcholy
+## 30° od sebe – tětiva se prověsí pod okraj těla. Konvexnější dělení drží povrch venku.
+static func _seam_alt_diagonal(seam: Dictionary, seam_k: Dictionary, q: PackedInt32Array, p0: PackedVector3Array) -> bool:
+	if seam.is_empty() or q.size() != 4:
+		return false
+	for vi in q:
+		if not seam_k.has(vi):
+			return false
+	var c: Vector2 = seam["center"]
+	var m02 := (p0[q[0]] + p0[q[2]]) * 0.5
+	var m13 := (p0[q[1]] + p0[q[3]]) * 0.5
+	return Vector2(m13.x, m13.z).distance_to(c) > Vector2(m02.x, m02.z).distance_to(c) + 1e-6
 
 
 ## MeshInstance3D pro každou část × materiál (název uzlu „<skupina>__<část>__<materiál>“) s blend shapes
@@ -1460,7 +1589,9 @@ static func build_instances(data: Dictionary, head_bone: int, neck_bone: int) ->
 						remap[vi] = remap.size()
 					l.append(remap[vi])
 				# CCW zvenku → CW pro Godot
-				if l.size() == 4:
+				if l.size() == 4 and _seam_alt_diagonal(seam, seam_k, q, p0):
+					idx.append_array(PackedInt32Array([l[1], l[3], l[2], l[1], l[0], l[3]]))
+				elif l.size() == 4:
 					idx.append_array(PackedInt32Array([l[0], l[2], l[1], l[0], l[3], l[2]]))
 				else:
 					idx.append_array(PackedInt32Array([l[0], l[2], l[1]]))

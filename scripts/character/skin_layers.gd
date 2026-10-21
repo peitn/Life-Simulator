@@ -63,11 +63,11 @@ const SPOTS := {
 		[Vector3(0.0658, 1.6900, 0.0399), Vector3(0.93, 0.02, 0.36), Vector3.UP],      # spánek
 		[Vector3(-0.0468, 1.5951, 0.0308), Vector3(-0.88, -0.37, 0.29), Vector3.UP],   # čelist
 	],
-	"krk": [
-		[Vector3(-0.0002, 1.5058, 0.0455), Vector3(-0.07, 0.26, 0.96), Vector3.UP],
-		[Vector3(0.0479, 1.5084, 0.0008), Vector3(0.9, 0.35, 0.08), Vector3.UP],
-		[Vector3(-0.0479, 1.5084, 0.0008), Vector3(-0.9, 0.35, 0.08), Vector3.UP],
-		[Vector3(0.0003, 1.5012, -0.0481), Vector3(0.07, 0.26, -0.96), Vector3.UP],
+	"krk": [  # běh 12: krk je od C3+ síť hlavy přilnutá k okraji těla – body znovu změřené ve výšce 1,525 m
+		[Vector3(0.0, 1.5250, 0.0499), Vector3(0.0, 0.37, 0.93), Vector3.UP],
+		[Vector3(0.0561, 1.5250, -0.0005), Vector3(0.78, 0.63, 0.08), Vector3.UP],
+		[Vector3(-0.0561, 1.5250, -0.0005), Vector3(-0.78, 0.63, 0.08), Vector3.UP],
+		[Vector3(0.0, 1.5250, -0.0501), Vector3(0.0, 0.38, -0.92), Vector3.UP],
 	],
 	"hrudnik": [[Vector3(0.0642, 1.3290, 0.0770), Vector3(0.16, 0.06, 0.99), Vector3.UP], [Vector3(-0.0642, 1.3290, 0.0769), Vector3(-0.16, 0.06, 0.99), Vector3.UP],
 		[Vector3(0.0, 1.3585, 0.0863), Vector3(-0.03, 0.1, 0.99), Vector3.UP]],

@@ -301,10 +301,12 @@ func _test_placement() -> void:
 		return
 	var head_tris := _grid(_tris_of(model, ["head"]))
 	var body_tris := _grid(_tris_of(model, ["body"]))
+	# Krk je od C3+ (běh 11–12) z větší části síť hlavy (krk těla je odříznutý nad smyčkou švu) → obě sítě.
+	var neck_tris := _grid(_tris_of(model, ["head", "body"]))
 	model.free()
 	var worst := {}
 	for zone in Schema.BODY_ZONES:
-		var tris: Dictionary = head_tris if zone == "oblicej" else body_tris
+		var tris: Dictionary = head_tris if zone == "oblicej" else (neck_tris if zone == "krk" else body_tris)
 		var w := 0.0
 		for s in 12:
 			var rng := SkinLayers._rng(s * 977 + 3, 1, 0)
@@ -354,6 +356,16 @@ func _test_shader() -> void:
 
 # ---------------------------------------------------------------- sítě
 
+## Názvy blend shapes sítě kůže hlavy podle manifestu (face_spec: pole → tvary, _inbetweens, _correctives, _body_keys).
+func _head_shape_names() -> Dictionary:
+	var spec: Dictionary = AssetLibrary.manifest_meta("character").get("face_spec", {})
+	var names := {}
+	for k in spec:
+		for n in spec[k]:
+			names[String(n)] = true
+	return names
+
+
 func _test_meshes() -> void:
 	section("AssetLibrary: klidové polohy v CUSTOM0")
 	var model := AssetLibrary.instantiate("character")
@@ -379,9 +391,17 @@ func _test_meshes() -> void:
 				for i in range(0, p.size(), 7):
 					if Vector3(c0[i * 4], c0[i * 4 + 1], c0[i * 4 + 2]).distance_to(p[i]) > 1e-4:
 						ok_c0 = false
-			var expect := 62 if String(mi.name).begins_with("head") else 10
-			if me.get_blend_shape_count() != expect or me.blend_shape_mode != Mesh.BLEND_SHAPE_MODE_NORMALIZED:
+			# hlava: obličejové morfy + mezitvary + korekce + klíče těla na pásu švu (C3+) – počet z manifestu
+			# (tvary bez účinku – např. chin_cleft_neg, důlek je jen kladný – se do sítě nedávají)
+			var is_head := String(mi.name).begins_with("head")
+			var expect := _head_shape_names() if is_head else {}
+			var nbs := me.get_blend_shape_count()
+			var count_ok := (nbs >= 60 and nbs <= expect.size()) if is_head else nbs == 10
+			if not count_ok or me.blend_shape_mode != Mesh.BLEND_SHAPE_MODE_NORMALIZED:
 				ok_bs = false
+			for bi in me.get_blend_shape_count():
+				if is_head and not expect.has(String(me.get_blend_shape_name(bi))):
+					ok_bs = false
 			if String(mi.name).begins_with("head") and (mi as MeshInstance3D).find_blend_shape_by_name(&"nose_length_pos_mid") < 0:
 				ok_bs = false
 			var w: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]

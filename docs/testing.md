@@ -36,13 +36,13 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 | `test_character_v2` | Schema v2 and review findings: `repaired()` contract, fatal inputs, 128-bit uid assigned by the server, Unicode name corpus, crown precision | 39 ✅ |
 | `test_character_net` | Multiplayer join with your own character, strict validation, public snapshot replication, privacy, determinism across peers | 28 ✅ |
 | `test_body_morphs` | C2: Catmull-Clark versus Blender, LSX v4 morphs, GLB blend shapes, data → weights, bones and scales, normals, CPU skinning, performance | 62 ✅ |
-| `test_head` | C3: every face field has a visible morph, weights match the data, in-between and corrective shapes, symmetry, determinism, no skin–eye or lip intersections across extreme combinations, no folded faces, GLB and SimVisual, server and client weights identical | 42 / 43 🟡 |
-| `test_neck_seam` | C3+: head–body seam on the real GLB (single closed loop, fit under morphs and animation) | 🟡 being written |
+| `test_head` | C3: every face field has a visible morph, weights match the data, in-between and corrective shapes, symmetry, determinism, no skin–eye or lip intersections across extreme combinations, no folded faces, GLB and SimVisual, server and client weights identical | 43 ✅ |
+| `test_neck_seam` | C3+: head–body seam on the real GLB: a single closed loop, no gap or overlap at rest, for random bodies and with the neck bent (CPU skinning), bone weights, normals and flipped triangles, neck width, no collar under body morphs | 32 ✅ |
 | `test_skin` | C4a: SkinModel continuity, spectrum, saturation and hue over 1,386 combinations, determinism, layer placement on the surface, shader compiles, CUSTOM0 holds the rest pose | 60 ✅ |
 | `test_assets` | LSX format (CRC, corrupted data), sources ↔ manifest ↔ GLB, furniture dimensions, orientation, winding and PBR, character skeleton, skin weights and variants, animations, SimVisual, primitive fallback | 150 ✅ |
 
-"Last known" is the state when the project was moved to this repository (21 October 2026). C3+ neck work
-was in progress at that point: `test_neck_seam` does not parse yet, and `test_head` reports 6 folded faces.
+"Last known" is the state after run 12 (21 October 2026); all suites pass. The slider-latency check in
+`test_character` (limit 4 ms) can exceed the limit when several suites run at the same time on the server.
 
 ## Quality gate for every change
 

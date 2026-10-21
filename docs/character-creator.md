@@ -67,8 +67,8 @@ from the same snapshot.
 |---|---|---|
 | **C1** | Data model, schema, codec and share code, migration v0→v1, validator with name filter, randomizer with locks, undo/redo, Czech grammar, deterministic `AppearanceResolver`, multiplayer join with your own character | ✅ |
 | **C2** | Body: one gender-neutral control mesh (868 vertices, quads) with 10 shape keys (frame, shoulders, chest, bust, waist, hips, plus muscle and fat pairs), LSX v4 with morph targets, Catmull-Clark matching Blender, GLB blend shapes, `BodyMorphs` | ✅ |
-| **C3** | Face: procedural `HeadBuilder` (fixed topology of 3,890 vertices; eyelids, lips and ears as real geometry; eyeballs with cornea), 29 morphs plus 3 asymmetry axes, 62+ blend shapes incl. in-between and corrective shapes, morph transfer to hair, schema v2 | 🟡 visual fixes in progress |
-| **C3+** | Shared neck topology between head and body (no seam), lips with volume, eye size and opening, damping of extremes in the editor | 🟡 in progress |
+| **C3** | Face: procedural `HeadBuilder` (fixed topology of 3,890 vertices; eyelids, lips and ears as real geometry; eyeballs with cornea), 29 morphs plus 3 asymmetry axes, 62+ blend shapes incl. in-between and corrective shapes, morph transfer to hair, schema v2 | ✅ (visual check in Blender) |
+| **C3+** | A: neck and head–body seam (fitted band, body morphs on the head neck, blended skinning) – B: lips with volume, eye size and opening, damping of extremes in the editor | ✅ A (run 12), ⬜ B |
 | **C4a** | Skin: `SkinModel` (two-layer Beer–Lambert with melanin, haemoglobin and carotene) and `SkinLayers` (freckles, moles, acne with post-inflammatory pigmentation, vitiligo, wrinkles and age spots, scars, tattoos, make-up, eyebrows, stubble). `skin.gdshader` adds SSS and masks in rest-pose coordinates (CUSTOM0), so the details follow morphs. Schema v3. | ✅ |
 | **C4b** | Hair, beards and eyebrows as geometry (hair cards): short, long, curly, afro, braids, cornrows, locs, bun, ponytail, bald, receding hairline, greying | ⬜ next |
 | **C5** | Clothing: everyday, work, formal, sleepwear and sport. Cuts follow body morphs. Changing clothes in game, replicated in multiplayer. | ⬜ |
@@ -85,9 +85,8 @@ Geometric tests are not enough, so every visual change is checked by rendering:
 
 See [asset-pipeline.md](asset-pipeline.md#visual-verification).
 
-Open findings from the latest render:
-- the neck is too long and narrow, with no chin–neck angle;
-- the head–body seam is visible;
-- the nose is too large at the max extreme;
-- a light patch appears under the nose in one random face;
-- the face looks empty without eyebrows.
+Findings from the latest render (run 12, `docs/images/c3-neck-seam-run12-a.jpg` and `-b.jpg`):
+- fixed: the head–body seam (no gap or jagged line from any angle), the long thin neck without a chin–neck angle,
+  the dark band above the upper lip at the max extreme, and a light "collar" on muscular or heavy bodies;
+- open: hair is still a shell ("helmet", C4b), the face looks empty without geometric eyebrows (C4b), the lips are
+  flat and the eyes small (C3+ B), and the head can look small on a very muscular body.

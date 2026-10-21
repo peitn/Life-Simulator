@@ -10,16 +10,16 @@
       0.0,
       -1.07000005245209
     ],
-    "bones": 0.0,
-    "glb_bytes": 142316.0,
+    "bones": 0,
+    "glb_bytes": 142316,
     "lsx_crc": "c103a927",
     "meta": {},
-    "morphs": 0.0,
+    "morphs": 0,
     "ok": true,
-    "parts": 4.0,
+    "parts": 4,
     "source": "tools/blender/furn.py",
-    "tris": 4200.0,
-    "verts": 2786.0
+    "tris": 4200,
+    "verts": 2786
   },
   "bed_single": {
     "aabb_max": [
@@ -32,16 +32,16 @@
       0.0,
       -1.04999995231628
     ],
-    "bones": 0.0,
-    "glb_bytes": 84708.0,
+    "bones": 0,
+    "glb_bytes": 84708,
     "lsx_crc": "ff49f3dc",
     "meta": {},
-    "morphs": 0.0,
+    "morphs": 0,
     "ok": true,
-    "parts": 3.0,
+    "parts": 3,
     "source": "tools/blender/furn.py",
-    "tris": 2472.0,
-    "verts": 1638.0
+    "tris": 2472,
+    "verts": 1638
   },
   "character": {
     "aabb_max": [
@@ -59,7 +59,7 @@
       "body",
       "character_head"
     ],
-    "glb_bytes": 2613596,
+    "glb_bytes": 2657616,
     "lsx_crc": {
       "body": "fb77b75a",
       "character_head": "d674db1b"
@@ -100,6 +100,7 @@
         "_inbetweens": [
           "nose_length_pos_mid",
           "nose_length_neg_mid",
+          "nose_tip_angle_pos_mid",
           "nose_tip_angle_neg_mid"
         ],
         "asym_eyes": [
@@ -234,9 +235,9 @@
         "faces": 3948,
         "keys": {
           "eyes": 7,
-          "head": 72
+          "head": 73
         },
-        "morphs": 72,
+        "morphs": 73,
         "topo_verts": 3890,
         "tris": 7760,
         "verts": 4102
@@ -398,7 +399,7 @@
       "neck_cut_tris": 192,
       "neck_lifted_verts": 323,
       "seam_cap_verts": 11,
-      "seam_head_verts": 178,
+      "seam_head_verts": 329,
       "seam_loop_verts": 16
     },
     "morphs": 10,
@@ -419,16 +420,16 @@
       0.0,
       -0.349999994039536
     ],
-    "bones": 0.0,
-    "glb_bytes": 43744.0,
+    "bones": 0,
+    "glb_bytes": 43744,
     "lsx_crc": "e01a5da5",
     "meta": {},
-    "morphs": 0.0,
+    "morphs": 0,
     "ok": true,
-    "parts": 5.0,
+    "parts": 5,
     "source": "tools/blender/furn.py",
-    "tris": 868.0,
-    "verts": 800.0
+    "tris": 868,
+    "verts": 800
   },
   "sofa": {
     "aabb_max": [
@@ -441,15 +442,15 @@
       0.0,
       -0.449999988079071
     ],
-    "bones": 0.0,
-    "glb_bytes": 94356.0,
+    "bones": 0,
+    "glb_bytes": 94356,
     "lsx_crc": "c6abd3ee",
     "meta": {},
-    "morphs": 0.0,
+    "morphs": 0,
     "ok": true,
-    "parts": 3.0,
+    "parts": 3,
     "source": "tools/blender/furn.py",
-    "tris": 2896.0,
-    "verts": 1856.0
+    "tris": 2896,
+    "verts": 1856
   }
 }
