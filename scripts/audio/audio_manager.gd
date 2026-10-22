@@ -9,6 +9,11 @@ extends Node
 ## - UI zvuky (změna rychlosti, nové přátelství, hádka)
 ## - psychický stav (PsycheFX → set_psyche_level): při úzkosti se hudba tlumí low-passem
 ##   a ozývá se tlukot srdce (generovaný za běhu, bez souboru)
+## - dospělý tón (běh „zvuk“): ambience bytu (lednice, provoz za oknem, sousedé za zdí),
+##   vrstva NAPĚTÍ nad hudbou (stres vybrané postavy + hádka v doslechu, hudba se ztlumí),
+##   HÁDKY slyšet: zvýšené hlasy u postav (formantové, nesrozumitelné; výška podle
+##   voice.pitch z CharacterData), tlumené vzdáleností jako přes zeď, občas bouchnutí dveří.
+##   Vše je jen kosmetika na tomto peeru – žádný vliv na simulaci ani síť.
 
 const WavLoader := preload("res://scripts/audio/wav_loader.gd")
 const MUSIC_DIR := "res://audio/music/"
@@ -16,12 +21,26 @@ const SFX_DIR := "res://audio/sfx/"
 const CROSSFADE := 3.0
 const MIN_TRACK_TIME := 12.0
 const SILENT_DB := -60.0
-const AMBIENCE_IDS := ["amb_dawn", "amb_birds", "amb_crickets", "amb_wind"]
+const AMBIENCE_IDS := ["amb_dawn", "amb_birds", "amb_crickets", "amb_wind", "amb_fridge", "amb_traffic", "amb_neighbors"]
+const MUSIC_BUS_DB := -5.0
+## Ztlumení hudby při plném napětí (dB) – napětí hudbu „vytlačí“, nepřekřičí ji.
+const TENSION_DUCK_DB := -6.0
+## Poločas doznívání napětí po hádce (reálné sekundy).
+const CONFLICT_HALF_LIFE := 14.0
+## Hádka dál než tohle (m) od vybrané postavy napětí nezvedá.
+const CONFLICT_HEAR_DIST := 16.0
+const VOICE_COOLDOWN := 5.0
+const MAX_VOICES := 3
+const SLAM_CHANCE := 0.3
 
 var main: Node = null
 var current_track := ""
 var melancholy := false
-var stats := {"track_changes": 0, "object_starts": 0, "object_stops": 0, "ui": 0}
+var stats := {"track_changes": 0, "object_starts": 0, "object_stops": 0, "ui": 0, "voices": 0, "slams": 0}
+## Úroveň napětí 0..1 (vyhlazená) a její složky – čte test a HUD/debug.
+var tension := 0.0
+var conflict_env := 0.0
+var speed_index := 1
 
 var _clock
 var _music: Array[AudioStreamPlayer] = []
@@ -42,6 +61,15 @@ var _heart: AudioStreamPlayer
 var _heart_phase := 0.0
 var _heart_bpm := 70.0
 var _heart_beats := 0
+var _tension_player: AudioStreamPlayer
+var _voice_last := {}      # Sim -> čas posledního hlasu (s)
+var _voices: Array = []    # aktivní AudioStreamPlayer3D hlasů
+var _voice_alt := 0
+var _last_voice_time := -10.0
+var _now := 0.0            # reálný čas AudioManageru (s), krokovatelný v testech
+var _arng := RandomNumberGenerator.new()
+var _music_bus := -1
+var _music_db_set := 1000.0
 
 
 func _ready() -> void:
@@ -75,10 +103,18 @@ func _ready() -> void:
 	_heart.stream = make_heartbeat()
 	_heart.volume_db = SILENT_DB
 	add_child(_heart)
+	_arng.seed = 0x5A17
+	_tension_player = AudioStreamPlayer.new()
+	_tension_player.bus = "Music"
+	_tension_player.stream = WavLoader.load_wav(SFX_DIR + "layer_tension.wav", true)
+	_tension_player.volume_db = SILENT_DB
+	add_child(_tension_player)
+	if _tension_player.stream != null:
+		_tension_player.play()
 
 
 func _setup_buses() -> void:
-	var defs := {"Music": -5.0, "Ambience": -9.0, "SFX": -3.0, "UI": -6.0}
+	var defs := {"Music": MUSIC_BUS_DB, "Ambience": -9.0, "SFX": -3.0, "UI": -6.0}
 	for bus_name in defs:
 		var idx := AudioServer.get_bus_index(bus_name)
 		if idx == -1:
@@ -232,7 +268,9 @@ func heartbeats() -> int:
 
 
 func _process(delta: float) -> void:
+	_now += delta
 	_update_heart(delta)
+	_update_tension(delta)
 	_track_time += delta
 	_decide -= delta
 	if _decide <= 0.0:
@@ -250,11 +288,22 @@ func ambience_weights(hours: float) -> Dictionary:
 	var dawn := exp(-pow((hours - 6.3) / 1.3, 2.0))
 	var day := smoothstep(6.5, 8.5, hours) * (1.0 - smoothstep(18.5, 20.5, hours))
 	var night := 1.0 - smoothstep(4.5, 6.5, hours) + smoothstep(19.5, 21.5, hours)
+	var n := clampf(night, 0.0, 1.0)
+	# Večer u sousedů (18–24 h) a pak ještě pozdě v noci slaběji.
+	var evening := smoothstep(17.5, 19.5, hours) * (1.0 - smoothstep(23.5, 24.0, hours)) \
+			+ 0.35 * (1.0 - smoothstep(0.5, 2.0, hours))
+	# Provoz: ranní a odpolední špička, v noci skoro nic.
+	var rush := 0.5 * exp(-pow((hours - 7.8) / 1.4, 2.0)) + 0.4 * exp(-pow((hours - 17.0) / 1.8, 2.0))
 	return {
-		"amb_dawn": dawn * 0.9,
-		"amb_birds": day * 0.7,
-		"amb_crickets": clampf(night, 0.0, 1.0) * 0.8,
-		"amb_wind": 0.35 + 0.25 * clampf(night, 0.0, 1.0),
+		# Ptáci už nejsou koberec přes celý den – jen krátké ranní okno a zbytky přes den.
+		"amb_dawn": dawn * 0.45,
+		"amb_birds": day * 0.22,
+		"amb_crickets": n * 0.45,
+		"amb_wind": 0.18 + 0.2 * n,
+		# Byt nikdy není úplně ticho.
+		"amb_fridge": 0.3 + 0.12 * n,
+		"amb_traffic": clampf(0.12 + 0.35 * day + rush, 0.0, 0.85) * (1.0 - 0.6 * n),
+		"amb_neighbors": clampf(evening, 0.0, 1.0) * 0.4,
 	}
 
 
@@ -335,6 +384,7 @@ func play_ui(id: String, volume_db := 0.0) -> void:
 
 
 func _on_speed_changed(index: int) -> void:
+	speed_index = index
 	play_ui("ui_click")
 	var mus := AudioServer.get_bus_index("Music")
 	if _music_lowpass_idx >= 0:
@@ -342,6 +392,8 @@ func _on_speed_changed(index: int) -> void:
 
 
 func _on_social_event(sim: Node3D, positive: bool, milestone: bool) -> void:
+	if not positive:
+		_on_conflict(sim)
 	# Jen pro vybraného Sima a ne příliš často (při zrychleném čase by to rušilo).
 	if main == null or sim != main.get_selected_sim():
 		return
@@ -354,3 +406,153 @@ func _on_social_event(sim: Node3D, positive: bool, milestone: bool) -> void:
 	elif not positive:
 		play_ui("ui_conflict", -4.0)
 		_last_ui_time = now
+
+
+# ---------------------------------------------------------------- hádky a napětí
+
+## Hádka/urážka: hlas postavy (zvýšený, nesrozumitelný) jako 3D zvuk u ní, napětí podle
+## vzdálenosti od vybrané postavy, občas bouchnutí dveří. Volá se pro každého účastníka.
+func _on_conflict(sim: Node3D) -> void:
+	if sim == null or not is_instance_valid(sim) or not sim.is_inside_tree():
+		return
+	var sel = main.get_selected_sim() if main != null else null
+	var hear := 1.0
+	if sel != null and is_instance_valid(sel) and sel != sim and sel is Node3D:
+		var d: float = (sel as Node3D).global_position.distance_to(sim.global_position)
+		hear = clampf(1.0 - d / CONFLICT_HEAR_DIST, 0.0, 1.0)
+	conflict_env = maxf(conflict_env, hear)
+	# Při rychlém čase hlasy vynecháme (byla by to kakofonie), napětí zůstává.
+	if speed_index >= 3:
+		return
+	if _now - float(_voice_last.get(sim, -100.0)) < VOICE_COOLDOWN:
+		return
+	if active_voices() >= MAX_VOICES:
+		return
+	var voice := voice_params(sim)
+	var rough := float(voice.get("roughness", 0.2)) > 0.45
+	var id := "vox_argue_%s%s" % ["rough_" if rough else "", "a" if _voice_alt % 2 == 0 else "b"]
+	_voice_alt += 1
+	var stream := WavLoader.load_wav(SFX_DIR + id + ".wav", false)
+	if stream == null:
+		return
+	var p := AudioStreamPlayer3D.new()
+	p.stream = stream
+	p.bus = "SFX"
+	p.unit_size = 4.0
+	p.max_distance = 40.0
+	# „Přes zeď“: s rostoucí vzdáleností se hlas zakulatí a ztratí srozumitelnost.
+	p.attenuation_filter_cutoff_hz = 1800.0
+	p.attenuation_filter_db = -16.0
+	p.pitch_scale = voice_pitch_scale(voice)
+	p.position = Vector3(0, 1.6, 0)
+	p.volume_db = -2.0
+	sim.add_child(p)
+	# Druhý účastník skočí do řeči až chvíli po prvním.
+	var delay := 0.0
+	if _now - _last_voice_time < 1.0:
+		delay = _arng.randf_range(0.35, 0.9)
+	_last_voice_time = _now
+	if delay > 0.0 and is_inside_tree():
+		get_tree().create_timer(delay).timeout.connect(_play_if_alive.bind(p))
+	else:
+		p.play()
+	p.finished.connect(p.queue_free)
+	_voices.append(p)
+	# odpojené postavy (odchod hráče) ze slovníku cooldownů vyhodíme
+	if _voice_last.size() > 32:
+		for k in _voice_last.keys():
+			if not is_instance_valid(k):
+				_voice_last.erase(k)
+	_voice_last[sim] = _now
+	stats["voices"] += 1
+	if _arng.randf() < SLAM_CHANCE and is_inside_tree():
+		var where := sim.global_position
+		var parent := sim.get_parent()
+		get_tree().create_timer(_arng.randf_range(3.5, 6.0)).timeout.connect(_play_slam.bind(parent, where))
+
+
+func _play_if_alive(p) -> void:
+	if is_instance_valid(p) and p.is_inside_tree():
+		p.play()
+
+
+func _play_slam(parent, where: Vector3) -> void:
+	if parent == null or not is_instance_valid(parent) or not parent.is_inside_tree():
+		return
+	var s := WavLoader.load_wav(SFX_DIR + "hit_door_slam.wav", false)
+	if s == null:
+		return
+	var p := AudioStreamPlayer3D.new()
+	p.stream = s
+	p.bus = "SFX"
+	p.unit_size = 5.0
+	p.max_distance = 45.0
+	p.attenuation_filter_cutoff_hz = 2500.0
+	p.attenuation_filter_db = -12.0
+	parent.add_child(p)
+	p.global_position = where + Vector3(_arng.randf_range(-2.0, 2.0), 1.0, _arng.randf_range(-2.0, 2.0))
+	p.pitch_scale = _arng.randf_range(0.9, 1.08)
+	p.play()
+	p.finished.connect(p.queue_free)
+	stats["slams"] += 1
+
+
+## Hlasové parametry postavy z veřejného snapshotu (CharacterData.voice), s výchozími hodnotami.
+static func voice_params(sim: Object) -> Dictionary:
+	var out := {"pitch": 0.0, "timbre": 0.0, "roughness": 0.2}
+	var look = sim.get("look") if sim != null else null
+	if look is Dictionary and look.get("voice") is Dictionary:
+		var v: Dictionary = look["voice"]
+		for k in out:
+			if v.has(k) and (v[k] is float or v[k] is int):
+				out[k] = float(v[k])
+	return out
+
+
+## Výška hlasu: voice.pitch −1..1 → ±~5 půltónů (pitch_scale 0,76…1,32). Žádná vazba na rod.
+static func voice_pitch_scale(voice: Dictionary) -> float:
+	return pow(2.0, clampf(float(voice.get("pitch", 0.0)), -1.0, 1.0) * 0.4)
+
+
+## Napětí 0..1: stres vybrané postavy (od 45, plně kolem 90), hádka v doslechu, úzkost.
+func tension_target() -> float:
+	var stress_t := 0.0
+	var sel = main.get_selected_sim() if main != null else null
+	if sel != null and is_instance_valid(sel):
+		var m = sel.get("mental")
+		if m != null:
+			var st = m.get("stress")
+			if st is float or st is int:
+				stress_t = smoothstep(45.0, 90.0, float(st)) * 0.6
+	return clampf(maxf(maxf(stress_t, conflict_env), psyche_level * 0.5), 0.0, 1.0)
+
+
+func _update_tension(delta: float) -> void:
+	conflict_env *= pow(0.5, delta / CONFLICT_HALF_LIFE)
+	if conflict_env < 0.002:
+		conflict_env = 0.0
+	var target := tension_target()
+	# nástup rychlejší než odeznění
+	var rate := 0.6 if target > tension else 0.12
+	tension = move_toward(tension, target, delta * rate)
+	if _tension_player != null:
+		_tension_player.volume_db = linear_to_db(maxf(tension * 0.85, 0.001))
+	# index sběrnice a hlasitost jen při změně (review Gemini: ne každý snímek)
+	if _music_bus < 0 or _music_bus >= AudioServer.bus_count or AudioServer.get_bus_name(_music_bus) != "Music":
+		_music_bus = AudioServer.get_bus_index("Music")
+		_music_db_set = 1000.0
+	var db := MUSIC_BUS_DB + TENSION_DUCK_DB * tension
+	if _music_bus >= 0 and absf(db - _music_db_set) > 0.05:
+		AudioServer.set_bus_volume_db(_music_bus, db)
+		_music_db_set = db
+
+
+## Pro testy: posune vnitřní čas a napětí bez čekání na snímky.
+func step_for_test(delta: float) -> void:
+	_now += delta
+	_update_tension(delta)
+
+
+func active_voices() -> int:
+	_voices = _voices.filter(func(v): return is_instance_valid(v))
+	return _voices.size()

@@ -7,6 +7,116 @@ Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --
 
 ---
 
+## 2026-10-22 (běh 17, ~02:50–04:00 UTC) – hudba v3 + C4b vlasy, vousy, obočí (dokončení)
+
+**Rozsah:** `scripts/audio/music_data.gd` (návrat k původní hudbě + nové „Mlhavé ráno“), `tests/test_audio_tone.gd`
+(nová pravidla, jas, šev smyčky), `docs/audio.md`, `audio/music/*.wav`; C4b z běhů 14/16 (`hair_builder.gd`, `hair_rig.gd`,
+`hair.gdshader`, `sim_visual.gd`, `appearance_resolver.gd`, `tests/test_hair.gd`) + opravy tohoto běhu; `tools/hair_export.gd`
+(nový – export pro Blender), `main.gd` (async stavba vlasů ve hře, audio report 25 souborů).
+
+**a) Self-review:**
+- Hudba: renderer a data původních skladeb ověřené MD5 proti GitHubu 0518c53 (renderer `0b4c6430…`, data `585f4cbd…`);
+  nástroje původních skladeb v synth.gd beze změny (porovnáno řádek po řádku) → zní jako původní demo. Pevná mez švu 0,035
+  byla na původní „den“ (hi-hat, skok 0,054 < p99 0,087) moc přísná → mez = max(0,035; p99 rozdílů sousedních vzorků).
+- C4b stav z běhu 16 byl hotový a nezapsaný (test_hair 40/40). `sim_visual._build_hair_parts` neresetoval `_hair_mats` a při
+  chybě shaderu nechal viset už vytvořené části → opraveno. `resolve_hair_look`: NaN/∞/text v číslech a barva bez „#“ →
+  `_f01` a kontrola prefixu (pojistka, snapshot je validovaný) + test.
+- **Render v Blenderu** (8 postav × 5 pohledů, 3 kola + detail obličeje; materiál v Blenderu napodobuje hair.gdshader –
+  prameny z UV/CUSTOM0, šediny po vlasech, ústup linie). Nálezy a opravy:
+  1. copánky a dredy trčely vpředu 15–20 cm před hrudník, dlouhé vlasy odstávaly od zad → náklon gravitace jen nad
+     rameny (LEAN_Y0/Y1 1,38–1,50) a jen u bočních pramenů (dopředu od |x| 7,5 cm), pod středem hlavy pramen ztrácí
+     hybnost (g ≥ 0,6). Vpředu max 15,5 → 7,3 cm; vzadu medián 2,5–4 cm. Nový test `_test_drape`.
+  2. **obočí se stavělo jen u kořene nosu** (bod projekce z = 0,11 m byl mimo dosah prostorového hashe) → 37 ze 140 karet,
+     na renderu šedý chomáček mezi očima. Výchozí bod radiálně z mapy hlavy → 140/140, ±5,2 cm. Test pokrytí obočí.
+     (Starý test „obočí nad očima“ prošel, protože kontroloval jen meze, ne pokrytí – doplněno.)
+  3. undercut a krátké vlasy ježaté → lift/stiff 0,25/0,8 a 0,32/0,9.
+  4. ponecháno jako známé: schodovitý okraj skořepiny u spánků (velké trojúhelníky kůže), sloupcový vzor plnovousu,
+     afro v Blenderu příliš lesklé (jen náhradní materiál), mezera pod dolním rtem u plnovousu.
+
+**b) Testy:** `godot_check` 60/60 · test_hair **55/55** (nově drape 8, pokrytí obočí, poškozené hodnoty, async 5) ·
+test_audio_tone **222/222** · regrese: test_assets 150, test_character 157, test_character_v2 39, test_character_net 28,
+test_multiplayer 67, test_skin 60, test_body_morphs 62, test_head 43, test_neck_seam 56, test_neck_length 36,
+test_household_dynamics 78, test_mental_health 95, test_depression 92, test_reconciliation 58, test_player_commands 40,
+test_net_protocol 34, test_psyche_presentation 19 – vše OK · `--test 7` OK (audio report 25/25 souborů) · hra spuštěná
+bez argumentů 25 s bez chyb (async stavba vlasů).
+
+**c) Gemini (gemini-3.5-flash-lite), 6 nálezů:**
+- ✅ (2, vysoká) první sestavení účesu 0,25–1 s na hlavním vlákně → zasekne hru při vstupu postavy s novým účesem.
+  **Zapracováno:** `HairRig.request_mesh` + `WorkerThreadPool` (ve vlákně jen pole: geometrie, přenos morfů, kosti;
+  ArrayMesh na hlavním vlákně přes `call_deferred`), postava mezitím ukazuje helmu z GLB, `_on_hair_mesh_ready` přepne
+  na karty; kontext a hash trojúhelníků se staví předem (vlákna jen čtou), mutex na cache. Zapnuto jen ve hře
+  (`main.gd`), testy a `--test` synchronně. Test: helma během stavby, výměna, síť z vlákna = synchronní, zrušený vlastník.
+- ❌ (1) „sdílené rng rozbije determinismus“ – rng je lokální v `HairBuilder.build`, seed jen ze stylu, stejný kód na všech
+  peerech; test bit-po-bitu (i po vymazání cache) a nově i vlákno × synchronně.
+- ❌ (3) „Color.html může spadnout“ – vstup je předem ověřený (7 znaků, „#“, hex); GDScript chybu nevyhazuje jako výjimku.
+- ❌ (4) „dělení nulou / zacyklení ve strand“ – jmenovatel má maxf(…, 1e-6), cyklus má pevný počet kroků a break při nulovém posunu.
+- ❌ (5) mez švu: minimum 0,035 je záměr (tiché smyčky), hodnoty p99 se vypisují v testu.
+- ❌ (6) „smazání všech částí při chybě materiálu je destruktivní“ – shader je pro všechny části stejný; když chybí, nejde
+  žádná karta a správný stav je celá helma z GLB (fallback).
+
+**d) ChatGPT/Grok:** #127 – bouchnutí dveří podle intenzity hádky a povahy: otevřené (audio_manager z paralelního chatu).
+Hystereze úrovní vztahu a uid místo jmen v household_dynamics (#127): otevřené, další běh dynamiky.
+
+**Známé problémy:** viz (a)4; výkon: první síť účesu 0,25–1 s (teď ve vlákně), 20–27 blend shapes na účes;
+GitHub push z naplánované session pravděpodobně dál nejde (viz DEVLOG).
+
+---
+
+## 2026-10-21 (běh 15, ~21:20–22:50 UTC) – dynamika domácnosti (konec „studené války“)
+
+**Rozsah:** `scripts/sim/household_dynamics.gd` (nový), `scripts/sim/sim_agent.gd` (vyvážení, talk_success_chance,
+de-eskalace, stížnosti, měkký strop stresu z hádek, drift, note_relationship_change, signál conversation),
+`scripts/sim/traits.gd` (irritability, argue_stress_cap), `scripts/sim/action_library.gd` (repliky), `scripts/sim/fccs_oracle.gd`
+(zjednodušen na modulátor rozhovoru), `main.gd` (napojení jen na autoritě + report domácnosti v `--test`),
+`tests/test_base.gd` (watchdog), `tests/test_household_dynamics.gd` (nový, 78).
+Rozhodnutí uživatelky (CHECKPOINT běhu 14): nejdřív dynamika postav, C4b potom.
+
+**a) Self-review:**
+- První zapojení bez kalibrace: 80 % hádek. Diagnostika rozkladu šance (`previews/diag/diag_household.gd`): průměr p 0,22,
+  stres −0,21 a emoce −0,11 → spirála „hádka → stres + vztek na 200 min → další hádka“. Oprava: stres ubírá až nad 35 a
+  /320 (dřív 30 a /250), emoce vztek 0,12 / únava a napětí 0,06 (dřív všechny 0,15), výchozí 0,65.
+- Bug v testovací infrastruktuře: `test_base.gd` vytvářel watchdog v `_enter_tree()` – dřív, než podtřída v `_ready()`
+  nastavila `watchdog_seconds`, takže každý test měl 60 s (u test_reconciliation 90 s „platilo“ jen náhodou). Opraveno
+  odloženým startem.
+- Vzpomínka „Vztah se zhoršil: X je teď blízká přítelkyně“ (experiment v4): text se nevybíral podle úrovně – pokles
+  z nejlepší na blízkou přítelkyni zněl jako zhoršení do nepřátelství. Nově jedna funkce pro všechny cesty (hovor,
+  hádka, urážka, svěření, pomoc, omluva, společná chvíle) se 4 texty podle směru a úrovně; test kontroluje, že
+  „zhoršil“ vždy obsahuje „nepřítel“.
+- Statistika: kalibrace je citlivá na pořadí náhody (stejné parametry, jiný počet hodů kvůli pravidlu nádobí →
+  průměr z 10 seedů 36,7 % vs 45,7 %). Test proto běží na 16 seedech a kontroluje průměr i rozpětí, ne jeden běh.
+
+**b) Testy:** `godot_check` 60/60 (nové skripty ověřeny i `load().can_instantiate()`); **test_household_dynamics 78/78**:
+- 16 seedů × 14 dní: hádky **32,0 %** (sm. odch. 10,4 p. b., 17–54 %), vztahy průměr **+25,6** (−50…+100), rozdíl dvojic
+  (sm. odch.) 50, gradient podle nálady 21 / 42 / 72 %, de-eskalací 44, rozhovorů se stížností 112 (hádky 36 %),
+  stres > 85 průměr 0,01 % času (nejhorší 0,42 %), 0 kritických potřeb, události 1,13 na postavu a den, determinismus OK.
+- Regrese: reconciliation 58, mental_health 95, depression 92, player_commands 40, multiplayer 67 (po finální kalibraci);
+  character 157, character_v2 39, character_net 28, body_morphs 62, assets 150, skin 60, head 43, neck_seam 56,
+  neck_length 36, psyche_presentation 19, net_protocol 34 (beze změn v jejich kódu); `--test 7` OK (26 % hádek, vztahy
+  +12…+47), `--test 14` OK.
+
+**c) Gemini (gemini-3.5-flash-lite; 3.5-flash přetížený):** 6 nálezů.
+- ✅ #2 (část) griefing třenicemi přes rychlé příkazy: „vař“ zrušené po minutě nechávalo nádobí → nádobí jen po ≥ 20 min
+  skutečného vaření (`DISHES_MIN_COOK`), test 60 pokusů krátké vs dlouhé vaření.
+- ✅ #4 farmení vztahu společnými chvílemi přes křivdu → při křivdě > 60 (kterákoli strana) se nic nestane; pod prahem
+  tlumí `warmth_mult`. Práh 30 (návrh) zkoušen: zmizela hlavní cesta zpět a hádky vyskočily na 46 % → 60.
+- ❌ #1 O(n²) dvojic: třenice jsou směrové (A štve B ≠ B štve A), potřebujeme uspořádané dvojice; domácnost ≤ 8 postav =
+  56 kontrol za 10 herních minut. Prostorové filtrování zapsáno do plánu pro velké parcely v MP.
+- ❌ #2 (zbytek) klient falšuje stav akce: `acting_id` čte stav serverové postavy (ACTING), klient posílá jen příkazy
+  validované NetSession; hluk v noci schválně vedle spícího je legitimní hra (cooldown 6 h na dvojici, +3 stres) –
+  opt-out z PvP je v plánu MP.
+- ❌ #3 nedeklarované proměnné: artefakt zkráceného pseudokódu v zadání, skutečný kód má `var`.
+- ❌ #5 pád na null v `take_complaint`: kontrola `typeof(c) != TYPE_DICTIONARY` a `get()` s výchozí hodnotou; test
+  poškozené stížnosti.
+- ❌ #6 strop stresu blokuje stres: spodní mez ×0,15 (test „strop je měkký“).
+
+**d) ChatGPT/Grok:** #117 (review běhu 13) – runtime testy krku (GLB v Godotu pro neck −1/0/+1, crown_height = max Y,
+geometrie na 2 peerech) přesunuty k C4b; plán běhu 15 v #119, kód k review v místnosti po tomto zápisu.
+
+**Otevřené:** O(n²) a opt-out z třenic v MP; víc druhů třenic (peníze, úklid) až s ekonomikou; Jana↔Eliška se často
+sbližují až k +100 (povahy, ne chyba – sledovat, jestli to není nová idyla u jiných povah); statistika domácnosti v HUD.
+
+---
+
 ## 2026-10-21 (běh 13, ~18:20–19:30 UTC) – C3+ A2 krk: anatomie báze krku + body.neck_length (schéma v4)
 
 **Rozsah:** `scripts/assets/character_assembly.gd` (pole zvednutí báze krku podle směru), `scripts/assets/head_builder.gd`

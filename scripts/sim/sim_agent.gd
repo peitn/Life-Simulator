@@ -24,6 +24,9 @@ signal memory_added(sim: Node3D, text: String)
 signal social_event(sim: Node3D, positive: bool, milestone: bool)
 ## Začátek/konec panické ataky (pro UI a statistiky; ostatní to vidí jen jako akci).
 signal panic_changed(sim: Node3D, active: bool)
+## Běžný rozhovor skončil (ne urážka/omluva/svěření): info = {success, avg_mood, complaint,
+## deescalated, p} – statistiky domácnosti (HouseholdDynamics) a později HUD.
+signal conversation(sim: Node3D, partner: Node3D, info: Dictionary)
 
 enum State { IDLE, WALKING, ACTING }
 
@@ -42,6 +45,46 @@ const INSULT_IGNORE_MINUTES := 120.0
 const WITNESS_DIST := 12.0
 const CROWD_DIST := 2.5
 const CROWD_INTERVAL := 15.0
+## --- vyvážení vztahů (převzato z experimentu FCCS v3/v4, viz docs/relationships.md)
+## Hádka ubere ×0,6 nominální ztráty – jinak při ~30 % hádek vztahy nutně padají („studená válka“).
+const ARGUE_REL_MULT := 0.6
+## Další hovor se stejnou postavou do REPEAT_TALK_WINDOW min má ×0,7 účinku (klesající výnos).
+const REPEAT_TALK_WINDOW := 180.0
+const REPEAT_TALK_MULT := 0.7
+## Výchozí šance na dobrý rozhovor dvou neutrálních lidí v klidu (před povahou, náladou, vztahem).
+## Kalibrace (běh 15, 20 seedů × 14 dní): 0,6 dávalo podle drobností v pořadí náhody 37–46 % hádek,
+## 0,65 drží průměr uvnitř cílových 20–40 % s rezervou.
+const TALK_BASE := 0.65
+## Kolik může nálada obou (průměr, −100..100) posunout šanci na dobrý rozhovor (±20 p. b.).
+const MOOD_WEIGHT := 0.2
+## Stres nad TALK_STRESS_FREE u každého z dvojice ubírá (stres − práh) / TALK_STRESS_DIV.
+## (Dřív práh 30 a dělitel 250 – stres z hádek pak sám živil další hádky, viz DEVLOG běh 15.)
+const TALK_STRESS_FREE := 35.0
+const TALK_STRESS_DIV := 320.0
+## Penalizace podle dominantní emoce každého z dvojice: vztek nejvíc, únava a napětí méně
+## (unavený nebo nervózní člověk je spíš stručný než útočný).
+const TALK_EMOTION_PENALTY := {"nastvany": 0.12, "unaveny": 0.06, "napjaty": 0.06}
+## De-eskalace: posluchač s náladou nad DEESCALATE_FROM může hádku utnout smířlivou odpovědí;
+## šance roste lineárně do DEESCALATE_MAX při náladě DEESCALATE_FROM + DEESCALATE_SPAN.
+const DEESCALATE_FROM := 20.0
+const DEESCALATE_SPAN := 30.0
+const DEESCALATE_MAX := 0.35
+## Stížnost (třenice z domácnosti) jako tón oslovení: o tolik nižší šance na pohodu.
+const COMPLAINT_PENALTY := 0.08
+## Jak dlouho si postava stížnost „nese“ do příštího oslovení (pak to pustí z hlavy).
+const COMPLAINT_TTL := 360.0
+## Vyřešená stížnost (pohoda) obrousí křivdu o tolik.
+const COMPLAINT_SOFTEN := 3.0
+## Stres z hádky a jeho měkký strop: nad (strop − rampa) přibývá čím dál méně (min. ×0,15).
+## Strop podle povahy (`argue_stress_cap`, vznětlivý 65: vybuchne a vyfučí, nekumuluje chronický stres).
+const ARGUE_STRESS := 10.0
+const ARGUE_STRESS_CAP := 85.0
+const ARGUE_STRESS_RAMP := 25.0
+const ARGUE_STRESS_MIN := 0.15
+## Lineární návrat záporného vztahu k nule bez živé křivdy (bodů za den) navíc k exponenciálnímu hojení.
+const DRIFT_NEG_PER_DAY := 2.0
+## Od jaké hodnoty je vztah „přátelský“ (kamarád a výš) – pro text vzpomínek.
+const FRIEND_LEVEL := 25.0
 ## Úroveň vztahu -> [mužský tvar, ženský tvar, neutrální opis] (sloupec podle gramatického rodu
 ## DRUHÉ postavy – Grammar.noun_col; neutrální opisy jsou ženského rodu → „moje blízká osoba“).
 const REL_LEVELS := [
@@ -95,6 +138,8 @@ var speech_until := -1.0
 var by_player := false
 ## jméno postavy -> herní minuta poslední urážky od ní
 var insulted_by := {}
+## jméno postavy -> {"topic", "t"}: co mě na ní štve (HouseholdDynamics); vyzní v příštím oslovení.
+var pending_complaints := {}
 ## Aktivace na začátku rozhovoru (expozice) a jeho výsledek.
 var _social_arousal_start := 0.0
 var _social_positive := true
@@ -279,14 +324,16 @@ func now() -> float:
 	return _clock.total_minutes
 
 
-## Čas hojí: záporný vztah bez živé křivdy se pomalu vrací k neutrálu (~10 dní). Dokud křivda
-## trvá, nic se nehojí – proto má smysl ji uzavřít omluvou. Kladné vztahy se samy nemění.
+## Čas hojí: záporný vztah bez živé křivdy se pomalu vrací k neutrálu (exponenciálně ~10 dní
+## + lineárně DRIFT_NEG_PER_DAY). Dokud křivda trvá, nic se nehojí – proto má smysl ji uzavřít
+## omluvou. Kladné vztahy se tu nemění (vyprchání bez kontaktu řeší HouseholdDynamics).
 func _heal_relationships(dm: float) -> void:
 	var k := 1.0 - exp(-dm / 14400.0)
+	var lin := DRIFT_NEG_PER_DAY * dm / 1440.0
 	for n in relationships:
 		var r: float = float(relationships[n])
 		if r < 0.0 and ledger.grudge(String(n)) < 5.0:
-			relationships[n] = r - r * k
+			relationships[n] = minf(r - r * k + lin, 0.0)
 
 
 ## Moodlety z jiných systémů: duševní stav + nejsilnější výčitky a křivda (přepočítávají se každý krok).
@@ -455,7 +502,9 @@ func receive_support_from(helper: Node3D) -> void:
 	for pair in [[self, helper], [helper, self]]:
 		var a: Node3D = pair[0]
 		var b: Node3D = pair[1]
-		a.relationships[b.sim_name] = clampf(float(a.relationships.get(b.sim_name, 0.0)) + 4.0, -100.0, 100.0)
+		var c0: float = float(a.relationships.get(b.sim_name, 0.0))
+		a.relationships[b.sim_name] = clampf(c0 + 4.0, -100.0, 100.0)
+		a.note_relationship_change(b, c0, float(a.relationships[b.sim_name]))
 		a._detail_dirty = true
 	helper.say(ActionLibrary.random_line("support", helper.rng))
 
@@ -913,34 +962,37 @@ func _start_social(partner: Node3D) -> void:
 		# Replika oběti mluví o útočníkovi – rod („řekl/řekla“) podle útočníka.
 		partner.say(ActionLibrary.random_line("insulted", rng).replace("(a)", Grammar.past(grammar)))
 	else:
-		# Chemie: povahy + nálady + dosavadní vztah. Výsledek může být i hádka.
-		var friendship: float = float(relationships.get(partner.sim_name, 0.0))
-		var p := 0.55
-		p += Traits.chemistry(trait_ids) + Traits.chemistry(partner.trait_ids)
-		p += (mood.value + partner.mood.value) / 600.0
-		p += friendship / 300.0
-		# Stres a vznětlivost zvyšují riziko hádky.
-		p -= (maxf(mental.stress - 30.0, 0.0) + maxf(partner.mental.stress - 30.0, 0.0)) / 250.0
-		p -= Traits.sum_param(trait_ids, "argue_bias") + Traits.sum_param(partner.trait_ids, "argue_bias")
-		# Špatná nálada (naštvaný, unavený) zvyšuje riziko konfliktu.
-		for e in [mood.emotion, partner.mood.emotion]:
-			if e == "nastvany" or e == "unaveny" or e == "napjaty":
-				p -= 0.15
-		p = clampf(p, 0.08, 0.92)
+		# Chemie: povahy + nálady + dosavadní vztah (+ stížnost z domácnosti). Může to být i hádka.
+		var complaint := take_complaint(partner)
+		var p := talk_success_chance(partner, complaint)
+		if complaint != "":
+			say(ActionLibrary.random_line("complaint_" + complaint, rng))
 		var success := rng.randf() < p
-		# EXPERIMENT (--fccs): výsledek rozhovoru rozhodne FCCS mozek partnera.
+		# Volitelný modulátor (--fccs, jen headless experiment): výsledek smíchá s FCCS mozkem partnera.
 		if social_oracle != null:
-			var od: Dictionary = social_oracle.decide(self, partner, p)
+			var od: Dictionary = social_oracle.decide(self, partner, p, complaint)
 			if not od.is_empty():
 				success = bool(od["success"])
+		# De-eskalace: posluchač v dobré náladě ostrý tón občas přejde a odpoví smířlivě.
+		var deesc := false
+		if not success and rng.randf() < deescalation_chance(partner):
+			success = true
+			deesc = true
 		if success:
 			act["label"] = "Povídá si s: " + partner.first_name()
 			_social_outcome(partner, rng.randf_range(2.0, 6.0), "chat")
+			if complaint != "":
+				# Stížnost vyřešená v klidu („jo, promiň, budu tišší“) – křivda se obrousí.
+				ledger.soften(partner.sim_name, COMPLAINT_SOFTEN)
+				partner.say(ActionLibrary.random_line("complaint_ok", partner.rng))
+			elif deesc:
+				partner.say(ActionLibrary.random_line("deescalate", partner.rng))
 		else:
 			act["label"] = "Hádá se s: " + partner.first_name()
 			act["effects"] = {"social": 8.0, "fun": -6.0}
 			act["duration"] = 15.0
-			say(ActionLibrary.random_line("argue", rng))
+			if complaint == "":
+				say(ActionLibrary.random_line("argue", rng))
 			_social_outcome(partner, -rng.randf_range(5.0, 10.0), "argue")
 		partner_act = act.duplicate(true)
 		partner_act["label"] = act["label"].split(":")[0] + ": " + first_name()
@@ -949,9 +1001,76 @@ func _start_social(partner: Node3D) -> void:
 		partner._social_positive = success
 		if not success:
 			partner.say(ActionLibrary.random_line("argue", partner.rng))
+		conversation.emit(self, partner, {"success": success, "avg_mood": (mood.value + partner.mood.value) * 0.5,
+			"complaint": complaint, "deescalated": deesc, "p": p})
 	current_action = act
 	social_partner = partner
 	_begin_acting()
+
+
+## Šance, že běžný rozhovor s `partner` dopadne dobře (0,08..0,92). complaint = téma stížnosti.
+func talk_success_chance(partner: Node3D, complaint := "") -> float:
+	var friendship: float = float(relationships.get(partner.sim_name, 0.0))
+	var p := TALK_BASE
+	p += Traits.chemistry(trait_ids) + Traits.chemistry(partner.trait_ids)
+	# Nálada obou: v dobré náladě člověk víc snese, ve špatné vybuchne dřív (max ±MOOD_WEIGHT).
+	p += clampf((mood.value + partner.mood.value) * 0.5 / 100.0, -1.0, 1.0) * MOOD_WEIGHT
+	p += friendship / 300.0
+	# Stres a vznětlivost zvyšují riziko hádky.
+	p -= (maxf(mental.stress - TALK_STRESS_FREE, 0.0) + maxf(partner.mental.stress - TALK_STRESS_FREE, 0.0)) / TALK_STRESS_DIV
+	p -= Traits.sum_param(trait_ids, "argue_bias") + Traits.sum_param(partner.trait_ids, "argue_bias")
+	# Špatná nálada (naštvaný, unavený, napjatý) zvyšuje riziko konfliktu.
+	for e in [mood.emotion, partner.mood.emotion]:
+		p -= float(TALK_EMOTION_PENALTY.get(e, 0.0))
+	if complaint != "":
+		p -= COMPLAINT_PENALTY
+	return clampf(p, 0.08, 0.92)
+
+
+## Šance, že `listener` utne začínající hádku smířlivou odpovědí (podle jeho nálady).
+static func deescalation_chance(listener: Node3D) -> float:
+	return DEESCALATE_MAX * clampf((float(listener.mood.value) - DEESCALATE_FROM) / DEESCALATE_SPAN, 0.0, 1.0)
+
+
+## Vybere (a spotřebuje) čerstvou stížnost na `partner`; prošlé zahodí. Vrací téma nebo "".
+func take_complaint(partner: Node3D) -> String:
+	var c = pending_complaints.get(partner.sim_name, null)
+	pending_complaints.erase(partner.sim_name)
+	if typeof(c) != TYPE_DICTIONARY:
+		return ""
+	if now() - float(c.get("t", -1.0e9)) > COMPLAINT_TTL:
+		return ""
+	return String(c.get("topic", ""))
+
+
+## Stres z hádky podle aktuálního stresu a povahy (měkký strop – viz ARGUE_STRESS_CAP).
+func argue_stress_amount() -> float:
+	var cap := Traits.get_param(trait_ids, "argue_stress_cap", ARGUE_STRESS_CAP)
+	var f := clampf((cap - mental.stress) / ARGUE_STRESS_RAMP, ARGUE_STRESS_MIN, 1.0)
+	return ARGUE_STRESS * Traits.mult_param(trait_ids, "stress_gain") * f
+
+
+## Zapíše do paměti změnu úrovně vztahu k `b` (cur → nv) podle SMĚRU i úrovně:
+## zlepšení na přátelskou úroveň („je teď moje kamarádka“), zlepšení z nepřátelství („už není
+## můj nepřítel“), ochlazení přátelství („už není moje nejlepší přítelkyně“) a zhoršení do
+## nepřátelství („je teď můj nepřítel“). Beze změny úrovně nic.
+func note_relationship_change(b: Node3D, cur: float, nv: float) -> void:
+	var old_l := relationship_label(cur, b.grammar)
+	var new_l := relationship_label(nv, b.grammar)
+	if old_l == new_l or is_equal_approx(cur, nv):
+		return
+	var pron := Grammar.my(b.grammar)
+	if nv > cur:
+		if nv >= FRIEND_LEVEL:
+			remember("%s je teď %s %s" % [b.sim_name, pron, new_l])
+			mood.add_moodlet("novy_vztah_" + b.name, "Nové přátelství" if cur < FRIEND_LEVEL else "Sblížili jsme se",
+				"stastny", 15.0, 360.0)
+		else:
+			remember("Vztah se zlepšil: %s už není %s %s" % [b.sim_name, pron, old_l])
+	elif cur >= FRIEND_LEVEL:
+		remember("Vztah se ochladil: %s už není %s %s" % [b.sim_name, pron, old_l])
+	else:
+		remember("Vztah se zhoršil: %s je teď %s %s" % [b.sim_name, pron, new_l])
 
 
 ## Svěření se: partner buď naslouchá, nebo odbyde (stigma). Výsledek ovlivní vztah i úlevu.
@@ -969,7 +1088,9 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		partner_act["effects"] = {"social": 3.0}
 		mood.add_moodlet("odbyti_" + String(partner.name), "Odbyl%s mě: %s" % [Grammar.past(partner.grammar), partner.first_name()],
 			"smutny", -10.0, 360.0)
-		relationships[partner.sim_name] = clampf(float(relationships.get(partner.sim_name, 0.0)) - 4.0, -100.0, 100.0)
+		var rc: float = float(relationships.get(partner.sim_name, 0.0))
+		relationships[partner.sim_name] = clampf(rc - 4.0, -100.0, 100.0)
+		note_relationship_change(partner, rc, float(relationships[partner.sim_name]))
 		ledger.on_hurt_by(partner.sim_name, 8.0, now())
 		remember("Svěřil(a) jsem se a %s to odbyl%s" % [partner.sim_name, Grammar.past(partner.grammar)])
 		_social_positive = false
@@ -980,7 +1101,9 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		for pair in [[self, partner], [partner, self]]:
 			var a: Node3D = pair[0]
 			var b: Node3D = pair[1]
-			a.relationships[b.sim_name] = clampf(float(a.relationships.get(b.sim_name, 0.0)) + 3.0, -100.0, 100.0)
+			var c0: float = float(a.relationships.get(b.sim_name, 0.0))
+			a.relationships[b.sim_name] = clampf(c0 + 3.0, -100.0, 100.0)
+			a.note_relationship_change(b, c0, float(a.relationships[b.sim_name]))
 		remember("Svěřil(a) jsem se – %s mě vyslechl%s" % [partner.sim_name, Grammar.past(partner.grammar)])
 	_detail_dirty = true
 	partner._detail_dirty = true
@@ -1038,6 +1161,7 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 				a.relationships[b.sim_name] = nv
 				a.mood.add_moodlet("usmireni_" + String(b.name), "Usmířili jsme se: " + b.first_name(), "spokojeny", 10.0, 480.0)
 				a.remember("Usmířil(a) jsem se – %s" % b.sim_name)
+				a.note_relationship_change(b, cur, nv)
 				a.social_event.emit(a, true, relationship_label(cur, b.grammar) != relationship_label(nv, b.grammar))
 				a.mood.remove_moodlet("hadka_" + String(b.name))
 				a.mood.remove_moodlet("urazka_" + String(b.name))
@@ -1067,12 +1191,10 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 	var now: float = _clock.total_minutes
 	var positive := kind == "chat"
 	var cfg := mental_cfg()
-	# EXPERIMENT (--fccs): vyvážení zisku a ztráty ve vztazích.
-	var bal: bool = social_oracle != null and bool(social_oracle.get("balance"))
-	# Stres z konfliktu (vznětliví ho nabírají víc) a svědci hádky.
+	# Stres z konfliktu (vznětliví ho nabírají rychleji, ale s nižším stropem) a svědci hádky.
 	if kind == "argue":
-		mental.on_stressor("argue", 10.0 * Traits.mult_param(trait_ids, "stress_gain"), cfg)
-		partner.mental.on_stressor("argue", 10.0 * Traits.mult_param(partner.trait_ids, "stress_gain"), cfg)
+		mental.on_stressor("argue", argue_stress_amount(), cfg)
+		partner.mental.on_stressor("argue", partner.argue_stress_amount(), cfg)
 	elif kind == "insult":
 		mental.on_stressor("insult", 3.0 * Traits.mult_param(trait_ids, "stress_gain"), cfg)
 		partner.mental.on_stressor("insulted", 16.0 * Traits.mult_param(partner.trait_ids, "stress_gain"), cfg)
@@ -1102,10 +1224,10 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 			d *= a.ledger.warmth_mult(b.sim_name)
 			a.ledger.soften(b.sim_name, 3.0)
 		var since: float = now - float(a.last_talk.get(b.sim_name, -10000.0))
-		if bal and kind == "argue":
-			d *= 0.6
-		if since < 180.0 and kind != "insult":
-			d *= 0.7 if bal else 0.35
+		if kind == "argue":
+			d *= ARGUE_REL_MULT
+		if since < REPEAT_TALK_WINDOW and kind != "insult":
+			d *= REPEAT_TALK_MULT
 		var nv := clampf(cur + d, -100.0, 100.0)
 		a.relationships[b.sim_name] = nv
 		a.last_talk[b.sim_name] = now
@@ -1115,9 +1237,6 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 		a.social_event.emit(a, positive, new_label != old_label)
 		if positive:
 			a.mood.add_moodlet("rozhovor_" + b.name, "Příjemný rozhovor", "stastny", 10.0, 150.0)
-			if new_label != old_label and nv > cur:
-				a.remember("%s je teď %s %s" % [b.sim_name, Grammar.my(b.grammar), new_label])
-				a.mood.add_moodlet("novy_vztah_" + b.name, "Nové přátelství", "stastny", 15.0, 360.0)
 		elif kind == "insult":
 			if a == self:
 				# Ten, kdo uráží: bručoun nebo naštvaný si uleví, ostatní mají výčitky.
@@ -1129,13 +1248,10 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 			else:
 				a.mood.add_moodlet("urazka_" + b.name, "Urážka od: " + b.first_name(), "nastvany", -18.0, 360.0)
 				a.remember("%s mě urazil%s" % [b.sim_name, Grammar.past(b.grammar)])
-			if new_label != old_label and nv < cur:
-				a.remember("Vztah se zhoršil: %s je teď %s" % [b.sim_name, new_label])
 		else:
 			a.mood.add_moodlet("hadka_" + b.name, "Nepříjemná hádka", "nastvany", -14.0, 200.0)
 			a.remember("Pohádal(a) se – %s" % b.sim_name)
-			if new_label != old_label and nv < cur:
-				a.remember("Vztah se zhoršil: %s je teď %s" % [b.sim_name, new_label])
+		a.note_relationship_change(b, cur, nv)
 
 
 ## Kdo stojí poblíž hádky, toho to taky rozhodí (úzkostné víc).

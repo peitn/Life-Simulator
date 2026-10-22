@@ -68,9 +68,15 @@ identity.
 - **`SimVisual`** is the character visual shared by agent and puppet. It loads the GLB model, applies body
   and face blend shapes, gives each character its own skin shader material, and selects animations by
   speed and posture. It falls back to primitives when no model is available.
+- **`HouseholdDynamics`** (`household_dynamics.gd`, run 15) is a pure module owned by `main.gd` and advanced
+  from `GameClock.time_advanced` every 10 game minutes, only on the authority. It adds what happens between
+  conversations: frictions (noise, bathroom, dishes) with cooldowns and trait irritability, complaints that
+  colour the next chat, shared moments, life events and neglect of positive relationships. Randomness goes
+  through each character's RNG, so runs are deterministic per seed. It listens to the new
+  `SimAgent.conversation` signal for household statistics. See [relationships.md](relationships.md).
 - **`fccs_oracle.gd`** is a headless-only **experiment**, enabled with `--test N --fccs`. It uses an
-  external FCCS cognitive model as a modulator of social outcomes and adds household frictions,
-  relationship balancing and mood-driven random events. It is off in the game.
+  external FCCS cognitive model as an optional modulator of the conversation outcome. Since run 15 the
+  frictions, balancing and mood effects it once prototyped live in the game itself; it is off in the game.
 
 ## World (`scripts/world/`)
 
@@ -98,7 +104,9 @@ randomizer, history (undo/redo) and the pure appearance functions (`AppearanceRe
 | `LsxDecoder` | Decodes the LSX transfer format from the Blender bridge. |
 | `Subdiv` | Catmull-Clark subdivision, bit-compatible with Blender's. |
 | `HeadBuilder` | Builds the procedural head with its facial morphs. |
-| `CharacterAssembly` | Joins body and head at import time and transfers morphs to the hair. |
+| `CharacterAssembly` | Joins body and head at import time and transfers morphs to the (fallback) GLB hair. |
+| `HairBuilder` | Procedural hair cards, braids, locs, shells, eyebrows and beards on the real head mesh (C4b). |
+| `HairRig` | Turns hair geometry into a skinned mesh with transferred blend shapes; one cached mesh per style; threaded first build in the game. |
 | `CharacterAnims` | Procedural idle, walk, sit and lie animations on the 17-bone skeleton. |
 
 See [asset-pipeline.md](asset-pipeline.md).

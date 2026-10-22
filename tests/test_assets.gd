@@ -343,8 +343,10 @@ func _test_visual() -> void:
 		var g := String(mi.name).get_slice("__", 0)
 		if mi.visible:
 			vis[g] = true
-	check(vis.has("body") and vis.has("hair_short") and not vis.has("hair_long") and not vis.has("body_m") and not vis.has("body_f"),
-		"bez snapshotu: neutrální tělo a výchozí vlasy bez ohledu na rod", str(vis.keys()))
+	# C4b: výchozí krátké vlasy jsou karty (hair_cards_scalp), „helma“ z GLB (hair_short/hair_long) je skrytá.
+	check(vis.has("body") and vis.has("hair_cards_scalp") and not vis.has("hair_short") and not vis.has("hair_long")
+		and not vis.has("body_m") and not vis.has("body_f"),
+		"bez snapshotu: neutrální tělo a výchozí vlasy (karty) bez ohledu na rod", str(vis.keys()))
 	v.apply("stand", 10.0, "neutral", "Jana Nováková", "Nic")
 	var v2 := Node3D.new()
 	v2.set_script(SimVisual)
@@ -370,7 +372,7 @@ func _test_visual() -> void:
 	for mi in v2.find_children("*", "MeshInstance3D", true, false):
 		if mi.visible:
 			vis2[String(mi.name).get_slice("__", 0)] = true
-	check(vis2.has("body") and not vis2.has("hair_short") and not vis2.has("hair_long"),
+	check(vis2.has("body") and not vis2.has("hair_short") and not vis2.has("hair_long") and not vis2.has("hair_cards_scalp"),
 		"tělo + vlasy podle explicitních atributů (účes holá hlava)", str(vis2.keys()))
 	# Chůze: posun 1,3 m/s → walk, zastavení → idle.
 	check(v.current_anim() == "idle", "stojící postava: idle")

@@ -1,6 +1,6 @@
 # Roadmap
 
-English version of the live `ROADMAP.md` used by the automated runs, as of 21 October 2026.
+English version of the live `ROADMAP.md` used by the automated runs, as of 21 October 2026 (after run 15).
 
 Legend: ✅ done · 🟡 in progress · ⬜ planned · ⭐ next step
 
@@ -16,9 +16,9 @@ Eight steps, each one complete and tested. Principles and details are in
 | ✅ **C3** | Face: procedural `HeadBuilder` (3,890 vertices; eyelids, lips, ears and eyeballs as geometry), 29 morphs plus 3 asymmetry axes, body fat and muscle in the face, 62 blend shapes incl. in-between and corrective shapes, morph transfer to hair, schema v2 | `test_head`, `test_character_v2` |
 | ✅ **C3+ A2** (run 13) | Anatomical neck base (C7, trapezius and neck–shoulder point measured against adult proportions) and `body.neck_length` (±15 mm, schema v4 with migration, linear head blend shape, crown height kept, randomizer); `loop_hit` returns the nearest hit | `test_neck_length` (36), `test_neck_seam` (56: seam at neck ±1 × fat/muscle × ±30° bend, linearity, no flips, anatomy, Catmull-Rom invariants); Blender renders inspected |
 | ✅ **C3+ A** | Neck and head–body seam: body neck cut above a 16-vertex loop (raised neck base at the back), head neck band fitted to a Catmull-Rom curve through the loop, body blend shapes carried by the head neck, blended bone weights, matched normals, convex quad diagonals in the band | `test_neck_seam` (no gap or overlap at rest, for 12 random bodies and with the neck bent; no flipped triangles; no collar); Blender renders from 5 angles inspected |
-| ⬜ **C3+ B** | Face polish once hair exists: lips with volume and corners, eye size and opening, head size versus build in the randomizer, damping of extremes in the editor | Renders from several angles, random combinations |
+| ⭐ **C3+ B** | Face polish now that hair exists: lips with volume and corners, eye size and opening, head height (about 1 cm short) and head size versus build in the randomizer, damping of extremes in the editor; small items from the C4b render (shell edge at the temples, beard gap under the lip) | Renders from several angles, random combinations |
 | ✅ **C4a** | Skin: `SkinModel` (Beer–Lambert with melanin, haemoglobin and carotene), `SkinLayers` (freckles, moles, acne, vitiligo, wrinkles, age spots, scars, tattoos, make-up, eyebrows, stubble), `skin.gdshader` (SSS, rest-pose masks, 8 tattoo motifs, LOD), schema v3 | `test_skin` |
-| ⭐ **C4b** | Hair, beards and eyebrows as geometry (hair cards; shells only as a distant LOD): short, long, curly, afro, braids, cornrows, locs, bun, ponytail, bald, receding hairline, greying | Every hairstyle in the schema has a mesh, follows skull morphs, uses pigment colours and stays within the triangle budget |
+| ✅ **C4b** | Hair, beards and eyebrows as hair cards: 16 hairstyles (cards, braids and locs as tubes, cornrows, shells for buzz cut, undercut and afro, bun, ponytail), 6 eyebrow shapes, 5 beard styles, receding hairline, strand-by-strand greying, dyed hair; morph transfer, shared mesh per style, threaded first build in the game | `test_hair` 55: budgets, no head penetration, face clear, hair lies on chest and back, eyebrow coverage, determinism (also threaded versus synchronous), morphs and bones, SimVisual; Blender render reviewed |
 | ⬜ **C5** | Clothing: everyday, work, formal, sleepwear, sport. Cuts independent of the body (morph transfer), PBR materials, changing by situation | Clothing follows body morphs, selection by situation, multiplayer replication |
 | ⬜ **C6** | Editor I: in-engine preview, appearance tabs, instant sliders, basic and advanced modes, random with locks, neutral presets, undo/redo, cinematic muted UI, fallback for weak hardware | Slider timing, undo/redo through the UI, locks |
 | ⬜ **C7** | Editor II: identity, personality, story, templates, accessibility | Navigation without a mouse, hidden sensitive choices, share code from the UI |
@@ -49,9 +49,11 @@ Eight steps, each one complete and tested. Principles and details are in
     7. autistic traits as profile axes.
   - ⬜ **EmotionPresenter** after C8. Adaptive music layers come earlier, together with axis 1.
 - ✅ Grudges, guilt, apologies, reconciliation.
-- ⬜ Fix the household "cold war": move balancing, shared moments, drift, frictions, mood and random
-  events from the FCCS experiments into the game, with a 10-seed test. Also fix the memory text that says
-  "relationship got worse" when it improved.
+- ✅ **Household dynamics** (run 15): balancing of gains and losses, frictions (noise, bathroom, dishes)
+  with cooldowns and trait irritability, complaints as conversation tone, shared moments, life events,
+  mood of both (±20 pp), de-escalation, soft stress ceiling for arguments, drift and neglect, memory text
+  by direction. Fixes the "cold war": 32 % arguments over 16 seeds × 14 days, relationships differ by
+  personality. See [relationships.md](relationships.md#household-dynamics-household_dynamicsgd).
 - ⬜ Skills, ownership ("my bed"), habits and routines; pathfinding with NavigationServer3D.
 
 ## (b) World, building, buying
@@ -64,7 +66,7 @@ Eight steps, each one complete and tested. Principles and details are in
 ## (c) Relationships and NPCs
 
 - ✅ Relationships with labels, arguments, insults with anti-griefing, confiding, help versus stigma,
-  jealousy, grudges and apologies.
+  jealousy, grudges and apologies; household dynamics (run 15).
 - ⬜ Rivalry, manipulation, gossip, infidelity, break-ups; romance (fade-to-black); support versus
   toxicity.
 - ⬜ Worldview and identity in context after C8: several opinion axes and "who knows what about whom", with
@@ -90,7 +92,10 @@ Eight steps, each one complete and tested. Principles and details are in
 
 - ✅ Custom synthesizer, 5 songs, ambience, 3D object sounds, UI sounds, melancholy by mood, anxiety
   low-pass and heartbeat.
-- ⬜ Surge stems by tension, footsteps, doors, raised voices, apartment ambience.
+- ✅ Apartment ambience, tension layer, wordless raised voices in arguments, door slams (design v2).
+- ✅ Music design v3 (run 17): the original songs are back, the night song sets the tone, a new morning song
+  in its spirit.
+- ⬜ Surge stems by tension, footsteps; door slams tied to argument intensity and temperament.
 
 ## (g) UI, saving, economy, stories
 

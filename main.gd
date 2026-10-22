@@ -29,6 +29,7 @@ const Schema := preload("res://scripts/character/character_schema.gd")
 const Validator := preload("res://scripts/character/character_validator.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
+const HouseholdDynamics := preload("res://scripts/sim/household_dynamics.gd")
 
 ## Startovní domácnost jako CharacterData (v2; jen pole odlišná od výchozích hodnot schématu;
 ## zbytek doplní validátor). Vzhled je explicitní – žádné odvozování ze jména ani z rodu.
@@ -106,6 +107,8 @@ var hud: CanvasLayer
 var settings_menu: CanvasLayer
 var psyche_fx: CanvasLayer
 var _audio: Node = null
+## Život domácnosti mimo rozhovory (třenice, společné chvíle, události) – jen na autoritě.
+var dynamics = HouseholdDynamics.new()
 var _test_mode := false
 var _test_days := 3
 
@@ -118,6 +121,10 @@ func _ready() -> void:
 	clock = cfg.get("clock", null)
 	if clock == null:
 		clock = get_node("/root/GameClock")
+	# Vlasy z karet: první sestavení účesu běží ve vlákně (hra se nezasekne při vstupu postavy s novým účesem);
+	# headless --test a testy zůstávají synchronní.
+	if bool(cfg.get("visuals", true)) and not _test_mode and AssetLibrary.enabled:
+		load("res://scripts/assets/hair_rig.gd").async_build = true
 
 	if bool(cfg.get("visuals", true)):
 		day_night = Node3D.new()
@@ -141,6 +148,7 @@ func _ready() -> void:
 	add_child(net)
 	net.setup(self, clock)
 	net.welcomed.connect(_on_welcomed)
+	clock.time_advanced.connect(_on_time_advanced)
 
 	if bool(cfg.get("audio", true)):
 		_audio = get_node_or_null("/root/AudioManager")
@@ -332,6 +340,8 @@ func register_sim(s: Node) -> void:
 	sims.append(s)
 	if s.has_signal("memory_added"):
 		s.memory_added.connect(_on_memory)
+	if s.has_method("command"):
+		dynamics.register(s)
 	if _audio != null:
 		_audio.register_sim(s)
 	if String(s.name) == net.my_sim:
@@ -350,6 +360,18 @@ func find_sim(node_name: String) -> Node3D:
 	if n != null and sims.has(n):
 		return n
 	return null
+
+
+## Dynamika domácnosti běží jen tam, kde je autorita (offline / server); klient vidí výsledky.
+func _on_time_advanced(dm: float) -> void:
+	if dynamics == null:
+		return
+	# Klient, který se ještě připojuje (nebo už odpojil), nemá aktivní peer – is_server() by hlásil chybu.
+	var peer := multiplayer.multiplayer_peer
+	if peer != null and peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	if peer == null or multiplayer.is_server():
+		dynamics.advance(dm, sims, clock)
 
 
 func get_smart_objects() -> Array:
@@ -435,8 +457,6 @@ func _run_headless_test(days: int) -> void:
 	var start := Time.get_ticks_msec()
 	for m in total:
 		clock.advance(1.0)
-		if fccs_oracle != null and m % 10 == 0:
-			fccs_oracle.tick(sims, clock.get_hour(), clock.total_minutes)
 		for s in sims:
 			var n: String = s.sim_name
 			if s.mental.stress > 85.0:
@@ -456,6 +476,16 @@ func _run_headless_test(days: int) -> void:
 			print("%s  %s" % [clock.time_string(), "  ".join(line)])
 	var ms := Time.get_ticks_msec() - start
 	print("--- Výsledky (%.0f ms, %.2f ms/herní hodinu) ---" % [ms, float(ms) / (days * 24.0)])
+	var ds: Dictionary = dynamics.stats
+	print("--- Domácnost ---")
+	print("  rozhovory %d, hádky %d (%.0f %%), utnuto de-eskalací %d, stížnosti %d (z toho hádek %d)" % [
+		ds["talks"], ds["argues"], 100.0 * dynamics.argue_rate(), ds["deescalated"], ds["complaint_talks"], ds["complaint_argues"]])
+	print("  třenice %s | společné chvíle %s | události %s" % [JSON.stringify(ds["friction"]), JSON.stringify(ds["shared"]), JSON.stringify(ds["events"])])
+	var mb := PackedStringArray()
+	for k in ["good", "mid", "bad"]:
+		var v: Array = ds["by_mood"][k]
+		mb.append("%s %d (hádky %.0f %%)" % [k, v[0], 100.0 * v[1] / maxf(1.0, float(v[0]))])
+	print("  hádky podle nálady: %s" % " | ".join(mb))
 	if fccs_oracle != null:
 		print(fccs_oracle.report())
 		load("res://scripts/sim/sim_agent.gd").social_oracle = null
@@ -550,10 +580,14 @@ func _audio_report() -> bool:
 	var ok := true
 	var WavLoader = load("res://scripts/audio/wav_loader.gd")
 	var missing: PackedStringArray = []
+	var checked := 0
 	for f in ["music/rano", "music/den", "music/vecer", "music/noc", "music/melancholie",
 			"sfx/amb_dawn", "sfx/amb_birds", "sfx/amb_crickets", "sfx/amb_wind",
 			"sfx/sfx_shower", "sfx/sfx_tv", "sfx/sfx_stove", "sfx/sfx_treadmill",
-			"sfx/ui_click", "sfx/ui_chime", "sfx/ui_conflict"]:
+			"sfx/ui_click", "sfx/ui_chime", "sfx/ui_conflict",
+			"sfx/amb_fridge", "sfx/amb_traffic", "sfx/amb_neighbors", "sfx/layer_tension", "sfx/hit_door_slam",
+			"sfx/vox_argue_a", "sfx/vox_argue_b", "sfx/vox_argue_rough_a", "sfx/vox_argue_rough_b"]:
+		checked += 1
 		if WavLoader.load_wav("res://audio/%s.wav" % f, true) == null:
 			missing.append(f)
 	var plan: PackedStringArray = []
@@ -570,7 +604,7 @@ func _audio_report() -> bool:
 		plan.append("%02d h: %s + %s" % [h, audio.choose_track(), loud])
 	clock.total_minutes = saved
 	print("--- Zvuk ---")
-	print("  soubory: %d chybí %s" % [16 - missing.size(), str(missing)])
+	print("  soubory: %d chybí %s" % [checked - missing.size(), str(missing)])
 	print("  hudba/ambience podle času: %s" % " | ".join(plan))
 	print("  3D zvuky objektů: spuštěno %d, zastaveno %d, aktivních %d" % [
 		audio.stats["object_starts"], audio.stats["object_stops"], audio.active_object_sounds()])

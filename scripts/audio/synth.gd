@@ -288,6 +288,222 @@ func shaker(vel: float) -> PackedFloat32Array:
 	return buf
 
 
+# ------------------------------------------------------------------ temné nástroje (běh „zvuk“)
+
+## Plstěné piano (felt): měkký úder, mírně neharmonické alikvoty, tlumené výšky,
+## dva lehce rozladěné „struny“ (chorus) – intimní, unavený zvuk místo jasného e-piana.
+func felt_piano(freq: float, dur: float, vel: float) -> PackedFloat32Array:
+	var n := int((dur + 1.6) * sr)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var inv := 1.0 / sr
+	var amp := vel * 0.17
+	var dn := int(dur * sr)
+	var bright := clampf(0.35 + vel * 0.4, 0.0, 1.0)
+	var B := 0.0004   # neharmonicita struny
+	var parts := 7
+	var ws := PackedFloat32Array()
+	var as_ := PackedFloat32Array()
+	var ds := PackedFloat32Array()
+	for k in range(1, parts + 1):
+		var fk := freq * k * sqrt(1.0 + B * k * k)
+		if fk > sr * 0.45:
+			break
+		ws.append(TAU * fk * inv)
+		as_.append(pow(bright, float(k - 1)) / float(k))
+		ds.append(1.1 + 0.9 * k)
+	var det := 1.0021
+	var lp := 0.0
+	var a := 1.0 - exp(-TAU * (900.0 + 2600.0 * vel) * inv)
+	for i in n:
+		var t := i * inv
+		var env := minf(1.0, t / 0.012)
+		if i > dn:
+			env *= exp(-(t - dur) * 6.0)
+		var v := 0.0
+		for k in ws.size():
+			var e := exp(-t * ds[k])
+			v += as_[k] * e * (sin(ws[k] * i) + 0.6 * sin(ws[k] * det * i))
+		# „plst“ – krátký tlumený šum úderu
+		if t < 0.03:
+			v += rng.randf_range(-1.0, 1.0) * 0.08 * (1.0 - t / 0.03)
+		lp += a * (v - lp)
+		buf[i] = lp * env * amp
+	return buf
+
+
+## Smyčcové violoncello (zjednodušeně): pila se smyčcovým nástupem, opožděné vibrato,
+## lehký šum smyčce, dvoupólový low-pass – vážný, „lidský“ hlas melodie.
+func cello(freq: float, dur: float, vel: float) -> PackedFloat32Array:
+	var n := int((dur + 0.6) * sr)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var inv := 1.0 / sr
+	var tab := table("saw")
+	var ts := float(TABLE_SIZE)
+	var p := rng.randf() * ts
+	var amp := vel * 0.16
+	var dn := int(dur * sr)
+	var cutoff := 900.0 + 1400.0 * vel
+	var a := 1.0 - exp(-TAU * cutoff * inv)
+	var y := 0.0
+	var y2 := 0.0
+	var nz := 0.0
+	for i in n:
+		var t := i * inv
+		var vib := 1.0 + 0.0055 * sin(TAU * 5.0 * t) * smoothstep(0.25, 0.7, t)
+		p += freq * vib * ts * inv
+		if p >= ts:
+			p -= ts
+		var env := smoothstep(0.0, 0.22, t) * (0.85 + 0.15 * sin(TAU * 0.7 * t))
+		if i > dn:
+			env *= exp(-(t - dur) * 9.0)
+		nz += 0.3 * (rng.randf_range(-1.0, 1.0) - nz)
+		var v := tab[int(p) & TABLE_MASK] + 0.05 * nz
+		y += a * (v - y)
+		y2 += a * (y - y2)
+		buf[i] = y2 * env * amp
+	return buf
+
+
+## Drone: nízký rozladěný shluk s pomalu dýchajícím filtrem – podlaha pro noc a napětí.
+func drone(freq: float, dur: float, vel: float) -> PackedFloat32Array:
+	var rel := 2.5
+	var n := int((dur + rel) * sr)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var inv := 1.0 / sr
+	var tab := table("saw")
+	var ts := float(TABLE_SIZE)
+	var incs := [freq * 0.997, freq * 1.0031, freq * 0.5, freq * 1.4983]
+	var gains := [1.0, 0.9, 0.7, 0.18]
+	var ph := [rng.randf() * ts, rng.randf() * ts, rng.randf() * ts, rng.randf() * ts]
+	var y := 0.0
+	var y2 := 0.0
+	var amp := vel * 0.09
+	var dn := int(dur * sr)
+	var lfo_rate := rng.randf_range(0.05, 0.11)
+	for i in n:
+		var t := i * inv
+		var env := minf(1.0, t / 1.8)
+		if i > dn:
+			env *= exp(-(t - dur) * 1.6)
+		var v := 0.0
+		for k in 4:
+			ph[k] += float(incs[k]) * ts * inv
+			if ph[k] >= ts:
+				ph[k] -= ts
+			v += tab[int(ph[k]) & TABLE_MASK] * float(gains[k])
+		var cut := 180.0 + 260.0 * (0.5 + 0.5 * sin(TAU * lfo_rate * t))
+		var a := 1.0 - exp(-TAU * cut * inv)
+		y += a * (v - y)
+		y2 += a * (y - y2)
+		buf[i] = y2 * env * amp
+	return buf
+
+
+## Formantový hlas – nesrozumitelná „řeč“ (slabiky z českých samohlásek a šumových
+## souhlásek). intensity 0 = klidný hovor, 1 = křik (vyšší f0, víc energie, ostřejší F1).
+## rough 0..1 = chraplavost (subharmonie + šum). Vrací mono buffer délky `dur`.
+func voice(f0: float, dur: float, intensity: float, rough: float) -> PackedFloat32Array:
+	var n := int(dur * sr)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	buf.fill(0.0)
+	var inv := 1.0 / sr
+	# Samohlásky (F1, F2, F3) – a, e, i, o, u
+	var vowels := [[800.0, 1250.0, 2600.0], [520.0, 1800.0, 2550.0], [320.0, 2250.0, 3000.0],
+			[520.0, 900.0, 2500.0], [350.0, 720.0, 2400.0]]
+	var shout := clampf(intensity, 0.0, 1.0)
+	# Plán slabik: [začátek, délka, samohláska, přízvuk, souhláska]
+	var plan := []
+	var t := rng.randf_range(0.0, 0.15)
+	while t < dur - 0.2:
+		var phrase := rng.randi_range(3, 9)
+		for s in phrase:
+			var d := rng.randf_range(0.09, 0.22) * (1.0 + 0.4 * shout * float(s == phrase - 1))
+			plan.append([t, d, rng.randi() % vowels.size(), (rng.randf() < 0.3) or s == 0, rng.randi() % 4])
+			t += d + rng.randf_range(0.015, 0.05)
+			if t >= dur - 0.2:
+				break
+		t += rng.randf_range(0.18, 0.55) * (1.0 - 0.5 * shout)
+	# Buzení: pila s náklonem spektra, jitter, shimmer; formanty jako 3 rezonátory.
+	var phase := 0.0
+	var f1 := 500.0
+	var f2 := 1500.0
+	var f3 := 2500.0
+	var z := [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]
+	var coef := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+	var tilt := 0.0
+	var nz := 0.0
+	var sub := 1.0
+	var si := 0
+	var base := f0 * (1.0 + 0.45 * shout)
+	var bws := [90.0 + 60.0 * shout, 110.0, 160.0]
+	var fgain := [1.0, 0.55 + 0.25 * shout, 0.25 + 0.2 * shout]
+	for i in n:
+		var tt := i * inv
+		while si < plan.size() - 1 and tt > float(plan[si][0]) + float(plan[si][1]):
+			si += 1
+		var amp := 0.0
+		var target: Array = vowels[2]
+		var pitch := base
+		var cons := false
+		if plan.size() > 0:
+			var syl: Array = plan[si]
+			var st: float = syl[0]
+			var sd: float = syl[1]
+			var lt := tt - st
+			if lt >= 0.0 and lt <= sd:
+				amp = smoothstep(0.0, 0.018, lt) * (1.0 - smoothstep(sd - 0.04, sd, lt))
+				amp *= 1.0 if bool(syl[3]) else 0.72
+				target = vowels[int(syl[2])]
+				# intonace: přízvuk nahoru, konec slabiky mírně dolů; křik = strmější
+				pitch = base * (1.0 + (0.18 + 0.2 * shout) * float(bool(syl[3])) * (1.0 - lt / sd) - 0.06 * lt / sd)
+				cons = lt < 0.035 and int(syl[4]) != 0
+		# formanty plynule sledují cíl (~25 ms)
+		var k := 1.0 - exp(-inv / 0.025)
+		f1 += k * (float(target[0]) * (1.0 + 0.18 * shout) - f1)
+		f2 += k * (float(target[1]) - f2)
+		f3 += k * (float(target[2]) - f3)
+		if i % 32 == 0:
+			var fs := [f1, f2, f3]
+			for r in 3:
+				var w := TAU * float(fs[r]) * inv
+				var rad := exp(-PI * float(bws[r]) * inv)
+				coef[r][0] = 2.0 * rad * cos(w)
+				coef[r][1] = -rad * rad
+				coef[r][2] = (1.0 - rad * rad) * 0.5
+		var jit := 1.0 + rng.randf_range(-0.012, 0.012) * (1.0 + 2.0 * rough)
+		phase += pitch * jit * inv
+		if phase >= 1.0:
+			phase -= 1.0
+			sub = -sub
+		var src := 1.0 - 2.0 * phase
+		if rough > 0.0:
+			src += rough * 0.3 * sub
+		tilt += (0.35 - 0.2 * shout) * (src - tilt)
+		nz += 0.5 * (rng.randf_range(-1.0, 1.0) - nz)
+		var exc := tilt * amp + nz * amp * (0.04 + 0.25 * rough * shout)
+		if cons:
+			exc = rng.randf_range(-1.0, 1.0) * 0.6
+		var out := 0.0
+		for r in 3:
+			var y: float = coef[r][2] * exc + coef[r][0] * float(z[r][0]) + coef[r][1] * float(z[r][1])
+			z[r][1] = z[r][0]
+			z[r][0] = y
+			out += y * float(fgain[r])
+		buf[i] = out * (0.9 + 0.5 * shout)
+	# normalizace bufferu na rozumnou špičku
+	var pk := 0.0001
+	for i in n:
+		pk = maxf(pk, absf(buf[i]))
+	var g := 0.7 / pk
+	for i in n:
+		buf[i] *= g
+	return buf
+
+
 ## Vyrenderuje jednu notu daným nástrojem a přimíchá ji.
 func note(instr: String, midi: float, start_s: float, dur_s: float, vel: float, pan := 0.0, gain := 1.0) -> void:
 	var f := midi_to_freq(midi)
@@ -307,6 +523,14 @@ func note(instr: String, midi: float, start_s: float, dur_s: float, vel: float, 
 			buf = bell(f, dur_s, vel)
 		"flute":
 			buf = flute(f, dur_s, vel)
+		"felt":
+			buf = felt_piano(f, dur_s, vel)
+		"cello":
+			buf = cello(f, dur_s, vel)
+		"drone":
+			buf = drone(f, dur_s, vel)
+		"pluck_muted":
+			buf = pluck(f, minf(dur_s, 0.35), vel, 0.08)
 		_:
 			buf = epiano(f, dur_s, vel)
 	mix(buf, sec(start_s), pan, gain)
@@ -443,6 +667,98 @@ func filter(cutoff: float, highpass := false) -> void:
 				left[i] = v
 			else:
 				right[i] = v
+
+
+## Frekvence zaokrouhlená tak, aby se do smyčky vešel celý počet period (bez švu).
+func loop_freq(f: float) -> float:
+	var len_s := float(length) / sr
+	return maxf(1.0, roundf(f * len_s)) / len_s
+
+
+## „Opotřebovaná páska“: kolísání rychlosti (wow + flutter) frakčním zpožděním.
+## Modulace má celý počet period ve smyčce, takže smyčka zůstává bezešvá.
+func wow(depth_ms := 0.8, rate := 0.45, flutter_ms := 0.08, flutter_rate := 6.5) -> void:
+	var wr := loop_freq(rate)
+	var fr := loop_freq(flutter_rate)
+	var dmax := (depth_ms + flutter_ms) * 0.001 * sr
+	var inv := 1.0 / sr
+	for ch in (2 if stereo else 1):
+		var src: PackedFloat32Array = (left if ch == 0 else right).duplicate()
+		var off := 0.37 * float(ch)
+		for i in length:
+			var t := i * inv
+			var d := dmax * 0.5 + depth_ms * 0.0005 * sr * sin(TAU * wr * t + off) \
+					+ flutter_ms * 0.0005 * sr * sin(TAU * fr * t)
+			var pos := float(i) - d
+			var i0 := int(floor(pos))
+			var fr_ := pos - float(i0)
+			var a: float = src[posmod(i0, length)]
+			var b: float = src[posmod(i0 + 1, length)]
+			var v := a + (b - a) * fr_
+			if ch == 0:
+				left[i] = v
+			else:
+				right[i] = v
+
+
+## Textura nahrávky: šum pásky (hiss), síťový brum (50 Hz + harmonické) a praskání desky.
+## Úrovně jsou lineární amplitudy po normalizaci (typicky 0,002–0,01).
+func texture(hiss := 0.0, hum := 0.0, crackle := 0.0) -> void:
+	var inv := 1.0 / sr
+	var hf := loop_freq(50.0)
+	var hp_l := 0.0
+	var hp_r := 0.0
+	for i in length:
+		var t := i * inv
+		var v := 0.0
+		if hum > 0.0:
+			v += hum * (sin(TAU * hf * t) + 0.5 * sin(TAU * 2.0 * hf * t) + 0.25 * sin(TAU * 3.0 * hf * t))
+		var nl := 0.0
+		var nr := 0.0
+		if hiss > 0.0:
+			var xl := rng.randf_range(-1.0, 1.0)
+			var xr := rng.randf_range(-1.0, 1.0)
+			hp_l += 0.25 * (xl - hp_l)
+			hp_r += 0.25 * (xr - hp_r)
+			nl = (xl - hp_l) * hiss
+			nr = (xr - hp_r) * hiss
+		if crackle > 0.0 and rng.randf() < 0.0009:
+			var c := rng.randf_range(-1.0, 1.0) * crackle * 12.0
+			nl += c
+			nr += c * rng.randf_range(0.3, 1.0)
+		left[i] += v + nl
+		if stereo:
+			right[i] += v + nr
+
+
+## Bezešvá smyčka i pro šum: pomalá lineární korekce (neslyšitelný posun DC), aby poslední
+## vzorek navázal na první (předpověď z prvních dvou vzorků). Volat před normalize().
+func fix_seam() -> void:
+	if length < 3:
+		return
+	for ch in (2 if stereo else 1):
+		var buf: PackedFloat32Array = left if ch == 0 else right
+		var delta := (2.0 * buf[0] - buf[1]) - buf[length - 1]
+		var inv := 1.0 / float(length - 1)
+		for i in length:
+			buf[i] += delta * float(i) * inv
+		if ch == 0:
+			left = buf
+		else:
+			right = buf
+
+
+## Ztlumí úsek (ticho jako stav) – měkký fade, s ovinutím kolem konce.
+func duck_range(start_s: float, dur_s: float, depth := 0.85, fade_s := 1.2) -> void:
+	var a := sec(start_s)
+	var n := sec(dur_s)
+	var f := maxi(sec(fade_s), 1)
+	for k in n:
+		var w := minf(1.0, minf(float(k) / f, float(n - k) / f))
+		var g := 1.0 - depth * w
+		var j := posmod(a + k, length)
+		left[j] *= g
+		right[j] *= g
 
 
 # ------------------------------------------------------------------ export

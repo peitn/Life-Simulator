@@ -698,3 +698,108 @@ i posuvník). Běh 12 skončil korektně („běh dokončen“). Plán poslán d
 - C4b: vlasy, vousy a obočí jako hair cards (shell jen LOD) – teď už na správných proporcích krku; render s
   `slider_min = -1` (knihovna /tmp/render_lib.py v Blenderu je dočasná).
 - Potom C3+ B (rty, oči, výška/velikost hlavy) a první osa psychiky.
+
+
+## 2026-10-21 (běh 15, ~21:20–23:00 UTC) – DYNAMIKA DOMÁCNOSTI: konec „studené války“
+**Oblast:** (a)+(c) jádro a vztahy – rozhodnutí uživatelky (CHECKPOINT běhu 14: nejdřív dynamika postav, C4b potom).
+Běh 14 spadl na limit; hair_builder.gd a hair_rig.gd zůstávají rozpracované a nezapojené (navazuje příští běh).
+Plán v místnosti #119; paralelně Claude (chat) dělá zvuk (#120, jen scripts/audio/*, tools/build_audio.gd, audio/**).
+
+### Průběžné checkpointy
+- ~22:05 modul + napojení + test 75/75 (10 seedů 36,7 %); ~22:35 Gemini + kalibrace + regrese; ~22:50 docs/audit.
+
+### Co přibylo / změnilo se
+- **scripts/sim/household_dynamics.gd** (nový, tik 10 herních min jen na autoritě): třenice (hluk v noci do 9 m, obsazená
+  koupelna při hygieně < 40, nádobí jen po ≥ 20 min skutečného vaření) se šancí 25/20/12 % × dráždivost povahy a
+  cooldownem na dvojici a téma 6/6/12 h → stres +3, křivda +2, moodlet, STÍŽNOST do příštího oslovení (6 h); společné
+  chvíle (gauč/TV do 4 m, vaření vedle sebe; cooldown 4 h; +2 × warmth_mult; nic při křivdě > 60); životní události
+  (~1× denně mimo spánek, ±7–13 nálady na 4–8 h); zanedbání (kladný vztah bez kontaktu > 3 dny klesá k 25).
+- **SimAgent**: `talk_success_chance` (základ 0,65, nálada obou ±20 p. b., stres nad 35 / 320, emoce vztek 0,12 /
+  únava a napětí 0,06, stížnost −0,08), de-eskalace posluchačem v dobré náladě (0 → 35 % mezi náladou 20 a 50),
+  stížnost zazní repliky a vyřešená v klidu obrousí křivdu, hádka ×0,6, opakovaný hovor ×0,7, měkký strop stresu
+  z hádek (`argue_stress_cap`, vznětlivý 65), drift záporných vztahů +2/den bez živé křivdy, `note_relationship_change`
+  (4 texty podle směru a úrovně – oprava „Vztah se zhoršil: … je teď blízká přítelkyně“), signál `conversation`.
+- **Traits**: `irritability` (pedant, bručoun, vznětlivý, úzkostlivý ×1,4; lenoch, optimista ×0,7), `argue_stress_cap`.
+- **ActionLibrary**: repliky stížností (hluk, koupelna, nádobí), „jo, promiň“, de-eskalace.
+- **fccs_oracle.gd**: jen volitelný modulátor výsledku rozhovoru (třenice/vyvážení/události/nálada jsou teď ve hře).
+- **main.gd**: `dynamics` + `_on_time_advanced` (jen `multiplayer.is_server()`), report domácnosti v `--test`.
+- **tests/test_base.gd**: watchdog se startuje odloženě (dřív vždy 60 s, protože `_enter_tree` předbíhal `_ready`).
+- **tests/test_household_dynamics.gd** (nový, 78 kontrol): jednotkové části + 16 seedů × 14 dní + determinismus.
+
+### Ověření
+- test_household_dynamics 78/78: hádky 32,0 % ± 10,4 p. b. (17–54 %), vztahy průměr +25,6 (−50…+100), gradient nálady
+  21/42/72 %, stres > 85 průměr 0,01 % času, 0 kritických potřeb, determinismus OK.
+- `--test 14`: dřív vztahy −41…−61 a ~400 min stresu > 85 u Jany i Petra → teď 28 % hádek, vztahy +6…+86, stres > 85 0 min.
+- Regrese všech 16 starších sad OK + `--test 7`, `godot_check` 60/60. Gemini: 2 nálezy zapracovány, 4 zdůvodněně
+  odmítnuty (AUDIT.md).
+
+### Známé problémy
+- Kalibrace je citlivá na pořadí náhody (jednotlivé seedy se posunou o 10–20 p. b.) → hodnotí se průměr přes 16 seedů.
+- Vztah kolem hranice úrovně (např. 85) může střídat vzpomínky „je teď nejlepší přítelkyně“ / „ochladil se“ –
+  zvážit hysterezi úrovní.
+- Třenice v MP: opt-out z cíle třenic (PvP) a prostorové filtrování dvojic pro velké parcely – v plánu.
+- C4b (vlasy) rozpracované z běhu 14, nezapojené.
+
+### GitHub
+- Lokální commit 5c9c9f4 v klonu, `git push` odmítnut proxy (403, repo mimo autorizované zdroje naplánované session).
+  ZIP exportu (MD5 86f8538ccb91b732d34859a45f193cd3, 28 dílů v previews/export) je připravený pro ruční sync z hlavního chatu.
+
+### room_last_id: 123
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 · ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f
+- AUDIT.md rev. 11 (výřez běhu 15), ROADMAP.md rev. 7; kód k review: household_dynamics.gd b33f1ee7e9d44add981058e24714b72c (#122); shrnutí #123
+- Paměť: stav cdf19b25a96e48f4924a7c5fd49a2617, rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced,
+  otevřené body 6c717c0ead454018979d105fa5dc58ab, plán psychiky 4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C4b: vlasy, vousy, obočí jako karty – navázat na hair_builder.gd / hair_rig.gd (plán #118) + 3 runtime testy krku z #117.
+
+
+## 2026-10-22 (běh 17, od 02:49 UTC) – hudba v3 + C4b
+- ~03:00 checkpoint: hudba v3 (původní skladby obnoveny, nové „Mlhavé ráno“ v duchu „noci“), test_audio_tone 222/222, demo MP3 uživatelce.
+- ~03:30 checkpoint: C4b review + Blender render (8 postav, 3 kola): opraveno trčení copánků/dredů, odstávání dlouhých vlasů od zad, ježatý undercut, chybějící boční části obočí (projekce mimo dosah); test_hair 50/50, regrese vzhledu OK.
+- ~03:45 checkpoint: Gemini audit (6 nálezů: async stavba vlasů zapracována, 5 zdůvodněně odmítnuto), plná regrese 20 sad OK, AUDIT.md, ROADMAP.md, docs (character-creator, roadmap, asset-pipeline, testing, architecture, audio, README), docs/images/c4b-hair-run17-*.jpg.
+
+### Co přibylo / změnilo se
+- **Hudba v3** (rozhodnutí uživatelky 22. 10.): `music_data.gd` – původní skladby a renderer z 0518c53 zpět (MD5 ověřeno),
+  „noc“ = `TONE_REFERENCE`, nové **„Mlhavé ráno“** (Fmaj7–Am7–Dm7–Cadd9–Fmaj7–Em7–Dm7–Gsus4, 70 BPM, zvonek, světlejší pad,
+  pomalé arpeggio e-piana, bez bicích), „den“ jen střízlivější název. WAVy přerenderované, demo MP3 (ráno + noc) poslané
+  uživatelce. `test_audio_tone` přepsán na nová pravidla (+ jas WAV: noc 590 ≤ ráno 597 < den 717 průchodů nulou/s;
+  šev smyčky proti p99 rozdílů vzorků). `docs/audio.md`. Ambience, napětí a hlasy hádek z v2 zůstávají.
+- **C4b dokončeno**: stav z běhů 14/16 ověřen; opravy z renderu v Blenderu – `hair_builder.strand` (náklon gravitace jen
+  nad rameny a jen u bočních pramenů, ztráta hybnosti pod středem hlavy), `build_brows` (výchozí bod projekce radiálně
+  z mapy hlavy – dřív se postavilo jen 37 ze 140 karet u kořene nosu), undercut/kratke klidnější.
+- **Async stavba vlasů** (review Gemini): `HairRig.request_mesh` + WorkerThreadPool (ve vlákně jen pole, ArrayMesh na
+  hlavním vlákně), helma z GLB do dokončení, `SimVisual._on_hair_mesh_ready`; zapnuto jen ve hře (`main.gd`).
+- `sim_visual` (úklid při chybě shaderu), `appearance_resolver._f01` (NaN/∞/text), `main._audio_report` (25 souborů).
+- `tools/hair_export.gd` (export vlasů pro Blender) + postup v `docs/asset-pipeline.md`; rendery
+  `docs/images/c4b-hair-run17-before.jpg`, `-a.jpg`, `-face.jpg`.
+- Docs: character-creator (sekce Hair), roadmap, asset-pipeline, testing, architecture, audio, README.
+
+### Ověření
+- test_hair 55/55, test_audio_tone 222/222, plná regrese 20 sad OK, `godot_check` 60/60, `--test 7` OK, hra bez argumentů
+  25 s bez chyb. Render v Blenderu prohlédnutý okem (3 kola + detail obličeje). Gemini: 1 nález zapracován, 5 odmítnuto.
+
+### Známé problémy
+- Schodovitý okraj skořepiny u spánků, sloupcový vzor plnovousu, mezera pod rtem (C3+ B). Blender materiál vlasů je jen náhrada.
+- Časy v CHECKPOINT/DEVLOG během běhu byly odhadnuté a v první verzi AUDIT v místnosti (rev. 12) je konec běhu „05:45“ –
+  skutečně ~04:00 UTC (opraveno v projektu).
+
+### GitHub
+- Lokální commit `08708ea` (běhy 14–17) v klonu, `git push` opět odmítnut proxy (403, repo mimo autorizované zdroje
+  naplánované session). ZIP exportu (MD5 2d50807f899027d37bf19d79ed850dfa, 34 dílů v previews/export) připravený pro ruční sync.
+
+### room_last_id: 132
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 (rev. 12 – výřez běhu 17) · ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f (rev. 7,
+  v tomto běhu neaktualizováno – změny řádků C4b/C3+ B/(f) ve zprávě v místnosti)
+- Paměť: stav cdf19b25a96e48f4924a7c5fd49a2617 (rev. 10), otevřené body 6c717c0ead454018979d105fa5dc58ab (rev. 13),
+  rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced, plán psychiky 4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C3+ B: rty s objemem, oči, výška hlavy, tlumení extrémů + drobnosti z renderu vlasů (okraj skořepiny, plnovous).
+- Potom 1. osa psychiky podle docs/design/psyche-model.md (s připomínkami ChatGPT #127).
+
+- 22. 10. ~03:55 UTC: ruční spuštění (payload 4:49 – hudba, pak C4b) přišlo po dokončení běhu 17; oba kroky už hotové a ověřené (music_data v3, WAV rano/noc beze změny – MD5 jako demo). Demo znovu posláno uživatelce, žádné další změny.

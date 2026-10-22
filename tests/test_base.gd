@@ -10,6 +10,11 @@ var _failures: PackedStringArray = []
 
 
 func _enter_tree() -> void:
+	# Odloženě: podtřída nastavuje watchdog_seconds až v _ready() (dřív tu platilo vždy 60 s).
+	_start_watchdog.call_deferred()
+
+
+func _start_watchdog() -> void:
 	get_tree().create_timer(watchdog_seconds, true, false, true).timeout.connect(_on_watchdog)
 
 

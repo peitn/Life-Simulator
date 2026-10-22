@@ -1,31 +1,50 @@
 extends RefCounted
 ## Hudba Life Simulator – skladby jako data (akordy z Audio Engine music_progression,
-## melodie komponované ručně; téma „Ráno“ je i v knihovně Audio Engine jako
-## Surge render: lifesim/sounds/theme_rano_surge_mix.wav).
+## melodie komponované ručně), renderované offline syntezátorem (tools/build_audio.gd).
+##
+## Verze 3 (rozhodnutí uživatelky 22. 10. 2026): hudba v2 („dospělý“ přepis – plstěné piano,
+## violoncello, páska) se nelíbila, původní byla lepší. Proto:
+##  * „noc“ (Noční ticho) je VZOR TÓNU celé hry – řídké zvonkové tóny, tmavý pad, dlouhá basa,
+##    hodně prostoru; beze změny proti původní verzi;
+##  * „den“, „vecer“, „melancholie“ – původní verze beze změny (jen „den“ má střízlivější název);
+##  * „rano“ je nově složené v duchu „noci“: stejně řídké a tiché, ale ranní – světlejší pad
+##    (vyšší cutoff), F lydická/d moll místo a moll, pomalé rozložené akordy e-piana, nevyřešený
+##    Gsus4 na konci (smyčka se vrací do Fmaj7). Žádné sluníčko, spíš mlha a první káva.
+## Původní nástroje syntezátoru i renderer jsou nezměněné, takže původní skladby zní stejně jako
+## v původním dému (GitHub 0518c53). Nástroje z v2 (felt, cello, drone…) v synth.gd zůstávají
+## pro recepty zvuků. Archiv v2 dat: previews/archive/music_data_v2.gd (mimo repozitář).
 ##
 ## Každá skladba = 8 taktů akordů × 2 průchody. 1. průchod je „intro“ bez melodie
 ## (méně ohraná hudba v pozadí), 2. průchod přidá melodii a rytmiku.
+## Formát melodie: [midi, začátek v dobách (od 2. průchodu), délka v dobách, velocity 0–127].
 
 const Synth := preload("res://scripts/audio/synth.gd")
 
+## Verze hudebního designu – při změně se WAVy musí přerenderovat (tools/build_audio.gd).
+const DESIGN_VERSION := 3
+## Skladba, která určuje tón hry (testy z ní odvozují meze pro ranní hudbu).
+const TONE_REFERENCE := "noc"
+
 const SONGS := {
 	"rano": {
-		"title": "Ráno v Lipové ulici", "tempo": 92.0, "reverb": 0.32,
-		"chords": [[50, 54, 57], [57, 61, 64], [59, 62, 66], [55, 59, 62], [50, 54, 57], [54, 57, 61], [55, 59, 62], [57, 61, 64]],
-		"melody_instr": "epiano", "chord_instr": "pad", "arp_instr": "pluck", "arp": "up", "drums": "shaker",
+		"title": "Mlhavé ráno", "tempo": 70.0, "reverb": 0.44,
+		# Fmaj7 – Am7 – Dm7 – Cadd9 – Fmaj7 – Em7 – Dm7 – Gsus4 (bez rozvodu)
+		"chords": [[53, 57, 60, 64], [57, 60, 64, 67], [50, 53, 57, 60], [48, 52, 55, 62],
+				[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [55, 60, 62]],
+		"melody_instr": "bell", "chord_instr": "pad", "arp_instr": "epiano", "arp": "slow", "drums": "", "bass": "long",
 		"melody": [
-			[66, 0, 1, 84], [69, 1, 1, 80], [74, 2, 1.5, 90], [73, 3.5, 0.5, 76],
-			[76, 4, 1.5, 88], [73, 5.5, 0.5, 76], [69, 6, 2, 80],
-			[71, 8, 1, 82], [74, 9, 1, 84], [78, 10, 1.5, 92], [76, 11.5, 0.5, 78],
-			[74, 12, 1, 84], [71, 13, 1, 80], [67, 14, 2, 78],
-			[69, 16, 1, 82], [66, 17, 0.5, 74], [69, 17.5, 0.5, 78], [74, 18, 2, 88],
-			[73, 20, 1, 84], [69, 21, 1, 80], [66, 22, 1, 78], [64, 23, 1, 74],
-			[62, 24, 0.5, 74], [64, 24.5, 0.5, 76], [67, 25, 1, 80], [71, 26, 1, 84], [74, 27, 1, 86],
-			[73, 28, 1.5, 86], [76, 29.5, 0.5, 80], [69, 30, 2, 80],
+			[72, 0, 2, 64], [76, 2, 2, 68],
+			[79, 4, 3, 72], [77, 7, 1, 62],
+			[76, 8, 2, 66], [74, 10, 2, 62],
+			[72, 12, 4, 64],
+			[72, 16, 1, 62], [76, 17, 1, 66], [79, 18, 1, 68], [81, 19, 1, 70],
+			[83, 20, 2, 72], [79, 22, 1, 66], [76, 23, 1, 64],
+			[77, 24, 2, 68], [74, 26, 1, 64], [72, 27, 1, 62],
+			[74, 28, 4, 64],
 		],
 	},
 	"den": {
-		"title": "Sluníčko na zahradě", "tempo": 104.0, "reverb": 0.22,
+		"title": "Odpoledne na dvorku", "tempo": 104.0, "reverb": 0.22,
 		"chords": [[55, 59, 62], [52, 55, 59], [57, 60, 64], [50, 54, 57], [55, 59, 62], [48, 52, 55], [57, 60, 64], [50, 54, 57]],
 		"melody_instr": "flute", "chord_instr": "pad", "arp_instr": "pluck", "arp": "pop", "drums": "light",
 		"melody": [

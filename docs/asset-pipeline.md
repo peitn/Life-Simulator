@@ -98,4 +98,17 @@ and the head gets the linear `b_neck_len` blend shape (neck length ±15 mm). Ren
 - More assets: stove, TV, bookcase, shower, treadmill, table and chairs, doors and windows, trees, the
   city.
 - Facial expressions and gestures, foot IK, sit and stand transitions.
-- Hair cards (C4b) and clothing that follows body morphs (C5).
+- Clothing that follows body morphs (C5).
+
+## Hair render check (C4b)
+
+Hair is generated in Godot, so it is not in `character.glb`. `tools/hair_export.gd` builds a `SimVisual` for a
+set of characters (styles, colours, greying, receding hairline, beards, head shapes), reads the real blend-shape
+weights from it and writes the deformed card geometry (positions, UV, CUSTOM0, indices as base64 float/int
+arrays) plus the head and body weights to `res://previews/hair_export/*.json`, split into 150,000-character
+parts. In Blender the parts are joined (MD5 check), `character.glb` is imported with the same shape-key
+weights, the cards become meshes, and a node material imitates `hair.gdshader` (strands from UV and CUSTOM0,
+grey strands, receding hairline, shells). Cycles renders 5 views per character; the sheet goes back to Godot
+with `godot_file_write` in equal parts (so that every part is large enough to be stored as a file on the
+reviewer's side) and is decoded and checked by MD5. The Blender material is an approximation: highlights
+and shells look glossier than in the game.

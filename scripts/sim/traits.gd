@@ -7,6 +7,7 @@ const DEFS := {
 		"label": "Lenoch", "desc": "Nejradši odpočívá, sport ho nebaví.",
 		"decay": {"energy": 1.15, "comfort": 1.2},
 		"tags": {"rest": 1.4, "sleep": 1.15, "exercise": 0.35},
+		"irritability": 0.7,  # hluk a nepořádek ho skoro nerozhodí
 	},
 	"aktivni": {
 		"label": "Aktivní", "desc": "Musí být pořád v pohybu.",
@@ -20,6 +21,7 @@ const DEFS := {
 		"decay": {"hygiene": 1.25},
 		"tags": {"hygiene": 1.5},
 		"hygiene_threshold": 45.0,
+		"irritability": 1.4,  # nádobí na lince a obsazená koupelna ho vytočí dřív
 	},
 	"spolecensky": {
 		"label": "Společenský", "desc": "Bez lidí uvadá.",
@@ -55,6 +57,7 @@ const DEFS := {
 		"label": "Optimista", "desc": "Sklenice je vždycky poloplná.",
 		"mood_bias": 8.0, "negative_scale": 0.7, "chemistry": 0.1,
 		"dep_vuln": -0.12, "grudge_tau": 0.6, "forgiveness": 0.12,
+		"irritability": 0.7,
 	},
 	"brucoun": {
 		"label": "Bručoun", "desc": "Všechno ho trochu štve.",
@@ -63,6 +66,7 @@ const DEFS := {
 		"chemistry": -0.2, "stigma": 0.25,
 		# Zášť drží dlouho, výčitky krátce, omlouvá se nerad.
 		"grudge_tau": 1.6, "guilt_tau": 0.6, "pride": 0.45, "forgiveness": -0.1,
+		"irritability": 1.4,
 	},
 	# --- negativní a ambivalentní rysy (dělají z postav lidi, ne záporáky)
 	"zarlivy": {
@@ -74,6 +78,9 @@ const DEFS := {
 		"argue_bias": 0.08, "stress_gain": 1.25,
 		# Rychle vzplane, rychle odpustí – a své výbuchy pak lituje.
 		"grudge_tau": 0.7, "guilt_tau": 1.2, "pride": 1.2,
+		# Drobnosti ho vytočí, ale hádka v něm nedoutná: nižší měkký strop stresu z hádek
+		# (vybuchne a vyfučí – vztek se nemění v chronický stres).
+		"irritability": 1.4, "argue_stress_cap": 65.0,
 		"tags": {"exercise": 1.15},
 	},
 	"cynik": {
@@ -92,6 +99,7 @@ const DEFS := {
 		"negative_scale": 1.1,
 		# Výčitky si přehrává dlouho, omluví se spíš dřív než později.
 		"guilt_tau": 1.5, "pride": 1.3,
+		"irritability": 1.4,  # citlivější na hluk a narušený klid
 	},
 }
 

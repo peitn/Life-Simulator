@@ -690,6 +690,10 @@ func _test_performance() -> void:
 	holder.add_child(v)
 	var d := _valid_char(31)
 	var cd = CharacterData.new()
+	# Zahřátí: první aplikace postaví sítě vlasů/obočí/vousů pro účes (C4b, ~1 s na účes, pak sdílená cache).
+	# Posuvník měří odezvu při stejném účesu; první sestavení účesu měří test_hair (a C6 ho přesune mimo snímek).
+	cd.set_from_dict(Validator.validate(d)["data"])
+	v.apply_look(cd.public_snapshot())
 	var t0 := Time.get_ticks_usec()
 	for i in 200:
 		d["body"]["height_cm"] = 150.0 + (i % 50)

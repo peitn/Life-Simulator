@@ -28,6 +28,7 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 | `test_mental_health` | Stress, three-component anxiety, involuntary panic with no player lock-out, coping trade-offs and non-dominance, anti-farming, exposure, intrusive thoughts, witnesses (help versus stigma), content settings | 95 ✅ |
 | `test_depression` | Separate wanting, liking and vigour, prediction error, habituation with no ceiling, shared relief budget, episodes, relapse scar, commands never refused, content caps | 92 ✅ |
 | `test_reconciliation` | Grudges slow warming, decay by personality, apology sincerity from behaviour, apology spam, AI apologies from guilt, healing over time | 58 ✅ |
+| `test_household_dynamics` | Run 15: friction rules, cooldowns and irritability, complaints as conversation tone, mood weight and de-escalation, soft stress ceiling for arguments, memory text by direction, shared moments (cooldown, grudge gate), dishes only after real cooking, neglect and drift; **long run 16 seeds × 14 days** of the starting household with mean and spread (arguments 20–40 %, no all-hostile or all-idyllic seed, pairs differ, mood gradient, rare extreme stress, no critical needs) and determinism | 78 ✅ |
 | `test_player_commands` | Command queue, interruption, cancelling sleep, insult and its consequences, NetSession command validation, `player_only` actions | 40 ✅ |
 | `test_psyche_presentation` | PsycheFX, low-pass music, heartbeat, distortion settings, HUD in words, thoughts | 19 ✅ |
 | `test_net_protocol` | Sanitising, unique names, validation, rate limit, speed votes | 34 ✅ |
@@ -41,10 +42,20 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 | `test_neck_length` | Run 13 data side of `body.neck_length`: schema v4, migration v3 → v4 (and v1 → v4), JSON / share code / file round trips, strict server validation with fuzzing, public snapshot, determinism, independence from gender and name, randomizer distribution and locks | 36 ✅ |
 | `test_skin` | C4a: SkinModel continuity, spectrum, saturation and hue over 1,386 combinations, determinism, layer placement on the surface, shader compiles, CUSTOM0 holds the rest pose | 60 ✅ |
 | `test_assets` | LSX format (CRC, corrupted data), sources ↔ manifest ↔ GLB, furniture dimensions, orientation, winding and PBR, character skeleton, skin weights and variants, animations, SimVisual, primitive fallback | 150 ✅ |
+| `test_hair` | C4b: every hairstyle, eyebrow shape and beard style has a mesh within budget, no head penetration, face clear, long hair lies on chest and back, eyebrow coverage, recession ranks, determinism (also threaded versus synchronous build), morph transfer (neck length, head width), bone weights, CUSTOM0, shader parameters, SimVisual cards instead of the GLB helmet, morph weights on the cards, independence from name and gender, corrupted values | 55 ✅ |
+| `test_audio_tone` | Music v3 data (the night song unchanged, the morning song in its spirit, no v2 instruments in music), brightness of the rendered morning song between night and day, synthesizer instruments, loop seams against each file's own sample-to-sample differences, rendered files, apartment ambience, argument voices and tension | 222 ✅ |
 
-"Last known" is the state after run 13 (21 October 2026); all 17 suites pass. The slider-latency check in
-`test_character` (limit 4 ms) was over the limit at 4.2 ms; run 13 removed a hot spot in
-`FaceMorphs.weights()` (the face field table was rebuilt for every field), which brought it to 3.7 ms.
+"Last known" is the state after run 17 (22 October 2026); all 20 suites pass, plus `--test 7`. The
+slider-latency check in `test_character` (limit 4 ms) was over the limit at 4.2 ms; run 13 removed a hot
+spot in `FaceMorphs.weights()` (the face field table was rebuilt for every field), which brought it to
+3.7 ms.
+
+`test_household_dynamics` takes about 75 seconds (16 simulated fortnights). The long run steps the clock
+by 2 game minutes (`GameClock.MAX_STEP`), the same step the game uses at higher speeds.
+
+Run 15 also fixed `test_base.gd`: the watchdog timer was created in `_enter_tree()`, before a test could
+raise `watchdog_seconds` in `_ready()`, so every test had a 60-second watchdog. It is now started
+deferred.
 
 ## Quality gate for every change
 

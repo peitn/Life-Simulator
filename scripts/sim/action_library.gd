@@ -262,6 +262,30 @@ const LINES := {
 		"Hned… jen ještě chvilku.",
 		"Za chvíli. Fakt.",
 	],
+	## Stížnosti z domácnosti (HouseholdDynamics) – tón oslovení, (a) = rod mluvčího.
+	"complaint_noise": [
+		"Můžeš se ztišit? Já se tu snažím spát, sakra.",
+		"Víš, kolik je hodin? Někdo tu spí!",
+	],
+	"complaint_bathroom": [
+		"Jak dlouho tam ještě budeš? Taky se potřebuju umýt!",
+		"Koupelna není tvoje soukromá lázeň, hergot.",
+	],
+	"complaint_dishes": [
+		"Kdo zase nechal špinavý nádobí na lince? Nejsem tvoje služka.",
+		"Ten bordel po vaření se sám neumyje, víš?",
+	],
+	## Stížnost přijatá v klidu.
+	"complaint_ok": [
+		"Jo, promiň. Hned to udělám.",
+		"Máš pravdu, sorry. Nevšiml(a) jsem si.",
+	],
+	## De-eskalace: posluchač v dobré náladě ostrý tón přejde.
+	"deescalate": [
+		"Hele, nechme toho. Nemá cenu se hádat.",
+		"Dobře, chápu. Dneska je toho na tebe moc, co?",
+		"Klid. Pojďme to probrat normálně.",
+	],
 }
 
 

@@ -96,11 +96,40 @@ from the same snapshot.
 | **C3** | Face: procedural `HeadBuilder` (fixed topology of 3,890 vertices; eyelids, lips and ears as real geometry; eyeballs with cornea), 29 morphs plus 3 asymmetry axes, 62+ blend shapes incl. in-between and corrective shapes, morph transfer to hair, schema v2 | ✅ (visual check in Blender) |
 | **C3+** | A: neck and head–body seam (fitted band, body morphs on the head neck, blended skinning); A2: anatomical neck base and `body.neck_length` (schema v4) – B: lips with volume, eye size and opening, head size, damping of extremes in the editor | ✅ A (run 12), ✅ A2 (run 13), ⬜ B |
 | **C4a** | Skin: `SkinModel` (two-layer Beer–Lambert with melanin, haemoglobin and carotene) and `SkinLayers` (freckles, moles, acne with post-inflammatory pigmentation, vitiligo, wrinkles and age spots, scars, tattoos, make-up, eyebrows, stubble). `skin.gdshader` adds SSS and masks in rest-pose coordinates (CUSTOM0), so the details follow morphs. Schema v3. | ✅ |
-| **C4b** | Hair, beards and eyebrows as geometry (hair cards): short, long, curly, afro, braids, cornrows, locs, bun, ponytail, bald, receding hairline, greying | ⬜ next |
+| **C4b** | Hair, beards and eyebrows as hair cards (see "Hair" below): 16 hairstyles, 6 eyebrow shapes, 5 beard styles, receding hairline, greying strand by strand, dyed hair | ✅ (runs 14, 16, 17) |
 | **C5** | Clothing: everyday, work, formal, sleepwear and sport. Cuts follow body morphs. Changing clothes in game, replicated in multiplayer. | ⬜ |
 | **C6** | Editor I: an in-engine 3D preview (rotate, zoom to face, day/night/interior light, poses), tabs for body, face, skin, hair and clothing, instant sliders, basic and advanced modes, random character with locks, neutral presets, undo/redo | ⬜ |
 | **C7** | Editor II: identity (name, nickname, pronouns and grammatical gender, identity, orientation, voice preview), personality (traits with a point budget and conflicts, aspirations), story (family, childhood, past jobs, optional traumas and predispositions only when content settings allow), templates. Accessibility: keyboard and gamepad without fiddly sliders, UI scaling, readable typography, screen-reader labels. | ⬜ |
 | **C8** | Integration: menu → editor → game (offline and multiplayer join), changing clothes in game, performance, sensitivity and input-safety audit | ⬜ |
+
+## Hair (C4b)
+
+Hair, eyebrows and beards are built procedurally in Godot on top of the real head mesh from `character.glb`:
+- `HairBuilder` builds the geometry for a style: cards (ribbons with strands drawn by the shader) that follow
+  a flow (parting, whorl, swept back, pulled), with curls and waves; tubes for box braids and locs; cornrows;
+  shells for buzz cuts, undercut sides and the afro; a bun and a ponytail. Strands collide with a radial map
+  of the head and a cylindrical map of the torso, lean forward or back only above the shoulders, and lose
+  the momentum from the root below the middle of the head, so long hair lies on the chest and back.
+  Eyebrows (6 shapes, the same as the painted base layer in the skin shader) and beards (5 styles in zones)
+  are projected exactly onto the skin triangles.
+- The geometry depends only on the style (fixed seed per style), never on the character, name or gender,
+  so every peer builds the same mesh. Receding hairline, crown thinning, greying and eyebrow/beard density
+  are vertex attributes (CUSTOM0) plus shader uniforms, so one shared mesh serves every character with
+  that style.
+- `HairRig` turns the geometry into a mesh that behaves like part of the body: blend shapes transferred
+  from the nearest skin vertices (head width and height, forehead, neck length, body fat and muscle for hair
+  on the back), bone weights from the skin, one cached mesh per style. In the game the first build of a
+  style (0.25–1 s) runs on a `WorkerThreadPool` thread (only arrays are computed there; the `ArrayMesh` is
+  created on the main thread) and the character shows the old GLB "helmet" until the cards are ready.
+- `hair.gdshader` draws strands inside each card, grey strands by count (salt and pepper, not a flat
+  lightening), the receding hairline from a per-root rank, anisotropic highlights and alpha scissor (no
+  sorting, shadows work).
+- `AppearanceResolver.resolve_hair_look` gives the natural colour (from the pigment model, without grey),
+  grey amount, hairline and densities; dyed hair colours the scalp only, eyebrows and beard keep the
+  natural colour.
+
+Budgets: up to 26,000 triangles per hairstyle (most are 5,000–22,000), 1,200 per eyebrow shape, 9,000 per
+beard.
 
 ## Visual verification
 
@@ -110,6 +139,15 @@ Geometric tests are not enough, so every visual change is checked by rendering:
 - Blender Cycles renders the real GLB from several angles, with typical, random and extreme faces.
 
 See [asset-pipeline.md](asset-pipeline.md#visual-verification).
+
+Findings from the run 17 hair render (`docs/images/c4b-hair-run17-before.jpg`, after the fixes
+`c4b-hair-run17-a.jpg` and the face detail `c4b-hair-run17-face.jpg`):
+- fixed: long braids and locs stuck out 15–20 cm in front of the chest and long hair stood off the back like
+  a cape (the forward/back lean applied along the whole strand); the undercut and short hair looked spiky;
+  eyebrows were built only near the nose bridge (the projection start point was out of reach of the
+  triangle hash, so 37 of 140 cards were built – the render showed a grey tuft between the eyes);
+- open: a stair-stepped shell edge at the temples (large skin triangles), a column pattern in full beards,
+  a gap under the lower lip with a full beard (C3+ B).
 
 Findings from the run 13 render (`docs/images/c3-neck-length-run13-a.jpg`: default, neck −1, neck +1;
 `-b.jpg`: muscular and heavy, heavy with neck −1, slim with neck +1):
@@ -124,5 +162,5 @@ Findings from the run 13 render (`docs/images/c3-neck-length-run13-a.jpg`: defau
 Findings from the run 12 render (`docs/images/c3-neck-seam-run12-a.jpg` and `-b.jpg`):
 - fixed: the head–body seam (no gap or jagged line from any angle), the long thin neck without a chin–neck angle,
   the dark band above the upper lip at the max extreme, and a light "collar" on muscular or heavy bodies;
-- open: hair is still a shell ("helmet", C4b), the face looks empty without geometric eyebrows (C4b), the lips are
-  flat and the eyes small (C3+ B), and the head can look small on a very muscular body.
+- open then: hair was still a shell ("helmet") and there were no geometric eyebrows – both done in C4b (run 17);
+  still open: the lips are flat and the eyes small (C3+ B), and the head can look small on a very muscular body.

@@ -12,6 +12,9 @@ const CharacterAnims := preload("res://scripts/assets/character_anims.gd")
 const AppearanceResolver := preload("res://scripts/character/appearance_resolver.gd")
 const BodyMorphs := preload("res://scripts/character/body_morphs.gd")
 const SkinLayers := preload("res://scripts/character/skin_layers.gd")
+const HairRig := preload("res://scripts/assets/hair_rig.gd")
+## Části vlasů z karet (C4b): vlasy na hlavě, obočí, vousy.
+const HAIR_PARTS := ["scalp", "brows", "beard"]
 
 ## Vzhled (kůže, vlasy, oči, oblečení, proporce) přichází VÝHRADNĚ z veřejného snapshotu
 ## CharacterData (`apply_look`) přes deterministický AppearanceResolver – nikdy ze jména.
@@ -46,6 +49,10 @@ var _body_mesh_cache: Array = []
 var _face_mesh_cache: Array = []
 var _rest0: Array = []            # původní lokální klidové polohy kostí
 var _skin_copy: Skin = null       # vlastní kopie Skin (inverzní bind matice podle kloubů této postavy)
+## Vlasy z karet (C4b): část → MeshInstance3D (sdílená síť na účes, vlastní materiál na postavu).
+## Prázdné = karty nejdou (model bez kůže hlavy) → zůstává „helma“ z GLB (hair_short / hair_long).
+var _hair_parts := {}
+var _hair_mats := {}
 
 
 func configure(p_body: Color, p_female: bool) -> void:
@@ -195,6 +202,7 @@ func _build_model() -> void:
 				and (mi.mesh as ArrayMesh).surface_get_format(0) & Mesh.ARRAY_FORMAT_CUSTOM0 else null
 			_mats[mname] = skin_mat if skin_mat != null else src.duplicate()
 		mi.material_override = _mats[mname]
+	_build_hair_parts()
 	_anim = AnimationPlayer.new()
 	_anim.name = "Anim"
 	_model.add_child(_anim)
@@ -203,6 +211,70 @@ func _build_model() -> void:
 	_apply_model_variant()
 	_apply_colors()
 	_anim.play("idle")
+
+
+## Vlasy, obočí a vousy z karet (C4b): uzly pod kostrou se stejným Skin jako hlava (kosti = bind indexy
+## sdíleného Skin), síť dodá HairRig podle stylu (sdílená cache), materiál je vlastní pro postavu.
+## Musí vzniknout před prvním _apply_joints, aby dostaly i kopii Skin s posunutými klouby.
+func _build_hair_parts() -> void:
+	_hair_parts = {}
+	_hair_mats = {}
+	if HairRig.context().is_empty():
+		return
+	var skel := _skeleton()
+	var head_mi: MeshInstance3D = null
+	for mi in AssetLibrary.parts_in_group(_model, "head"):
+		if mi.skin != null:
+			head_mi = mi
+			break
+	if skel == null or head_mi == null:
+		return
+	for part in HAIR_PARTS:
+		var mi := MeshInstance3D.new()
+		mi.name = "hair_cards_" + part
+		skel.add_child(mi)
+		mi.skeleton = NodePath("..")
+		mi.skin = head_mi.skin
+		var mat := HairRig.make_material()
+		if mat == null:
+			# bez shaderu karty nejdou – uklidit i už vytvořené části, zůstane „helma“ z GLB
+			mi.queue_free()
+			for other in _hair_parts.values():
+				(other as Node).queue_free()
+			_hair_parts = {}
+			_hair_mats = {}
+			return
+		_hair_mats[part] = mat
+		mi.material_override = mat
+		mi.visible = false
+		_hair_parts[part] = mi
+
+
+## HairRig dostavěl síť účesu ve vlákně → přepnout z helmy na karty (styl se bere z aktuálního vzhledu, takže
+## když se mezitím účes změnil, použije se ten nový).
+func _on_hair_mesh_ready(_part: String, _style: String) -> void:
+	if _model != null and is_inside_tree():
+		_apply_model_variant()
+
+
+## Čeká postava na síť vlasů z vlákna (ukazuje helmu)? (testy)
+func hair_waiting() -> bool:
+	if _hair_parts.is_empty():
+		return false
+	var helm_visible := false
+	for g in ["hair_short", "hair_long"]:
+		for mi in AssetLibrary.parts_in_group(_model, g):
+			helm_visible = helm_visible or mi.visible
+	return helm_visible and not (_hair_parts["scalp"] as MeshInstance3D).visible
+
+
+## Uzel části vlasů z karet (testy); null = karty se nepoužívají.
+func hair_part(part: String) -> MeshInstance3D:
+	return _hair_parts.get(part)
+
+
+func hair_material(part: String) -> ShaderMaterial:
+	return _hair_mats.get(part)
 
 
 ## Tvar těla a proporce z CharacterData (od C2): jedna neutrální síť těla s blend shapes (váhy z
@@ -215,12 +287,35 @@ func _apply_model_variant() -> void:
 	var hair_v := "hair_short"
 	if not look_params.is_empty():
 		hair_v = String(look_params["hair_variant"])
+	var cards := not _hair_parts.is_empty()
+	var lp: Dictionary = look_params if not look_params.is_empty() else AppearanceResolver.resolve({})
+	# Karty: hotová síť → hned. Jinak (první postava s tímto účesem ve hře, HairRig.async_build) se síť staví
+	# ve vlákně a do té doby zůstane vidět „helma“ z GLB; po dokončení přijde _on_hair_mesh_ready.
+	var waiting := false
+	if cards:
+		var hl: Dictionary = lp.get("hair_look", {})
+		var styles := {"scalp": String(hl.get("style", "kratke")), "brows": String(hl.get("brow_style", "prirozene")),
+			"beard": String(hl.get("beard_style", "zadne"))}
+		for part in HAIR_PARTS:
+			var mi: MeshInstance3D = _hair_parts[part]
+			var r := HairRig.request_mesh(part, styles[part], self)
+			if not bool(r["ready"]):
+				mi.visible = false
+				if part == "scalp":
+					waiting = true
+				continue
+			var m: ArrayMesh = r["mesh"]
+			if mi.mesh != m:
+				mi.mesh = m
+			mi.visible = m != null
+	var helm := not cards or waiting
 	var show := {"body": true, "body_m": false, "body_f": false, "head": true,
-		"hair_short": hair_v == "hair_short", "hair_long": hair_v == "hair_long"}
+		"hair_short": hair_v == "hair_short" and helm, "hair_long": hair_v == "hair_long" and helm}
 	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		if _hair_parts.values().has(mi):
+			continue
 		var grp := String(mi.name).get_slice("__", 0)
 		mi.visible = bool(show.get(grp, true))
-	var lp: Dictionary = look_params if not look_params.is_empty() else AppearanceResolver.resolve({})
 	apply_body_shape(lp)
 	apply_face_shape(lp)
 
@@ -308,6 +403,10 @@ func _face_meshes() -> Array:
 	if _face_mesh_cache.is_empty() and _model != null:
 		for g in ["head", "eyes", "hair_short", "hair_long"]:
 			_face_mesh_cache.append_array(AssetLibrary.parts_in_group(_model, g))
+		# Karty vlasů nesou přenesené klíče hlavy i těla pod stejnými jmény (HairRig).
+		for part in HAIR_PARTS:
+			if _hair_parts.has(part):
+				_face_mesh_cache.append(_hair_parts[part])
 	return _face_mesh_cache
 
 
@@ -338,6 +437,8 @@ func _apply_colors() -> void:
 	set_col.call("hair_main", hair_color)
 	var lp: Dictionary = look_params if not look_params.is_empty() else AppearanceResolver.resolve({})
 	apply_skin(lp)
+	for part in _hair_mats:
+		HairRig.apply(_hair_mats[part], lp, part)
 	set_col.call("eye_iris", lp.get("iris", Color(0.3, 0.42, 0.55)))
 	set_col.call("skin_lips", lp.get("lips", skin_color.darkened(0.2)))
 	# Vnitřek víček/spojivka: kůže do růžova (stejný model pro všechny odstíny kůže).

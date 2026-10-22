@@ -125,6 +125,7 @@ static func resolve(snap: Dictionary) -> Dictionary:
 	var under := float(_g(snap, "skin", "undertone", 0.0))
 	var red := float(_g(snap, "skin", "redness", 0.3))
 	var skin := skin_color(tone, under, red)
+	var hair_look := resolve_hair_look(snap)
 	return {
 		"skin": skin,
 		"chrom": skin_chromophores(tone, under, red),
@@ -143,8 +144,53 @@ static func resolve(snap: Dictionary) -> Dictionary:
 		"lips": lip_color(skin, float(_g(snap, "makeup", "lipstick", 0.0)),
 			String(_g(snap, "makeup", "lip_color", "#9e3a42"))),
 		"hair_variant": "" if style == "holy" else ("hair_long" if Schema.LONG_HAIR.has(style) else "hair_short"),
+		"hair_look": hair_look,
 		"age": age,
 	}
+
+
+## Vlasy, obočí a vousy pro karty (C4b, HairRig + hair.gdshader). Barvy jsou sRGB a BEZ šedin – šediny kreslí
+## shader po jednotlivých vlasech (sůl a pepř), ne plošným zesvětlením. Barvení se týká jen vlasů na hlavě
+## (odrůstající šediny barva z velké části překryje); obočí a vousy mají přirozený pigment. Styly se ověřují
+## proti schématu (neznámý → výchozí), takže podvržený snapshot nevybere neexistující síť.
+static func resolve_hair_look(snap: Dictionary) -> Dictionary:
+	var style := String(_g(snap, "hair", "style", "kratke"))
+	if not Schema.HAIR_STYLES.has(style):
+		style = "kratke"
+	var brows := String(_g(snap, "hair", "brows", "prirozene"))
+	if not Schema.BROW_STYLES.has(brows):
+		brows = "prirozene"
+	var facial := String(_g(snap, "hair", "facial", "zadne"))
+	if not Schema.FACIAL_HAIR.has(facial):
+		facial = "zadne"
+	var grey := _f01(_g(snap, "hair", "grey", 0.0), 0.0)
+	var natural := hair_color(float(_g(snap, "hair", "melanin", 0.6)), float(_g(snap, "hair", "red", 0.15)), 0.0)
+	var scalp := natural
+	var scalp_grey := grey
+	if bool(_g(snap, "hair", "dyed", false)):
+		var dc := String(_g(snap, "hair", "dye_color", ""))
+		if dc.length() == 7 and dc.begins_with("#") and dc.substr(1).is_valid_hex_number(false):
+			scalp = _qc(Color.html(dc))
+			scalp_grey = grey * 0.3
+	return {
+		"style": style, "brow_style": brows, "beard_style": facial,
+		"natural": scalp, "grey": _q(scalp_grey),
+		"hairline": _q(_f01(_g(snap, "hair", "hairline", 0.0), 0.0)),
+		"brow": natural, "brow_grey": _q(grey * 0.6),
+		"brow_density": _q(_f01(_g(snap, "hair", "brow_density", 0.6), 0.6)),
+		"facial": natural, "facial_grey": _q(grey * 0.85),
+		"facial_density": _q(_f01(_g(snap, "hair", "facial_density", 0.6), 0.6)),
+	}
+
+
+## Číslo v ⟨0; 1⟩ z libovolné hodnoty (NaN, ±∞, text → výchozí). Snapshot je validovaný, tohle je pojistka.
+static func _f01(v, fallback: float) -> float:
+	if typeof(v) != TYPE_FLOAT and typeof(v) != TYPE_INT:
+		return fallback
+	var x := float(v)
+	if is_nan(x) or is_inf(x):
+		return fallback
+	return clampf(x, 0.0, 1.0)
 
 
 static func _color_or(v, fallback: Color) -> Color:

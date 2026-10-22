@@ -10,7 +10,7 @@ const Recipes := preload("res://scripts/audio/sound_recipes.gd")
 func _init() -> void:
 	var ids: Array = OS.get_cmdline_user_args()
 	if ids.is_empty():
-		ids = MusicData.SONGS.keys() + Recipes.AMBIENCE + Recipes.OBJECT_LOOPS + Recipes.UI
+		ids = MusicData.SONGS.keys() + Recipes.all_ids()
 	build(ids)
 	quit()
 
