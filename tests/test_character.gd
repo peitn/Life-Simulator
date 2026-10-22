@@ -79,8 +79,9 @@ func _test_schema() -> void:
 	check(int(r["data"]["body"]["age"]) >= 18 and int(Schema.GROUPS["body"]["fields"]["age"][1]) == 18, "postavy jsou dospělé (věk ≥ 18 ve schématu)")
 	var cd = CharacterData.create()
 	check(cd.uid.length() == 32 and cd.version == Schema.VERSION, "CharacterData.create: uid a verze")
-	check(Schema.fields("face").size() == Schema.FACE_MORPHS.size() + Schema.FACE_ASYMMETRY.size() and Schema.FACE_MORPHS.size() >= 25,
-		"obličej má %d morfů + %d osy asymetrie" % [Schema.FACE_MORPHS.size(), Schema.FACE_ASYMMETRY.size()])
+	# běh 21 (v6): + detaily (řasy, zuby) ve skupině face
+	check(Schema.fields("face").size() == Schema.FACE_MORPHS.size() + Schema.FACE_ASYMMETRY.size() + Schema.FACE_DETAILS.size() and Schema.FACE_MORPHS.size() >= 25,
+		"obličej má %d morfů + %d osy asymetrie + %d detailů" % [Schema.FACE_MORPHS.size(), Schema.FACE_ASYMMETRY.size(), Schema.FACE_DETAILS.size()])
 	var all_tops := true
 	for cat in Randomizer.OUTFIT_POOLS:
 		for t in Randomizer.OUTFIT_POOLS[cat]["top"]:

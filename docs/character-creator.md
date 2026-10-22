@@ -112,6 +112,45 @@ landmarks against `HeadBuilder`.
 Damping of extremes as a soft zone at the slider ends belongs to the editor UI (C6); at the data level the
 `eye_size` range was reduced, which was the main cause of the "sunken" all −1 face.
 
+### Facial details and expressions (C3++, run 21)
+
+Schema **v6** adds six public fields to the `face` group and one to `makeup` (migration v5 → v6 fills in defaults, so
+a migrated character looks the same):
+
+| Field | Range (default) | Effect |
+|---|---|---|
+| `lash_length`, `lash_density`, `lash_curl` | 0..1 (0.5) | Eyelash cards: length, how many cards are shortened or widened, how strongly they curl |
+| `teeth_shade` | 0..1 (0.25) | Enamel colour only (no geometry) |
+| `teeth_gap` | 0..1 (0) | Gap between the upper central incisors |
+| `teeth_crooked` | 0..1 (0) | Slightly rotated and displaced lateral incisors and canines; no caricature at 1 |
+| `makeup.mascara` | 0..1 (0) | Longer and denser lashes on top of the fields above |
+
+Geometry, all built by `HeadBuilder` from the same vertex recipes as the rest of the head, so details and expressions
+are exact blend shapes:
+- **Eyelashes**: 34 upper and 18 lower cards per eye, rooted on the eyelid margin, so they follow every eye morph, hooded
+  lids and blinking. Lengths follow real proportions (about 8–12 mm upper, 5–7 mm lower, longest in the middle). After
+  the run-21 render they leave the lid mostly forwards and only then curl up (they used to point up like a fan).
+- **Mouth**: a deeper cavity, 10 upper and 10 lower teeth (incisors to premolars; molars would not be visible) on elliptical arches, gums and a tongue. The teeth sit behind
+  the lips at rest (tested).
+- **Eyes**: a darker limbal ring around the iris and a pupil-size blend shape (`ex_pupil`).
+
+**Expressions** are blend shapes named `ex_*`: `ex_blink_l`, `ex_blink_r` (with an in-between shape at 0.5, because the
+lid travels over the eyeball, not along a chord), `ex_smile` (mouth corners up and back, cheeks raised, lower lid raised
+slightly), `ex_frown`, `ex_brow_up`, `ex_jaw_open` (the lower jaw, lower teeth, lip and tongue rotate around the jaw
+hinge, up to 9°) and `ex_pupil`. Eyebrows, beards and hair receive the expression shapes by the same transfer as
+other skull morphs. Expressions are **not character data**: they are client-side presentation and are never
+replicated.
+
+`SimVisual` drives them: a gentle target per dominant emotion (never above 0.6, never a grimace), blinking every
+2–6 s divided by an emotion-dependent rate (anxiety blinks faster, tiredness slower) with 12 % double blinks, and a jaw
+movement while a speech bubble is shown. Each character's blink timing is staggered with a local seed; peers do not
+need to agree on it. When the face is at rest, nothing is recomputed or written.
+
+Budget: the character is now about 19,300 triangles (lashes about 730, mouth parts about 1,600), so the asset test
+limit went from 18,000 to 20,000. Renders: `docs/images/c3pp-expressions-run21-before.jpg` (8 expressions × 4 views,
+before the smile and lash fixes) and `docs/images/c3pp-mouth-lashes-run21-after.jpg`. Known issue: a fully open mouth
+still has squarish corners.
+
 ## Appearance pipeline
 
 ```

@@ -15,6 +15,34 @@ const SkinLayers := preload("res://scripts/character/skin_layers.gd")
 const HairRig := preload("res://scripts/assets/hair_rig.gd")
 ## Části vlasů z karet (C4b): vlasy na hlavě, obočí, vousy.
 const HAIR_PARTS := ["scalp", "brows", "beard"]
+const FaceMorphs := preload("res://scripts/character/face_morphs.gd")
+## Mimika (C3++, běh 21) – jen prezentace na klientovi: blend shapes ex_* hlavy (HeadBuilder), obočí a vousy je
+## mají přenesené. Jemný výraz podle dominantní emoce (cíle ≤ 0,6, nikdy grimasa), mrkání a pohyb čelisti při replice.
+## Hodnoty: [úsměv, zamračení, zvednuté obočí, přivřená víčka, zornice, rychlost mrkání ×].
+const EMOTION_FACE := {
+	"spokojeny": [0.25, 0.0, 0.0, 0.0, 0.0, 1.0], "stastny": [0.55, 0.0, 0.10, 0.0, 0.1, 1.0],
+	"energicky": [0.30, 0.0, 0.15, 0.0, 0.2, 1.1], "soustredeny": [0.0, 0.20, 0.0, 0.05, 0.0, 0.7],
+	"napjaty": [0.0, 0.30, 0.0, 0.0, 0.3, 1.5], "smutny": [0.0, 0.10, 0.25, 0.15, 0.0, 0.9],
+	"nastvany": [0.0, 0.60, 0.0, 0.05, 0.2, 1.2], "znudeny": [0.0, 0.0, 0.0, 0.15, -0.1, 0.8],
+	"unaveny": [0.0, 0.0, 0.0, 0.30, -0.1, 0.8], "nesvuj": [0.0, 0.20, 0.10, 0.0, 0.2, 1.4],
+	"uzkostny": [0.0, 0.25, 0.30, 0.0, 0.45, 1.8], "sklesly": [0.0, 0.10, 0.0, 0.25, -0.1, 0.8],
+}
+## Mrknutí: zavření 35 %, zavřeno 15 %, otevření 50 % z BLINK_DUR; další za 2–6 s / rychlost, 12 % dvojité.
+const BLINK_DUR := 0.16
+const BLINK_MIN := 2.0
+const BLINK_MAX := 6.0
+const BLINK_DOUBLE := 0.12
+## Rychlost přechodu výrazu (1/s) a změna váhy, pod kterou se blend shape nepřepisuje.
+const EXPR_RATE := 4.0
+const EXPR_EPS := 0.002
+## Vstupy mimiky, jejichž změna vyžaduje nový zápis vah (viz _write_expression).
+const EXPR_INPUTS := ["ex_blink_l", "ex_blink_r", "ex_smile", "ex_frown", "ex_brow_up", "ex_jaw_open", "ex_pupil"]
+var _ex_last := {}
+## Poslední zapsané tvarové váhy obličeje (apply_face_shape přeskočí stejný vstup).
+var _af_w := {}
+var _af_b := {}
+var _af_count := 0
+var _af_valid := false
 
 ## Vzhled (kůže, vlasy, oči, oblečení, proporce) přichází VÝHRADNĚ z veřejného snapshotu
 ## CharacterData (`apply_look`) přes deterministický AppearanceResolver – nikdy ze jména.
@@ -53,6 +81,20 @@ var _skin_copy: Skin = null       # vlastní kopie Skin (inverzní bind matice p
 ## Prázdné = karty nejdou (model bez kůže hlavy) → zůstává „helma“ z GLB (hair_short / hair_long).
 var _hair_parts := {}
 var _hair_mats := {}
+## Mimika: aktuální hodnoty ex_*, váhy blend shapes, cache slotů [MeshInstance3D, index, název], stav mrkání a řeči.
+var expressions_enabled := true
+var _ex := {}
+var _expr_w := {}
+var _expr_slots: Array = []
+var _emotion := ""
+var _last_speech := ""
+var _talk_left := 0.0
+var _talk_t := 0.0
+var _blink_init := false
+var _blink_wait := 0.0
+var _blink_phase := -1.0
+var _blink_second := false
+var _xrng := RandomNumberGenerator.new()
 
 
 func configure(p_body: Color, p_female: bool) -> void:
@@ -307,6 +349,7 @@ func _apply_model_variant() -> void:
 			var m: ArrayMesh = r["mesh"]
 			if mi.mesh != m:
 				mi.mesh = m
+				_invalidate_expression_slots()
 			mi.visible = m != null
 	var helm := not cards or waiting
 	var show := {"body": true, "body_m": false, "body_f": false, "head": true,
@@ -328,16 +371,45 @@ func apply_face_shape(lp: Dictionary) -> int:
 		return 0
 	var w: Dictionary = lp.get("face", {})
 	var wb: Dictionary = lp.get("body", {})
+	# Beze změny vah i sítí není co zapisovat (posuvník kůže/výšky); mimiku píše _write_expression přímo.
+	if _af_valid and w == _af_w and wb == _af_b:
+		return _af_count
 	var count := 0
 	for mi in _face_meshes():
 		var m: Mesh = mi.mesh
 		if m == null:
 			continue
-		for i in m.get_blend_shape_count():
-			var nm := String(m.get_blend_shape_name(i))
-			mi.set_blend_shape_value(i, clampf(float(w.get(nm, wb.get(nm, 0.0))), -1.0, 1.0))
+		var names := _shape_names(m)
+		for i in names.size():
+			var nm := names[i]
+			var v := clampf(float(w.get(nm, wb.get(nm, _expr_w.get(nm, 0.0)))), -1.0, 1.0)
+			# Zápis jen při změně: set_blend_shape_value jde přes RenderingServer a hlava má od běhu 21
+			# ~90 klíčů na každém povrchu – posuvník mění jen pár z nich.
+			if mi.get_blend_shape_value(i) != v:
+				mi.set_blend_shape_value(i, v)
 			count += 1
+	_af_w = w.duplicate()
+	_af_b = wb.duplicate()
+	_af_count = count
+	_af_valid = true
 	return count
+
+
+## Názvy blend shapes sítě (cache podle sítě – get_blend_shape_name alokuje StringName→String pro ~90 klíčů na povrch).
+static var _names_cache: Dictionary = {}
+
+static func _shape_names(m: Mesh) -> PackedStringArray:
+	var key := m.get_instance_id()
+	var c = _names_cache.get(key)
+	if c != null:
+		return c
+	var names := PackedStringArray()
+	for i in m.get_blend_shape_count():
+		names.append(String(m.get_blend_shape_name(i)))
+	if _names_cache.size() > 512:
+		_names_cache.clear()
+	_names_cache[key] = names
+	return names
 
 
 ## Aplikuje blend shapes těla a kosti. Vrací počet nastavených blend shapes (testy/výkon).
@@ -440,6 +512,11 @@ func _apply_colors() -> void:
 	for part in _hair_mats:
 		HairRig.apply(_hair_mats[part], lp, part)
 	set_col.call("eye_iris", lp.get("iris", Color(0.3, 0.42, 0.55)))
+	set_col.call("eye_limbus", lp.get("limbus", Color(0.14, 0.2, 0.27)))
+	set_col.call("eye_lash", lp.get("lash", Color(0.06, 0.045, 0.035)))
+	set_col.call("teeth_enamel", lp.get("teeth", Color(0.93, 0.92, 0.87)))
+	set_col.call("mouth_gum", lp.get("gum", Color(0.78, 0.42, 0.44)))
+	set_col.call("mouth_tongue", lp.get("tongue", Color(0.74, 0.38, 0.4)))
 	set_col.call("skin_lips", lp.get("lips", skin_color.darkened(0.2)))
 	# Vnitřek víček/spojivka: kůže do růžova (stejný model pro všechny odstíny kůže).
 	set_col.call("eye_socket", skin_color.lerp(Color(0.72, 0.36, 0.36), 0.55))
@@ -477,6 +554,11 @@ func apply(posture: String, mood_value: float, emotion: String, title: String, a
 			_body_pivot.rotation = Vector3.ZERO
 			_body_pivot.position = Vector3.ZERO
 	_update_anim()
+	_emotion = emotion
+	if speech != _last_speech:
+		_last_speech = speech
+		# Čelist se hýbe úměrně délce repliky (nová replika = nová řeč; stejná replika v dalších voláních ne).
+		_talk_left = clampf(0.5 + float(speech.length()) * 0.055, 0.8, 4.5) if speech != "" else 0.0
 	# Krystal: zelená (skvělá nálada) -> žlutá -> červená (mizerná).
 	var t := clampf((mood_value + 60.0) / 120.0, 0.0, 1.0)
 	var c := Color(0.95, 0.15, 0.1).lerp(Color(0.95, 0.85, 0.1), clampf(t * 2.0, 0.0, 1.0))
@@ -539,3 +621,124 @@ func _process(delta: float) -> void:
 	track_motion(delta)
 	if _anim != null and _posture == "stand":
 		_update_anim()
+	if _model != null and expressions_enabled:
+		update_expression(delta)
+
+
+# ======================================================================================
+# Mimika (C3++, běh 21)
+# ======================================================================================
+## Sloty blend shapes ex_* na hlavě, očích, řasách, ústech a kartách vlasů (cache; vlasy se mohou vyměnit).
+func _expression_slots() -> Array:
+	if _expr_slots.is_empty():
+		for mi in _face_meshes():
+			var m: Mesh = (mi as MeshInstance3D).mesh
+			if m == null:
+				continue
+			for i in m.get_blend_shape_count():
+				var nm := String(m.get_blend_shape_name(i))
+				if nm.begins_with("ex_"):
+					_expr_slots.append([mi, i, nm])
+	return _expr_slots
+
+
+## Vynutí nové načtení slotů (po výměně sítě vlasů).
+func _invalidate_expression_slots() -> void:
+	_expr_slots = []
+	_af_valid = false   # nová síť (vlasy) potřebuje i tvarové váhy
+	_ex_last = {}   # nové sítě (vlasy) musí dostat aktuální výraz
+
+
+## Mrknutí 0..1 ve fázi 0..1 (zavření – zavřeno – otevření).
+static func blink_curve(ph: float) -> float:
+	if ph < 0.0 or ph > 1.0:
+		return 0.0
+	if ph < 0.35:
+		var t := ph / 0.35
+		return t * t * (3.0 - 2.0 * t)
+	if ph < 0.5:
+		return 1.0
+	var u := (ph - 0.5) / 0.5
+	return 1.0 - u * u * (3.0 - 2.0 * u)
+
+
+## Krok mimiky: cíle podle emoce, mrkání, čelist při řeči → váhy blend shapes (mění jen to, co se pohnulo).
+## Vrací počet přepsaných vah (testy, výkon).
+func update_expression(delta: float) -> int:
+	if not _blink_init:
+		# rozfázování mrkání mezi postavami (jen prezentace klienta, nic se nereplikuje)
+		_blink_init = true
+		var sl: Dictionary = look_params.get("skin_layers", {})
+		_xrng.seed = hash(int(sl.get("seed", 0)) * 7919 + get_instance_id() % 997)
+		_blink_wait = _xrng.randf_range(0.5, BLINK_MAX)
+	var ef: Array = EMOTION_FACE.get(_emotion, [0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+	var k := 1.0 - exp(-EXPR_RATE * maxf(delta, 0.0))
+	var tgt := {"ex_smile": ef[0], "ex_frown": ef[1], "ex_brow_up": ef[2], "ex_pupil": ef[4]}
+	for key in tgt:
+		_ex[key] = lerpf(float(_ex.get(key, 0.0)), float(tgt[key]), k)
+	_ex["_lid"] = lerpf(float(_ex.get("_lid", 0.0)), float(ef[3]), k)
+	# mrkání
+	if _blink_phase >= 0.0:
+		_blink_phase += delta / BLINK_DUR
+		if _blink_phase > 1.0:
+			_blink_phase = -1.0
+			if not _blink_second and _xrng.randf() < BLINK_DOUBLE:
+				_blink_second = true
+				_blink_wait = 0.12
+			else:
+				_blink_second = false
+				_blink_wait = _xrng.randf_range(BLINK_MIN, BLINK_MAX) / maxf(float(ef[5]), 0.2)
+	else:
+		_blink_wait -= delta
+		if _blink_wait <= 0.0:
+			_blink_phase = 0.0
+	var bl := maxf(float(_ex["_lid"]), blink_curve(_blink_phase))
+	_ex["ex_blink_l"] = bl
+	_ex["ex_blink_r"] = bl
+	# řeč: čelist kmitá nepravidelně (dvě frekvence), na konci repliky se zavře
+	var jaw := 0.0
+	if _talk_left > 0.0:
+		_talk_left -= delta
+		_talk_t += delta
+		jaw = 0.10 + 0.20 * absf(sin(_talk_t * 11.0 + sin(_talk_t * 3.7) * 1.6))
+	_ex["ex_jaw_open"] = lerpf(float(_ex.get("ex_jaw_open", 0.0)), jaw, clampf(delta * 18.0, 0.0, 1.0))
+	return _write_expression()
+
+
+## Ruční výraz (cutscény, testy): hodnoty ex_* se zapíšou hned, bez animace.
+func set_expression(ex: Dictionary) -> int:
+	for key in ex:
+		_ex[key] = ex[key]
+	return _write_expression(true)
+
+
+func expression_values() -> Dictionary:
+	return _expr_w.duplicate()
+
+
+func _write_expression(force := false) -> int:
+	# Klidová tvář (žádné mrkání, výraz doběhl k cíli): beze změny vstupů nic nepočítat ani nealokovat
+	# (Gemini, běh 21 – slovník vah se jinak staví každý snímek pro každou postavu).
+	if not force and not _expr_slots.is_empty():
+		var same := true
+		for key in EXPR_INPUTS:
+			if absf(float(_ex.get(key, 0.0)) - float(_ex_last.get(key, 0.0))) > EXPR_EPS * 0.5:
+				same = false
+				break
+		if same:
+			return 0
+	for key in EXPR_INPUTS:
+		_ex_last[key] = float(_ex.get(key, 0.0))
+	var w := FaceMorphs.expression_weights(_ex)
+	var n := 0
+	for slot in _expression_slots():
+		var mi: MeshInstance3D = slot[0]
+		if not is_instance_valid(mi):
+			_invalidate_expression_slots()
+			return n
+		var v := float(w.get(slot[2], 0.0))
+		if absf(mi.get_blend_shape_value(slot[1]) - v) > EXPR_EPS or (v == 0.0 and mi.get_blend_shape_value(slot[1]) != 0.0):
+			mi.set_blend_shape_value(slot[1], v)
+			n += 1
+	_expr_w = w
+	return n

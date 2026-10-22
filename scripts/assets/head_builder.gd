@@ -17,7 +17,11 @@ extends RefCounted
 ##    která obepíná oční kouli – víčka jsou skutečná geometrie, kůže se nikdy nedotkne oka (push_out),
 ##  - ústa: stejný princip (hranice rtů, plnost, linie úst, vnitřek a dutina),
 ##  - uši: disk (laterální a mediální strana) s lemem, protilemem, mušlí a lalůčkem,
-##  - oční koule: sféra s duhovkou, zornicí a mírně vyklenutou rohovkou.
+##  - oční koule: sféra s duhovkou, limbálním prstencem, zornicí (velikost = výraz ex_pupil) a mírně vyklenutou rohovkou,
+##  - C3++ (běh 21): řasy (zahnuté karty kořenem na okraji víček – sledují morfy očí i mrkání), zuby (horní a dolní
+##    oblouk, 5 + 5 na stranu), dáseň, jazyk a hluboká dutina úst; mimika jako blend shapes (EXPR_KEYS: mrkání L/P,
+##    úsměv, zamračení, zvednuté obočí, otevřená čelist – rotace kolem kloubu, zornice) vzniká stejným receptem
+##    positions(params) jako morfy, takže je přesná a deterministická; obočí a vousy ji dostanou přenosem (HairRig).
 ## Ochrana proti průnikům: kůže ≥ R + EYE_CLEAR od středu oka (měkké maximum), orbitální prstenec se hýbe
 ## s okem, krk se škáluje vodorovně (vrcholy nekloužou po povrchu). Kombinace morfů ověřuje test vzorkováním.
 
@@ -32,6 +36,44 @@ const ASYM_KEYS := ["asym_eyes", "asym_mouth", "asym_jaw"]
 const BODY_KEYS := ["b_fat", "b_muscle"]
 ## Klíče řízené tělem, které jsou LINEÁRNÍ v obou směrech (váha −1..1): délka krku (body.neck_length, běh 13).
 const BODY_LINEAR_KEYS := ["b_neck_len"]
+## C3++ (běh 21): detaily ze schématu (skupina face, FaceMorphs.detail_values → −1..1 / 0..1) – morfy jako ostatní pole.
+const DETAIL_KEYS := ["lash_length", "lash_curl", "lash_density", "teeth_gap", "teeth_crooked"]
+## Mimika (prezentace klienta, SimVisual): jednostranné 0..1 kromě zornice (−1..1). Levá = +x (postava hledí do +z).
+const EXPR_KEYS := ["ex_blink_l", "ex_blink_r", "ex_smile", "ex_frown", "ex_brow_up", "ex_jaw_open", "ex_pupil"]
+## Řasy: počet karet na víčko (jedna karta = chomáček několika řas), stanic podél karty (+ špička), šířka a délka u kořene.
+const LASH_UP := 34
+const LASH_LO := 18
+const LASH_ST := 4
+const LASH_W_UP := 0.00062
+const LASH_W_LO := 0.00040
+const LASH_L_UP := 0.0086
+const LASH_L_LO := 0.0046
+## Čelist: osa otáčení (temporomandibulární kloub před uchem) a úhel plně otevřených úst (~17 mm mezi řezáky).
+const JAW_HINGE_Y := 1.652
+const JAW_HINGE_Z := -0.008
+const JAW_OPEN_DEG := 9.0
+## Zuby jedné poloviny oblouku od středu: [šířka mesiodistálně, výška korunky, tloušťka u krčku, tloušťka u hrany,
+## výška hrany vůči linii úst My, šířka hrany / šířka zubu]. Hodnoty dospělého chrupu (řezák 8–9 mm, špičák ~10 mm).
+const TEETH_UP := [[0.0086, 0.0105, 0.0068, 0.0013, -0.0009, 0.98], [0.0066, 0.0090, 0.0060, 0.0012, -0.0008, 0.96],
+	[0.0078, 0.0100, 0.0080, 0.0024, -0.0005, 0.55], [0.0070, 0.0080, 0.0086, 0.0045, 0.0000, 0.85],
+	[0.0068, 0.0074, 0.0088, 0.0048, 0.0000, 0.85]]
+const TEETH_LO := [[0.0054, 0.0090, 0.0058, 0.0012, 0.0008, 0.98], [0.0060, 0.0092, 0.0060, 0.0012, 0.0007, 0.96],
+	[0.0070, 0.0098, 0.0075, 0.0022, 0.0002, 0.55], [0.0070, 0.0080, 0.0078, 0.0042, -0.0004, 0.85],
+	[0.0072, 0.0076, 0.0082, 0.0046, -0.0004, 0.85]]
+## Oblouk (elipsa): poloosa do strany a do hloubky; dolní oblouk je menší a za horním (přesah řezáků ~2,9 mm).
+const ARCH_UP := Vector2(0.0235, 0.026)
+const ARCH_LO := Vector2(0.0215, 0.024)
+const ARCH_LO_BACK := 0.0029
+## Zuby za vnitřní linií rtů (prstenec 4 úst leží 4,5 mm za povrchem; labiální plocha řezáků u krčku 7,2 mm, hrana
+## kvůli sklonu dopředu ~6 mm → ≥ 1 mm za vnitřkem rtů, ověřuje test_face_detail).
+const TEETH_BACK := 0.0072
+const TOOTH_RING := 8
+const GUM_ROWS := 3
+const TONGUE_U := 12
+const TONGUE_V := 7
+## Dutina úst (vnitřek „mc“): elipsoid za rty – střed za řezáky, poloosy (do stran, nahoru, do hloubky).
+const CAVITY_BACK := 0.012
+const CAVITY_R := Vector3(0.032, 0.019, 0.040)
 
 const NX := 24
 const NY := 26
@@ -112,7 +154,11 @@ const CX_MIN := 0.0003
 const INB_MIN := 0.0005
 const EAR_K := 6
 const EAR_M := 16
-const EYE_RINGS_DEG := [9.0, 10.0, 21.0, 27.0, 31.0, 36.0, 50.0, 70.0, 90.0, 110.0, 135.0, 160.0]
+## Prstence oční koule (stupně od osy pohledu): 0–1 okraj zornice (posouvá ex_pupil), 2–3 duhovka, 3–4 limbus.
+const EYE_RINGS_DEG := [9.0, 10.0, 21.0, 25.0, 27.0, 31.0, 36.0, 50.0, 70.0, 90.0, 110.0, 135.0, 160.0]
+## Velikost zornice: okraj v (PUPIL_DEG + PUPIL_RANGE · ex_pupil)° (≈ 2,9–5,0 mm průměr při poloměru oka 11,9 mm).
+const PUPIL_DEG := 9.0
+const PUPIL_RANGE := 3.2
 const EYE_SEG := 18
 const RX_FRONT := [[0.04, 1.0], [0.0, 0.955], [-0.03, 0.91], [-0.06, 0.84], [-0.085, 0.71], [-0.105, 0.50], [-0.125, 0.30]]
 const RX_BACK := [[0.03, 1.0], [-0.02, 0.97], [-0.06, 0.86], [-0.10, 0.74]]
@@ -126,7 +172,14 @@ const MATERIALS := {
 	"sclera": {"name": "eye_sclera", "color": [0.92, 0.90, 0.86], "rough": 0.12, "metal": 0.0},
 	"iris": {"name": "eye_iris", "color": [0.30, 0.42, 0.55], "rough": 0.18, "metal": 0.0},
 	"pupil": {"name": "eye_pupil", "color": [0.02, 0.02, 0.02], "rough": 0.08, "metal": 0.0},
+	"limbus": {"name": "eye_limbus", "color": [0.14, 0.20, 0.27], "rough": 0.18, "metal": 0.0},
+	"lash": {"name": "eye_lash", "color": [0.06, 0.045, 0.035], "rough": 0.55, "metal": 0.0},
+	"teeth": {"name": "teeth_enamel", "color": [0.90, 0.88, 0.82], "rough": 0.22, "metal": 0.0},
+	"gum": {"name": "mouth_gum", "color": [0.72, 0.38, 0.40], "rough": 0.45, "metal": 0.0},
+	"tongue": {"name": "mouth_tongue", "color": [0.66, 0.30, 0.32], "rough": 0.5, "metal": 0.0},
 }
+## Části sítě kromě hlavy (part → podskupina v názvu uzlu „head__<podskupina>__<materiál>“; oči mají skupinu eyes).
+const PART_NAMES := {"head": "face", "eyes": "eyeballs", "lashes": "lashes", "mouth": "mouth"}
 
 static var _wx: PackedFloat64Array = PackedFloat64Array()
 static var _wy: PackedFloat64Array = PackedFloat64Array()
@@ -329,6 +382,26 @@ static func derive(p: Dictionary) -> Dictionary:
 	d["mouth_asym"] = 0.0015 * v.call("asym_mouth")
 	d["ear_s"] = 1.0 + 0.14 * v.call("ear_size")
 	d["ear_a"] = deg_to_rad(17.0 + 14.0 * v.call("ear_angle"))
+	# C3++ (běh 21): detaily (FaceMorphs.detail_values) a mimika. Jednostranné klíče se ořežou na 0..1, takže tvar
+	# pro −1 je nulový (morph_targets uloží jen „_pos“).
+	d["lash_len"] = clampf(v.call("lash_length"), -1.0, 1.0)
+	d["lash_curl"] = clampf(v.call("lash_curl"), -1.0, 1.0)
+	d["lash_dens"] = clampf(v.call("lash_density"), -1.0, 1.0)
+	d["t_gap"] = clampf(v.call("teeth_gap"), 0.0, 1.0)
+	d["t_crook"] = clampf(v.call("teeth_crooked"), 0.0, 1.0)
+	d["ex_smile"] = clampf(v.call("ex_smile"), 0.0, 1.0)
+	d["ex_frown"] = clampf(v.call("ex_frown"), 0.0, 1.0)
+	d["ex_brow"] = clampf(v.call("ex_brow_up"), 0.0, 1.0)
+	d["ex_jaw"] = clampf(v.call("ex_jaw_open"), 0.0, 1.0)
+	d["ex_pupil"] = clampf(v.call("ex_pupil"), -1.0, 1.0)
+	for s in [1, -1]:
+		var e: Dictionary = d["eye%d" % s]
+		var bl := clampf(v.call("ex_blink_l" if s > 0 else "ex_blink_r"), 0.0, 1.0)
+		# zamračení víčko lehce přivře, zvednuté obočí ho pootevře; úsměv (Duchenne) a zamračení zvednou dolní víčko
+		e["blink"] = clampf(bl + 0.10 * float(d["ex_frown"]) - 0.10 * float(d["ex_brow"]), -0.15, 1.0)
+		e["lo_raise"] = 0.30 * float(d["ex_smile"]) + 0.10 * float(d["ex_frown"])
+	# Řezáky: hloubka labiální plochy uprostřed (za vnitřní linií rtů), výška linie úst.
+	d["Tz"] = float(surface_xy(0.0, float(d["My"]), d).z) - TEETH_BACK
 	return d
 
 
@@ -577,7 +650,9 @@ static func surface_at(q: Vector3, d: Dictionary) -> Vector3:
 # ======================================================================================
 # Oči
 # ======================================================================================
-static func _almond(e: Dictionary, a: float, b: float, f: float, cs := 0.0007) -> Vector2:
+## cl = přivření (mrkání; záporné = pootevření), lr = zvednutí dolního víčka (úsměv) – obě se škálují podle vrstvy
+## víčka (okraj 1, rýha 0,45, okolí oka 0,1). Štěrbina se zavírá k linii ve 24 % výšky (horní víčko ujede ~3/4).
+static func _almond(e: Dictionary, a: float, b: float, f: float, cs := 0.0007, cl := 0.0, lr := 0.0) -> Vector2:
 	a = clampf(a, -1.0, 1.0)
 	# Běh 18: štěrbina sahá dál k nosu než do strany (vnitřní koutek ~16 mm od středu obličeje, vnější ~45 mm,
 	# zornice ~32 mm) – mediální polovina mandle je delší (a < 0 = k nosu, volající předává a × strana).
@@ -586,6 +661,11 @@ static func _almond(e: Dictionary, a: float, b: float, f: float, cs := 0.0007) -
 	var hl := float(e["hl"]) * f
 	var up := hu * pow(1.0 - a * a, 0.85) * (1.0 - 0.18 * a)
 	var lo := -hl * pow(1.0 - a * a, 0.9) * (1.0 + 0.22 * a)
+	if cl != 0.0 or lr != 0.0:
+		var yc := lo + (up - lo) * 0.24
+		var gap := 0.00012 * sqrt(maxf(0.0, 1.0 - a * a))
+		up = lerpf(up, yc + gap, cl)
+		lo = lerpf(lo, yc - gap, clampf(maxf(cl, 0.0) + lr, 0.0, 1.0))
 	var yb := lo + (up - lo) * (b + 1.0) * 0.5
 	var x := a * w
 	if absf(a) > 0.999:
@@ -630,7 +710,7 @@ static func _eye_ring_pos(d: Dictionary, s: int, ring: int, a: float, b: float, 
 	var am := a * float(s)
 	match ring:
 		1:
-			var xy := _almond(e, am, b, 1.0, 0.0035)
+			var xy := _almond(e, am, b, 1.0, 0.0035, 0.10 * float(e.get("blink", 0.0)), 0.35 * float(e.get("lo_raise", 0.0)))
 			var hood := float(e["hood"])
 			var up := maxf(0.0, b)
 			var fy := 1.9 if xy.y > 0.0 else 1.6
@@ -646,17 +726,17 @@ static func _eye_ring_pos(d: Dictionary, s: int, ring: int, a: float, b: float, 
 				float(p.y) + 0.85 * (float(ec.y) - float(e0.y)) - 0.0030 * hood * up,
 				float(p.z) + 0.85 * (float(ec.z) - float(e0.z)) + 0.0016 * hood * up)
 		2:
-			var xy := _almond(e, am, b, 1.18, 0.0022)
+			var xy := _almond(e, am, b, 1.18, 0.0022, 0.45 * float(e.get("blink", 0.0)), 0.6 * float(e.get("lo_raise", 0.0)))
 			var up := maxf(0.0, b)
 			return _sph(e, float(xy.x), float(xy.y) - 0.0007 * float(e["hood"]) * up, r + 0.0034, 1.0, s)
 		3:
-			var xy := _almond(e, am, b, 1.0)
+			var xy := _almond(e, am, b, 1.0, 0.0007, float(e.get("blink", 0.0)), float(e.get("lo_raise", 0.0)))
 			return _sph(e, float(xy.x), float(xy.y), r + 0.0018, 1.0, s)
 		4:
-			var xy := _almond(e, am, b, 0.985)
+			var xy := _almond(e, am, b, 0.985, 0.0007, float(e.get("blink", 0.0)), float(e.get("lo_raise", 0.0)))
 			return _sph(e, float(xy.x), float(xy.y), r + 0.0012, 1.0, s)
 		5:
-			var xy := _almond(e, am, b, 1.0)
+			var xy := _almond(e, am, b, 1.0, 0.0007, float(e.get("blink", 0.0)), float(e.get("lo_raise", 0.0)))
 			return _sph(e, float(xy.x), float(xy.y), r + 0.0012, 1.55, s)
 	return ec
 
@@ -746,9 +826,17 @@ static func _mouth_ring_pos(d: Dictionary, ring: int, a: float, b: float, gi: in
 	return Vector3.ZERO
 
 
+## Vnitřek úst (běh 21): mělké víčko za rty se vyklene do elipsoidu dutiny (CAVITY_*), aby se do ní vešly zuby
+## a jazyk; okraj (prstenec 4) zůstává, první vnitřní řada už leží skoro na stěně dutiny.
 static func _mouth_cap_pos(d: Dictionary, a: float, b: float) -> Vector3:
 	var p := surface_xy(a * float(d["Mw"]) * 0.7, float(d["My"]) + b * 0.006, d, 0.09)
-	return Vector3(p.x, p.y, float(p.z) - 0.016 + 0.004 * (a * a))
+	var rim := Vector3(p.x, p.y, float(p.z) - 0.016 + 0.004 * (a * a))
+	var f := 1.0 - maxf(absf(a), absf(b))
+	var ta := a * PI * 0.5
+	var tb := b * PI * 0.5 * 0.9
+	var cz := float(d["Tz"]) - CAVITY_BACK
+	var q := Vector3(CAVITY_R.x * sin(ta) * cos(tb), float(d["My"]) + CAVITY_R.y * sin(tb), cz - CAVITY_R.z * cos(ta) * cos(tb))
+	return rim.lerp(q, _smooth(0.0, 0.45, f))
 
 
 # ======================================================================================
@@ -806,11 +894,380 @@ static func _eyeball_pos(d: Dictionary, s: int, kind: String, i: int, j: int) ->
 		th = PI
 	elif kind == "ring":
 		th = deg_to_rad(float(EYE_RINGS_DEG[i]))
+		if i <= 1:
+			th = deg_to_rad(PUPIL_DEG + PUPIL_RANGE * float(d["ex_pupil"]) + float(i))
 	var ph := 2.0 * PI * float(j) / float(EYE_SEG)
 	var rr := r
 	if th < deg_to_rad(33.0):
 		rr = r * (1.0 + 0.055 * pow(maxf(0.0, cos(minf(th, deg_to_rad(32.0)) / deg_to_rad(32.0) * PI / 2.0)), 2.0))
 	return Vector3(float(ec.x) + sin(th) * cos(ph) * rr, float(ec.y) + sin(th) * sin(ph) * rr, float(ec.z) + cos(th) * rr)
+
+
+# ======================================================================================
+# C3++ (běh 21) – řasy, zuby, dáseň, jazyk, mimika
+# ======================================================================================
+## Pseudonáhodné číslo 0..1 pro kartu řas (deterministické, bez stavu – stejné na všech peerech). Nezávisí na oku:
+## výchozí obličej zůstává souměrný, nesouměrnost řídí jen osy asymetrie.
+static func _lash_hash(_s: int, up: int, k: int) -> float:
+	var h := sin(float(k) * 12.9898 + float(up) * 37.719) * 43758.5453
+	return h - floor(h)
+
+
+## Bod karty řas: s = oko, up = 1 horní / 0 dolní víčko, k = karta (od nosu do spánku), st = stanice podél karty
+## (LASH_ST = špička), side = ±1 okraj karty. Kořen leží na okraji víčka (prstenec 3) – řasy proto sledují všechny
+## morfy očí, převislá víčka i mrkání. Délka: nejdelší uprostřed, laterálně delší než u nosu (reálně ~8–12 mm
+## nahoře, ~5–7 mm dole); zahnutí roste se čtvercem vzdálenosti od kořene.
+static func _lash_pos(d: Dictionary, s: int, up: int, k: int, st: int, side: int) -> Vector3:
+	var e: Dictionary = d["eye%d" % s]
+	var n_l := LASH_UP if up == 1 else LASH_LO
+	var t := (float(k) + 0.5) / float(n_l)
+	var a := lerpf(-0.90, 0.93, t) if up == 1 else lerpf(-0.62, 0.90, t)
+	var b := 1.0 if up == 1 else -1.0
+	var base := _eye_ring_pos(d, s, 3, a * float(s), b, 0, 0)
+	var nxt := _eye_ring_pos(d, s, 3, (a + 0.02) * float(s), b, 0, 0)
+	var tan := nxt - base
+	tan = tan / tan.length() if tan.length() > 1e-9 else Vector3.RIGHT
+	var ec: Vector3 = e["E"]
+	var nrm := (base - ec).normalized()
+	var sg := 1.0 if up == 1 else -1.0
+	var h := _lash_hash(s, up, k)
+	var ll := (LASH_L_UP if up == 1 else LASH_L_LO) * (0.45 + 0.55 * sin(PI * clampf(t * 0.92 + 0.04, 0.0, 1.0))) * (0.86 + 0.28 * t)
+	ll *= (1.0 + 0.24 * float(d["lash_len"])) * (0.92 + 0.16 * h)
+	var dens := float(d["lash_dens"])
+	# řidší řasy: část karet se zkrátí (které – určuje hash, ne poloha), hustší: karty se rozšíří
+	ll *= 1.0 - 0.6 * maxf(0.0, -dens) * (0.35 + 0.65 * h)
+	var ww := (LASH_W_UP if up == 1 else LASH_W_LO) * (1.0 + 0.45 * maxf(0.0, dens))
+	var curl := 0.38 + 0.30 * float(d["lash_curl"])
+	# Běh 21 (render): řasy vycházejí hlavně DOPŘEDU (z) a teprve se stáčejí nahoru/dolů – dřív mířily podél normály
+	# víčka nahoru a zepředu vypadaly jako vějíř pod obočím.
+	var dir0 := (nrm * 0.45 + Vector3(0.0, 0.04 * sg, 0.0) + Vector3(0.0, 0.0, 0.90)).normalized()
+	var bend := (Vector3(0.0, sg, 0.0) + Vector3(0.0, 0.0, 0.25) - nrm * 0.15).normalized()
+	var u := float(st) / float(LASH_ST)
+	var q := base + dir0 * ll * u + bend * ll * curl * u * u
+	if st >= LASH_ST:
+		return q
+	return q + tan * float(side) * ww * 0.5 * (1.0 - 0.85 * u)
+
+
+static var _arch_tab: Dictionary = {}
+
+
+## Tabulka délky oblouku (elipsa x = A·sin φ, z = −B·(1 − cos φ)) pro φ = 0..1,6 rad.
+static func _arch_table(arch: int) -> PackedFloat64Array:
+	if _arch_tab.has(arch):
+		return _arch_tab[arch]
+	var ab: Vector2 = ARCH_UP if arch > 0 else ARCH_LO
+	var n := 256
+	var tab := PackedFloat64Array()
+	tab.resize(n + 1)
+	var prev := Vector2.ZERO
+	for k in range(1, n + 1):
+		var ph := 1.6 * float(k) / float(n)
+		var q := Vector2(ab.x * sin(ph), -ab.y * (1.0 - cos(ph)))
+		tab[k] = tab[k - 1] + q.distance_to(prev)
+		prev = q
+	_arch_tab[arch] = tab
+	return tab
+
+
+## Rámec oblouku ve vzdálenosti sl od středu (strana +x): [poloha (x, z), tečna, vnější normála] v rovině xz.
+static func arch_frame(arch: int, sl: float) -> Array:
+	var tab := _arch_table(arch)
+	var n := tab.size() - 1
+	var ph := 1.6
+	for k in range(1, n + 1):
+		if tab[k] >= sl:
+			var f := (sl - tab[k - 1]) / maxf(tab[k] - tab[k - 1], 1e-12)
+			ph = 1.6 * (float(k - 1) + clampf(f, 0.0, 1.0)) / float(n)
+			break
+	var ab: Vector2 = ARCH_UP if arch > 0 else ARCH_LO
+	var pos := Vector2(ab.x * sin(ph), -ab.y * (1.0 - cos(ph)))
+	var tan := Vector2(ab.x * cos(ph), -ab.y * sin(ph)).normalized()
+	return [pos, tan, Vector2(-tan.y, tan.x)]
+
+
+## Vzdálenost středu zubu i od středu oblouku (bez mezery a vybočení).
+static func tooth_center_arc(arch: int, i: int) -> float:
+	var spec: Array = TEETH_UP if arch > 0 else TEETH_LO
+	var s0 := 0.0
+	for j in i:
+		s0 += float(spec[j][0])
+	return s0 + float(spec[i][0]) * 0.5
+
+
+## Bod zubu: lvl 0 kořen (schovaný v dásni), 1 krček, 2 střed korunky, 3 hrana; 4 střed kořene, 5 střed hrany.
+## Korunka = superelipsa (průřez) se zužující se tloušťkou k hraně, labiální plocha mírně vyklenutá a u řezáků
+## skloněná dopředu. teeth_gap rozestoupí horní jedničky (diastema ≤ 1,6 mm), teeth_crooked mírně vybočí čtyři
+## konkrétní zuby (natočení ≤ 14°, posun ≤ 0,8 mm) – žádná karikatura.
+static func _tooth_pos(d: Dictionary, arch: int, side: int, i: int, lvl: int, m: int) -> Vector3:
+	var spec: Array = (TEETH_UP if arch > 0 else TEETH_LO)[i]
+	var w := float(spec[0])
+	var h := float(spec[1])
+	var tgum := float(spec[2])
+	var tedge := float(spec[3])
+	var sc := tooth_center_arc(arch, i)
+	if arch > 0:
+		sc += float(d["t_gap"]) * float([0.0008, 0.0006, 0.0004, 0.0002, 0.0001][i])
+	var fr := arch_frame(arch, sc)
+	var pos2: Vector2 = fr[0]
+	var tan2: Vector2 = fr[1]
+	var nor2: Vector2 = fr[2]
+	var rot := 0.0
+	var push := 0.0
+	var c := float(d["t_crook"])
+	if c > 0.0:
+		var key := "%d:%d:%d" % [arch, side, i]
+		var crook := {"1:1:1": [14.0, -0.0007], "1:-1:2": [-8.0, 0.0008], "-1:1:0": [10.0, -0.0006], "-1:-1:1": [-12.0, 0.0005]}
+		if crook.has(key):
+			rot = deg_to_rad(float(crook[key][0])) * c
+			push = float(crook[key][1]) * c
+	var uu: float = [1.3, 1.0, 0.45, 0.0, 1.38, -0.03][lvl]
+	var wf: float = [0.72, 0.80, 1.0, float(spec[5]), 0.0, 0.0][lvl]
+	var th := lerpf(tedge, tgum, _smooth(0.0, 1.0, clampf(uu, 0.0, 1.0)))
+	if lvl == 0 or lvl == 4:
+		th = tgum * 0.85
+	var flare: float = (float([0.0012, 0.0010, 0.0006, 0.0002, 0.0][i]) if arch > 0 else float([0.0008, 0.0008, 0.0005, 0.0002, 0.0][i])) * (1.0 - clampf(uu, 0.0, 1.0))
+	var bulge := 0.0004 * sin(PI * clampf(uu, 0.0, 1.0))
+	var lt := 0.0
+	var ln := 0.0
+	if lvl <= 3:
+		var ang := TAU * (float(m) + 0.5) / float(TOOTH_RING)
+		var cx := cos(ang)
+		var cz := sin(ang)
+		lt = w * 0.5 * wf * 0.96 * signf(cx) * pow(absf(cx), 0.6)
+		ln = th * 0.5 * signf(cz) * pow(absf(cz), 0.6)
+	var lt2 := lt * cos(rot) - ln * sin(rot)
+	var ln2 := lt * sin(rot) + ln * cos(rot)
+	var off := flare + bulge + push - th * 0.5
+	var x := float(pos2.x) + float(tan2.x) * lt2 + float(nor2.x) * (ln2 + off)
+	var z := float(pos2.y) + float(tan2.y) * lt2 + float(nor2.y) * (ln2 + off)
+	var z0 := float(d["Tz"]) - (0.0 if arch > 0 else ARCH_LO_BACK)
+	var y := float(d["My"]) + float(spec[4]) + float(arch) * h * uu
+	return Vector3(float(side) * x, y, z0 + z)
+
+
+## Dáseň: pruh podél oblouku (k = −10..10: sudé = mezizubní papila, liché = střed zubu), řady 0 (přes krček),
+## 1 (výš), 2 (stáčí se dovnitř ke klenbě / spodině). Papily sahají ~2 mm blíž k hraně než linie nad zubem.
+static func _gum_pos(d: Dictionary, arch: int, k: int, r: int) -> Vector3:
+	var spec: Array = TEETH_UP if arch > 0 else TEETH_LO
+	var ak := absi(k)
+	var j := ak / 2
+	var sl := 0.0
+	for q in mini(j, spec.size()):
+		sl += float(spec[q][0])
+	var gl: float
+	if ak % 2 == 1:
+		sl += float(spec[j][0]) * 0.5
+		gl = float(spec[j][4]) + float(arch) * float(spec[j][1])
+	else:
+		var a0: Array = spec[maxi(j - 1, 0)]
+		var a1: Array = spec[mini(j, spec.size() - 1)]
+		gl = 0.5 * (float(a0[4]) + float(arch) * float(a0[1]) + float(a1[4]) + float(arch) * float(a1[1])) - float(arch) * 0.0022
+	var fr := arch_frame(arch, sl)
+	var pos2: Vector2 = fr[0]
+	var nor2: Vector2 = fr[2]
+	var dy: float = [-0.0004, 0.0035, 0.0065][r]
+	var dn: float = [0.0006, 0.0010, -0.0015][r]
+	var x := float(pos2.x) + float(nor2.x) * dn
+	var z := float(pos2.y) + float(nor2.y) * dn
+	var z0 := float(d["Tz"]) - (0.0 if arch > 0 else ARCH_LO_BACK)
+	return Vector3((1.0 if k >= 0 else -1.0) * x, float(d["My"]) + gl + float(arch) * dy, z0 + z)
+
+
+## Jazyk: zploštělý elipsoid na spodině úst za dolními řezáky, se středovou rýhou nahoře.
+static func _tongue_pos(d: Dictionary, i: int, j: int) -> Vector3:
+	var c := Vector3(0.0, float(d["My"]) - 0.0080, float(d["Tz"]) - 0.031)
+	var lat := -PI * 0.5 + PI * float(j) / float(TONGUE_V)
+	var lon := TAU * float(i) / float(TONGUE_U)
+	var x := 0.0145 * cos(lat) * cos(lon)
+	var y := 0.0050 * sin(lat)
+	var z := 0.0200 * cos(lat) * sin(lon)
+	if y > 0.0:
+		y -= 0.0006 * exp(-pow(x / 0.004, 2.0)) * (y / 0.005)
+	return c + Vector3(x, y, z)
+
+
+## Mimika: posun kůže (úsměv, zamračení, zvednuté obočí) – součet hladkých polí, jen na přední straně hlavy.
+static func _expr_field(q: Vector3, d: Dictionary, upper_lip: bool) -> Vector3:
+	var front := _smooth(0.02, 0.05, float(q.z))
+	if front <= 0.0:
+		return Vector3.ZERO
+	var off := Vector3.ZERO
+	var my := float(d["My"])
+	var mw := float(d["Mw"])
+	var ax := absf(float(q.x))
+	var sm := float(d["ex_smile"])
+	if sm > 0.0:
+		for c in [1.0, -1.0]:
+			var g := exp(-(pow(float(q.x) - c * mw, 2.0) + pow(float(q.y) - my, 2.0)) / pow(0.0115, 2.0))
+			# koutek nahoru a dozadu (zygomaticus major); užší pole než dřív, aby se linie úst opravdu prohnula
+			off += Vector3(c * 0.0042, 0.0058, -0.0034) * g * sm
+		var gc := exp(-(pow((ax - 0.036) / 0.016, 2.0) + pow((float(q.y) - 1.632) / 0.012, 2.0)))
+		off += Vector3(0.0, 0.0022, 0.0016) * gc * sm
+		if upper_lip:
+			off.y += 0.0008 * sm * exp(-pow(float(q.x) / 0.016, 2.0))
+		else:
+			# střed dolního rtu a brady lehce dolů → dolní ret se prohne do oblouku úsměvu
+			var gl := exp(-(pow(float(q.x) / 0.016, 2.0) + pow((float(q.y) - (my - 0.006)) / 0.010, 2.0)))
+			off.y -= 0.0012 * sm * gl * _smooth(my + 0.001, my - 0.003, float(q.y))
+	var fr := float(d["ex_frown"])
+	if fr > 0.0:
+		for c in [1.0, -1.0]:
+			var g := exp(-(pow((float(q.x) - c * 0.017) / 0.014, 2.0) + pow((float(q.y) - 1.690) / 0.010, 2.0)))
+			off += Vector3(-c * 0.0024, -0.0030, 0.0006) * g * fr
+			var gm := exp(-(pow(float(q.x) - c * mw, 2.0) + pow(float(q.y) - my, 2.0)) / pow(0.010, 2.0))
+			off += Vector3(0.0, -0.0012, 0.0) * gm * fr
+		var g0 := exp(-(pow(float(q.x) / 0.008, 2.0) + pow((float(q.y) - 1.683) / 0.008, 2.0)))
+		off += Vector3(0.0, -0.0010, 0.0007) * g0 * fr
+	var bu := float(d["ex_brow"])
+	if bu > 0.0:
+		var g := exp(-(pow((ax - 0.030) / 0.030, 2.0) + pow((float(q.y) - 1.696) / 0.013, 2.0)))
+		var gf := _smooth(1.70, 1.74, float(q.y)) * (1.0 - _smooth(1.76, 1.79, float(q.y))) * exp(-pow(float(q.x) / 0.06, 2.0))
+		off += Vector3(0.0, 0.0042 * g + 0.0015 * gf, 0.0) * bu
+	return off * front
+
+
+## Váha rotace dolní čelisti pro vrchol (poloha před mimikou). Mřížka: pod linií úst (do stran klesá k úhlu čelisti),
+## vpředu, nad krkem; rty a vnitřek úst podle strany (b < 0 = dolní), dolní zuby a dáseň 1, jazyk 0,65.
+static func _jaw_w(rec: Array, q: Vector3, d: Dictionary) -> float:
+	match String(rec[0]):
+		"g":
+			var yb := float(d["My"]) - 0.0015 - 0.30 * maxf(0.0, absf(float(q.x)) - 0.022)
+			return _smooth(yb + 0.002, yb - 0.008, float(q.y)) * _smooth(-0.03, 0.01, float(q.z)) * _smooth(1.528, 1.566, float(q.y))
+		"mr":
+			return _smooth(0.35, -0.35, float(rec[3]))
+		"mc":
+			return _smooth(0.35, -0.35, float(rec[2]))
+		"th", "gm":
+			return 1.0 if int(rec[1]) < 0 else 0.0
+		"tg":
+			return 0.65
+	return 0.0
+
+
+## Otočení kolem osy kloubu (rovnoběžné s x) o úhel ang (kladný = brada dolů a dozadu).
+static func jaw_rotate(q: Vector3, ang: float) -> Vector3:
+	var ry := float(q.y) - JAW_HINGE_Y
+	var rz := float(q.z) - JAW_HINGE_Z
+	return Vector3(q.x, JAW_HINGE_Y + ry * cos(ang) - rz * sin(ang), JAW_HINGE_Z + ry * sin(ang) + rz * cos(ang))
+
+
+static func _expr_active(d: Dictionary) -> bool:
+	return float(d["ex_smile"]) != 0.0 or float(d["ex_frown"]) != 0.0 or float(d["ex_brow"]) != 0.0 or float(d["ex_jaw"]) != 0.0
+
+
+static func _apply_expressions(t: Topo, p: PackedVector3Array, d: Dictionary) -> PackedVector3Array:
+	var amax := deg_to_rad(JAW_OPEN_DEG) * float(d["ex_jaw"])
+	for i in p.size():
+		var rec: Array = t.recipes[i]
+		var kind := String(rec[0])
+		var q := p[i]
+		var off := Vector3.ZERO
+		match kind:
+			"g":
+				off = _expr_field(q, d, false)
+			"er":
+				if int(rec[2]) <= 2:
+					off = _expr_field(q, d, false)
+			"mr":
+				off = _expr_field(q, d, float(rec[3]) > 0.0)
+			"mc":
+				# vnitřek dutiny se nedeformuje, jen okraj navazující na rty
+				var f := 1.0 - maxf(absf(float(rec[1])), absf(float(rec[2])))
+				off = _expr_field(q, d, float(rec[2]) > 0.0) * (1.0 - _smooth(0.0, 0.45, f))
+		var nq := q + off
+		if amax != 0.0:
+			var w := _jaw_w(rec, q, d)
+			if w > 0.0:
+				nq = jaw_rotate(nq, amax * w)
+		if (kind == "g" or kind == "er") and nq != q:
+			nq = push_out(nq, d)
+		p[i] = nq
+	return p
+
+
+# ---------------------------------------------------------------- topologie nových částí
+
+## Otočí plochy [f0, f1) tak, aby normála mířila od středu c (polohy z výchozí hlavy d0).
+static func _orient(t: Topo, f0: int, f1: int, d0: Dictionary, c: Vector3) -> void:
+	for fi in range(f0, f1):
+		var idx: PackedInt32Array = t.faces[fi][2]
+		var pts: Array = []
+		for v in idx:
+			pts.append(vertex_pos(t.recipes[v], d0))
+		var fc := Vector3.ZERO
+		for q in pts:
+			fc += q
+		fc /= float(pts.size())
+		var n: Vector3 = ((pts[1] as Vector3) - (pts[0] as Vector3)).cross((pts[pts.size() - 1] as Vector3) - (pts[0] as Vector3))
+		if n.dot(fc - c) < 0.0:
+			var r := idx.duplicate()
+			r.reverse()
+			t.faces[fi][2] = r
+
+
+static func _lashes(t: Topo, s: int) -> void:
+	for up in [1, 0]:
+		var n := LASH_UP if up == 1 else LASH_LO
+		for k in n:
+			var ids: Array = []
+			for st in LASH_ST:
+				ids.append([t.v(["lash", s, up, k, st, -1]), t.v(["lash", s, up, k, st, 1])])
+			var tip := t.v(["lash", s, up, k, LASH_ST, 0])
+			for st in LASH_ST - 1:
+				t.add("lashes", "lash", [ids[st][0], ids[st][1], ids[st + 1][1], ids[st + 1][0]])
+			t.add("lashes", "lash", [ids[LASH_ST - 1][0], ids[LASH_ST - 1][1], tip])
+
+
+static func _teeth(t: Topo, arch: int) -> void:
+	var d0 := derive({})
+	var n := (TEETH_UP if arch > 0 else TEETH_LO).size()
+	for side in [1, -1]:
+		for i in n:
+			var f0 := t.faces.size()
+			for l in 3:
+				for m in TOOTH_RING:
+					var m1 := (m + 1) % TOOTH_RING
+					t.add("mouth", "teeth", [t.v(["th", arch, side, i, l, m]), t.v(["th", arch, side, i, l, m1]),
+						t.v(["th", arch, side, i, l + 1, m1]), t.v(["th", arch, side, i, l + 1, m])])
+			var root := t.v(["th", arch, side, i, 4, 0])
+			var edge := t.v(["th", arch, side, i, 5, 0])
+			for m in TOOTH_RING:
+				var m1 := (m + 1) % TOOTH_RING
+				t.add("mouth", "teeth", [root, t.v(["th", arch, side, i, 0, m1]), t.v(["th", arch, side, i, 0, m])])
+				t.add("mouth", "teeth", [edge, t.v(["th", arch, side, i, 3, m]), t.v(["th", arch, side, i, 3, m1])])
+			var c := Vector3.ZERO
+			var cnt := 0
+			for l in 4:
+				for m in TOOTH_RING:
+					c += _tooth_pos(d0, arch, side, i, l, m)
+					cnt += 1
+			_orient(t, f0, t.faces.size(), d0, c / float(cnt))
+
+
+static func _gums(t: Topo, arch: int) -> void:
+	var d0 := derive({})
+	var kmax := (TEETH_UP if arch > 0 else TEETH_LO).size() * 2
+	var f0 := t.faces.size()
+	for k in range(-kmax, kmax):
+		for r in GUM_ROWS - 1:
+			t.add("mouth", "gum", [t.v(["gm", arch, k, r]), t.v(["gm", arch, k + 1, r]), t.v(["gm", arch, k + 1, r + 1]), t.v(["gm", arch, k, r + 1])])
+	# střed oblouku: normála dásně míří ven (labiálně)
+	_orient(t, f0, t.faces.size(), d0, Vector3(0.0, float(d0["My"]), float(d0["Tz"]) - 0.035))
+
+
+static func _tongue(t: Topo) -> void:
+	var d0 := derive({})
+	var f0 := t.faces.size()
+	var bot := t.v(["tg", 0, 0])
+	var top := t.v(["tg", 0, TONGUE_V])
+	for i in TONGUE_U:
+		var i1 := (i + 1) % TONGUE_U
+		t.add("mouth", "tongue", [bot, t.v(["tg", i, 1]), t.v(["tg", i1, 1])])
+		for j in range(1, TONGUE_V - 1):
+			t.add("mouth", "tongue", [t.v(["tg", i, j]), t.v(["tg", i, j + 1]), t.v(["tg", i1, j + 1]), t.v(["tg", i1, j])])
+		t.add("mouth", "tongue", [top, t.v(["tg", i1, TONGUE_V - 1]), t.v(["tg", i, TONGUE_V - 1])])
+	_orient(t, f0, t.faces.size(), d0, _tongue_pos(d0, 0, 0).lerp(_tongue_pos(d0, 0, TONGUE_V), 0.5))
 
 
 # ======================================================================================
@@ -937,6 +1394,12 @@ static func build_topology() -> Topo:
 		_ear(t, s)
 	for s in [1, -1]:
 		_eyeball(t, s)
+	for s in [1, -1]:
+		_lashes(t, s)
+	for arch in [1, -1]:
+		_teeth(t, arch)
+		_gums(t, arch)
+	_tongue(t)
 	return t
 
 
@@ -1059,7 +1522,7 @@ static func _eyeball(t: Topo, s: int) -> void:
 	for j in EYE_SEG:
 		t.add("eyes", "pupil", [f, t.v(["eb", s, "ring", 0, j % EYE_SEG]), t.v(["eb", s, "ring", 0, (j + 1) % EYE_SEG])])
 	for i in nr - 1:
-		var m := "iris" if float(EYE_RINGS_DEG[i + 1]) <= 27.0 else "sclera"
+		var m := "iris" if float(EYE_RINGS_DEG[i + 1]) <= 25.0 else ("limbus" if float(EYE_RINGS_DEG[i + 1]) <= 27.0 else "sclera")
 		for j in EYE_SEG:
 			t.add("eyes", m, [t.v(["eb", s, "ring", i, j % EYE_SEG]), t.v(["eb", s, "ring", i + 1, j % EYE_SEG]),
 				t.v(["eb", s, "ring", i + 1, (j + 1) % EYE_SEG]), t.v(["eb", s, "ring", i, (j + 1) % EYE_SEG])])
@@ -1088,6 +1551,14 @@ static func vertex_pos(rec: Array, d: Dictionary) -> Vector3:
 			return _ear_pos(d, rec[1], rec[2], rec[3], rec[4])
 		"eb":
 			return _eyeball_pos(d, rec[1], rec[2], rec[3], rec[4])
+		"lash":
+			return _lash_pos(d, rec[1], rec[2], rec[3], rec[4], rec[5])
+		"th":
+			return _tooth_pos(d, rec[1], rec[2], rec[3], rec[4], rec[5])
+		"gm":
+			return _gum_pos(d, rec[1], rec[2], rec[3])
+		"tg":
+			return _tongue_pos(d, rec[1], rec[2])
 	return Vector3.ZERO
 
 
@@ -1131,6 +1602,8 @@ static func positions(t: Topo, params: Dictionary) -> PackedVector3Array:
 				p[vi] = push_out(p[vi], d)  # vyhlazená řada u oka nesmí vniknout do oční koule
 		else:
 			p[vi] = push_out(p[vi], d)
+	if _expr_active(d):
+		p = _apply_expressions(t, p, d)
 	if not _conform.is_empty():
 		p = _apply_seam(p)
 	var nl := float(d["neck_len"])
@@ -1171,7 +1644,7 @@ static func _neck_shift(p: PackedVector3Array, dl: float) -> PackedVector3Array:
 static func morph_targets(t: Topo, p0: PackedVector3Array) -> Dictionary:
 	var out := {}
 	var spec := {}
-	for k in FACE_KEYS + ASYM_KEYS:
+	for k in FACE_KEYS + ASYM_KEYS + DETAIL_KEYS + EXPR_KEYS:
 		var pp := positions(t, {k: 1.0})
 		var pn := positions(t, {k: -1.0})
 		var dp := PackedVector3Array()
@@ -1221,7 +1694,7 @@ static func morph_targets(t: Topo, p0: PackedVector3Array) -> Dictionary:
 	# drobná změna jinde v hlavě (běh 12: vyhlazení u úst) mohla jednu stranu shodit pod práh a profil by
 	# se na ní lámal jinak než na druhé.
 	var inb: Array = []
-	for k in FACE_KEYS + ASYM_KEYS:
+	for k in FACE_KEYS + ASYM_KEYS + DETAIL_KEYS + EXPR_KEYS:
 		var cand := {}
 		var need := false
 		for sg in [1, -1]:
@@ -1281,7 +1754,7 @@ static func neck_weight(rec: Array, p: Vector3) -> float:
 ## Hladké normály (plošně vážené) pro danou část; f = [a,b,c] nebo [a,b,c,d] CCW zvenku.
 ## wpos = poloha, podle které se počítají VÁHY vyhlazení (vždy základ – audit Gemini běh 10b: váhy z polohy cíle
 ## by se mezi cíli lišily a stínování by při míchání blend shapes „skákalo“). Prázdné = pos.
-static func _normals(pos: PackedVector3Array, faces: Array, wpos := PackedVector3Array()) -> PackedVector3Array:
+static func _normals(pos: PackedVector3Array, faces: Array, wpos := PackedVector3Array(), smooth_jaw := true) -> PackedVector3Array:
 	var n := PackedVector3Array()
 	n.resize(pos.size())
 	for f in faces:
@@ -1296,6 +1769,8 @@ static func _normals(pos: PackedVector3Array, faces: Array, wpos := PackedVector
 	for i in n.size():
 		var l := n[i].length()
 		n[i] = n[i] / l if l > 1e-12 else Vector3.UP
+	if not smooth_jaw:
+		return n
 	return _smooth_jaw_normals(pos, faces, n, wpos if wpos.size() == pos.size() else pos)
 
 
@@ -1679,7 +2154,7 @@ static func build_instances(data: Dictionary, head_bone: int, neck_bone: int) ->
 	var tris := 0
 	var verts := 0
 	var key_count := {}
-	for part in ["head", "eyes"]:
+	for part in PART_NAMES:
 		var pf: Array = []
 		for f in t.faces:
 			if f[0] == part:
@@ -1698,7 +2173,8 @@ static func build_instances(data: Dictionary, head_bone: int, neck_bone: int) ->
 			if mx > 1e-5:
 				keys.append(k)
 		key_count[part] = keys.size()
-		var n0 := _seam_normals(seam, _normals(p0, pf), "")
+		var smooth_jaw: bool = String(part) == "head"
+		var n0 := _seam_normals(seam, _normals(p0, pf, PackedVector3Array(), smooth_jaw), "")
 		var tgt_pos: Array = []
 		var tgt_nrm: Array = []
 		for k in keys:
@@ -1708,7 +2184,7 @@ static func build_instances(data: Dictionary, head_bone: int, neck_bone: int) ->
 			for i in p0.size():
 				tp[i] = p0[i] + dd[i]
 			tgt_pos.append(tp)
-			tgt_nrm.append(_seam_normals(seam, _normals(tp, pf, p0), String(k)))
+			tgt_nrm.append(_seam_normals(seam, _normals(tp, pf, p0, smooth_jaw), String(k)))
 		var by_mat := {}
 		for f in pf:
 			if not by_mat.has(f[1]):
@@ -1789,8 +2265,10 @@ static func build_instances(data: Dictionary, head_bone: int, neck_bone: int) ->
 			smat.albedo_color = Color(md["color"][0], md["color"][1], md["color"][2])
 			smat.roughness = float(md["rough"])
 			smat.metallic = float(md["metal"])
+			if mat == "lash":
+				smat.cull_mode = BaseMaterial3D.CULL_DISABLED   # karta řas je vidět z obou stran
 			am.surface_set_material(0, smat)
-			var nm := "%s__%s__%s" % [part if part == "head" else "eyes", "face" if part == "head" else "eyeballs", md["name"]]
+			var nm := "%s__%s__%s" % ["eyes" if part == "eyes" else "head", PART_NAMES[part], md["name"]]
 			am.resource_name = nm
 			var mi := MeshInstance3D.new()
 			mi.name = nm

@@ -90,6 +90,8 @@ static func generate(rng: RandomNumberGenerator, base: Dictionary = {}, locks: A
 		_mind(rng, d)
 	# Až na konci: nový los nemění sekvenci ostatních polí (stejný seed → stejná postava jako ve v4).
 	d["personality"]["psyche_seed"] = rng.randi_range(0, 65535)
+	# v6 (běh 21): detaily obličeje až za seedem psychiky – stejný seed dá ve všech ostatních polích postavu jako ve v5.
+	_face_details(rng, d, age)
 	# Zámky: převzít hodnoty z base (celé skupiny nebo jednotlivá pole).
 	for lk in locks:
 		var p := String(lk).split(".")
@@ -102,6 +104,21 @@ static func generate(rng: RandomNumberGenerator, base: Dictionary = {}, locks: A
 	if (_locked(locks, "identity.grammar") and not _locked(locks, "identity.first_name")):
 		_name_for(rng, d, String(d["identity"]["grammar"]))
 	return d
+
+
+## Řasy, zuby a řasenka (v6). Rozložení kolem výchozích hodnot, mírný vliv věku (řidší řasy, tmavší sklovina);
+## mezera mezi jedničkami ~7 %, nerovné zuby ~22 % – nezávislé na rodu, identitě i jménu.
+static func _face_details(rng: RandomNumberGenerator, d: Dictionary, age: int) -> void:
+	var f: Dictionary = d["face"]
+	f["lash_length"] = _n(rng, 0.5, 0.16, 0.05, 0.95)
+	f["lash_density"] = _n(rng, 0.52 - maxf(float(age) - 55.0, 0.0) * 0.004, 0.15, 0.05, 0.95)
+	f["lash_curl"] = _n(rng, 0.5, 0.17, 0.05, 0.95)
+	f["teeth_shade"] = _n(rng, 0.18 + maxf(float(age) - 30.0, 0.0) * 0.006, 0.12, 0.0, 0.9)
+	f["teeth_gap"] = rng.randf_range(0.25, 0.8) if rng.randf() < 0.07 else 0.0
+	f["teeth_crooked"] = rng.randf_range(0.15, 0.7) if rng.randf() < 0.22 else 0.0
+	var mk: Dictionary = d["makeup"]
+	var made_up := float(mk.get("eyeliner", 0.0)) > 0.0 or float(mk.get("eyeshadow", 0.0)) > 0.0 or float(mk.get("lipstick", 0.0)) > 0.0
+	mk["mascara"] = rng.randf_range(0.3, 0.9) if rng.randf() < (0.7 if made_up else 0.03) else 0.0
 
 
 static func _locked(locks: Array, path: String) -> bool:

@@ -4,7 +4,8 @@ extends RefCounted
 ##   - krátký sdílecí kód  LSC1.<base64url(zlib(JSON))>.<crc32 hex>  (do chatu, na fórum, do hello v MP),
 ##   - migrace starších verzí (v0 = původní formát domácnosti: jméno + pohlaví + barva + hash jména;
 ##     v1 → v2: jedna „asymmetry“ → tři osy asymetrie obličeje, důlek v bradě 0..1; v2 → v3: skin.detail_seed;
-##     v3 → v4: body.neck_length = 0; v4 → v5: personality.hexaco = {}, personality.psyche_seed z uid).
+##     v3 → v4: body.neck_length = 0; v4 → v5: personality.hexaco = {}, personality.psyche_seed z uid;
+##     v5 → v6: detaily obličeje – řasy, zuby – a řasenka s výchozími hodnotami).
 ## Každý vstup z venku (soubor, kód, síť) projde: limity velikosti → CRC → JSON → migrace → validátor.
 
 const Schema := preload("res://scripts/character/character_schema.gd")
@@ -155,6 +156,8 @@ static func migrate(d) -> Dictionary:
 		data = _v3_to_v4(data)
 	if v <= 4:
 		data = _v4_to_v5(data)
+	if v <= 5:
+		data = _v5_to_v6(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -216,6 +219,22 @@ static func _v4_to_v5(src: Dictionary) -> Dictionary:
 		if not pers.has("psyche_seed"):
 			var uid = d.get("uid", "")
 			pers["psyche_seed"] = int(LSX.crc32(("psyche:" + String(uid)).to_utf8_buffer()) & 0xFFFF) if typeof(uid) == TYPE_STRING and String(uid) != "" else 0
+	return d
+
+
+## v5 → v6 (běh 21): detaily obličeje (řasy, zuby) a řasenka. Chybějící pole = výchozí hodnota ze schématu
+## (řasy 0,5 = dosavadní vzhled, rovné zuby bez mezery), existující hodnoty se nepřepisují.
+static func _v5_to_v6(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 6
+	var face = d.get("face", null)
+	if typeof(face) == TYPE_DICTIONARY:
+		for k in Schema.FACE_DETAILS:
+			if not face.has(k):
+				face[k] = Schema.default_value(Schema.FACE_DETAILS[k][1])
+	var mk = d.get("makeup", null)
+	if typeof(mk) == TYPE_DICTIONARY and not mk.has("mascara"):
+		mk["mascara"] = 0.0
 	return d
 
 

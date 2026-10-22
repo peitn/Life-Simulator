@@ -672,7 +672,7 @@ func _test_agency() -> void:
 
 func _test_schema_v5() -> void:
 	section("Schéma v5: osobnost, seed, soukromí, migrace")
-	check(Schema.VERSION == 5 and Schema.HEXACO.size() == 6, "verze 5, 6 os osobnosti")
+	check(Schema.VERSION >= 5 and Schema.HEXACO.size() == 6, "verze ≥ 5 (aktuálně %d), 6 os osobnosti" % Schema.VERSION)
 	check(not Schema.is_public("personality", "hexaco") and not Schema.is_public("personality", "psyche_seed")
 		and Schema.is_public("personality", "traits"), "osobnost a seed jsou soukromé (rysy veřejné jako dřív)")
 	var c = CharacterData.create()
@@ -722,7 +722,7 @@ func _test_schema_v5() -> void:
 	(v4["personality"] as Dictionary).erase("hexaco")
 	(v4["personality"] as Dictionary).erase("psyche_seed")
 	var m4 := Codec.from_dict(v4.duplicate(true))
-	check(bool(m4["ok"]) and int(m4["from_version"]) == 4 and int(m4["data"]["v"]) == 5, "v4 se načte jako v5", str(m4["errors"]))
+	check(bool(m4["ok"]) and int(m4["from_version"]) == 4 and int(m4["data"]["v"]) == Schema.VERSION, "v4 se načte jako aktuální verze", str(m4["errors"]))
 	check((m4["data"]["personality"]["hexaco"] as Dictionary).is_empty(), "hexaco {} = osobnost z rysů (chování beze změny)")
 	var renamed := v4.duplicate(true)
 	renamed["identity"]["first_name"] = "Jiný"
@@ -738,7 +738,7 @@ func _test_schema_v5() -> void:
 	check(int(mk["data"]["personality"]["psyche_seed"]) == 77 and float(mk["data"]["personality"]["hexaco"]["honesty"]) == 0.5, "existující hodnoty migrace nepřepíše")
 	var v0 := {"name": "Stará Postava", "female": true, "traits": ["optimista"]}
 	var m0 := Codec.from_dict(v0)
-	check(bool(m0["ok"]) and int(m0["data"]["v"]) == 5 and m0["data"]["personality"].has("psyche_seed"), "v0 → v5", str(m0["errors"]))
+	check(bool(m0["ok"]) and int(m0["data"]["v"]) == Schema.VERSION and m0["data"]["personality"].has("psyche_seed"), "v0 → aktuální verze (s psyche_seed)", str(m0["errors"]))
 	# Round-trip.
 	var rt := _cd(["knihomol"], 1234, {}, {"openness": 0.9, "extraversion": -0.3})
 	var dec := Codec.decode_code(Codec.encode_code(rt), {"mode": "strict"})

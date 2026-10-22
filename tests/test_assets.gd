@@ -113,7 +113,8 @@ func _check_composed_character(e: Dictionary) -> void:
 		check("%08x" % LSX.crc32(b64.strip_edges().to_ascii_buffer()) == String(crcs.get(src, "")), "%s: CRC zdroje sedí s manifestem" % src)
 	check(int(LSX.decode(FileAccess.get_file_as_string("res://assets/src/character_head.lsx"))["head"]["v"]) == 3, "LSX v3 (hlava) je stále čitelné")
 	# Od C3 má postava skutečný obličej (víčka, rty, uši a oči jako geometrie, ~7 800 tri) → rozpočet 18 000.
-	check(int(e.get("tris", 0)) > 8000 and int(e.get("tris", 0)) <= 18000, "character: rozpočet trojúhelníků ≤ 18 000 (hlavní postava s obličejem)", str(e.get("tris")))
+	# Běh 21 (C3++): + řasy (~730) a ústa – zuby, dáseň, jazyk (~1 600) → rozpočet 20 000.
+	check(int(e.get("tris", 0)) > 8000 and int(e.get("tris", 0)) <= 20000, "character: rozpočet trojúhelníků ≤ 20 000 (hlavní postava s obličejem, řasami a ústy)", str(e.get("tris")))
 	check(FileAccess.file_exists("res://assets/models/character.glb"), "character.glb existuje")
 
 

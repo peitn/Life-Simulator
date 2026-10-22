@@ -1,9 +1,10 @@
-# Life Simulator – vizuální kontrola obličeje v Blenderu (běh 18, C3+ B).
+# Life Simulator – vizuální kontrola obličeje v Blenderu (běh 18, C3+ B; běh 21 mimika, řasy, ústa).
 # Použití v Blenderu (headless): nastav globály a exec(open('/tmp/face_render.py').read()).
 #   FACES_URL  – cesta v projektu k JSON z tools/face_render_export.gd (např. "previews/c3b_before.json")
 #   GLB        – lokální cesta k character.glb (stažený přes fetch_glb())
 #   SEL, TAG, VIEWS, TW, TH, ORTHO, CAM_C, SAMPLES – výběr řádků a kamera
 # Výstup: řádky jako .npy v /tmp/rt/<TAG>_<i>.npy; sheet() je složí a send() pošle zpět do Godotu jako base64.
+# Řádky JSON nesou i mimiku (ex_* váhy, vč. mezitvarů) – nastavují se stejně jako ostatní shape keys.
 import bpy, json, math, os, base64, urllib.request, hashlib
 import numpy as np
 from mathutils import Vector
@@ -27,7 +28,7 @@ def hexc(h, a=1.0):
     c = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
     return (c[0], c[1], c[2], a)
 
-def mat(name, col, rough=0.5, sss=0.0):
+def mat(name, col, rough=0.5, sss=0.0, coat=0.0):
     m = bpy.data.materials.new(name); m.use_nodes = True
     b = m.node_tree.nodes.get("Principled BSDF")
     b.inputs["Base Color"].default_value = col
@@ -36,6 +37,8 @@ def mat(name, col, rough=0.5, sss=0.0):
         b.inputs["Subsurface Weight"].default_value = sss
         b.inputs["Subsurface Radius"].default_value = (1.0, 0.35, 0.2)
         b.inputs["Subsurface Scale"].default_value = 0.004
+    if coat > 0:
+        b.inputs["Coat Weight"].default_value = coat
     return m
 
 def setup(glb):
@@ -59,6 +62,23 @@ def setup(glb):
     cam = bpy.data.objects.new("cam", cd); sc.collection.objects.link(cam); sc.camera = cam
     return sc, cam
 
+def material_for(nm, f):
+    g = lambda k, d: hexc(f[k]) if k in f else d
+    if "skin_lips" in nm: return mat("lips", hexc(f["lips"]), 0.35, 0.3)
+    if "skin" in nm: return mat("skin", hexc(f["skin"]), 0.48, 0.25)
+    if "eye_lash" in nm: return mat("lash", g("lash", (0.03, 0.025, 0.02, 1)), 0.55)
+    if "teeth" in nm: return mat("teeth", g("teeth", (0.8, 0.77, 0.68, 1)), 0.22, 0.15, 0.3)
+    if "gum" in nm: return mat("gum", g("gum", (0.45, 0.13, 0.14, 1)), 0.35, 0.3)
+    if "tongue" in nm: return mat("tongue", g("tongue", (0.45, 0.12, 0.13, 1)), 0.45, 0.3)
+    if "eye_socket" in nm or "mouth_inner" in nm: return mat("dark", (0.05, 0.02, 0.02, 1), 0.6)
+    if "pupil" in nm: return mat("pupil", (0.01, 0.01, 0.01, 1), 0.1)
+    if "limbus" in nm: return mat("limbus", g("limbus", (0.05, 0.04, 0.02, 1)), 0.2)
+    if "iris" in nm: return mat("iris", hexc(f["iris"]), 0.2)
+    if "sclera" in nm: return mat("sclera", (0.78, 0.76, 0.72, 1), 0.15)
+    if "shirt" in nm: return mat("top", hexc(f["top"]), 0.8)
+    if "pants" in nm: return mat("bottom", hexc(f["bottom"]), 0.8)
+    return mat("other", (0.08, 0.07, 0.06, 1), 0.6)
+
 def render_rows(faces, sel, tag):
     sc, cam = setup(GLB)
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
@@ -73,16 +93,8 @@ def render_rows(faces, sel, tag):
                     kb.slider_min = -1.0
                     kb.value = float(keys.get(kb.name, 0.0))
             nm = o.name
-            o.hide_render = nm.startswith("hair_short") or nm.startswith("hair_long")
-            if "skin_lips" in nm: m = mat("lips", hexc(f["lips"]), 0.35, 0.3)
-            elif "skin" in nm: m = mat("skin", hexc(f["skin"]), 0.48, 0.25)
-            elif "eye_socket" in nm or "mouth_inner" in nm: m = mat("dark", (0.05, 0.02, 0.02, 1), 0.6)
-            elif "pupil" in nm: m = mat("pupil", (0.01, 0.01, 0.01, 1), 0.1)
-            elif "iris" in nm: m = mat("iris", hexc(f["iris"]), 0.2)
-            elif "sclera" in nm: m = mat("sclera", (0.78, 0.76, 0.72, 1), 0.15)
-            elif "shirt" in nm: m = mat("top", hexc(f["top"]), 0.8)
-            elif "pants" in nm: m = mat("bottom", hexc(f["bottom"]), 0.8)
-            else: m = mat("other", (0.08, 0.07, 0.06, 1), 0.6)
+            o.hide_render = nm.startswith("hair_short") or nm.startswith("hair_long") or nm.startswith("Icosphere")
+            m = material_for(nm, f)
             o.data.materials.clear(); o.data.materials.append(m)
         tiles = []
         for vn, az, el in VIEWS:

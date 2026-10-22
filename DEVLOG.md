@@ -928,3 +928,50 @@ hotový, takže jsem navázala checkpointem a přidala připomínky z payloadu (
   (nepravidelné pletení copánků, šum dredů, prameny na temeni ke skořepině); potom integrovaný průchod (Grok #141).
 
 - 22. 10. ~16:15 UTC: ruční spuštění (payload 17:40 SELČ, „od běhu 19 se nic nezměnilo“) dorazilo po dokončení běhu 20 – krok už je hotový a ověřený, nic dalšího se neměnilo. Podle payloadu je sync ZIP běhu 20 i v `res://previews/export20/` (lifesim.zip + e00–e42, MD5 9c1b932665a05b9974348058a86989fd); previews/export_main a demo nedotčené. Pozn.: previews/export už běh 20 přepsal svým ZIPem (díly běhu 19 jsou na GitHubu jako 8d16e64).
+
+
+## 2026-10-22 (běh 21, ~18:20–19:05 + ~20:58–21:45 UTC, plánovaný) – C3++ detaily obličeje a mimika
+**Oblast:** (0) TVORBA POSTAVY – C3++ (podle změny pořadí od uživatelky; C5 oblečení se posunulo). Plán #149. První pokus
+spadl po implementaci (checkpoint 19:05, „ROZPRACOVÁN“); druhé plánované spuštění (20:58) navázalo přesně na „další krok“.
+
+### Průběžné checkpointy
+- 19:05 (1. pokus) implementace + test_face_detail 55/55, GLB přeimportován.
+- ~21:15 regrese 21 sad na pozadí (godot_run má strop 120 s → setsid + logy v previews/testlogs), 3 zastaralé testy opraveny.
+- ~21:20 Blender render 8 výrazů × 4 pohledy prohlédnut → oprava úsměvu a řas, přeimport, render detailu po opravě; backup.
+- ~21:35 výkon posuvníku 5,8 → 3,7 ms (cache), regrese, Gemini, docs, AUDIT.
+
+### Co přibylo / změnilo se
+- `head_builder.gd`: řasy jako karty na okraji víček (34 + 18 na oko, 4 stanice; po renderu směr dopředu + stočení), hlubší
+  dutina úst, 10 + 10 zubů (řezáky–premoláry) na eliptických obloucích, dáseň, jazyk, limbus a zornice; mimika `ex_blink_l/_r`
+  (mezitvar v ½), `ex_smile` (po renderu: koutky nahoru/dozadu, užší pole, prohnutí dolního rtu), `ex_frown`, `ex_brow_up`,
+  `ex_jaw_open` (rotace kolem kloubu do 9°), `ex_pupil`; části `head__lashes__*`, `head__mouth__*` v GLB.
+- Schéma **v6**: `face.lash_length/lash_density/lash_curl/teeth_shade/teeth_gap/teeth_crooked`, `makeup.mascara`; migrace v5→v6;
+  randomizer `_face_details` (za psyche_seed, věk jen posouvá průměr, nezávislé na rodu).
+- `face_morphs.gd`: `detail_values`, `expression_weights`, cache `weights()`; `character_schema.gd`: cache `fields("face")` (read-only).
+- `sim_visual.gd`: výraz podle emoce (≤ 0,6), mrkání 2–6 s / rychlost emoce, 12 % dvojité, čelist při replice; klidová tvář
+  nic nepočítá (Gemini); `apply_face_shape` přeskočí stejné váhy, zapisuje jen změny, cache názvů blend shapes.
+- Testy: `tests/test_face_detail.gd` (55); test_psyche/test_character obecně na aktuální verzi schématu; test_assets rozpočet 20 000.
+- Nástroje: `tools/face_render_export.gd` (`write_expressions`, barvy zubů/dásně/jazyka/řas/limbu), `tools/blender/face_render.py`
+  (materiály nových částí). Rendery: `docs/images/c3pp-expressions-run21-before.jpg`, `c3pp-mouth-lashes-run21-after.jpg`.
+- Docs: character-creator (Facial details and expressions), asset-pipeline (rozpočet, render mimiky, timeout 524), testing
+  (test_face_detail, výkon, běh na pozadí), roadmap, README; ROADMAP.md (řádek C3++, další běh).
+
+### Ověření
+- Všech 22 sad prošlo (podrobně AUDIT.md, běh 21), `--test 7` OK, hra 25 s, `godot_check` 60/60. Render prohlédnutý.
+- Gemini: 8 bodů, 1 oprava, 7 zdůvodněně odmítnuto.
+
+### Známé problémy
+- Otevřená ústa mají hranaté koutky (další drobnost k C5 běhu). Materiál řas v Blenderu je jen náhrada.
+- Měření výkonu je hlučné – hostitel Godot serveru má zátěž ~50 na 2 jádrech; test_multiplayer 1× flake pod zátěží (samostatně 67/67).
+- `test_head` trvá ~4 min (HeadBuilder.build_data ~105 s) – testy se spouštějí na pozadí.
+- GitHub: nástroj add_repo v plánovaném běhu není, push 403 (proxy); main = 6a65302 (čtení funguje). Sync ZIP: `res://previews/export/lifesim.zip`, MD5 a díly ve zprávě #152 (ZIP obsahuje tento DEVLOG).
+
+### room_last_id: 152
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 · ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f
+- Paměť: stav cdf19b25a96e48f4924a7c5fd49a2617, rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced, plán psychiky 4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C5 oblečení (kategorie, střihy přes morfy těla jako vlastní povrchy, PBR, převlékání podle situace, MP replikace) + zaoblit
+  koutky otevřených úst; potom integrovaný průchod (Grok #141) a 2. osa psychiky (s metrikou rezidua – Grok #148).

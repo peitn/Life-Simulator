@@ -45,8 +45,8 @@ Raw files read at runtime (`*.glb`, `*.wav`, `*.lsx`, `manifest.json`) use `impo
 
 ## Budgets
 
-- The main character is at most 18,000 triangles (about 17,000 currently), with the head and eyes at most
-  9,000.
+- The main character is at most 20,000 triangles (19,260 since run 21, which added eyelashes, teeth, gums and a
+  tongue), with the head and eyes at most 11,500.
 - Furniture is at most 8,000 triangles each.
 - Applying a face to a character takes under 2 ms. Moving an appearance slider currently takes 3.3–3.8 ms,
   against a target of 4 ms.
@@ -83,6 +83,11 @@ it fetches the GLB parts and the JSON from the Godot server's document endpoint,
 35°, profile, low angle) with Cycles and sends the contact sheet back as base64 parts. Hair is left out on
 purpose, so the eyes, forehead and temples stay visible.
 
+Run 21 added `write_expressions()` (expressions and detail extremes, with the same `ex_*` weights as `SimVisual`) and
+colours for the teeth, gums, tongue, lashes and limbus; `face_render.py` gives those parts their own materials. Long
+renders can hit the service's HTTP timeout (524) although Blender finishes: the rendered rows stay in `/tmp/rt` and
+the sheet can be assembled and sent in a second call.
+
 ## Head–body seam (C3+)
 
 The body's neck is cut above a 16-vertex loop at import (`CharacterAssembly.cut_body_neck`). The procedural head
@@ -106,7 +111,7 @@ and the head gets the linear `b_neck_len` blend shape (neck length ±15 mm). Ren
 
 - More assets: stove, TV, bookcase, shower, treadmill, table and chairs, doors and windows, trees, the
   city.
-- Facial expressions and gestures, foot IK, sit and stand transitions.
+- Gestures, foot IK, sit and stand transitions (basic facial expressions exist since run 21).
 - Clothing that follows body morphs (C5).
 
 ## Hair render check (C4b)

@@ -172,7 +172,8 @@ func _test_schema_coverage() -> void:
 		and float(wm[FM.inbetween_name("eye_size", 1)]) == 0.5, "váha mezitvaru: 1 v polovině, 0 na koncích a u druhého znaménka")
 	var cx: Array = spec.get("_correctives", [])
 	check(cx.size() >= 4, "korekční tvary pro dvojice s interakcí (%d)" % cx.size())
-	check(tg.size() <= 72, "počet blend shapes hlavy v rozumných mezích (%d)" % tg.size())
+	# běh 21: + detaily (řasy, zuby) a mimika (ex_*) → limit 100
+	check(tg.size() <= 100, "počet blend shapes hlavy v rozumných mezích (%d)" % tg.size())
 	var nonlin := 0
 	for k in FM.morph_fields():
 		if spec.has(k) and (spec[k] as Array).size() == 2:
@@ -358,7 +359,7 @@ func _test_glb_and_visual() -> void:
 		return
 	var heads := AssetLibrary.parts_in_group(root, "head")
 	var eyes := AssetLibrary.parts_in_group(root, "eyes")
-	check(heads.size() >= 3 and eyes.size() == 3, "hlava (%d materiálů) a oči (duhovka, zornice, bělmo)" % heads.size())
+	check(heads.size() >= 3 and eyes.size() == 4, "hlava (%d materiálů) a oči (duhovka, limbus, zornice, bělmo)" % heads.size())
 	var names := {}
 	var tris := 0
 	for mi in heads + eyes:
@@ -371,7 +372,8 @@ func _test_glb_and_visual() -> void:
 		if not tg.has(nm) and not body_keys.has(nm):
 			unknown.append(nm)
 	check(unknown.is_empty() and names.size() >= 50, "blend shapes v GLB = morfy HeadBuilderu (%d)" % names.size(), str(unknown.slice(0, 5)))
-	check(tris <= 9000, "rozpočet hlavy a očí %d trojúhelníků (≤ 9 000)" % tris)
+	# běh 21: + řasy (~830 trojúhelníků) a ústa (zuby, dáseň, jazyk ~1 700) → 11 500
+	check(tris <= 11500, "rozpočet hlavy a očí %d trojúhelníků (≤ 11 500)" % tris)
 	var hair_keys := 0
 	for mi in AssetLibrary.parts_in_group(root, "hair_long"):
 		hair_keys += (mi.mesh as ArrayMesh).get_blend_shape_count()
@@ -392,6 +394,8 @@ func _test_glb_and_visual() -> void:
 		var m: Mesh = mi.mesh
 		for i in m.get_blend_shape_count():
 			var nm := String(m.get_blend_shape_name(i))
+			if nm.begins_with("ex_"):
+				continue   # mimika (běh 21) – prezentace, ne data; testuje test_face_detail
 			seen += 1
 			if not is_equal_approx(mi.get_blend_shape_value(i), float(w.get(nm, 0.0))):
 				wrong.append(nm)

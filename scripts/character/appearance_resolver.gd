@@ -92,6 +92,30 @@ static func iris_color(iris: float) -> Color:
 	return _qc(_anchor(IRIS_ANCHORS, iris))
 
 
+## Detaily obličeje (C3++, běh 21) – barvy částí hlavy z explicitních atributů:
+##  - zuby: odstín skloviny 0 (bílá) … 1 (zažloutlá), nic se neodvozuje z věku ani identity (to dělá jen generátor),
+##  - dáseň a jazyk: růžová sliznice; u tmavší kůže dáseň spojitě pigmentovanější (fyziologická pigmentace dásní –
+##    stejná spojitá funkce melaninu jako kůže, žádná předvolba),
+##  - řasy: tmavší než obočí, se šedinami; řasenka je ztmaví do černa,
+##  - limbus: tmavý okraj duhovky.
+static func teeth_color(shade: float) -> Color:
+	return _qc(Color(0.95, 0.94, 0.90).lerp(Color(0.86, 0.78, 0.58), clampf(shade, 0.0, 1.0)))
+
+
+static func gum_color(tone: float) -> Color:
+	return _qc(Color(0.78, 0.42, 0.44).lerp(Color(0.42, 0.24, 0.22), 0.6 * pow(clampf(tone, 0.0, 1.0), 1.5)))
+
+
+static func tongue_color(tone: float) -> Color:
+	return _qc(Color(0.74, 0.38, 0.40).lerp(Color(0.52, 0.28, 0.28), 0.25 * clampf(tone, 0.0, 1.0)))
+
+
+static func lash_color(brow: Color, grey: float, mascara: float) -> Color:
+	var c := brow.srgb_to_linear().lerp(Color(0.012, 0.010, 0.009), 0.45).linear_to_srgb()
+	c = c.lerp(Color(0.72, 0.72, 0.70), clampf(grey, 0.0, 1.0) * 0.4)
+	return _qc(c.lerp(Color(0.02, 0.02, 0.025), clampf(mascara, 0.0, 1.0)))
+
+
 ## Hlavní výstup pro SimVisual.
 static func resolve(snap: Dictionary) -> Dictionary:
 	var body = snap.get("body", {})
@@ -140,7 +164,12 @@ static func resolve(snap: Dictionary) -> Dictionary:
 		"lift": sc["lift"],
 		"width_scale": _q(w),
 		"body": body_w,
-		"face": FaceMorphs.weights(face, body_w.merged(BodyMorphs.head_links(body))),
+		"face": FaceMorphs.weights(face, body_w.merged(BodyMorphs.head_links(body)), _grp(snap, "makeup")),
+		"teeth": teeth_color(float(_g(snap, "face", "teeth_shade", 0.25))),
+		"gum": gum_color(tone),
+		"tongue": tongue_color(tone),
+		"lash": lash_color(hair_look["brow"], float(hair_look["brow_grey"]), float(_g(snap, "makeup", "mascara", 0.0))),
+		"limbus": _qc(iris_color(float(_g(snap, "eyes", "iris", 0.6))).darkened(0.55)),
 		"lips": lip_color(skin, float(_g(snap, "makeup", "lipstick", 0.0)),
 			String(_g(snap, "makeup", "lip_color", "#9e3a42"))),
 		"hair_variant": "" if style == "holy" else ("hair_long" if Schema.LONG_HAIR.has(style) else "hair_short"),
@@ -191,6 +220,11 @@ static func _f01(v, fallback: float) -> float:
 	if is_nan(x) or is_inf(x):
 		return fallback
 	return clampf(x, 0.0, 1.0)
+
+
+static func _grp(snap: Dictionary, group: String) -> Dictionary:
+	var g = snap.get(group, {})
+	return g if typeof(g) == TYPE_DICTIONARY else {}
 
 
 static func _color_or(v, fallback: Color) -> Color:

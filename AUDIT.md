@@ -7,6 +7,59 @@ Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --
 
 ---
 
+## 2026-10-22 (běh 21, ~18:20–19:05 + ~20:58–21:45 UTC, plánovaný; první pokus spadl) – C3++ detaily obličeje a mimika
+
+**Rozsah:** `scripts/assets/head_builder.gd` (řasy, zuby, dáseň, jazyk, dutina úst, limbus, zornice, mimika `ex_*`, rotace
+čelisti), `scripts/character/face_morphs.gd` (detail_values, expression_weights, cache weights), `character_schema.gd` (**v6**:
+FACE_DETAILS, makeup.mascara, cache polí face), `character_codec.gd` (v5→v6), `character_randomizer.gd` (_face_details),
+`appearance_resolver.gd` (barvy zubů/dásně/jazyka/řas/limbu), `scripts/sim/sim_visual.gd` (mimika, mrkání, řeč, výkon),
+`assets/models/character.glb` (přeimport 2×), `tests/test_face_detail.gd` (nový), úpravy test_head/test_psyche/test_character/
+test_assets, `tools/face_render_export.gd`, `tools/blender/face_render.py`, docs.
+První pokus (od ~18:20) spadl po implementaci a test_face_detail (checkpoint 19:05); tento běh navázal regresí.
+
+**a) Self-review a vizuální kontrola:**
+- Regrese po prvním pokusu: 3 zastaralé testy (ne chyby kódu) – test_psyche čekal `VERSION == 5`, test_character počet polí
+  face bez FACE_DETAILS, test_assets rozpočet 18 000 tri (postava má 19 260 – řasy ~730, ústa ~1 600) → testy obecně na
+  aktuální verzi, rozpočet 20 000 (zdůvodnění v docs/asset-pipeline.md).
+- **Výkon posuvníku 5,8 ms (limit 4)** – regrese běhu 21 (~90 blend shapes na každém povrchu hlavy, víc polí). Opraveno:
+  `Schema.fields("face")` v cache (jen pro čtení), `FaceMorphs.weights` s cache (klíč = hash vstupů + plné porovnání, vrací
+  kopii), `apply_face_shape` přeskočí stejné váhy a zapisuje jen změněné hodnoty, cache názvů blend shapes podle sítě →
+  3,68 ms v testu (nejlepší dávka 3,82 ms při zátěži hostitele ~50 na 2 jádrech; měření je hlučné).
+- **Render v Blenderu** (Cycles, 8 výrazů × 4 pohledy, docs/images/c3pp-expressions-run21-before.jpg) – prohlédnut:
+  (1) úsměv vypadal jako grimasa – koutky se nezvedaly, jen se rozestoupily rty → koutky +5,8 mm nahoru / −3,4 mm dozadu
+  v užším poli (σ 11,5 mm), dolní ret uprostřed −1,2 mm (jen pod linií úst); (2) řasy mířily podél normály víčka nahoru,
+  zepředu vypadaly jako vějíř pod obočím → vycházejí dopředu a stáčejí se, vliv lash_length 0,32 → 0,24. Po přeimportu
+  detail (docs/images/c3pp-mouth-lashes-run21-after.jpg): úsměv čitelný, řasy krátké linky u víčka, mrknutí zavírá oko
+  čistě, zuby/mezera/nerovnosti viditelné bez karikatury. Zůstává: otevřená ústa mají hranaté koutky; materiál řas
+  v Blenderu je jen náhrada (vypadají světlejší než ve hře).
+- `_write_expression`: drift pod prahem se sčítá (porovnává se s posledním zapsaným vstupem), po invalidaci slotů se
+  počítá znovu; `apply_face_shape` se po výměně sítě vlasů invaliduje spolu se sloty mimiky.
+
+**b) Testy (běží na pozadí přes setsid, logy v previews/testlogs – nástroj má strop 120 s, test_head trvá ~4 min):**
+test_face_detail **55/55** (nový) · test_head 43 · test_character 157 (posuvník 3,68 ms) · test_character_v2 43 ·
+test_character_net 28 · test_multiplayer 67 (1× flake „klientské hodiny převzaly pauzu“ při zátěži, samostatně 67/67) ·
+test_hair 60 · test_skin 61 · test_body_morphs 62 · test_neck_length 36 · test_neck_seam 56 · test_assets 155 ·
+test_psyche 93 · mental_health 95 · depression 92 · reconciliation 58 · household_dynamics 78 · player_commands 40 ·
+psyche_presentation 19 · net_protocol 34 · audio_tone 222 · `--test 7` OK (hádky 40 %, stres > 85 0 min) · hra 25 s bez
+chyb · `godot_check` 60/60.
+
+**c) Gemini (flash-lite), 8 bodů, 1 zapracován:** (1) slovník vah mimiky se staví každý snímek → **opraveno** (klidová tvář
+nic nepočítá ani nealokuje). (2) „chybí serverová validace polí v6“ → odmítnuto: validátor validuje všechna pole ze
+`Schema.fields("face")` (FACE_DETAILS jsou jeho součástí), fuzz v test_character a test_face_detail; ořez v FaceMorphs je
+druhá pojistka. (3) `get_instance_id()` v seedu mrkání nedeterministický → odmítnuto záměrně: mrkání je klientská prezentace,
+nereplikuje se a peery se na něm shodnout nemusí (rozfázování mezi postavami). (4) duplicitní k (1). (5) operátor `^`
+→ odmítnuto: v reálném kódu je `pow()`, `^` byl jen zkrácený zápis v zadání. (6) věk a odstín zubů/hustota řas jako
+stereotyp → odmítnuto: věk posouvá jen průměr normálního rozdělení (σ 0,12–0,15), nic není garantované, žádná vazba na rod
+či původ. (7) dělení nulou v tečně řas → odmítnuto: ošetřeno prahem 1e-9 s náhradní osou. (8) formátování klíče oka →
+odmítnuto: offline stavba sítě, ne za běhu.
+
+**d) ChatGPT/Grok:** Grok #148 (review běhu 20) – metrika rezidua a explain() oříznuté komorbidity → do 2. osy psychiky;
+sloty oblečení jako povrchy nad morfy → C5. ChatGPT #150 (Elmer FEM) – bez akce.
+
+**e) Otevřené:** hranaté koutky otevřených úst; GitHub push z plánovaných běhů blokovaný (nástroj add_repo v běhu není).
+
+---
+
 ## 2026-10-22 (běh 20, ~15:40–17:00 UTC, plánovaný) – 1. osa psychiky (PsycheModel)
 
 **Rozsah:** nový `scripts/psyche/psyche_model.gd`, `data/conditions/anxiety.json` + `depression.json`, `scripts/sim/mental_state.gd`

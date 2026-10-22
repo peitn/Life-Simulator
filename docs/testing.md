@@ -44,11 +44,16 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 | `test_skin` | C4a: SkinModel continuity, spectrum, saturation and hue over 1,386 combinations, determinism, layer placement on the surface, shader compiles, CUSTOM0 holds the rest pose; run 18: make-up landmarks match the head | 61 ✅ |
 | `test_assets` | LSX format (CRC, corrupted data), sources ↔ manifest ↔ GLB, furniture dimensions, orientation, winding and PBR, character skeleton, skin weights and variants, animations, SimVisual, primitive fallback | 150 ✅ |
 | `test_hair` | C4b: every hairstyle, eyebrow shape and beard style has a mesh within budget, no head penetration, face clear, long hair lies on chest and back, eyebrow coverage, recession ranks, determinism (also threaded versus synchronous build), morph transfer (neck length, head width), bone weights, CUSTOM0, shader parameters, SimVisual cards instead of the GLB helmet, morph weights on the cards, independence from name and gender, corrupted values; run 19: penetration confirmed against the real skin triangles, temple shell edge, braids and locs away from the face, beard line and no gap under the lip | 60 ✅ |
+| `test_face_detail` | Run 21, C3++: schema v6 and migration, detail and expression weights, eyelashes on the lid margins for every combination of eye extremes and while blinking, blinks close the eye opening (with the in-between shape), teeth inside the cavity and behind the lips, smile/frown/brows/jaw/pupil against the exact `HeadBuilder` shape, symmetry, determinism, GLB parts and `SimVisual` (blinking, speech, emotion, cost per frame) | 55 ✅ |
 | `test_audio_tone` | Music v3 data (the night song unchanged, the morning song in its spirit, no v2 instruments in music), brightness of the rendered morning song between night and day, synthesizer instruments, loop seams against each file's own sample-to-sample differences, rendered files, apartment ambience, argument voices and tension | 222 ✅ |
 
-"Last known" is the state after run 20 (22 October 2026); all 21 suites pass, plus `--test 7`. The
-slider-latency check in `test_character` (limit 4 ms) measures 3.1 ms when run alone, but went over the limit
-(4.2 ms) when three test suites ran in parallel on the same machine; run timing tests on their own.
+"Last known" is the state after run 21 (22 October 2026); all 22 suites pass, plus `--test 7`. The
+slider-latency check in `test_character` (limit 4 ms) went to 5.8 ms after run 21 added about 90 blend shapes per head
+surface; caches for the composed face fields, face weights and blend-shape names, and skipping unchanged writes, brought
+it back to 3.7 ms. Timing depends on the load of the machine: run timing tests on their own.
+
+The automated runs execute long suites (`test_head` takes about 4 minutes because it rebuilds the head ~100 times) as
+background processes and collect their logs, because a single tool call is limited to 120 seconds.
 
 `test_household_dynamics` takes about 75 seconds (16 simulated fortnights). The long run steps the clock
 by 2 game minutes (`GameClock.MAX_STEP`), the same step the game uses at higher speeds.

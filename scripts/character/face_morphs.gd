@@ -27,6 +27,16 @@ const CORRECTIVE_PAIRS := [["nose_length", "nose_bridge"], ["nose_length", "nose
 const BODY_LINKS := {"b_fat": "fat_hi", "b_muscle": "muscle_hi"}
 ## Klíče hlavy řízené tělem v OBOU směrech (váha −1..1): délka krku (body.neck_length → BodyMorphs.head_links „neck_len“).
 const BODY_SIGNED_LINKS := {"b_neck_len": "neck_len"}
+## C3++ (běh 21): detaily obličeje ze skupiny face → klíče morfů HeadBuilderu (DETAIL_KEYS). "c" = pole 0..1 se
+## středem 0,5 → −1..1 (lineární kolem výchozí hodnoty), "p" = pole 0..1 přímo (jen kladný směr).
+const DETAIL_FIELDS := {"lash_length": "c", "lash_curl": "c", "lash_density": "c", "teeth_gap": "p", "teeth_crooked": "p"}
+## Řasenka (makeup.mascara 0..1) řasy pro vykreslení prodlouží a zhustí (data postavy se nemění).
+const MASCARA_LEN := 0.35
+const MASCARA_DENS := 0.5
+## Mimika (HeadBuilder.EXPR_KEYS) – jen prezentace klienta (SimVisual): není v CharacterData a nereplikuje se.
+## Jednostranné klíče 0..1, zornice −1..1.
+const EXPR_KEYS := ["ex_blink_l", "ex_blink_r", "ex_smile", "ex_frown", "ex_brow_up", "ex_jaw_open", "ex_pupil"]
+const EXPR_SIGNED := ["ex_pupil"]
 
 
 static func _q(x: float) -> float:
@@ -58,18 +68,59 @@ static func morph_fields() -> Array:
 	return out
 
 
-## Váhy (název blend shape → float). body_w = výstup BodyMorphs.weights().
-static func weights(face: Dictionary, body_w: Dictionary = {}) -> Dictionary:
+## Hodnoty detailů (DETAIL_FIELDS) jako váhy morfů: řasy −1..1 kolem výchozí 0,5, zuby 0..1; řasenka z make-upu.
+static func detail_values(face: Dictionary, makeup: Dictionary = {}, fs: Dictionary = {}) -> Dictionary:
+	if fs.is_empty():
+		fs = Schema.fields("face")
+	var out := {}
+	for k in DETAIL_FIELDS:
+		var v := value(face, k, fs)
+		out[k] = (v - 0.5) * 2.0 if String(DETAIL_FIELDS[k]) == "c" else v
+	var m = makeup.get("mascara", 0.0)
+	var mf := clampf(float(m), 0.0, 1.0) if (typeof(m) == TYPE_FLOAT or typeof(m) == TYPE_INT) and is_finite(float(m)) else 0.0
+	out["lash_length"] = float(out["lash_length"]) + MASCARA_LEN * mf
+	out["lash_density"] = float(out["lash_density"]) + MASCARA_DENS * mf
+	for k in out:
+		out[k] = _q(clampf(float(out[k]), -1.0, 1.0))
+	return out
+
+
+## Zapíše váhy jednoho pole: <pole> (lineární), <pole>_pos/_neg a mezitvary (1 v polovině, 0 v nule i na maximu).
+static func _put(w: Dictionary, k: String, v: float) -> void:
+	w[k] = v
+	w[k + "_pos"] = maxf(0.0, v)
+	w[k + "_neg"] = maxf(0.0, -v)
+	w[inbetween_name(k, 1)] = _q(1.0 - absf(2.0 * maxf(0.0, v) - 1.0)) if v > 0.0 else 0.0
+	w[inbetween_name(k, -1)] = _q(1.0 - absf(2.0 * maxf(0.0, -v) - 1.0)) if v < 0.0 else 0.0
+
+
+## Váhy (název blend shape → float). body_w = výstup BodyMorphs.weights(), makeup = skupina makeup (řasenka).
+## Malá cache výsledků weights() (posuvník těla/kůže mění vzhled, ale obličej zůstává – přepočet ~250 vah se
+## opakoval při každém pohybu). Klíč = hash vstupů, při zásahu se vstupy porovnají celé (kolize hashe nevadí);
+## vrací se kopie, takže volající může výsledek měnit.
+static var _memo: Dictionary = {}
+
+
+static func weights(face: Dictionary, body_w: Dictionary = {}, makeup: Dictionary = {}) -> Dictionary:
+	var key := [face.hash(), body_w.hash(), makeup.hash()].hash()
+	var hit = _memo.get(key)
+	if hit != null and hit[0] == face and hit[1] == body_w and hit[2] == makeup:
+		return (hit[3] as Dictionary).duplicate()
+	var w := _compute(face, body_w, makeup)
+	if _memo.size() >= 64:
+		_memo.clear()
+	_memo[key] = [face.duplicate(true), body_w.duplicate(true), makeup.duplicate(true), w.duplicate()]
+	return w
+
+
+static func _compute(face: Dictionary, body_w: Dictionary, makeup: Dictionary) -> Dictionary:
 	var w := {}
 	var fs: Dictionary = Schema.fields("face")
 	for k in morph_fields():
-		var v := _q(value(face, k, fs))
-		w[k] = v
-		w[k + "_pos"] = maxf(0.0, v)
-		w[k + "_neg"] = maxf(0.0, -v)
-		# Mezitvar: 0 v nule i na maximu, 1 v polovině (přesný tvar v ±0,5 u nelineárních morfů).
-		w[inbetween_name(k, 1)] = _q(1.0 - absf(2.0 * maxf(0.0, v) - 1.0)) if v > 0.0 else 0.0
-		w[inbetween_name(k, -1)] = _q(1.0 - absf(2.0 * maxf(0.0, -v) - 1.0)) if v < 0.0 else 0.0
+		_put(w, k, _q(value(face, k, fs)))
+	var dv := detail_values(face, makeup, fs)
+	for k in dv:
+		_put(w, k, float(dv[k]))
 	for pair in CORRECTIVE_PAIRS:
 		var va: float = w[pair[0]]
 		var vb: float = w[pair[1]]
@@ -84,6 +135,17 @@ static func weights(face: Dictionary, body_w: Dictionary = {}) -> Dictionary:
 		var b = body_w.get(BODY_SIGNED_LINKS[k], 0.0)
 		var bf := float(b) if (typeof(b) == TYPE_FLOAT or typeof(b) == TYPE_INT) and is_finite(float(b)) else 0.0
 		w[k] = _q(clampf(bf, -1.0, 1.0))
+	return w
+
+
+## Váhy mimiky (SimVisual): {ex_*: hodnota} → názvy blend shapes včetně _pos/_neg a mezitvarů (mrkání je v polovině
+## výrazně nelineární – víčko jde po kouli, ne po tětivě). Neplatné hodnoty → 0, mimo rozsah → ořez, kvantováno.
+static func expression_weights(ex: Dictionary) -> Dictionary:
+	var w := {}
+	for k in EXPR_KEYS:
+		var raw = ex.get(k, 0.0)
+		var f := float(raw) if (typeof(raw) == TYPE_FLOAT or typeof(raw) == TYPE_INT) and is_finite(float(raw)) else 0.0
+		_put(w, k, _q(clampf(f, -1.0 if EXPR_SIGNED.has(k) else 0.0, 1.0)))
 	return w
 
 

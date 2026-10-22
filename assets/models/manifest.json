@@ -10,16 +10,16 @@
       0.0,
       -1.07000005245209
     ],
-    "bones": 0,
-    "glb_bytes": 142316,
+    "bones": 0.0,
+    "glb_bytes": 142316.0,
     "lsx_crc": "c103a927",
     "meta": {},
-    "morphs": 0,
+    "morphs": 0.0,
     "ok": true,
-    "parts": 4,
+    "parts": 4.0,
     "source": "tools/blender/furn.py",
-    "tris": 4200,
-    "verts": 2786
+    "tris": 4200.0,
+    "verts": 2786.0
   },
   "bed_single": {
     "aabb_max": [
@@ -32,16 +32,16 @@
       0.0,
       -1.04999995231628
     ],
-    "bones": 0,
-    "glb_bytes": 84708,
+    "bones": 0.0,
+    "glb_bytes": 84708.0,
     "lsx_crc": "ff49f3dc",
     "meta": {},
-    "morphs": 0,
+    "morphs": 0.0,
     "ok": true,
-    "parts": 3,
+    "parts": 3.0,
     "source": "tools/blender/furn.py",
-    "tris": 2472,
-    "verts": 1638
+    "tris": 2472.0,
+    "verts": 1638.0
   },
   "character": {
     "aabb_max": [
@@ -59,7 +59,7 @@
       "body",
       "character_head"
     ],
-    "glb_bytes": 2772176,
+    "glb_bytes": 3553652,
     "lsx_crc": {
       "body": "fb77b75a",
       "character_head": "d674db1b"
@@ -105,7 +105,9 @@
           "nose_length_pos_mid",
           "nose_length_neg_mid",
           "nose_tip_angle_pos_mid",
-          "nose_tip_angle_neg_mid"
+          "nose_tip_angle_neg_mid",
+          "ex_blink_l_pos_mid",
+          "ex_blink_r_pos_mid"
         ],
         "asym_eyes": [
           "asym_eyes"
@@ -159,6 +161,33 @@
         "ear_size": [
           "ear_size"
         ],
+        "ex_blink_l": [
+          "ex_blink_l_pos",
+          "ex_blink_l_neg"
+        ],
+        "ex_blink_r": [
+          "ex_blink_r_pos",
+          "ex_blink_r_neg"
+        ],
+        "ex_brow_up": [
+          "ex_brow_up_pos",
+          "ex_brow_up_neg"
+        ],
+        "ex_frown": [
+          "ex_frown_pos",
+          "ex_frown_neg"
+        ],
+        "ex_jaw_open": [
+          "ex_jaw_open_pos",
+          "ex_jaw_open_neg"
+        ],
+        "ex_pupil": [
+          "ex_pupil"
+        ],
+        "ex_smile": [
+          "ex_smile_pos",
+          "ex_smile_neg"
+        ],
         "eye_depth": [
           "eye_depth_pos",
           "eye_depth_neg"
@@ -196,6 +225,16 @@
           "jaw_width_pos",
           "jaw_width_neg"
         ],
+        "lash_curl": [
+          "lash_curl"
+        ],
+        "lash_density": [
+          "lash_density_pos",
+          "lash_density_neg"
+        ],
+        "lash_length": [
+          "lash_length"
+        ],
         "lip_lower": [
           "lip_lower"
         ],
@@ -231,23 +270,33 @@
         ],
         "philtrum": [
           "philtrum"
+        ],
+        "teeth_crooked": [
+          "teeth_crooked_pos",
+          "teeth_crooked_neg"
+        ],
+        "teeth_gap": [
+          "teeth_gap_pos",
+          "teeth_gap_neg"
         ]
       },
       "fine_tris": 6928.0,
       "hair_morphs": {
-        "hair_long__hair_long__hair_main": 27,
-        "hair_short__hair_short__hair_main": 7
+        "hair_long__hair_long__hair_main": 31,
+        "hair_short__hair_short__hair_main": 8
       },
       "head": {
-        "faces": 3948,
+        "faces": 5364,
         "keys": {
-          "eyes": 8,
-          "head": 78
+          "eyes": 9,
+          "head": 86,
+          "lashes": 21,
+          "mouth": 7
         },
-        "morphs": 78,
-        "topo_verts": 3890,
-        "tris": 7760,
-        "verts": 4102
+        "morphs": 93,
+        "topo_verts": 5742,
+        "tris": 10144,
+        "verts": 5990
       },
       "height": 1.78,
       "key_resid": {
@@ -411,10 +460,10 @@
     },
     "morphs": 10,
     "ok": true,
-    "parts": 13,
+    "parts": 18,
     "source": "tools/blender/char.py + scripts/assets/head_builder.gd",
-    "tris": 16876,
-    "verts": 8860
+    "tris": 19260,
+    "verts": 10748
   },
   "fridge": {
     "aabb_max": [
@@ -427,16 +476,16 @@
       0.0,
       -0.349999994039536
     ],
-    "bones": 0,
-    "glb_bytes": 43744,
+    "bones": 0.0,
+    "glb_bytes": 43744.0,
     "lsx_crc": "e01a5da5",
     "meta": {},
-    "morphs": 0,
+    "morphs": 0.0,
     "ok": true,
-    "parts": 5,
+    "parts": 5.0,
     "source": "tools/blender/furn.py",
-    "tris": 868,
-    "verts": 800
+    "tris": 868.0,
+    "verts": 800.0
   },
   "sofa": {
     "aabb_max": [
@@ -449,15 +498,15 @@
       0.0,
       -0.449999988079071
     ],
-    "bones": 0,
-    "glb_bytes": 94356,
+    "bones": 0.0,
+    "glb_bytes": 94356.0,
     "lsx_crc": "c6abd3ee",
     "meta": {},
-    "morphs": 0,
+    "morphs": 0.0,
     "ok": true,
-    "parts": 3,
+    "parts": 3.0,
     "source": "tools/blender/furn.py",
-    "tris": 2896,
-    "verts": 1856
+    "tris": 2896.0,
+    "verts": 1856.0
   }
 }

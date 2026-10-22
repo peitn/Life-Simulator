@@ -36,7 +36,11 @@ extends RefCounted
 ## v5 (běh 20, 1. osa psychiky): personality.hexaco {osa: −1..1} (volitelná explicitní osobnost; chybějící osa se
 ##     odvodí z rysů) a personality.psyche_seed 0..65535 (individualita psychiky, explicitní, nikdy ze jména). Obojí
 ##     soukromé. Migrace v4 → v5: hexaco {} a seed jednou z náhodného uid (CharacterCodec._v4_to_v5).
-const VERSION := 5
+## v6 (běh 21, C3++): detaily obličeje ve skupině face – řasy (lash_length / lash_density / lash_curl 0..1, výchozí
+##     0,5 = dosavadní vzhled), zuby (teeth_shade odstín skloviny, teeth_gap mezera mezi horními jedničkami,
+##     teeth_crooked mírně vybočené zuby; 0 = rovné) a makeup.mascara. Vše veřejné (je vidět). Migrace v5 → v6
+##     doplní výchozí hodnoty (CharacterCodec._v5_to_v6), vzhled migrované postavy se nemění.
+const VERSION := 6
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -59,6 +63,17 @@ const FACE_MORPHS := {
 	"chin_length": "Délka brady", "chin_width": "Šířka brady", "chin_cleft": "Důlek v bradě",
 	"mouth_width": "Šířka úst", "lip_upper": "Horní ret", "lip_lower": "Dolní ret", "philtrum": "Žlábek pod nosem",
 	"ear_size": "Velikost uší", "ear_angle": "Odstávající uši", "neck_width": "Šířka krku",
+}
+
+## Detaily obličeje (v6): [popisek, specifikace]. Nejsou to tvarové morfy lebky (FaceMorphs.DETAIL_FIELDS je převádí
+## na morfy řas a zubů; odstín zubů je jen barva).
+const FACE_DETAILS := {
+	"lash_length": ["Délka řas", ["f", 0.0, 1.0, 0.5]],
+	"lash_density": ["Hustota řas", ["f", 0.0, 1.0, 0.5]],
+	"lash_curl": ["Natočení řas", ["f", 0.0, 1.0, 0.5]],
+	"teeth_shade": ["Odstín zubů", ["f", 0.0, 1.0, 0.25]],
+	"teeth_gap": ["Mezera mezi předními zuby", ["f", 0.0, 1.0, 0.0]],
+	"teeth_crooked": ["Nerovné zuby", ["f", 0.0, 1.0, 0.0]],
 }
 
 ## Asymetrie obličeje (každý skutečný obličej je trochu nesouměrný; znaménko = která strana).
@@ -228,6 +243,7 @@ const GROUPS := {
 		"lipstick": ["f", 0.0, 1.0, 0.0],
 		"lip_color": ["color", "#9e3a42"],
 		"blush": ["f", 0.0, 1.0, 0.0],
+		"mascara": ["f", 0.0, 1.0, 0.0],
 	}},
 	"aids": {"public": true, "fields": {
 		"glasses": ["e", GLASSES, "zadne"],
@@ -269,14 +285,27 @@ const MAX_CODE_LEN := 8192
 const MAX_JSON_BYTES := 32768
 
 
+## Pole skupiny face se skládají z několika tabulek; složený slovník je v cache (volá se na každý posuvník několikrát –
+## validátor, snapshot, FaceMorphs). Je jen pro čtení (make_read_only), takže ho volající nemůže omylem změnit.
+static var _face_fields_cache: Dictionary = {}
+
+
 static func fields(group: String) -> Dictionary:
 	if group == "face":
+		if not _face_fields_cache.is_empty():
+			return _face_fields_cache
 		var f := {}
 		for k in FACE_MORPHS:
 			f[k] = ["f", -1.0, 1.0, 0.0]
 		f["chin_cleft"] = ["f", 0.0, 1.0, 0.0]   # důlek v bradě nemá „záporný“ směr
 		for k in FACE_ASYMMETRY:
 			f[k] = ["f", -1.0, 1.0, 0.0]
+		for k in FACE_DETAILS:
+			f[k] = (FACE_DETAILS[k][1] as Array).duplicate()
+		for k in f:
+			(f[k] as Array).make_read_only()
+		f.make_read_only()
+		_face_fields_cache = f
 		return f
 	return GROUPS[group]["fields"]
 
