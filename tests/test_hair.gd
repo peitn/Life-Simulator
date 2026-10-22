@@ -29,6 +29,7 @@ func _run() -> void:
 		return
 	_test_styles()
 	_test_drape()
+	_test_run19()
 	_test_determinism()
 	_test_mesh()
 	await _test_visual()
@@ -37,6 +38,58 @@ func _run() -> void:
 
 
 # ---------------------------------------------------------------- styly a geometrie
+
+## Běh 19 (C4b+): okraj skořepiny u spánků, copánky a dredy mimo obličej, plnovous nekončí na krku.
+func _test_run19() -> void:
+	section("C4b+ (běh 19): spánky, trubice u obličeje, linie vousů")
+	var ctx := HairRig.context()
+	var lens := []
+	for sd in [0, HairBuilder.SHELL_SUBDIV]:
+		var g := HairBuilder.Geo.new()
+		HairBuilder.shell(g, ctx, 0.001, 0.0, HairBuilder.KIND_SHELL, 999.0, 0.0, 0, sd)
+		var d := g.to_dict()
+		var P: PackedVector3Array = d["pos"]
+		var c0: PackedFloat32Array = d["c0"]
+		var idx: PackedInt32Array = d["idx"]
+		var worst := 0.0
+		for t in range(0, idx.size(), 3):
+			var e0 := c0[idx[t] * 4]
+			var e1 := c0[idx[t + 1] * 4]
+			var e2 := c0[idx[t + 2] * 4]
+			if minf(e0, minf(e1, e2)) < 0.5 and maxf(e0, maxf(e1, e2)) > 0.5:
+				var az := absf(HairBuilder.az_el(P[idx[t]]).x)
+				if az > 35.0 and az < 110.0:
+					for j in 3:
+						worst = maxf(worst, P[idx[t + j]].distance_to(P[idx[t + (j + 1) % 3]]))
+		lens.append(worst)
+	check(float(lens[1]) < 0.010 and float(lens[1]) < 0.6 * float(lens[0]),
+		"okraj skořepiny u spánků: nejdelší hrana přes linii %.1f mm (bez dělení %.1f mm)" % [float(lens[1]) * 1000.0, float(lens[0]) * 1000.0])
+	for st in ["copanky", "dredy"]:
+		var g := HairRig.geometry("scalp", st)
+		var c0: PackedFloat32Array = g["c0"]
+		var pos: PackedVector3Array = g["pos"]
+		var nearest := 1.0
+		for i in pos.size():
+			var k := int(roundf(c0[i * 4 + 3] * 8.0))
+			var p := pos[i]
+			if (k == HairBuilder.KIND_BRAID or k == HairBuilder.KIND_LOC) and p.y > 1.58 and p.y < 1.70 and p.z > 0.04:
+				nearest = minf(nearest, absf(p.x))
+		check(nearest > 0.075, "%s: trubice u očí a tváří nejblíž %.1f cm od středu obličeje (> 7,5 cm)" % [st, nearest * 100.0])
+	var gb := HairBuilder.build_beard(ctx, "plnovous")
+	var bp: PackedVector3Array = gb["pos"]
+	var low := 0
+	var lowest := 9.0
+	var under_lip := 0
+	for p in bp:
+		lowest = minf(lowest, p.y)
+		if p.y < 1.53:
+			low += 1
+		if absf(p.x) < 0.012 and p.y > HairBuilder.MOUTH.y - 0.018 and p.y < HairBuilder.MOUTH.y - 0.0105 and p.z > 0.06:
+			under_lip += 1
+	var frac := float(low) / maxf(1.0, bp.size())
+	check(lowest > 1.51 and frac < 0.03, "plnovous končí pod bradou, ne na krku (nejníž %.3f m, pod 1,53 m %.1f %%)" % [lowest, frac * 100.0])
+	check(under_lip > 20, "plnovous: pod dolním rtem bez holé mezery (%d vrcholů)" % under_lip)
+
 
 func _test_styles() -> void:
 	section("Katalog: každý styl ze schématu má síť v rozpočtu")
@@ -79,8 +132,13 @@ func _test_styles() -> void:
 			var r := q.length()
 			if p.y > 1.45 and r > 1e-5:
 				var R := HairBuilder.head_r(hmap, q / r)
+				# běh 19: mapa bere max. poloměr v binu, takže body skořepiny na velkých plochých trojúhelnících (dělení
+				# u vlasové linie) vycházely „pod povrchem“, i když leží 1 mm nad kůží, jak ji hra kreslí → podezřelé
+				# body se ověří přesně: znaménková vzdálenost od nejbližšího trojúhelníku kůže po jeho normále.
 				if r < R - PEN_TOL:
-					pen += 1
+					var pr := HairBuilder.project(ctx, p)
+					if pr.is_empty() or (p - (pr["p"] as Vector3)).dot(pr["n"] as Vector3) < -PEN_TOL:
+						pen += 1
 			if absf(p.x) < 0.045 and p.y > 1.595 and p.y < 1.70 and p.z > 0.06:
 				face += 1
 		var frac := float(pen) / maxf(1.0, pos.size())

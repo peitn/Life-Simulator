@@ -569,6 +569,14 @@ func _test_c3_review() -> void:
 	var mouth_chin := float(d["My"]) - chin_bottom
 	check(mouth_chin > 0.04 and mouth_chin < 0.05, "dolní třetina: ústa–spodek brady %.1f cm (4–5 cm)" % (mouth_chin * 100.0))
 	check(chin_front - throat_z > 0.03, "spodní plocha čelisti: brada %.1f cm před krkem (úhel brada–krk)" % ((chin_front - throat_z) * 100.0))
+	# Běh 18 (C3+ B): orientační body make-upu v SkinLayers odpovídají hlavě (štěrbina, víčka, ústa).
+	var e1: Dictionary = d["eye1"]
+	var med: Vector3 = HB._eye_ring_pos(d, 1, 4, -1.0, 0.0, 0, 0)
+	var lat: Vector3 = HB._eye_ring_pos(d, 1, 4, 1.0, 0.0, 0, 0)
+	var half := (lat.x - med.x) * 0.5
+	check(absf(SkinLayers.EYE_SHAPE.x - half) < 0.0008 and absf(SkinLayers.EYE_SHAPE.y - float(e1["hu"])) < 0.0003
+		and absf(SkinLayers.EYE_SHAPE.z - float(e1["hl"])) < 0.0003 and absf(SkinLayers.MOUTH.z - float(d["Mw"])) < 0.0003,
+		"make-up: oči a ústa v SkinLayers = hlava (půlšířka štěrbiny %.1f mm, ústa %.1f mm)" % [half * 1000.0, float(d["Mw"]) * 1000.0])
 	var back_top: Vector3 = HB.surface(Vector3(0.0, sin(deg_to_rad(-112.0)), cos(deg_to_rad(-112.0))), d)
 	var back_bot: Vector3 = HB.surface(Vector3(0.0, sin(deg_to_rad(-106.0)), cos(deg_to_rad(-106.0))), d)
 	check(absf(back_top.z - back_bot.z) < 0.012, "zátylek navazuje na krk těla bez schodu (%.1f mm)" % (absf(back_top.z - back_bot.z) * 1000.0))

@@ -74,6 +74,15 @@ closed.
      200,000) with the Godot server's `godot_file_write` tool, decode it, check the MD5 and inspect it.
    - No access tokens are used for this; nothing is uploaded to third-party repositories.
 
+### Face render check (run 18)
+
+`tools/face_render_export.gd` writes a fixed, deterministic set of characters (default, 4 random, both
+extremes, asymmetry, large and small eyes and lips, heavy, muscular) with the game's own blend-shape weights
+and colours to `res://previews/<name>.json`. `tools/blender/face_render.py` is the matching Blender library:
+it fetches the GLB parts and the JSON from the Godot server's document endpoint, renders close-ups (front,
+35°, profile, low angle) with Cycles and sends the contact sheet back as base64 parts. Hair is left out on
+purpose, so the eyes, forehead and temples stay visible.
+
 ## Head–body seam (C3+)
 
 The body's neck is cut above a 16-vertex loop at import (`CharacterAssembly.cut_body_neck`). The procedural head

@@ -17,8 +17,8 @@ uniform float sss = 0.3;
 
 // --- orientační body hlavy (SkinLayers.EYE / EYE_SHAPE / MOUTH) ---
 uniform vec3 eye = vec3(0.0318, 1.6685, 0.0708);
-uniform vec4 eye_shape = vec4(0.0142, 0.0053, 0.0043, 0.0698);
-uniform vec3 mouth = vec3(0.0, 1.6035, 0.0245);
+uniform vec4 eye_shape = vec4(0.0151, 0.0058, 0.0046, 0.0698);
+uniform vec3 mouth = vec3(0.0, 1.6035, 0.0255);
 
 // --- vrstvy (SkinLayers.resolve) ---
 uniform float seed = 0.0;

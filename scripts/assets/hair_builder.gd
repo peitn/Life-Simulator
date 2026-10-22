@@ -78,10 +78,12 @@ const STYLES := {
 		"curl_p": 0.04, "front_frac": 0.45, "shell": [0.0010, 0.006], "seed": 19},
 	"afro": {"afro": 0.06, "shells": 7, "shell": [0.0010], "seed": 20},
 	"copanky": {"tube": KIND_BRAID, "tube_r": 0.0036, "spacing": 0.02, "cut_y": 1.22, "len": [0.62, 0.66],
-		"stiff": 0.5, "lift": 0.15, "front_frac": 0.3, "seg": 0.03, "shell": [0.0010], "seed": 21},
+		"stiff": 0.5, "lift": 0.15, "front_frac": 0.3, "seg": 0.03, "flow": "part", "part_x": 0.004,
+		"shell": [0.0010], "seed": 21},
 	"cornrows": {"rows": 11, "tube_r": 0.0042, "shell": [0.0008], "seed": 22},
 	"dredy": {"tube": KIND_LOC, "tube_r": 0.0058, "spacing": 0.023, "cut_y": 1.30, "len": [0.5, 0.55],
-		"stiff": 0.5, "lift": 0.2, "front_frac": 0.3, "seg": 0.022, "shell": [0.0010], "seed": 23},
+		"stiff": 0.5, "lift": 0.2, "front_frac": 0.3, "seg": 0.022, "flow": "part", "part_x": -0.006,
+		"shell": [0.0010], "seed": 23},
 	"drdol": {"pull": Vector3(0.0, 1.752, -0.09), "bun_r": 0.033, "width": 0.016, "spacing": 0.0125,
 		"layers": 2, "shell": [0.0010], "seed": 24},
 	"culik": {"pull": Vector3(0.0, 1.668, -0.112), "tail_len": 0.3, "tail_cut": 1.37, "width": 0.016,
@@ -98,7 +100,7 @@ const BROWS := {
 ## Výchozí poloha oka a úst (SkinLayers EYE / MOUTH, klidová poloha).
 const EYE := Vector3(0.0318, 1.6685, 0.0708)
 const EYE_W := 0.0142
-const MOUTH := Vector3(0.0, 1.6035, 0.0245)
+const MOUTH := Vector3(0.0, 1.6035, 0.0255)   # běh 19: ústa širší (C3+ B, = SkinLayers.MOUTH)
 
 ## Vousy: zóny [knír, brada, tváře a čelist (+ pod bradou), licousy] (jako SkinLayers.FACIAL) a délka (m).
 const BEARDS := {
@@ -113,6 +115,9 @@ const FACE_X := 0.074  # osa pramene; okraj karty (± šířka/2) a vlna zůstan
 const FACE_Y0 := 1.55
 const FACE_Y1 := 1.715  # nad obočím (oko 1,6685, obočí ~1,69); ofina má vlastní mez bangs_y
 const FACE_Z := 0.03
+## Běh 19: copánky a dredy jsou tlusté trubice – osa musí od obličeje dál než u karet (render běhu 17: zepředu
+## zakrývaly tváře a koutky očí). Lícní kost je ~7 cm od středu, trubice ~0,5–0,7 cm.
+const TUBE_FACE_X := 0.09
 ## Náklon gravitace přes ramena plně nad LEAN_Y1, pod LEAN_Y0 už žádný (ramena ~1,45–1,50 m).
 const LEAN_Y0 := 1.38
 const LEAN_Y1 := 1.50
@@ -625,13 +630,19 @@ static func tube(g: Geo, pts: PackedVector3Array, radii: PackedFloat32Array, k: 
 
 ## Skořepina: trojúhelníky kůže, kterých se dotýká vlasová část, posunuté o off po normále.
 ## CUSTOM0.x = okraj (0,5 = vlasová linie, plynule), y = pořadí ústupu, z = vrstva, w = druh.
-static func shell(g: Geo, ctx: Dictionary, off: float, layer: float, kind: int, max_el := 999.0, displace := 0.0, seed_i := 0) -> void:
+## Běh 19 (C4b+): trojúhelníky, přes které vede vlasová linie (nebo horní mez max_el), se dělí na 4 a pak znovu na 4
+## (SHELL_SUBDIV, druhé dělení jen u spánků) – kůže u spánků má velké trojúhelníky a lineární interpolace okraje přes
+## ně kreslila schodovitou linii (render běhu 17). Nové vrcholy leží v rovině trojúhelníku – tedy přesně na kůži, jak ji
+## hra kreslí, a bez trhlin u sousedů, kteří se nedělí (normála a „ucho“ se interpolují), okraj se
+## počítá znovu z jejich vlastní polohy, takže linie sleduje HAIRLINE 16× jemněji; podtrojúhelníky celé pod linií
+## se zahodí. Vrcholy se sdílejí podle kvantované polohy (bez trhlin mezi sousedními rozdělenými trojúhelníky).
+static func shell(g: Geo, ctx: Dictionary, off: float, layer: float, kind: int, max_el := 999.0, displace := 0.0, seed_i := 0, subdiv := SHELL_SUBDIV) -> void:
 	var hp: PackedVector3Array = ctx["hp"]
 	var hn: PackedVector3Array = ctx["hn"]
 	var hi: PackedInt32Array = ctx["hi"]
 	var ear: PackedByteArray = ctx["ear"]
-	var remap := {}
-	var tris := 0
+	var sc := {"g": g, "off": off, "layer": layer, "kind": kind, "max_el": max_el, "displace": displace,
+		"seed": seed_i, "cache": {}, "tris": 0}
 	for t in range(0, hi.size(), 3):
 		var any := false
 		var all_ear := true
@@ -644,30 +655,83 @@ static func shell(g: Geo, ctx: Dictionary, off: float, layer: float, kind: int, 
 				all_ear = false
 		if not any or all_ear:
 			continue
-		var ids: Array = []
-		for j in 3:
-			var vi := hi[t + j]
-			if not remap.has(vi):
-				var p := hp[vi]
-				var ae := az_el(p)
-				var edge := clampf(0.5 + (ae.y - hairline_el(ae.x)) / 8.0, 0.0, 1.0)
-				if max_el < 900.0:
-					edge = minf(edge, clampf(0.5 + (max_el - ae.y) / 6.0, 0.0, 1.0))
-				if ear[vi] == 1:
-					edge = 0.0
-				var nrm := hn[vi]
-				var o := off
-				if displace > 0.0:
-					o += displace * (0.55 + 0.45 * sin(p.x * 211.0 + seed_i) * sin(p.y * 173.0 + p.z * 97.0 + seed_i * 0.7))
-				var tg := nrm.cross(Vector3.UP)
-				tg = tg.normalized() if tg.length() > 1e-4 else Vector3.RIGHT
-				var uv := Vector2(deg_to_rad(ae.x) * 0.1, deg_to_rad(ae.y) * 0.1)
-				remap[vi] = _vert(g, p + nrm * o, nrm, tg, uv, Vector4(edge, recession_rank(p), layer, float(kind) / 8.0))
-			ids.append(remap[vi])
-		# stejné pořadí vrcholů jako síť hlavy (už v konvenci Godotu) → normála ven
-		_tri(g, ids[0], ids[1], ids[2])
-		tris += 1
-	g.stats["shell_tris"] += tris
+		var ps := [hp[hi[t]], hp[hi[t + 1]], hp[hi[t + 2]]]
+		var ns := [hn[hi[t]], hn[hi[t + 1]], hn[hi[t + 2]]]
+		var es := [float(ear[hi[t]]), float(ear[hi[t + 1]]), float(ear[hi[t + 2]])]
+		# dvojí dělení jen u spánků a kotlet (velké trojúhelníky, linie tam prudce klesá), jinde jednou
+		var az := absf(az_el(ps[0]).x)
+		var dep := subdiv if az > 35.0 and az < 110.0 else mini(subdiv, 1)
+		_shell_tri(sc, ps, ns, es, dep, dep)
+	g.stats["shell_tris"] += int(sc["tris"])
+
+
+## Počet dělení trojúhelníku skořepiny na okraji (každé 1 → 4).
+const SHELL_SUBDIV := 2
+
+
+## Okraj skořepiny v bodě: 0,5 na vlasové linii, 0 o 4° níž, 1 o 4° výš; s horní mezí max_el a 0 na uchu.
+static func _shell_edge(p: Vector3, max_el: float, earw: float) -> float:
+	var ae := az_el(p)
+	var edge := clampf(0.5 + (ae.y - hairline_el(ae.x)) / 8.0, 0.0, 1.0)
+	if max_el < 900.0:
+		edge = minf(edge, clampf(0.5 + (max_el - ae.y) / 6.0, 0.0, 1.0))
+	if earw > 0.5:
+		edge = 0.0
+	return edge
+
+
+static func _shell_tri(sc: Dictionary, ps: Array, ns: Array, es: Array, depth: int, top: int) -> void:
+	var max_el := float(sc["max_el"])
+	var ed := [_shell_edge(ps[0], max_el, es[0]), _shell_edge(ps[1], max_el, es[1]), _shell_edge(ps[2], max_el, es[2])]
+	var lo := minf(ed[0], minf(ed[1], ed[2]))
+	var hi := maxf(ed[0], maxf(ed[1], ed[2]))
+	# dělí se jen trojúhelníky, přes které vede samotná linie (pásmo, kde shader prolíná okraj 0,42–0,62), a ne
+	# trojúhelníky u ucha (okraj tam je vynucená 0) – jinak by dělení zbytečně zčtyřnásobilo celý pás kolem linie
+	var at_ear := float(es[0]) + float(es[1]) + float(es[2]) > 0.0
+	if depth > 0 and not at_ear and lo < 0.62 and hi > 0.42:
+		var m := []
+		var mn := []
+		var me := []
+		for k in 3:
+			var a := k
+			var b := (k + 1) % 3
+			m.append(((ps[a] as Vector3) + (ps[b] as Vector3)) * 0.5)
+			var nsum := (ns[a] as Vector3) + (ns[b] as Vector3)
+			mn.append(nsum.normalized() if nsum.length_squared() > 1e-8 else ns[a])   # Gemini b. 19: pojistka (opačné normály)
+			me.append((float(es[a]) + float(es[b])) * 0.5)
+		# stejné pořadí (orientace) jako původní trojúhelník: rohy a střed
+		_shell_tri(sc, [ps[0], m[0], m[2]], [ns[0], mn[0], mn[2]], [es[0], me[0], me[2]], depth - 1, top)
+		_shell_tri(sc, [m[0], ps[1], m[1]], [mn[0], ns[1], mn[1]], [me[0], es[1], me[1]], depth - 1, top)
+		_shell_tri(sc, [m[2], m[1], ps[2]], [mn[2], mn[1], ns[2]], [me[2], me[1], es[2]], depth - 1, top)
+		_shell_tri(sc, [m[0], m[1], m[2]], [mn[0], mn[1], mn[2]], [me[0], me[1], me[2]], depth - 1, top)
+		return
+	if hi <= 0.0 and depth < top:
+		return   # podtrojúhelník celý pod vlasovou linií
+	var ids := []
+	for j in 3:
+		ids.append(_shell_vert(sc, ps[j], ns[j], ed[j]))
+	_tri(sc["g"], ids[0], ids[1], ids[2])
+	sc["tris"] = int(sc["tris"]) + 1
+
+
+static func _shell_vert(sc: Dictionary, p: Vector3, nrm: Vector3, edge: float) -> int:
+	var key := Vector3i(roundi(p.x * 200000.0), roundi(p.y * 200000.0), roundi(p.z * 200000.0))
+	var cache: Dictionary = sc["cache"]
+	if cache.has(key):
+		return cache[key]
+	var o := float(sc["off"])
+	var displace := float(sc["displace"])
+	var seed_i := int(sc["seed"])
+	if displace > 0.0:
+		o += displace * (0.55 + 0.45 * sin(p.x * 211.0 + seed_i) * sin(p.y * 173.0 + p.z * 97.0 + seed_i * 0.7))
+	var tg := nrm.cross(Vector3.UP)
+	tg = tg.normalized() if tg.length() > 1e-4 else Vector3.RIGHT
+	var ae := az_el(p)
+	var uv := Vector2(deg_to_rad(ae.x) * 0.1, deg_to_rad(ae.y) * 0.1)
+	var i := _vert(sc["g"], p + nrm * o, nrm, tg, uv,
+		Vector4(edge, recession_rank(p), float(sc["layer"]), float(sc["kind"]) / 8.0))
+	cache[key] = i
+	return i
 
 
 # ======================================================================================
@@ -701,7 +765,7 @@ static func flow_dir(st: Dictionary, p: Vector3, n: Vector3) -> Vector3:
 
 ## Pramen z kořene: polyline. Pochod s tuhostí, gravitací (s náklonem dozadu nebo dopředu přes ramena),
 ## kolizí s hlavou a trupem, střihem (cut_y, ofina) a objemem (odsazení roste od kořene).
-static func strand(ctx: Dictionary, st: Dictionary, root: Dictionary, length: float, off0: float, vol: float, rng: RandomNumberGenerator) -> PackedVector3Array:
+static func strand(ctx: Dictionary, st: Dictionary, root: Dictionary, length: float, off0: float, vol: float, rng: RandomNumberGenerator, face_x := FACE_X) -> PackedVector3Array:
 	var p: Vector3 = root["p"]
 	var n: Vector3 = root["n"]
 	var lift := float(st.get("lift", 0.3))
@@ -733,7 +797,7 @@ static func strand(ctx: Dictionary, st: Dictionary, root: Dictionary, length: fl
 		var grav := (Vector3.DOWN + Vector3(0.0, 0.0, lean_z * lean)).normalized()
 		dir = (dir * (1.0 - g) + grav * g).normalized()
 		var off := off0 + vol * minf(t * 3.0, 1.0)
-		var nxt := avoid_face(collide(ctx, cur + dir * step, off), side, face_top)
+		var nxt := avoid_face(collide(ctx, cur + dir * step, off), side, face_top, face_x)
 		var d := nxt - cur
 		if d.length() < 1e-6:
 			break
@@ -753,9 +817,9 @@ static func strand(ctx: Dictionary, st: Dictionary, root: Dictionary, length: fl
 
 
 ## Bod pramene v obličeji (před očima, nosem, ústy) odsune na tvář na straně kořene.
-static func avoid_face(p: Vector3, side: float, top := FACE_Y1) -> Vector3:
-	if p.z > FACE_Z and absf(p.x) < FACE_X and p.y > FACE_Y0 and p.y < top:
-		p.x = side * FACE_X
+static func avoid_face(p: Vector3, side: float, top := FACE_Y1, face_x := FACE_X) -> Vector3:
+	if p.z > FACE_Z and absf(p.x) < face_x and p.y > FACE_Y0 and p.y < top:
+		p.x = side * face_x
 	return p
 
 
@@ -856,10 +920,16 @@ static func _afro(g: Geo, ctx: Dictionary, st: Dictionary) -> void:
 	var R := float(st["afro"])
 	for i in n:
 		var t := float(i + 1) / n
-		shell(g, ctx, 0.002 + R * pow(t, 1.15), t, KIND_AFRO, 999.0, 0.004 + 0.01 * t, i * 13)
+		# objemové vrstvy afra bez dělení okraje (linii kreslí spodní skořepina; 7 vrstev × dělení = přes rozpočet)
+		shell(g, ctx, 0.002 + R * pow(t, 1.15), t, KIND_AFRO, 999.0, 0.004 + 0.01 * t, i * 13, 0)
 
 
 ## Trubice: copánky (box braids) nebo dredy z mřížky kořenů; nejdřív po hlavě, pak gravitace.
+## Běh 19 (kontrola renderu uživatelkou): copánky a dredy byly moc pravidelné – stejně tlusté, stejně dlouhé, stejně
+## tuhé, dredy s „korálky“ (šum tloušťky s frekvencí 40 na délku vypadal jako řetízek) – a zepředu padaly přes
+## obličej (tok od víru vedl přední kořeny dopředu). Teď: tok od pěšinky do stran a dozadu, osa trubice drží
+## TUBE_FACE_X od středu obličeje, každý pramen má vlastní tloušťku (×0,78–1,28), délku, tuhost, odklon a mírné
+## houpání (vlna 3–8 mm), dredy plynule kolísající tloušťku (2 nízké frekvence) a zaoblený konec.
 static func _tubes(g: Geo, ctx: Dictionary, st: Dictionary, rng: RandomNumberGenerator) -> void:
 	var kind := int(st["tube"])
 	var r0 := float(st["tube_r"])
@@ -869,16 +939,28 @@ static func _tubes(g: Geo, ctx: Dictionary, st: Dictionary, rng: RandomNumberGen
 	var roots := sample(ctx, float(st["spacing"]), rng, mask, 10.0)
 	var lens: Array = st["len"]
 	for r in roots:
-		var L := rng.randf_range(float(lens[0]), float(lens[1]))
-		var pts := strand(ctx, st, r, L, r0 * 0.8, r0 * 0.6, rng)
+		var sr: Dictionary = st.duplicate()
+		sr["stiff"] = clampf(float(st.get("stiff", 0.5)) + rng.randf_range(-0.15, 0.15), 0.2, 0.9)
+		sr["lift"] = float(st.get("lift", 0.2)) * rng.randf_range(0.6, 1.5)
+		var rr := r0 * rng.randf_range(0.78, 1.28)
+		var L := rng.randf_range(float(lens[0]), float(lens[1])) * rng.randf_range(0.86, 1.1)
+		var pts := strand(ctx, sr, r, L, rr * 0.8, rr * 0.6, rng, TUBE_FACE_X)
 		if pts.size() < 2:
 			continue
+		pts = _curl(pts, 0.0, 1.0, rng.randf_range(0.003, 0.008), rng.randf_range(0.12, 0.3), rng.randf() * TAU)
+		var f1 := rng.randf_range(2.0, 4.0)
+		var f2 := rng.randf_range(5.0, 8.0)
+		var ph1 := rng.randf() * TAU
+		var ph2 := rng.randf() * TAU
 		var rad := PackedFloat32Array()
 		for i in pts.size():
 			var t := float(i) / maxf(pts.size() - 1, 1)
-			var x := r0 * (1.0 - 0.25 * t)
+			var x := rr * (1.0 - 0.25 * t)
 			if kind == KIND_LOC:
-				x *= 0.85 + 0.3 * _hash(int(t * 40.0) + int((r["p"] as Vector3).x * 1e5))
+				x *= 1.0 + 0.12 * sin(TAU * f1 * t + ph1) + 0.06 * sin(TAU * f2 * t + ph2)
+				x *= sqrt(clampf((1.0 - t) / 0.06, 0.0, 1.0)) * 0.6 + 0.4 if t > 0.94 else 1.0
+			else:
+				x *= 1.0 - 0.35 * clampf((t - 0.9) / 0.1, 0.0, 1.0)
 			rad.append(x)
 		tube(g, pts, rad, 5 if kind == KIND_BRAID else 7, Vector4(rng.randf(), recession_rank(r["p"]), 1.0, float(kind) / 8.0))
 
@@ -1044,13 +1126,18 @@ static func _beard_zone(z: Array, p: Vector3) -> float:
 	var best := 0.0
 	if int(z[0]) == 1 and p.y > my + 0.005 and p.y < my + 0.018 and ax < mw + 0.006 - (p.y - my) * 0.3 and p.z > 0.055:
 		best = 1.0
-	if int(z[1]) == 1 and p.y > 1.546 and p.y < my - 0.007 and ax < 0.028 + (my - p.y) * 0.3 and p.z > 0.025:
+	# běh 19: horní okraj brady těsně pod červení dolního rtu (rty C3+ B jsou vyšší – dřív kořeny ležely na rtu
+	# a pod rtem zůstávala holá mezera)
+	if int(z[1]) == 1 and p.y > 1.546 and p.y < my - 0.0102 and ax < 0.028 + (my - p.y) * 0.3 and p.z > 0.025:
 		best = 2.0
 	if int(z[2]) == 1:
-		var jaw := p.y > 1.543 and p.y < 1.628 - maxf(ax - 0.02, 0.0) * 0.15 and ax > 0.02 and ax < 0.074 and p.z > -0.025
+		# běh 19: spodní mez tváří stoupá dozadu podél dolní čelisti (dřív 1,543 i u úhlu čelisti → vousy na krku)
+		var jaw_lo := 1.543 + clampf(0.06 - p.z, 0.0, 0.085) * 0.35
+		var jaw := p.y > jaw_lo and p.y < 1.628 - maxf(ax - 0.02, 0.0) * 0.15 and ax > 0.02 and ax < 0.074 and p.z > -0.025
 		if jaw and ax < mw + 0.004 and absf(p.y - my) < 0.012:
 			jaw = false
-		var neck := p.y > 1.512 and p.y <= 1.548 and p.z > 0.0 and ax < 0.06
+		# pod bradou jen pruh podél spodní plochy čelisti (linie vousů ~2 prsty nad ohryzkem), ne celý krk
+		var neck := p.y > 1.532 and p.y <= 1.548 and p.z > 0.03 and ax < 0.055
 		if jaw or neck:
 			best = 3.0
 	if int(z[3]) == 1 and ax > 0.062 and p.y > 1.615 and p.y < 1.672 and p.z > -0.015 and p.z < 0.035:
@@ -1071,19 +1158,31 @@ static func build_beard(ctx: Dictionary, style: String) -> Dictionary:
 	var mask := func(p: Vector3) -> bool:
 		return _beard_zone(zones, p) > 0.0
 	var roots := sample(ctx, 0.0042, rng, mask, 8.0)
+	# běh 19: pod dolním rtem hustěji (kořeny tam kreslí jen krátké chloupky a z čelního pohledu byla mezera)
+	if int(zones[1]) == 1:
+		var soul := func(p: Vector3) -> bool:
+			return _beard_zone(zones, p) == 2.0 and p.y > MOUTH.y - 0.017
+		roots.append_array(sample(ctx, 0.0028, rng, soul, 8.0))
 	for r in roots:
 		var p: Vector3 = r["p"]
 		var n: Vector3 = r["n"]
 		var zone := _beard_zone(zones, p)
-		var L := L0 * rng.randf_range(0.8, 1.15)
-		var d := Vector3.DOWN
+		# běh 19: plnovous tvořil svislé sloupce (všechny karty rovně dolů a skoro stejně dlouhé) → rozptyl délky,
+		# náklon ±20° do stran a na tvářích mírný tok dopředu k bradě; těsně pod rtem krátké chloupky (bez mezery)
+		var L := L0 * rng.randf_range(0.65, 1.2)
+		var d := Vector3(rng.randf_range(-0.35, 0.35), -1.0, 0.0)
 		if zone == 1.0:
 			d = Vector3(signf(p.x) * 0.7, -1.0, 0.15)
 			L = minf(L, 0.014)
+		elif zone == 2.0 and p.y > MOUTH.y - 0.016:
+			L = minf(L, 0.011)
 		elif zone == 4.0:
 			L *= 0.7
 		elif zone == 3.0 and p.y < 1.55:
 			d = Vector3(0, -0.3, 1.0)       # pod bradou dopředu-dolů k bradě
+			L = minf(L, 0.02)
+		elif zone == 3.0:
+			d += Vector3(-signf(p.x) * 0.12, 0.0, 0.25)
 		var segs := 3 if L > 0.012 else 2
 		var pts := PackedVector3Array([p + n * 0.0006])
 		var cur := pts[0]

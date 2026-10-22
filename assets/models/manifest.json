@@ -59,7 +59,7 @@
       "body",
       "character_head"
     ],
-    "glb_bytes": 2759524,
+    "glb_bytes": 2772176,
     "lsx_crc": {
       "body": "fb77b75a",
       "character_head": "d674db1b"
@@ -95,7 +95,11 @@
           "cx_nose_length_p__nose_tip_p",
           "cx_nose_length_p__nose_tip_n",
           "cx_nose_length_n__nose_tip_p",
-          "cx_nose_length_n__nose_tip_n"
+          "cx_nose_length_n__nose_tip_n",
+          "cx_eye_distance_p__eye_depth_p",
+          "cx_eye_distance_p__eye_depth_n",
+          "cx_eye_distance_n__eye_depth_p",
+          "cx_eye_distance_n__eye_depth_n"
         ],
         "_inbetweens": [
           "nose_length_pos_mid",
@@ -238,9 +242,9 @@
         "faces": 3948,
         "keys": {
           "eyes": 8,
-          "head": 74
+          "head": 78
         },
-        "morphs": 74,
+        "morphs": 78,
         "topo_verts": 3890,
         "tris": 7760,
         "verts": 4102

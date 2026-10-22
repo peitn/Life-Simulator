@@ -80,6 +80,7 @@ static func make(parent: Node, name: String) -> Dictionary:
 		var v := SimVisual.new()
 		v.apply_look(_snap(row))
 		parent.add_child(v)
+		v._build()   # běh 19: mimo běžící strom (SceneTree._initialize) se _ready nevolá – stavba je idempotentní
 		var lp: Dictionary = v.look_params
 		var keys := {}
 		for mi in v._model.find_children("*", "MeshInstance3D", true, false):

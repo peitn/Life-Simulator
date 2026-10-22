@@ -7,6 +7,91 @@ Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --
 
 ---
 
+## 2026-10-22 (běh 19, ~10:55–11:40 UTC, ruční spuštění) – C4b+ detaily vlasů a vousů
+
+**Rozsah:** `scripts/assets/hair_builder.gd` (skořepina s dělením okraje, copánky/dredy, plnovous), `tests/test_hair.gd`
+(přesné ověření průniku, nová sekce běhu 19), `tools/hair_export.gd` (`_build()` mimo běžící strom), docs.
+Payload ručního spuštění popisoval stav před během 18 (C3+ B) – ten už byl hotový, takže běh navázal checkpointem
+(C4b+) a zapracoval připomínky z payloadu (vousy níž na krk, copánky/dredy pravidelné a přes obličej).
+
+**a) Self-review:**
+- Dělení skořepiny: první verze dělila každý trojúhelník s okrajem v (0;1) a u uší → +6–11 tis. trojúhelníků (afro přes
+  rozpočet) → dělí se jen trojúhelníky, přes které vede samotná linie (0,42–0,62), ne u ucha, 2× jen u spánků, afro vrstvy 0×.
+- Penetrace: test měřil vůči radiální mapě (max. poloměr v binu) a body na plochých trojúhelnících vycházely „pod hlavou“;
+  zkoušené Phongovo zvednutí středů by dělalo trhliny u nedělených sousedů → středy zůstávají v rovině trojúhelníku (= kůže,
+  jak ji hra kreslí) a test podezřelé body ověřuje přesnou projekcí na trojúhelníky kůže.
+- Vousy: zóny přepočítané na nové rty (C3+ B) – brada začíná pod červení dolního rtu, hustší vzorkování pod rtem.
+- Copánky/dredy: kopie stylu na pramen (`st.duplicate()` jen přepisuje skalární klíče), RNG pevné na účes → determinismus
+  vlákno × synchronně ověřen testem.
+- `tools/hair_export.gd`: SimVisual se mimo běžící strom nepostavil (`_ready` se nevolal) → explicitní `_build()` (idempotentní).
+
+**b) Testy:** `godot_check` 60/60 · test_hair 60/60 (nové: hrana přes linii u spánků 18,0 → 8,6 mm; trubice ≥ 8,5/8,7 cm
+od středu obličeje; plnovous nejníž 1,517 m, pod 1,53 m 1,5 %; pod rtem 45 vrcholů; rozpočty: max 25 408 kudrnaté, afro
+21 497) · test_assets 150/150 · test_neck_seam 56/56 · test_character 157/157 (posuvník 3,93 ms – kolísá 3,1–3,9 ms, limit 4) ·
+`--test 7` OK. Ostatní sady (mentální zdraví, deprese, vztahy, MP, audio…) běžely v běhu 18 před hodinou a jejich kód se
+v běhu 19 nezměnil.
+**Vizuálně:** Blender render (`docs/images/c4bp-hair-run19.jpg`: copánky, dredy+knír, undercut+plnovous, ústup+šediny+bradka,
+krátké; 4 pohledy) prohlédnutý: obličej volný, prameny nepravidelné a rámují obličej, plnovous končí pod čelistí, spánky
+bez schodů. Zbývá: textura copánků v Blenderu je jen náhrada shaderu (pruhy), dredy přes čelo od pěšinky (záměr – boční
+pěšinka), vzadu copánky dál dost hustě a rovnoměrně.
+
+**c) Gemini (flash-lite), 6 bodů:** (2) nulový součet normál při dělení → **zapracováno** (pojistka). (1) T-spoje u nedělených
+sousedů → odmítnuto jako kritické: středy leží v rovině trojúhelníku, odchylka je jen rozdíl odsazení po normále (≪ 0,1 mm)
+u 1mm skořepiny s průhledností; vedeno jako drobné. (3) mělká kopie a pořadí RNG → odmítnuto (přepisují se jen skalární
+klíče; síť se staví ze stejného GLB stejným kódem, test vlákno × synchronně). (4) lambdy ve vlákně → odmítnuto (čtou jen
+konstanty). (5) kolize vrstev v cache → odmítnuto (každé volání `shell()` má vlastní cache). (6) skok x v `avoid_face` →
+ponecháno (dřívější chování, na renderu bez zlomu).
+
+**d) Další krok:** 1. osa psychiky (společný rámec dimenzí), potom C5 oblečení.
+
+---
+
+## 2026-10-22 (běh 18, ~10:00–11:00 UTC) – C3+ B doladění obličeje (brada, oči, rty, velikost hlavy)
+
+**Rozsah:** `scripts/assets/head_builder.gd` (projekce brady, `surface_xy`, oční štěrbina a koutky mimo kouli, rty a ústa),
+`scripts/character/face_morphs.gd` (korekční dvojice eye_distance × eye_depth), `scripts/character/character_randomizer.gd`
+(head_size × frame), `scripts/character/skin_layers.gd` + `shaders/skin.gdshader` (orientační body make-upu, bod brady),
+`tests/test_skin.gd`, `tests/test_character_v2.gd`, `assets/models/character.glb` (+ manifest), nové nástroje
+`tools/face_render_export.gd` a `tools/blender/face_render.py`, docs.
+
+**a) Self-review:**
+- Render „před“ (12 postav × 4 pohledy, `docs/images/c3b-face-run18-before.jpg`) + měření povrchu: měkký pogonion ~20 mm za
+  dolním rtem (bezzubý profil), štěrbina víček 23,6 mm obtočená kolem koule (v čelním pohledu ~21 mm), vnitřní koutek 20 mm
+  od středu, rty ~5 / 8,5 mm. Výška hlavy změřena 22,5 cm – v rozsahu dospělých (ž ~21,9, m ~23,2) → beze změny (původní
+  tvrzení „o 1 cm nižší“ se neověřilo; dojem malé hlavy u mohutné postavy řeší generátor).
+- Projekce brady nejdřív z aktuální polohy vrcholu → chyba lineárních blend shapes u extrémů 3,9 → 5,02 mm (limit 5). Diagnóza
+  ukázala, že nejhorší vrchol je ve vnějším prstenci víček (ne brada) → projekce přepsána na váhu z VÝCHOZÍ hlavy na paprsku
+  (`JAW_D0`, konstantní posun na vrchol), a interakce eye_distance+1 × eye_depth−1 (2,9 mm, změřeno na všech dvojicích morfů očí,
+  obočí a lící) dostala korekční tvar → 4,07 mm.
+- `surface_xy` – povrch už není čistě paprskový, pevný bod by zmenšoval x, y o ~dz/z → iterace opravuje cílové x, y.
+- `_sph`: oblouk za `EYE_WRAP` začíná tečnou koule (C1 spojitost), směr se stáčí exponenciálně; `k == 1.0` je porovnání
+  s literálem předaným volajícím (víčka 1.0, spojivka 1.55), ne výsledek aritmetiky.
+- Thread-safety: `JAW_D0` je konstantní (v Godotu 4 read-only) slovník, `jaw_projection*` jsou čisté funkce.
+- Výkon: `build_data` 42 → 55 s (jen import offline); aplikace obličeje 0,30 ms; posuvník 3,12 ms samostatně.
+- Konstanty make-upu `EYE_SHAPE` (půlšířka 15,1 mm = průměr nesouměrné štěrbiny) a `MOUTH` sjednocené s hlavou + nový test.
+
+**b) Testy:** `godot_check` 60/60 · test_head 43/43 (extrémy max 4,07 / průměr 0,20 mm, 48 kombinací bez průniku kůže–oko,
+rty se nekříží, 0 přeložených ploch, 78 blend shapes v GLB) · test_skin 61/61 (+ make-up = hlava; bod brady 1,4 mm od povrchu)
+· test_character_v2 43/43 (+ head_size: sd 0,30, r(frame) 0,24, rod max. rozdíl 0,018) · test_neck_seam 56/56 · test_neck_length
+36/36 · test_hair 55/55 · test_assets 150/150 · test_body_morphs 62/62 · test_character 157/157 (posuvník 3,12 ms; při třech
+souběžných testech 4,22 ms – měřit samostatně) · test_character_net 28/28 · test_multiplayer 67/67 · test_mental_health 95/95
+· test_depression 92/92 · test_reconciliation 58/58 · test_household_dynamics 78/78 · test_player_commands 40/40 ·
+test_net_protocol 34/34 · test_psyche_presentation 19/19 · test_audio_tone 222/222 · `--test 7` OK.
+**Vizuálně:** render „po“ (`docs/images/c3b-face-run18-after.jpg`, 6 postav × 3 pohledy) prohlédnutý: profil s bradou, oči
+s koutky a slzným jezírkem, plné rty; extrém −1 všech posuvníků má dál úzké oči a tenké rty (součet minim), hřbet nosu ostrý.
+
+**c) Gemini (flash-lite), 5 bodů:** (1) „vysoká“ thread-safety `JAW_D0` → odmítnuto: konstantní slovník je v Godotu 4 jen
+pro čtení a funkce nic nemutují; `derive()` vrací vždy nový slovník. (2) NaN v `pow(1 − a², …)` → odmítnuto: `a` je ořezané
+do ⟨−1; 1⟩, takže 1 − a² ≥ 0 a pow(0; 0,85) = 0; `_dir_to` v `surface_xy` nikdy nedostane nulový vektor (z ≥ ~0,08).
+(3) `k == 1.0` → odmítnuto (literál, geometrie se navíc počítá jen offline při importu; klienti načítají GLB). (4) head_size
+nezávislé na rodu – potvrzeno jako v pořádku. (5) výkon `surface_xy` 6 iterací → ponecháno (jen import, +13 s).
+**ChatGPT:** plán a otázka (anatomické cíle jako testy) poslány v #134; review souborů v místnosti po syncu.
+
+**d) Známé problémy / další krok:** C4b+ – schodovitý okraj skořepiny vlasů u spánků, sloupcový vzor plnovousu, mezera
+pod dolním rtem u plnovousu (tento běh nezačato); měkká zóna extrémů posuvníků až v editoru C6; zuby, jazyk, mimika.
+
+---
+
 ## 2026-10-22 (běh 17, ~02:50–04:00 UTC) – hudba v3 + C4b vlasy, vousy, obočí (dokončení)
 
 **Rozsah:** `scripts/audio/music_data.gd` (návrat k původní hudbě + nové „Mlhavé ráno“), `tests/test_audio_tone.gd`

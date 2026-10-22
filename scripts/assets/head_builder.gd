@@ -82,6 +82,27 @@ const NL_BOT_FRONT := 1.522
 const NL_BOT_BACK := 1.566
 ## Výška nosu ve spodině (subnasale) jako podíl výšky špičky (běh 11: 0,20 → 0,15).
 const SUB_K := 0.15
+## C3+ B (běh 18) – projekce dolní čelisti a brady. Render v Blenderu ukázal „bezzubý“ profil: měkký pogonion
+## ležel ~20 mm za dolním rtem (reálně 5–10 mm, rýha pod rtem ~4–6 mm), takže ústa visela nad ustupující bradou
+## a obličej splýval s krkem. Brada a oblast pod rtem se proto posunou dopředu (čistě v ose z, aby se obličej
+## neprodloužil): JAW_PROJ ve výšce JAW_PROJ_Y, nahoru (ke rtům) pomaleji doznívá než dolů (ke krku), do stran
+## s šířkou brady/čelisti, jen na přední straně (váha roste s z → spodní plocha čelisti se natáhne, nepřeloží).
+const JAW_PROJ := 0.011
+const JAW_PROJ_Y := 1.565
+const JAW_PROJ_SY_UP := 0.022
+const JAW_PROJ_SY_DN := 0.016
+const JAW_PROJ_SX := 0.030
+## Výchozí hlava pro váhy projekce brady (jen klíče, které čtou _base_t a _neck_t; = derive({})).
+const JAW_D0 := {"C": Vector3(0.0, 1.668, 0.0), "rx": 0.0745, "ry_top": 0.112, "rz_front": 0.094, "rz_back": 0.103,
+	"jaw_w": 0.0, "muscle": 0.0, "fat": 0.0, "chin_w": 0.0, "chin_l": 0.0, "asym_jaw": 0.0, "neck_r": NECK_R}
+## Koutky mimo oční kouli (běh 18, _sph): úhel, do kterého víčka leží na kouli, cílové směry oblouku za ním
+## (úhel od osy x: k nosu mělký, do spánku hlubší) a délka stáčení (m).
+const EYE_WRAP := 0.8727
+const EYE_EXT_ANG_MED := 0.33
+const EYE_EXT_ANG_LAT := 0.75
+const EYE_EXT_TURN := 0.003
+## Prodloužení mediální (nosní) poloviny oční štěrbiny (běh 18).
+const ALMOND_MEDIAL := 0.14
 const RELAX_ITERS := 4
 const RELAX_L := 0.5
 const LIN_TOL := 0.00025
@@ -286,19 +307,25 @@ static func derive(p: Dictionary) -> Dictionary:
 		e["E"] = Vector3(float(s) * (0.0318 + 0.0050 * v.call("eye_distance")), 1.6685 + 0.0012 * asy, 0.0708 - 0.0045 * v.call("eye_depth"))
 		e["E0"] = Vector3(float(s) * 0.0318, 1.6685, 0.0708)
 		e["R"] = 0.0119 * (1.0 + 0.03 * v.call("eye_size"))
-		e["W"] = 0.0142 * (1.0 + 0.13 * v.call("eye_size")) * (1.0 - 0.03 * asy)
-		e["hu"] = 0.0053 * (1.0 + 0.28 * v.call("eye_size")) * (1.0 - 0.05 * asy)
-		e["hl"] = 0.0043 * (1.0 + 0.22 * v.call("eye_size"))
+		# C3+ B (běh 18): oční štěrbina byla krátká (okraje víček 23,6 mm, reálně ~28–30 mm) a vnitřní koutek
+		# daleko od nosu (20 mm od středu, reálně ~15–17) → oči působily malé. Zároveň menší rozsah eye_size
+		# (dřív −1 = škvíra 0,72 × výšky – „propadlý“ extrém), takže ±1 zůstává v běžné variabilitě.
+		e["W"] = 0.0164 * (1.0 + 0.10 * v.call("eye_size")) * (1.0 - 0.03 * asy)
+		e["hu"] = 0.0058 * (1.0 + 0.20 * v.call("eye_size")) * (1.0 - 0.05 * asy)
+		e["hl"] = 0.0046 * (1.0 + 0.16 * v.call("eye_size"))
 		e["tilt"] = deg_to_rad(4.0 + 9.0 * v.call("eye_tilt"))
 		e["hood"] = 0.4 + 0.55 * v.call("eyelid_hood")
 		e["brow_h"] = v.call("brow_height")
 		d["eye%d" % s] = e
-	d["Mw"] = 0.0245 * (1.0 + 0.10 * v.call("mouth_width"))
+	d["Mw"] = 0.0255 * (1.0 + 0.10 * v.call("mouth_width"))
 	d["My"] = 1.6035
-	d["lipU"] = 0.0038 * (1.0 + 0.45 * v.call("lip_upper"))
-	d["lipL"] = 0.0046 * (1.0 + 0.40 * v.call("lip_lower"))
-	d["lipUh"] = 0.0078 * (1.0 + 0.25 * v.call("lip_upper"))
-	d["lipLh"] = 0.0094 * (1.0 + 0.22 * v.call("lip_lower"))
+	# C3+ B (běh 18): rty s objemem – vyšší červeň (horní ~7,5 mm, dolní ~10 mm u výchozí), větší vyklenutí a
+	# o 2 mm širší ústa (koutky se stáčejí dozadu, v čelním pohledu měřila ~41 mm místo ~50);
+	# rozsah lip_* kolem nové výchozí hodnoty zůstává ve stejném poměru.
+	d["lipU"] = 0.0045 * (1.0 + 0.42 * v.call("lip_upper"))
+	d["lipL"] = 0.0052 * (1.0 + 0.38 * v.call("lip_lower"))
+	d["lipUh"] = 0.0094 * (1.0 + 0.24 * v.call("lip_upper"))
+	d["lipLh"] = 0.0106 * (1.0 + 0.21 * v.call("lip_lower"))
 	d["mouth_asym"] = 0.0015 * v.call("asym_mouth")
 	d["ear_s"] = 1.0 + 0.14 * v.call("ear_size")
 	d["ear_a"] = deg_to_rad(17.0 + 14.0 * v.call("ear_angle"))
@@ -465,6 +492,7 @@ static func surface(u: Vector3, d: Dictionary) -> Vector3:
 	var px := float(c.x) + float(u.x) * t
 	var py := float(c.y) + float(u.y) * t
 	var pz := float(c.z) + float(u.z) * t
+	pz += jaw_projection_u(u)
 	var ns := float(d["neck_s"])
 	if ns != 0.0:
 		# Běh 10 (vizuální kontrola): krk se rozšiřuje po celé délce až k tělu, ne jen pod hlavou – dřív
@@ -475,6 +503,27 @@ static func surface(u: Vector3, d: Dictionary) -> Vector3:
 		px *= k
 		pz = zc + (pz - zc) * k
 	return push_out(Vector3(px, py, pz), d)
+
+
+## Posun brady dopředu pro paprsek u. Váha se počítá z polohy VÝCHOZÍ hlavy na tomto paprsku (JAW_D0, bez reliéfu),
+## ne z aktuální polohy: posun je pak pro daný vrchol stejný pro všechny morfy (brada, čelist, tuk…), takže se
+## s nimi sčítá lineárně (běh 18: váha z aktuální polohy zvedla chybu blend shapes u extrémů 3,9 → 5,0 mm).
+static func jaw_projection_u(u: Vector3) -> float:
+	var tb := _base_t(u, JAW_D0)
+	var tn := _neck_t(u, JAW_D0)
+	var t := _smax(tb, tn, 0.009) if tn > 0.0 else tb
+	var c: Vector3 = JAW_D0["C"]
+	return jaw_projection(float(c.x) + float(u.x) * t, float(c.y) + float(u.y) * t, float(c.z) + float(u.z) * t)
+
+
+## Posun brady a oblasti pod rtem dopředu (m) v bodě povrchu (C3+ B, viz JAW_PROJ).
+## Monotónní v z (vpředu víc) a hladká → povrch se jen natáhne, nepřeloží; nad spodinou nosu ≈ 0.
+static func jaw_projection(px: float, py: float, pz: float) -> float:
+	var dy := py - JAW_PROJ_Y
+	var sy := JAW_PROJ_SY_UP if dy > 0.0 else JAW_PROJ_SY_DN
+	var wy := exp(-(dy / sy) * (dy / sy))
+	var wx := exp(-0.5 * (px / JAW_PROJ_SX) * (px / JAW_PROJ_SX))
+	return JAW_PROJ * wy * wx * _smooth(0.01, 0.05, pz)
 
 
 ## Ochrana proti průnikům: kůže nikdy není blíž středu oka než R + EYE_CLEAR (měkké maximum, bez zlomu).
@@ -504,13 +553,19 @@ static func _dir_to(x: float, y: float, z: float) -> Vector3:
 
 
 ## Bod přední části povrchu se zadanými světovými x, y (pevný bod iterace podél paprsků z C).
+## Běh 18: povrch už není čistě paprskový (jaw_projection posouvá body v z), takže pevný bod paprsku by vracel
+## x, y zmenšené o ~dz/z – iterace proto opravuje i cílové x, y (u čistě paprskového povrchu je oprava ~0).
 static func surface_xy(x: float, y: float, d: Dictionary, z0 := 0.085) -> Vector3:
 	var c: Vector3 = d["C"]
 	var z := z0
+	var tx := x
+	var ty := y
 	var p := Vector3.ZERO
-	for _i in 5:
-		p = surface(_dir_to(x - float(c.x), y - float(c.y), z), d)
+	for _i in 6:
+		p = surface(_dir_to(tx - float(c.x), ty - float(c.y), z), d)
 		z = float(p.z) - float(c.z)
+		tx += x - float(p.x)
+		ty += y - float(p.y)
 	return p
 
 
@@ -523,10 +578,12 @@ static func surface_at(q: Vector3, d: Dictionary) -> Vector3:
 # Oči
 # ======================================================================================
 static func _almond(e: Dictionary, a: float, b: float, f: float, cs := 0.0007) -> Vector2:
-	var w := float(e["W"]) * f
+	a = clampf(a, -1.0, 1.0)
+	# Běh 18: štěrbina sahá dál k nosu než do strany (vnitřní koutek ~16 mm od středu obličeje, vnější ~45 mm,
+	# zornice ~32 mm) – mediální polovina mandle je delší (a < 0 = k nosu, volající předává a × strana).
+	var w := float(e["W"]) * f * (1.0 + ALMOND_MEDIAL * maxf(0.0, -a))
 	var hu := float(e["hu"]) * f
 	var hl := float(e["hl"]) * f
-	a = clampf(a, -1.0, 1.0)
 	var up := hu * pow(1.0 - a * a, 0.85) * (1.0 - 0.18 * a)
 	var lo := -hl * pow(1.0 - a * a, 0.9) * (1.0 + 0.22 * a)
 	var yb := lo + (up - lo) * (b + 1.0) * 0.5
@@ -542,10 +599,28 @@ static func _sph(e: Dictionary, x: float, y: float, rho: float, k: float, side: 
 	var ec: Vector3 = e["E"]
 	var ph := x / rho * k
 	var th := y / rho * k
+	# Běh 18 – koutky mimo oční kouli: víčka (k = 1) leží na kouli jen do úhlu EYE_WRAP; dál pokračuje oblouk
+	# po křivce, jejíž směr se stáčí od tečny koule k mělčímu směru (k nosu skoro do strany, do spánku víc
+	# dozadu). Reálně vnitřní koutek leží ~3–4 mm za okrajem koule (slzné jezírko) a štěrbina je širší než
+	# průmět koule; dřív se celá štěrbina obtáčela kolem koule a v čelním pohledu měřila jen ~21 mm.
+	var ext := 0.0
+	if k == 1.0 and absf(ph) > EYE_WRAP:
+		ext = (absf(ph) - EYE_WRAP) * rho
+		ph = signf(ph) * EYE_WRAP
 	var cx := sin(ph) * cos(th)
 	var cy := sin(th)
 	var cz := cos(ph) * cos(th)
-	return Vector3(float(ec.x) + float(side) * cx * rho, float(ec.y) + cy * rho, float(ec.z) + cz * rho)
+	var lx := cx * rho
+	var lz := cz * rho
+	if ext > 0.0:
+		var a_t := EYE_EXT_ANG_MED if ph < 0.0 else EYE_EXT_ANG_LAT
+		var ds := ext / 8.0
+		for i in 8:
+			var sm := (float(i) + 0.5) * ds
+			var ang := a_t + (EYE_WRAP - a_t) * exp(-sm / EYE_EXT_TURN)
+			lx += signf(ph) * cos(ang) * ds * cos(th)
+			lz -= sin(ang) * ds * cos(th)
+	return Vector3(float(ec.x) + float(side) * lx, float(ec.y) + cy * rho, float(ec.z) + lz)
 
 
 static func _eye_ring_pos(d: Dictionary, s: int, ring: int, a: float, b: float, gi: int, gj: int) -> Vector3:
@@ -640,7 +715,8 @@ static func _mouth_ring_pos(d: Dictionary, ring: int, a: float, b: float, gi: in
 				y = 0.0012 * b
 				x = a * mw
 				var ps := surface_xy(x, my + y, d, 0.09)
-				return Vector3(ps.x, ps.y, float(ps.z) - 0.0015)
+				# běh 18: koutek hlouběji (modiolus) – rty s objemem jinak končily „nálepkou“ na povrchu
+				return Vector3(ps.x, ps.y, float(ps.z) - 0.0025)
 			var g := surface(lattice_dir(gi, gj, NZ), d)
 			var p := surface_xy(x + (float(g.x) - x) * 0.12, (my + y) + (float(g.y) - (my + y)) * 0.12, d, 0.09)
 			return Vector3(p.x, p.y, float(p.z) + 0.0004 * fz)

@@ -19,7 +19,9 @@ const Schema := preload("res://scripts/character/character_schema.gd")
 
 ## Dvojice morfů s korekčními (kombinačními) tvary – vybrané měřením interakcí všech dvojic při ±1
 ## (běh 9): jen tyto přesahovaly ~2 mm. Ostatní dvojice se sčítají lineárně s chybou < 1,3 mm.
-const CORRECTIVE_PAIRS := [["nose_length", "nose_bridge"], ["nose_length", "nose_tip"]]
+## Běh 18 (delší oční štěrbina, C3+ B): vzdálenost × hloubka očí 2,9 mm (široko posazené vystouplé oči – vnější
+## prstenec víček se opírá o zakřivení spánku) → třetí dvojice; ostatní dvojice morfů očí, obočí a lící ≤ 2,0 mm.
+const CORRECTIVE_PAIRS := [["nose_length", "nose_bridge"], ["nose_length", "nose_tip"], ["eye_distance", "eye_depth"]]
 
 ## Klíče hlavy řízené tělem (BodyMorphs.weights) – jen nárůst; hubnutí obličej nemění (hlava je štíhlá v základu).
 const BODY_LINKS := {"b_fat": "fat_hi", "b_muscle": "muscle_hi"}

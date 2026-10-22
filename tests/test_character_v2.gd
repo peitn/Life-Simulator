@@ -26,7 +26,60 @@ func _ready() -> void:
 	_test_crown_grid()
 	_test_bone_table()
 	_test_grammar_preview()
+	_test_head_size_generator()
 	finish("test_character_v2")
+
+
+## Běh 18 (C3+ B): generátor váže velikost hlavy slabě na kostru, ne na rod.
+func _test_head_size_generator() -> void:
+	section("Generátor: velikost hlavy × kostra")
+	var hs := PackedFloat64Array()
+	var fr := PackedFloat64Array()
+	var by_g := {}
+	var ok := true
+	for s in 800:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 7000 + s
+		var d := Randomizer.generate(rng)
+		var h := float(d["body"]["head_size"])
+		ok = ok and h >= -0.8 and h <= 0.8
+		hs.append(h)
+		fr.append(float(d["body"]["frame"]))
+		var g := String(d["identity"]["grammar"])
+		if not by_g.has(g):
+			by_g[g] = []
+		by_g[g].append(h)
+	var mh := 0.0
+	var mf := 0.0
+	for i in hs.size():
+		mh += hs[i]
+		mf += fr[i]
+	mh /= hs.size()
+	mf /= fr.size()
+	var cov := 0.0
+	var vh := 0.0
+	var vf := 0.0
+	for i in hs.size():
+		cov += (hs[i] - mh) * (fr[i] - mf)
+		vh += (hs[i] - mh) * (hs[i] - mh)
+		vf += (fr[i] - mf) * (fr[i] - mf)
+	var r := cov / sqrt(vh * vf)
+	check(ok, "800 postav: head_size v ⟨−0,8; 0,8⟩")
+	check(absf(mh) < 0.05 and sqrt(vh / hs.size()) > 0.25 and sqrt(vh / hs.size()) < 0.35,
+		"střed %.3f ≈ 0, sd %.3f ≈ 0,3" % [mh, sqrt(vh / hs.size())])
+	check(r > 0.15 and r < 0.45, "slabá vazba na kostru (r = %.2f, cíl 0,15–0,45)" % r)
+	var means := []
+	for g in by_g:
+		if (by_g[g] as Array).size() >= 40:
+			var m := 0.0
+			for v in by_g[g]:
+				m += float(v)
+			means.append(m / (by_g[g] as Array).size())
+	var spread := 0.0
+	for a in means:
+		for b in means:
+			spread = maxf(spread, absf(float(a) - float(b)))
+	check(means.size() >= 2 and spread < 0.08, "velikost hlavy nezávisí na gramatickém rodu (max. rozdíl průměrů %.3f)" % spread)
 
 
 func _valid_base() -> Dictionary:

@@ -803,3 +803,76 @@ Plán v místnosti #119; paralelně Claude (chat) dělá zvuk (#120, jen scripts
 - Potom 1. osa psychiky podle docs/design/psyche-model.md (s připomínkami ChatGPT #127).
 
 - 22. 10. ~03:55 UTC: ruční spuštění (payload 4:49 – hudba, pak C4b) přišlo po dokončení běhu 17; oba kroky už hotové a ověřené (music_data v3, WAV rano/noc beze změny – MD5 jako demo). Demo znovu posláno uživatelce, žádné další změny.
+
+
+## 2026-10-22 (běh 18, ~10:00–11:00 UTC) – C3+ B doladění obličeje
+**Oblast:** (0) TVORBA POSTAVY – C3+ B. Běh 17 skončil korektně. Plán v místnosti #134.
+
+### Průběžné checkpointy
+- ~10:30 render „před“ + úpravy head_builder (brada, oči, rty), test_head 43/43, render „po“ prohlédnutý; backup.
+- ~11:20 regrese 20 sad OK + test_skin/test_character_v2 rozšířené; Gemini audit; docs.
+
+### Co přibylo / změnilo se
+- `head_builder.gd`: `jaw_projection_u` (brada a oblast pod rtem +11 mm v ose z, váha z výchozí hlavy na paprsku → posun
+  konstantní napříč morfy), `surface_xy` opravuje x, y; oči: W 0,0164, `ALMOND_MEDIAL` 0,14, koutky mimo oční kouli
+  (`EYE_WRAP`, oblouk se stáčením) → okraj víček 15,3–45,5 mm od středu (30 mm), menší rozsah eye_size; rty lipU/L,
+  lipUh/Lh (≈ 7,5 / 10 mm), ústa Mw 0,0255, koutky hlouběji.
+- `face_morphs.gd`: korekční dvojice eye_distance × eye_depth (78 blend shapes v GLB).
+- `character_randomizer.gd`: head_size N(0,6·(frame − 0,5); 0,285) – slabá vazba na kostru, nezávislá na rodu.
+- `skin_layers.gd` + `skin.gdshader`: EYE_SHAPE (0,0151; 0,0058; 0,0046), MOUTH 0,0255, bod brady pro jizvy/tetování.
+- Testy: test_skin +1 (make-up = hlava), test_character_v2 +4 (velikost hlavy × kostra).
+- Nástroje: `tools/face_render_export.gd` (sada 12 postav s vahami a barvami ze hry), `tools/blender/face_render.py`
+  (render detailu obličeje v Blenderu, přenos přes dokumentový endpoint Godot serveru).
+- Rendery: `docs/images/c3b-face-run18-before.jpg`, `-after.jpg`. Docs: character-creator (Face polish), roadmap (srovnán
+  na běh 18 – připomínka ChatGPT #133), asset-pipeline, testing, README.
+
+### Ověření
+- Plná regrese 20 sad OK, `godot_check` 60/60, `--test 7` OK; podrobně AUDIT.md (běh 18). Gemini: 5 bodů, 0 oprav (zdůvodněno).
+
+### Známé problémy
+- Vlasy (C4b+): okraj skořepiny u spánků, plnovous – tento běh nezačato. Extrém −1 všech posuvníků dál úzké oči/tenké rty.
+- Výkon posuvníku 3,1 ms samostatně, pod souběžnou zátěží přes 4 ms. Import postavy ~55 s (offline).
+
+### GitHub
+- Push opět nejde: proxy odmítá repo peitn/Life-Simulator (není v autorizovaných zdrojích naplánované session, nástroj
+  add_repo v tomto běhu není). Klon (main = 06c54fd) a dry-run push ověřeny. ZIP pro ruční sync z hlavního chatu je
+  v `res://previews/export` (lifesim.zip + díly e00… po 150 000 znacích base64; MD5 a počet dílů v CHECKPOINT.md).
+- Review v místnosti: diff `run18_face_polish.diff` (#135), AUDIT.md rev. 13 (výřez běhu 18), paměť místnosti aktualizovaná.
+
+### room_last_id: 135
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 · ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f
+- Paměť: stav cdf19b25a96e48f4924a7c5fd49a2617, otevřené body 6c717c0ead454018979d105fa5dc58ab,
+  rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced, plán psychiky 4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C4b+: okraj skořepiny vlasů u spánků, sloupcový vzor plnovousu, mezera pod rtem (render vlasů na nové hlavě).
+- Potom 1. osa psychiky podle docs/design/psyche-model.md.
+
+
+## 2026-10-22 (běh 19, ~10:55–11:40 UTC, ruční spuštění) – C4b+ detaily vlasů a vousů
+**Oblast:** (0) TVORBA POSTAVY – C4b+. Payload (12:00 SELČ) psal, že od běhu 17 se nic nezměnilo – běh 18 (C3+ B) ale byl
+hotový, takže jsem navázala checkpointem a přidala připomínky z payloadu (vousy na krku, copánky/dredy). Plán #137.
+
+### Co přibylo / změnilo se
+- `hair_builder.gd`: skořepina – dělení trojúhelníků přes vlasovou linii (2× u spánků, 1× jinde, afro vrstvy 0×), sdílené
+  vrcholy podle polohy; copánky/dredy – tok od pěšinky, `TUBE_FACE_X` 9 cm, vlastní tloušťka/délka/tuhost/odklon/houpání,
+  dredy s plynule kolísající tloušťkou a zaobleným koncem; plnovous – pruh pod bradou jen podél čelisti (od 1,532 m),
+  spodní mez tváří stoupá k úhlu čelisti, rozptyl délky a náklonu, tok k bradě, hustěji pod rtem; `MOUTH` 0,0255.
+- `tests/test_hair.gd`: průnik ověřovaný projekcí na trojúhelníky kůže; sekce běhu 19 (5 kontrol) → 60/60.
+- `tools/hair_export.gd`: `v._build()`. Render: `docs/images/c4bp-hair-run19.jpg`.
+- Docs: character-creator (Hair details), roadmap, testing, README.
+
+### Ověření
+- test_hair 60/60, test_assets 150/150, test_neck_seam 56/56, test_character 157/157, `godot_check` 60/60, `--test 7` OK.
+  Gemini: 1 oprava (pojistka normál), 5 zdůvodněně odmítnuto. Render prohlédnutý.
+
+### Známé problémy
+- Posuvník vzhledu kolísá 3,1–3,9 ms (limit 4). Copánky vzadu dál dost pravidelné; materiál v Blenderu je jen náhrada.
+- GitHub: push dál blokovaný proxy (viz běh 18) → ZIP v previews/export.
+
+### room_last_id: 137
+
+### Návrh dalšího kroku
+- 1. osa psychiky (společný rámec dimenzí podle docs/design/psyche-model.md), potom C5 oblečení.

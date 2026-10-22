@@ -181,7 +181,9 @@ static func _body(rng: RandomNumberGenerator, d: Dictionary, age: int) -> void:
 	b["waist"] = clampf(0.3 + 0.5 * fat + rng.randfn(0.0, 0.06), 0.05, 0.95)
 	b["hips"] = _n(rng, 0.5, 0.15, 0.05, 0.95)
 	b["leg_length"] = _n(rng, 0.5, 0.13, 0.08, 0.92)
-	b["head_size"] = _n(rng, 0.0, 0.3, -0.8, 0.8)
+	# Běh 18 (C3+ B): velikost hlavy slabě sleduje kostru (r ≈ 0,3; výšku už řeší √výšky v BodyMorphs) – u mohutné
+	# postavy dřív hlava působila malá. Pořád nezávislá na rodu, identitě i jménu.
+	b["head_size"] = _n(rng, 0.6 * (float(b["frame"]) - 0.5), 0.285, -0.8, 0.8)
 	b["neck_length"] = _n(rng, 0.0, 0.3, -0.8, 0.8)   # běh 13: nezávislé na pohlaví, výšce i identitě
 
 

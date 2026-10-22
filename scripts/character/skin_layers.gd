@@ -23,8 +23,10 @@ const MAX_TATTOOS := 8
 
 ## Orientační body obličeje v klidové poloze = HeadBuilder.derive({}) (ověřuje tests/test_skin.gd).
 const EYE := Vector3(0.0318, 1.6685, 0.0708)         # střed levého oka (pravé = zrcadlo)
-const EYE_SHAPE := Vector4(0.0142, 0.0053, 0.0043, 0.0698)   # půlšířka, výška horního/dolního víčka, sklon (rad)
-const MOUTH := Vector3(0.0, 1.6035, 0.0245)          # (x, y, půlšířka úst)
+## Běh 18 (C3+ B): štěrbina je nesouměrná (k nosu 16,5 mm, do spánku 13,7 mm od zornice) – shader kreslí make-up
+## souměrně, takže půlšířka = průměr obou stran v čelním průmětu (tests/test_skin.gd hlídá shodu s HeadBuilderem).
+const EYE_SHAPE := Vector4(0.0151, 0.0058, 0.0046, 0.0698)   # půlšířka, výška horního/dolního víčka, sklon (rad)
+const MOUTH := Vector3(0.0, 1.6035, 0.0255)          # (x, y, půlšířka úst)
 const HEAD_C := Vector3(0.0, 1.668, 0.0)
 
 ## Id vzorů tetování v shaderu.
@@ -59,7 +61,7 @@ const SPOTS := {
 		[Vector3(0.0213, 1.7337, 0.0802), Vector3(0.19, 0.34, 0.92), Vector3.UP],      # čelo
 		[Vector3(0.0349, 1.7001, 0.0857), Vector3(0.32, 0.08, 0.94), Vector3.UP],      # obočí
 		[Vector3(-0.0455, 1.6341, 0.0667), Vector3(-0.64, -0.1, 0.76), Vector3.UP],    # tvář
-		[Vector3(0.0091, 1.5760, 0.0795), Vector3(0.12, -0.35, 0.93), Vector3.UP],     # brada (běh 10: delší dolní třetina)
+		[Vector3(0.0091, 1.5760, 0.0874), Vector3(0.21, -0.03, 0.98), Vector3.UP],     # brada (běh 18: projekce brady +8 mm)
 		[Vector3(0.0658, 1.6900, 0.0399), Vector3(0.93, 0.02, 0.36), Vector3.UP],      # spánek
 		[Vector3(-0.0468, 1.5951, 0.0308), Vector3(-0.88, -0.37, 0.29), Vector3.UP],   # čelist
 	],
