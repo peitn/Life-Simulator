@@ -12,6 +12,7 @@ const Planner := preload("res://scripts/sim/utility_planner.gd")
 const ActionLibrary := preload("res://scripts/sim/action_library.gd")
 const SimVisual := preload("res://scripts/sim/sim_visual.gd")
 const MentalState := preload("res://scripts/sim/mental_state.gd")
+const PsycheModel := preload("res://scripts/psyche/psyche_model.gd")
 const RelLedger := preload("res://scripts/sim/rel_ledger.gd")
 const Grammar := preload("res://scripts/core/grammar_cs.gd")
 ## Volitelné externí rozhodování sociálních interakcí (experiment FCCS, jen headless test).
@@ -214,6 +215,9 @@ func apply_character_private(cd: Dictionary) -> void:
 	var p = m.get("predispositions", {})
 	set_conditions(p if typeof(p) == TYPE_DICTIONARY else {})
 	set_patterns({"morning_worse": bool(m.get("morning_worse", false))})
+	# 1. osa psychiky (běh 20): individualita a explicitní osobnost jako háčky MentalState – pro všechny tři
+	# režimy obsahu, MentalState si vybere podle aktuálního nastavení (přepnutí za běhu funguje hned).
+	mental.set_psyche(PsycheModel.hooks_by_mode(cd))
 
 
 ## Individuální vzorce průběhu (ne univerzální příznaky): {"morning_worse": true}.

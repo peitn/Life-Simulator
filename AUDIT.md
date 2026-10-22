@@ -7,6 +7,51 @@ Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --
 
 ---
 
+## 2026-10-22 (běh 20, ~15:40–17:00 UTC, plánovaný) – 1. osa psychiky (PsycheModel)
+
+**Rozsah:** nový `scripts/psyche/psyche_model.gd`, `data/conditions/anxiety.json` + `depression.json`, `scripts/sim/mental_state.gd`
+(CONDITIONS ze dat, háčky, vazby, `cfg_mode`), `sim_agent.gd` (`apply_character_private` → `set_psyche`), `utility_planner.gd`
+(cfg do `coping_appeal`), schéma **v5** (`character_schema.gd` HEXACO + 2 pole, `character_validator.gd` typ `axes`,
+`character_codec.gd` migrace v4→v5, `character_randomizer.gd` seed na konci), `tests/test_psyche.gd` (nový),
+`tests/test_neck_length.gd` (verze obecně), docs. Předchozí pokus o běh 20 (~11:50) poslal jen plán #140 a nic nezapsal.
+
+**a) Self-review:**
+- Dvojí započtení: první návrh by D z rysů a diagnóz pustil do háčků navíc k dnešním mechanikám (Úzkostlivý už má
+  `trait_vuln`, Impulzivní flag `impulsive`) → zavedeno **reziduum D − D_legacy** (nesené příspěvky bez individuality).
+  Test: bez individuality a explicitní osobnosti je reziduum přesně 0 u 60 náhodných postav; MentalState s takovými háčky
+  je bit po bitu shodný se stavem bez háčků (600 min se stresory).
+- Bug nalezený testem: `pers["traits"]` při chybějícím klíči (výchozí `[]` z `get` prošlo typovou kontrolou) → čte se jednou
+  do lokální proměnné. Odstraněna nepoužitá proměnná `cond_add`.
+- Randomizer: nový los `psyche_seed` by posunul sekvenci RNG pro příběh a predispozice → los až na konci `generate`
+  (stejný seed generátoru = stejná postava jako ve v4, kromě nového pole).
+- Režim obsahu: MentalState dostává háčky pro full/muted/off a vybírá podle aktuálního cfg (přepnutí za běhu funguje);
+  `cfg_mode` pozná režim i ze starého cfg bez klíče `mode`.
+- Rozmanitost: v klidném prostředí byla individualita skoro neviditelná (dvě postavy shodné) → test měří v napjatém prostředí
+  a požaduje, aby se každá dvojice lišila volbou copingů nebo aktivací. Efekt individuality je záměrně mírný (háčky 0,7–1,3,
+  rezidua do ~0,1); výrazné rozdíly dává zadaná osobnost (emocionalita ±0,9 → threat_gain 0,70 / 1,30).
+- `godot_check` hlásí 60/60 skriptů – nové soubory bez `.uid` možná nepočítá; jejich kompilaci ověřilo spuštění testů a hry.
+
+**b) Testy:** test_psyche **93/93** (nové) · regrese 20 sad beze změny: mental_health 95, depression 92, reconciliation 58,
+household_dynamics 78 (hádky 31,4 % ± 7,9 – stejné jako dřív), player_commands 40, psyche_presentation 19, net_protocol 34,
+multiplayer 67, character 157 (posuvník 3,25 ms), character_v2 43, character_net 28, neck_length 36, body_morphs 62,
+head 43, neck_seam 56, skin 61, hair 60, assets 150, audio_tone 222 · `--test 7` OK · hra bez argumentů 25 s bez chyb.
+
+**c) Gemini (flash-lite; flash a flash-lite napoprvé „high demand“), 6 bodů, 0 oprav – vše zdůvodněně odmítnuto:**
+(1) CRC-32 jako zdroj individuality „nedeterministický“ → odmítnuto: vstup je ASCII řetězec z int a pevného klíče, CRC je
+bitově stejné na všech platformách, počítá jen server a nic se nereplikuje; test round-trip přes sdílecí kód. (2) „rysy
+v reziduu dvakrát“ → odmítnuto: D počítá P→D z p_eff s individualitou, D_legacy z p_tr bez ní – reziduum je přesně rozdíl,
+test 0 bez individuality. (3) součin mul bez ořezu členů → odmítnuto: každý člen je lerp(1, amount, sev) s amount ověřeným
+v 0,5–2 a sev v 0–1, tedy kladný a v mezích; součin se ořízne; prahy se ořezávají kumulativně. (4) I/O při spawnu a injekce
+profilu z klienta → odmítnuto: profily se načtou jednou (statická cache), klient posílá jen ID predispozic z katalogu schématu,
+validátor ostatní odmítne. (5) vazby ovládají postavu → odmítnuto: vazba mění jen stav (stres/aktivace/hrozba/zátěž) jako
+existující dynamika, nikdy akce; validátor profilů povoluje jen cíle D/T/S, test agency. (6) Kahn každou hodinu → odmítnuto:
+pořadí se počítá v `compute()` při vstupu postavy, za hodinu se jen prochází seřazené pole.
+
+**d) Otevřené:** hodnoty/světonázor (V) odloženy; individualita zatím jen ve 4 háčcích; HUD/editor `explain()` zatím nezobrazuje
+(C7). Další krok: C5 oblečení, pak integrovaný průchod (Grok #141).
+
+---
+
 ## 2026-10-22 (běh 19, ~10:55–11:40 UTC, ruční spuštění) – C4b+ detaily vlasů a vousů
 
 **Rozsah:** `scripts/assets/hair_builder.gd` (skořepina s dělením okraje, copánky/dredy, plnovous), `tests/test_hair.gd`

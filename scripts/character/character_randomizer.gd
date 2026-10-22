@@ -88,6 +88,8 @@ static func generate(rng: RandomNumberGenerator, base: Dictionary = {}, locks: A
 	_story(rng, d)
 	if bool(opts.get("include_mind", false)):
 		_mind(rng, d)
+	# Až na konci: nový los nemění sekvenci ostatních polí (stejný seed → stejná postava jako ve v4).
+	d["personality"]["psyche_seed"] = rng.randi_range(0, 65535)
 	# Zámky: převzít hodnoty z base (celé skupiny nebo jednotlivá pole).
 	for lk in locks:
 		var p := String(lk).split(".")
@@ -301,6 +303,8 @@ static func _personality(rng: RandomNumberGenerator, d: Dictionary) -> void:
 		if not asp.has(a):
 			asp.append(a)
 	d["personality"]["aspirations"] = asp
+	# Osobnost (HEXACO) zůstává odvozená z rysů ({}); individualita psychiky = explicitní seed (běh 20, losuje se na konci generate).
+	d["personality"]["hexaco"] = {}
 
 
 static func _story(rng: RandomNumberGenerator, d: Dictionary) -> void:

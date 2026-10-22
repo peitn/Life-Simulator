@@ -93,13 +93,43 @@ Some of them also work as ordinary leisure.
 The server applies its own content settings: it rejects predispositions and traumas when themes are off,
 and refuses content forbidden by server settings.
 
+## Psyche model (axis 1, run 20)
+
+`scripts/psyche/psyche_model.gd` is the shared framework the later axes build on. Full design:
+[design/psyche-model.md](design/psyche-model.md).
+
+- **P, personality:** six HEXACO-like axes (−1..1). They are stored optionally in
+  `CharacterData.personality.hexaco`. A missing axis is derived from the traits through an offset table,
+  so traits stay as presets and descriptions on top of the vector.
+- **D, dispositions:** nine named dimensions (0..1, 0.5 = population average), computed from P, direct
+  trait effects and condition profiles, never typed in. `PsycheModel.explain()` lists every contribution
+  with its size and reason.
+- **Condition profiles are data:** `res://data/conditions/anxiety.json` and `depression.json`. Each
+  modulation (`add`, `mul`, `threshold`, `couple`) has a limit and a mandatory `why`. Couplings must form
+  an acyclic graph and run once per game hour in a fixed topological order. Several profiles together
+  are clamped to the limit of one, so comorbidity cannot create a death spiral. A profile that fails
+  validation is not loaded.
+- **No double counting:** the existing mechanics (MentalState, Depression, traits) still carry the effect
+  of traits and of profiles with a `legacy` block (the old numbers, identical to before). Only the
+  **residual** `D − D_legacy` drives four hooks in MentalState: regulation capacity (how fast arousal
+  decays), threat sensitivity (threat from stressors), social threat (cost of social actions, crowds) and
+  impulsivity (appeal of unhealthy versus healthy coping). The residual comes from per-character
+  individuality (`personality.psyche_seed`: ±20 % on every contribution plus a small own offset per
+  dimension), from an explicit personality that differs from the traits, and from future profiles without
+  a legacy block. Every hook is a multiplier clamped to 0.7–1.3, so it changes costs and rates and never
+  removes an option.
+- **Content settings:** off removes all profile effects, muted caps severity at 0.5. MentalState keeps
+  hooks for all three modes and picks one from the current settings, so switching at runtime works.
+- **Privacy:** P, D, the seed and profiles are owner/server only and never appear in spawn data.
+- Values and worldview (layer V of the design) are **deferred** until something in the game consumes them.
+
 ## Plan: one axis per run
 
 The expansion agreed with the reviewers adds one axis per development run. Each step must include agency
 tests, a full/muted/off switch and a **diversity test**: two characters with the same label must behave
 measurably differently.
 
-1. **Shared framework of 9 interpretable dimensions:**
+1. **Shared framework of 9 interpretable dimensions** (done in run 20, see above):
    - threat sensitivity;
    - social threat / expected rejection;
    - impulsivity;

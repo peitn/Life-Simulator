@@ -54,7 +54,7 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 	var coping: String = a.get("coping", "")
 	if coping != "" and sim.mental != null:
 		var ca: float = sim.mental.coping_appeal(coping, sim.needs.values["energy"], sim.needs.values["hunger"],
-			sim.now(), Traits.has_flag(sim.trait_ids, "impulsive"))
+			sim.now(), Traits.has_flag(sim.trait_ids, "impulsive"), sim.mental_cfg())
 		if ca <= 0.0 and not bool(a.get("leisure", false)):
 			return 0.0
 		gain += ca

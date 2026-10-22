@@ -1,7 +1,9 @@
 # Design: the psyche model (personality, values, mental-health dimensions)
 
 Status: **design proposal** (22 October 2026), written from the room discussion (#79, #83–#85) and the owner's
-request. It is the reference for the mental-health axis runs, starting with axis 1, the shared framework.
+request. **Axis 1 is implemented (run 20):** layers P, D and C, modulations, the coupling graph and `explain()`
+in `scripts/psyche/psyche_model.gd`, profiles in `res://data/conditions/`, tests in `tests/test_psyche.gd`. Layer V
+(values) is deferred until it has a consumer. Section 9 describes how the implementation avoids double counting. It is the reference for the mental-health axis runs, starting with axis 1, the shared framework.
 Nothing here overrides the content rules in [../vision.md](../vision.md).
 
 ## 1. Goal
@@ -259,3 +261,22 @@ Notes on the example:
 - Should value change in V be visible to the player as a slow drift in the character sheet, in words only?
 - Should D drift through life events, and if so how fast? The proposal is weeks of game time with a cap of
   ±0.15 from the derived value.
+
+## 9. Implementation notes (run 20)
+
+- **Residual instead of replacement.** The existing mechanics already express traits and the anxiety and
+  depression predispositions. Rewriting them in one step would change every tuned test. So each
+  contribution to D is marked *carried* when an existing mechanism already applies it (trait effects,
+  personality derived from traits, profiles with a `legacy` block). `D_legacy` is D computed from carried
+  contributions only and without individuality. Hooks read only `D − D_legacy`. Without character data
+  the hooks are neutral and the old behaviour is reproduced bit for bit (tested).
+- **Individuality** is deterministic: CRC-32 of `(psyche_seed, source, dimension)` gives ±20 % per
+  contribution, and three uniform draws give an own offset per dimension (sd ≈ 0.05). The seed is migrated
+  once from the random uid (schema v4 → v5) and is never derived from the name.
+- **Hooks in MentalState:** `arousal_decay_tau`, `threat_gain`, `crowd_gain`, `social_cost`,
+  `unhealthy_appeal`, `healthy_appeal`, `panic_shift` and the ordered couplings. All multipliers are
+  clamped to 0.7–1.3.
+- **Comorbidity:** profile `add` contributions on one dimension are clamped to ±0.3 in total, `mul` to
+  0.5–2, thresholds to ±0.2.
+- Axis 2 onwards adds profiles **without** a legacy block. Their D modulations then act through the
+  residual directly, and the legacy numbers can be migrated to D-driven mechanics one system at a time.

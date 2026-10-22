@@ -26,7 +26,7 @@ The character creator is the **current top priority** of development. It is buil
 | `character_schema.gd` | The **only** description of fields, ranges, defaults and catalogues. The validator, randomizer, migrations and the future editor's sliders are all generated from it. Field types: `f`, `i`, `b`, `e` (enum), `set`, `name`, `text`, `color`. |
 | `character_data.gd` | The Resource: `to_dict` / `set_from_dict`, `public_snapshot()` (an allowlist from the schema) and `private_part()`. |
 | `character_validator.gd` | `strict` mode for the server (any bad field rejects the data) and `repair` mode for imports (clamp, drop unknowns, fall back to defaults). Details below. |
-| `character_codec.gd` | Canonical JSON for template files, the share code `LSC1.<base64url(zlib(JSON))>.<crc32>`, and migrations v0 → v1 → v2 → v3 → v4. Every external input goes through size limits → CRC → JSON → migration → validator. |
+| `character_codec.gd` | Canonical JSON for template files, the share code `LSC1.<base64url(zlib(JSON))>.<crc32>`, and migrations v0 → v1 → v2 → v3 → v4 → v5. Every external input goes through size limits → CRC → JSON → migration → validator. |
 | `character_randomizer.gd` | A random character "with a sensible distribution, not chaos". Appearance is sampled independently of identity and gender. Supports attribute locks. |
 | `character_history.gd` | Undo/redo over whole canonical dictionaries (a few kB each). Slider drags merge into one step. |
 
@@ -43,6 +43,11 @@ Schema history:
   by a "re-roll placement" button and never taken from the name.
 - **v4** (run 13) adds `body.neck_length` (−1..1, default 0). Migration v3 → v4 fills in 0 and changes
   nothing else. 0 means the corrected default neck described below.
+- **v5** (run 20) adds two private personality fields: `personality.hexaco` (an optional dictionary of six
+  HEXACO-like axes, −1..1; a missing axis is derived from the traits) and `personality.psyche_seed`
+  (0..65535, the character's individuality in the psyche model, never taken from the name). Migration
+  v4 → v5 sets `hexaco` to `{}` (behaviour unchanged) and derives the seed once from the random uid. Both
+  fields are excluded from the public snapshot. See [mental-health.md](mental-health.md#psyche-model-axis-1-run-20).
 
 ### Neck length and neck base (run 13)
 

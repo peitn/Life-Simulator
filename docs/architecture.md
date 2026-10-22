@@ -63,6 +63,10 @@ identity.
   and manages capacity and use points.
 - **`MentalState` / `Depression` / `RelLedger`** are pure modules with no nodes. See
   [mental-health.md](mental-health.md) and [relationships.md](relationships.md).
+- **`PsycheModel`** (`scripts/psyche/psyche_model.gd`, run 20) is a pure, static module. It turns
+  `CharacterData` (traits, optional HEXACO personality, psyche seed, predispositions) and the condition
+  profiles in `res://data/conditions/` into nine dispositions, explanations and a small set of clamped hooks.
+  `SimAgent.apply_character_private()` hands the hooks to `MentalState` on the authority only.
 - **`SimPuppet`** is the client-side puppet. It simulates nothing and only interpolates the public state
   it receives from the server.
 - **`SimVisual`** is the character visual shared by agent and puppet. It loads the GLB model, applies body

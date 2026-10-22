@@ -876,3 +876,55 @@ hotový, takže jsem navázala checkpointem a přidala připomínky z payloadu (
 
 ### Návrh dalšího kroku
 - 1. osa psychiky (společný rámec dimenzí podle docs/design/psyche-model.md), potom C5 oblečení.
+
+
+## 2026-10-22 (běh 20, ~15:40–16:15 UTC, plánovaný) – 1. osa psychiky (PsycheModel)
+**Oblast:** duševní zdraví – osa 1 (společný rámec), vložená mezi C4 a C5 podle plánu peiti #79. Předchozí pokus o běh 20
+(~11:50) poslal jen plán #140 a nic nezapsal (CHECKPOINT ukazoval „běh 19 dokončen“). Úprava plánu #144 (V odloženo, reziduum).
+
+### Průběžné checkpointy
+- ~16:05 PsycheModel + data profilů + háčky MentalState + schéma v5; regrese 7 sad OK; backup.
+- ~16:40 test_psyche 93/93, plná regrese 20 sad, `--test 7`, hra 25 s; backup.
+- ~16:55 Gemini audit, docs, AUDIT.md; backup. (Časy jsou odhad podle průběhu, hodiny serveru: start ~15:40, zpráva #146 16:11 UTC.)
+
+### Co přibylo / změnilo se
+- `scripts/psyche/psyche_model.gd` (nový): P (6 os, TRAIT_P), D (9 dimenzí, P_TO_D, TRAIT_D), profily z `res://data/conditions`
+  (validace limitů, „why“, cílů, obsahového štítku; cyklus → vazby zahozeny), `compute()` s nesenými příspěvky a reziduem,
+  individualita z CRC-32 (seed, zdroj, dimenze), `hooks()` / `hooks_by_mode()`, `couple_step()`, `explain()`.
+- `data/conditions/anxiety.json`, `depression.json`: legacy čísla + D modulace s vysvětlením.
+- `mental_state.gd`: `CONDITIONS` = static var z dat; `set_psyche`, `cfg_mode`, `_hk`; háčky v doznívání aktivace, `on_stressor`,
+  `social_difficulty`, `coping_appeal` (+ cfg), práh ataky, vazby jednou za hodinu.
+- `sim_agent.gd`: `apply_character_private` → `mental.set_psyche(PsycheModel.hooks_by_mode(cd))`; `utility_planner.gd` předává cfg.
+- Schéma **v5**: `HEXACO`, `personality.hexaco` (typ `axes`), `personality.psyche_seed`; validátor `_axes`; kodek `_v4_to_v5`;
+  randomizer losuje seed až na konci (nemění sekvenci ostatních polí).
+- Testy: `tests/test_psyche.gd` + `.tscn` (93 kontrol), `test_neck_length` obecně na aktuální verzi.
+- Docs: mental-health (sekce Psyche model), design/psyche-model (status + §9), character-creator (v5), testing, roadmap,
+  architecture, README; ROADMAP.md (řádek osy 1, další běh, návrhy z místnosti), AUDIT.md.
+
+### Ověření
+- test_psyche 93/93; regrese: mental_health 95, depression 92, reconciliation 58, household 78, player_commands 40,
+  psyche_presentation 19, net_protocol 34, multiplayer 67, character 157, character_v2 43, character_net 28, neck_length 36,
+  body_morphs 62, head 43, neck_seam 56, skin 61, hair 60, assets 150, audio_tone 222; `--test 7` OK; hra 25 s; godot_check 60/60.
+- Gemini: 6 bodů, 0 oprav (zdůvodněno v AUDIT.md). Review ChatGPT vyžádáno v #146.
+
+### Známé problémy
+- Individualita je záměrně mírná (rezidua ~0,1, háčky 0,7–1,3) a zatím jen ve 4 háčcích; `explain()` se v UI zatím neukazuje (C7).
+- `godot_check` počítá 60 skriptů (nové soubory bez .uid asi nezahrnul) – kompilaci ověřily testy.
+- GitHub: push dál blokovaný proxy (403, repo mimo autorizované zdroje). ZIP pro ruční sync: `res://previews/export/lifesim.zip`,
+  MD5 a počet dílů ve zprávě v místnosti po běhu 20 (ZIP obsahuje i tento DEVLOG, takže tu MD5 být nemůže). Díly jsem v tomto běhu nepřenášela do klonu, protože push
+  stejně nejde. Na GitHubu je main = 8d16e64 (běhy 18–19, sync z hlavního chatu).
+- Z kontroly renderu běhu 19 (hlavní chat #145): pravidelně pruhovaná textura copánků/dredů, pár pramenů na temeni trčí.
+
+### room_last_id: 146
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 (rev. 15 – výřez běhu 20) · ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f (rev. 7,
+  neaktualizováno – změny ve zprávě #146 a v docs/roadmap.md)
+- Paměť: stav cdf19b25a96e48f4924a7c5fd49a2617 (rev. 16), rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced, plán psychiky
+  4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C5 oblečení (kategorie, střihy přes morfy těla, PBR, převlékání podle situace, MP replikace) + drobnosti vlasů z #145
+  (nepravidelné pletení copánků, šum dredů, prameny na temeni ke skořepině); potom integrovaný průchod (Grok #141).
+
+- 22. 10. ~16:15 UTC: ruční spuštění (payload 17:40 SELČ, „od běhu 19 se nic nezměnilo“) dorazilo po dokončení běhu 20 – krok už je hotový a ověřený, nic dalšího se neměnilo. Podle payloadu je sync ZIP běhu 20 i v `res://previews/export20/` (lifesim.zip + e00–e42, MD5 9c1b932665a05b9974348058a86989fd); previews/export_main a demo nedotčené. Pozn.: previews/export už běh 20 přepsal svým ZIPem (díly běhu 19 jsou na GitHubu jako 8d16e64).

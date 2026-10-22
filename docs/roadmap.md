@@ -1,6 +1,6 @@
 # Roadmap
 
-English version of the live `ROADMAP.md` used by the automated runs, as of 22 October 2026 (after run 19).
+English version of the live `ROADMAP.md` used by the automated runs, as of 22 October 2026 (after run 20).
 
 Legend: ✅ done · 🟡 in progress · ⬜ planned · ⭐ next step
 
@@ -18,7 +18,8 @@ Eight steps, each one complete and tested. Principles and details are in
 | ✅ **C3+ A** | Neck and head–body seam: body neck cut above a 16-vertex loop (raised neck base at the back), head neck band fitted to a Catmull-Rom curve through the loop, body blend shapes carried by the head neck, blended bone weights, matched normals, convex quad diagonals in the band | `test_neck_seam` (no gap or overlap at rest, for 12 random bodies and with the neck bent; no flipped triangles; no collar); Blender renders from 5 angles inspected |
 | ✅ **C3+ B** (run 18) | Face polish: chin and lower-face projection (11 mm, linear with all morphs), a 30 mm eye opening with the corners leaving the eyeball (inner corner 15 mm from the face midline), fuller lips and a 2 mm wider mouth, a smaller `eye_size` range (no slit at −1), a corrective shape for eye distance × eye depth, head size weakly tied to frame in the randomizer (r ≈ 0.24, independent of gender). The head height turned out to be within the adult range (22.5 cm), so it was not changed | `test_head` 43 (extremes 4.07 mm), `test_skin` 61 (make-up landmarks match the head), `test_character_v2` 43 (head size × frame); Blender renders of 12 faces from 3–4 angles inspected (`docs/images/c3b-face-run18-*.jpg`) |
 | ✅ **C4b+** (run 19) | Hair details: finer shell edge at the temples (split triangles, longest edge across the hairline 18 → 8.6 mm), irregular braids and locs that frame the face (≥ 8.5 cm from the midline), a full beard that ends under the jaw, without vertical columns or a gap under the lip; damping of extremes as a soft zone in the editor sliders moves to C6 | `test_hair` 60; Blender render of braids, locs, undercut with full beard, short beard and short hair inspected (`docs/images/c4bp-hair-run19.jpg`) |
-| ⭐ **Mental health axis 1** | The shared framework of interpretable dimensions (see [mental-health.md](mental-health.md#plan-one-axis-per-run)), then C5 clothing | Agency tests, full/muted/off switch, diversity test |
+| ✅ **Mental health axis 1** (run 20) | `PsycheModel`: personality P (6 axes, optional in schema v5), 9 dispositions D, condition profiles as data with limited, explained modulations and an acyclic coupling graph; only the residual (individuality, explicit personality) drives four MentalState hooks, so nothing is counted twice; values deferred (see [mental-health.md](mental-health.md#psyche-model-axis-1-run-20)) | `test_psyche` 93/93 |
+| ⭐ next run | **C5 clothing**, then an integrated play-through (create a character → enter the world → 3–7 game days, as suggested by the third reviewer) | Clothing follows body morphs, selection by situation, replication |
 | ✅ **C4a** | Skin: `SkinModel` (Beer–Lambert with melanin, haemoglobin and carotene), `SkinLayers` (freckles, moles, acne, vitiligo, wrinkles, age spots, scars, tattoos, make-up, eyebrows, stubble), `skin.gdshader` (SSS, rest-pose masks, 8 tattoo motifs, LOD), schema v3 | `test_skin` |
 | ✅ **C4b** | Hair, beards and eyebrows as hair cards: 16 hairstyles (cards, braids and locs as tubes, cornrows, shells for buzz cut, undercut and afro, bun, ponytail), 6 eyebrow shapes, 5 beard styles, receding hairline, strand-by-strand greying, dyed hair; morph transfer, shared mesh per style, threaded first build in the game | `test_hair` 55: budgets, no head penetration, face clear, hair lies on chest and back, eyebrow coverage, determinism (also threaded versus synchronous), morphs and bones, SimVisual; Blender render reviewed |
 | ⬜ **C5** | Clothing: everyday, work, formal, sleepwear, sport. Cuts independent of the body (morph transfer), PBR materials, changing by situation | Clothing follows body morphs, selection by situation, multiplayer replication |
@@ -41,8 +42,8 @@ Eight steps, each one complete and tested. Principles and details are in
   - ⬜ Personality disorders.
   - ⬜ Self-harm and eating disorders, only through emotions and consequences, hidden by default.
   - ⬜ Dialogue with narrowed choices.
-  - ⬜ **Expansion, one axis per run** (see [mental-health.md](mental-health.md#plan-one-axis-per-run)):
-    1. a framework of 9 dimensions;
+  - 🟡 **Expansion, one axis per run** (see [mental-health.md](mental-health.md#plan-one-axis-per-run)):
+    1. ✅ a framework of 9 dimensions (run 20);
     2. social anxiety and fear of rejection;
     3. burnout and anxious depression;
     4. OCD;
@@ -105,6 +106,9 @@ Eight steps, each one complete and tested. Principles and details are in
 - ⬜ Save and load.
 - ⬜ Legal and illegal careers; an economy with debt, enforcement and poverty.
 - ⬜ Emergent stories with lasting consequences; a character diary.
+- ⬜ Later blocks proposed in the room, not scheduled yet: a fictional currency with integer amounts, a
+  ledger with a hash chain, loans, taxes and enforcement as processes; a social-protection model; values and
+  worldview (layer V of the psyche model) once something consumes them.
 
 ## Web version
 

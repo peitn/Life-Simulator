@@ -1,0 +1,26 @@
+{
+	"id": "depression",
+	"label_cs": "Depresivní porucha",
+	"desc_cs": "Ne smutek, ale vyhaslost: věci, které dřív těšily, jsou šedé a i začít něco stojí obrovskou sílu.",
+	"effects_cs": "Sklon k obdobím skleslosti: méně radosti a energie začít; pomáhá aktivita, kontakt, spánek a čas.",
+	"content_tag": "mental_health",
+	"severity": [0.0, 1.0],
+	"legacy": {
+		"sensitivity": 0.05,
+		"threat_bias": 0.1,
+		"social": 0.15,
+		"panic": false,
+		"dep": 0.8
+	},
+	"modulations": [
+		{"target": "D.reward_sensitivity", "op": "add", "amount": -0.2, "scale": "severity",
+			"why": "Činnosti přinášejí méně radosti, než by měly (anhedonie)."},
+		{"target": "D.energy_baseline", "op": "add", "amount": -0.15, "scale": "severity",
+			"why": "Méně energie začít, i když na tom záleží."},
+		{"target": "D.cognitive_flexibility", "op": "add", "amount": -0.08, "scale": "severity",
+			"why": "Myšlenky se snáz zaseknou ve smyčce (ruminace)."}
+	],
+	"keeps_need": "social",
+	"thought_pools": ["low", "low_morning"],
+	"copings_affinity": {"walk": 0.1, "hide": 0.2}
+}

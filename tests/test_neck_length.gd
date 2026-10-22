@@ -34,9 +34,9 @@ func _valid_base() -> Dictionary:
 
 
 func _test_schema() -> void:
-	section("Schéma v4")
+	section("Schéma v4+ (neck_length od v4)")
 	var spec: Array = Schema.fields("body").get("neck_length", [])
-	check(Schema.VERSION == 4, "verze schématu 4")
+	check(Schema.VERSION >= 4, "verze schématu ≥ 4 (%d)" % Schema.VERSION)
 	check(spec == ["f", -1.0, 1.0, 0.0], "body.neck_length: float −1..1, výchozí 0 (%s)" % str(spec))
 	check(Schema.is_public("body", "neck_length"), "délka krku je veřejná (vzhled se replikuje)")
 	check(float(Schema.defaults()["body"]["neck_length"]) == 0.0, "výchozí postava má neck_length 0")
@@ -50,7 +50,7 @@ func _test_migration() -> void:
 	v3["body"].merge({"height_cm": 181.5, "head_size": 0.4, "leg_length": 0.62, "shoulders": 0.71}, true)
 	var r := Codec.from_dict(v3.duplicate(true))
 	var out: Dictionary = r["data"]
-	check(bool(r["ok"]) and int(r["from_version"]) == 3 and int(out.get("v", 0)) == 4, "v3 se načte jako v4", str(r["errors"]))
+	check(bool(r["ok"]) and int(r["from_version"]) == 3 and int(out.get("v", 0)) == Schema.VERSION, "v3 se načte jako aktuální verze", str(r["errors"]))
 	check(out.get("body", {}).get("neck_length", null) == 0.0, "chybějící neck_length = 0 (nová výchozí délka)")
 	var same := true
 	for k in v3["body"]:
@@ -73,13 +73,13 @@ func _test_migration() -> void:
 	(v1["skin"] as Dictionary).erase("detail_seed")
 	(v1["body"] as Dictionary).erase("neck_length")
 	var r1 := Codec.from_dict(v1)
-	check(bool(r1["ok"]) and int(r1["data"]["v"]) == 4 and r1["data"]["body"]["neck_length"] == 0.0 and r1["data"]["face"].has("asym_eyes"),
-		"řetěz migrací v1 → v4", str(r1["errors"]))
+	check(bool(r1["ok"]) and int(r1["data"]["v"]) == Schema.VERSION and r1["data"]["body"]["neck_length"] == 0.0 and r1["data"]["face"].has("asym_eyes"),
+		"řetěz migrací v1 → aktuální", str(r1["errors"]))
 	var mig := Codec.migrate(v3.duplicate(true))
 	check(bool(mig["ok"]) and mig["data"]["body"]["neck_length"] == 0.0 and not v3["body"].has("neck_length"), "migrace nemění vstupní slovník (kopie)")
 	var newer := _valid_base()
-	newer["v"] = 5
-	check(not bool(Codec.from_dict(newer)["ok"]), "postava z novější verze (5) se odmítne")
+	newer["v"] = Schema.VERSION + 1
+	check(not bool(Codec.from_dict(newer)["ok"]), "postava z novější verze (%d) se odmítne" % (Schema.VERSION + 1))
 
 
 func _test_round_trip() -> void:

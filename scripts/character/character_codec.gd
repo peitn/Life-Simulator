@@ -4,7 +4,7 @@ extends RefCounted
 ##   - krátký sdílecí kód  LSC1.<base64url(zlib(JSON))>.<crc32 hex>  (do chatu, na fórum, do hello v MP),
 ##   - migrace starších verzí (v0 = původní formát domácnosti: jméno + pohlaví + barva + hash jména;
 ##     v1 → v2: jedna „asymmetry“ → tři osy asymetrie obličeje, důlek v bradě 0..1; v2 → v3: skin.detail_seed;
-##     v3 → v4: body.neck_length = 0).
+##     v3 → v4: body.neck_length = 0; v4 → v5: personality.hexaco = {}, personality.psyche_seed z uid).
 ## Každý vstup z venku (soubor, kód, síť) projde: limity velikosti → CRC → JSON → migrace → validátor.
 
 const Schema := preload("res://scripts/character/character_schema.gd")
@@ -153,6 +153,8 @@ static func migrate(d) -> Dictionary:
 		data = _v2_to_v3(data)
 	if v <= 3:
 		data = _v3_to_v4(data)
+	if v <= 4:
+		data = _v4_to_v5(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -199,6 +201,21 @@ static func _v3_to_v4(src: Dictionary) -> Dictionary:
 	var body = d.get("body", null)
 	if typeof(body) == TYPE_DICTIONARY and not body.has("neck_length"):
 		body["neck_length"] = 0.0
+	return d
+
+
+## v4 → v5 (běh 20): osobnost a individualita psychiky. hexaco {} = všechny osy z rysů (chování beze změny);
+## psyche_seed jednou z náhodného uid (ne ze jména), dál obyčejný atribut. Existující hodnoty se nepřepisují.
+static func _v4_to_v5(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 5
+	var pers = d.get("personality", null)
+	if typeof(pers) == TYPE_DICTIONARY:
+		if not pers.has("hexaco"):
+			pers["hexaco"] = {}
+		if not pers.has("psyche_seed"):
+			var uid = d.get("uid", "")
+			pers["psyche_seed"] = int(LSX.crc32(("psyche:" + String(uid)).to_utf8_buffer()) & 0xFFFF) if typeof(uid) == TYPE_STRING and String(uid) != "" else 0
 	return d
 
 

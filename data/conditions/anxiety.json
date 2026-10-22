@@ -1,0 +1,28 @@
+{
+	"id": "anxiety",
+	"label_cs": "Úzkostná porucha",
+	"desc_cs": "Mozek vyhodnocuje běžné situace jako hrozbu. Tělo reaguje dřív, než stihneš přemýšlet.",
+	"effects_cs": "Citlivější reakce na stres a spouštěče, možné panické ataky; pomáhá dýchání, opora a postupná expozice.",
+	"content_tag": "mental_health",
+	"severity": [0.0, 1.0],
+	"legacy": {
+		"sensitivity": 0.35,
+		"threat_bias": 0.5,
+		"social": 0.6,
+		"panic": true,
+		"dep": 0.25
+	},
+	"modulations": [
+		{"target": "D.threat_sensitivity", "op": "add", "amount": 0.25, "scale": "severity",
+			"why": "Nejasné situace se snáz čtou jako nebezpečí."},
+		{"target": "D.social_threat", "op": "add", "amount": 0.15, "scale": "severity",
+			"why": "Lidé kolem a jejich reakce působí riskantněji (sociální složka úzkosti)."},
+		{"target": "D.regulation_capacity", "op": "add", "amount": -0.12, "scale": "severity",
+			"why": "Tělesné napětí odeznívá pomaleji."},
+		{"target": "D.predictability_need", "op": "add", "amount": 0.1, "scale": "severity",
+			"why": "Nejistota je nepříjemnější, víc záleží na tom vědět, co přijde."}
+	],
+	"keeps_need": "social",
+	"thought_pools": ["social", "after_chat", "body", "future"],
+	"copings_affinity": {"breathe": 0.2, "hide": 0.2}
+}

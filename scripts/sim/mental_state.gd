@@ -27,26 +27,27 @@ extends RefCounted
 const Grammar := preload("res://scripts/core/grammar_cs.gd")
 const Depression := preload("res://scripts/sim/depression.gd")
 
-const CONDITIONS := {
-	"anxiety": {
-		"label": "Úzkostná porucha",
-		"desc": "Mozek vyhodnocuje běžné situace jako hrozbu. Tělo reaguje dřív, než stihneš přemýšlet.",
-		"sensitivity": 0.35,  # zvýšení výchozí citlivosti při závažnosti 1
-		"threat_bias": 0.5,   # jak moc zesiluje vnímanou hrozbu
-		"social": 0.6,        # sociální složka (hovory, lidé kolem)
-		"panic": true,
-		"dep": 0.25,          # úzkost a deprese chodí často spolu
-	},
-	"depression": {
-		"label": "Depresivní porucha",
-		"desc": "Ne smutek, ale vyhaslost: věci, které dřív těšily, jsou šedé a i začít něco stojí obrovskou sílu.",
-		"sensitivity": 0.05,
-		"threat_bias": 0.1,
-		"social": 0.15,
-		"panic": false,
-		"dep": 0.8,
-	},
-}
+const PsycheModel := preload("res://scripts/psyche/psyche_model.gd")
+
+## Diagnózy (predispozice) – od běhu 20 DATA v res://data/conditions/<id>.json (PsycheModel). Tady jen
+## pohled na blok „legacy“ (čísla dnešní mechaniky: sensitivity, threat_bias, social, panic, dep) + popisky,
+## aby zbytek kódu (MentalState.CONDITIONS[id]["…"]) zůstal beze změny. Neplatný profil se nenačte (push_error).
+static var CONDITIONS: Dictionary = _load_conditions()
+
+
+static func _load_conditions() -> Dictionary:
+	var out := {}
+	var profs: Dictionary = PsycheModel.profiles()
+	for id in profs:
+		var p: Dictionary = profs[id]
+		if typeof(p.get("legacy")) != TYPE_DICTIONARY:
+			continue   # profil bez dnešní mechaniky (další osy) působí jen přes PsycheModel
+		var e: Dictionary = (p["legacy"] as Dictionary).duplicate()
+		e["label"] = String(p.get("label_cs", id))
+		e["desc"] = String(p.get("desc_cs", ""))
+		out[id] = e
+	return out
+
 
 ## Copingy: krátkodobá úleva × dlouhodobý dopad × cena. Čísla jsou plné účinky
 ## (násobí se habituací, regulací a kontextem). Klíče:
@@ -165,6 +166,10 @@ var dep
 ## Vliv povahy na zranitelnost depresí (Traits „dep_vuln“, může být záporný = ochranný).
 var trait_dep := 0.0
 var _hour := 12
+## Háčky PsycheModel pro režimy obsahu {"full"|"muted"|"off": {...}} – jen reziduum individuality (viz
+## psyche_model.gd); bez CharacterData neutrální (staré chování beze změny).
+var psy_hooks := {}
+var _couple_acc := 0.0
 
 
 func _init(p_rng: RandomNumberGenerator = null, p_grammar: Variant = false) -> void:
@@ -177,6 +182,27 @@ func _init(p_rng: RandomNumberGenerator = null, p_grammar: Variant = false) -> v
 ## Zranitelnost depresí 0..1 (predispozice, komorbidní úzkost, temperament).
 func dep_vulnerability(cfg: Dictionary = {}) -> float:
 	return clampf(_cond_param("dep", cfg) + trait_vuln * 0.5 + trait_dep, 0.0, 1.0)
+
+
+## Nastaví háčky psychiky (PsycheModel.hooks_by_mode); {} = neutrální.
+func set_psyche(by_mode: Dictionary) -> void:
+	psy_hooks = by_mode.duplicate(true) if typeof(by_mode) == TYPE_DICTIONARY else {}
+
+
+## Režim obsahu z cfg: conditions=false → off, episodes=false → muted, jinak full (cfg["mode"] má přednost).
+static func cfg_mode(cfg: Dictionary) -> String:
+	if cfg.has("mode"):
+		return String(cfg["mode"])
+	if not bool(cfg.get("conditions", true)):
+		return "off"
+	return "full" if bool(cfg.get("episodes", true)) else "muted"
+
+
+func _hk(key: String, cfg: Dictionary, def: Variant) -> Variant:
+	if psy_hooks.is_empty():
+		return def
+	var h: Dictionary = psy_hooks.get(cfg_mode(cfg), psy_hooks.get("full", {}))
+	return h.get(key, def)
 
 
 # ---------------------------------------------------------------- zranitelnost
@@ -265,7 +291,7 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	if sleeping:
 		target *= 0.6
 	target = clampf(target, 0.0, 100.0)
-	var tau := 6.0 if target > arousal else (40.0 / (0.6 + reg))
+	var tau := 6.0 if target > arousal else (40.0 / (0.6 + reg)) * float(_hk("arousal_decay_tau", cfg, 1.0))
 	if panic_active:
 		tau = 20.0 / (0.6 + reg + support)  # ataka sama odezní (typicky 5–15 min, ne hodiny)
 		if bool(ctx.get("grounding", false)):
@@ -303,11 +329,24 @@ func tick(dm: float, ctx: Dictionary) -> void:
 		panic_elapsed += dm
 		if (panic_elapsed >= PANIC_MIN_MINUTES and arousal < PANIC_END) or panic_elapsed >= PANIC_MAX_MINUTES:
 			end_panic()
-	elif arousal >= PANIC_THRESHOLD and panic_cooldown <= 0.0 and not sleeping and can_panic(cfg):
+	elif arousal >= PANIC_THRESHOLD + float(_hk("panic_shift", cfg, 0.0)) and panic_cooldown <= 0.0 and not sleeping and can_panic(cfg):
 		# Hazard nezávislý na délce kroku: p = 1 − e^(−λ·dm).
-		var lam := 0.035 * s_eff * (arousal - PANIC_THRESHOLD + 4.0) / 10.0
+		var lam := 0.035 * s_eff * (arousal - PANIC_THRESHOLD - float(_hk("panic_shift", cfg, 0.0)) + 4.0) / 10.0
 		if rng.randf() < 1.0 - exp(-lam * dm):
 			_start_panic()
+
+	# Vazby profilů (couple) – jednou za herní hodinu v pevném topologickém pořadí (nemůže oscilovat).
+	var couples: Array = _hk("couples", cfg, [])
+	if not couples.is_empty():
+		_couple_acc += dm
+		while _couple_acc >= 60.0:
+			_couple_acc -= 60.0
+			var st := PsycheModel.couple_step(couples, {"S.stress": stress / 100.0, "S.arousal": arousal / 100.0,
+				"S.threat": threat, "S.burden": dep.burden}, _hk("D", cfg, {}), 1.0)
+			stress = float(st["S.stress"]) * 100.0
+			arousal = float(st["S.arousal"]) * 100.0
+			threat = float(st["S.threat"])
+			dep.burden = float(st["S.burden"])
 
 	# Rušivé myšlenky.
 	_thought_cd -= dm
@@ -337,9 +376,9 @@ func on_stressor(kind: String, amount: float, cfg: Dictionary = {}) -> void:
 	var bias := 1.0 + _cond_param("threat_bias", cfg) + trait_vuln * 0.6
 	var social := _cond_param("social", cfg)
 	stress = clampf(stress + amount, 0.0, 100.0)
-	var th := amount / 40.0 * bias
+	var th := amount / 40.0 * bias * float(_hk("threat_gain", cfg, 1.0))
 	if kind == "crowd":
-		th = amount / 40.0 * (0.3 + social * 1.5 + trait_vuln)
+		th = amount / 40.0 * (0.3 + social * 1.5 + trait_vuln) * float(_hk("crowd_gain", cfg, 1.0))
 	threat = clampf(threat + th, 0.0, 1.0)
 
 
@@ -516,12 +555,12 @@ func sleep_quality() -> float:
 ## Jak náročné jsou teď sociální akce (0 = běžné, 1 = velmi) – nikdy je nezamyká.
 func social_difficulty(cfg: Dictionary = {}) -> float:
 	var social := _cond_param("social", cfg) + trait_vuln * 0.5
-	return clampf((arousal / 100.0) * (0.3 + social) + threat * social, 0.0, 1.0)
+	return clampf((arousal / 100.0) * (0.3 + social) + threat * social + float(_hk("social_cost", cfg, 0.0)), 0.0, 1.0)
 
 
 ## Chuť na coping (pro utility AI). Nezdravé copingy lákají víc, když je postava vyčerpaná
 ## (nízká regulace) nebo impulzivní; zdravé, když má kapacitu.
-func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsive := false) -> float:
+func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsive := false, cfg: Dictionary = {}) -> float:
 	var def: Dictionary = COPINGS.get(id, {})
 	if def.is_empty():
 		return 0.0
@@ -531,9 +570,9 @@ func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsi
 	var reg := regulation(energy, hunger)
 	var k := habituation(id, now)
 	if bool(def.get("healthy", false)):
-		k *= 0.5 + reg * 0.7 + mastery * 0.3
+		k *= (0.5 + reg * 0.7 + mastery * 0.3) * float(_hk("healthy_appeal", cfg, 1.0))
 	else:
-		k *= 0.5 + (1.0 - reg) * 0.9 + (0.5 if impulsive else 0.0)
+		k *= (0.5 + (1.0 - reg) * 0.9 + (0.5 if impulsive else 0.0)) * float(_hk("unhealthy_appeal", cfg, 1.0))
 		if id == "drink":
 			k *= 1.0 + tolerance * 0.8  # návyk: čím častěji, tím víc to táhne
 	return need * k

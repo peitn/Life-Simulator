@@ -422,6 +422,8 @@ class _V:
 				return _traits(path, val)
 			"predisp":
 				return _predisp(path, val)
+			"axes":
+				return _axes(path, val, spec[1], float(spec[2]), float(spec[3]))
 		err(path, "neznámý typ pole")
 		return def
 
@@ -503,6 +505,28 @@ class _V:
 				f = clampf(f, 0.0, 1.0)
 			if f > 0.0:
 				res[String(k)] = CV.quant(f)
+		return res
+
+	## Slovník os {osa: číslo} (HEXACO): jen osy z katalogu, čísla v rozsahu (kvantovaná); chybějící osa = odvozená.
+	func _axes(path: String, val, catalog: Dictionary, lo: float, hi: float) -> Dictionary:
+		var res := {}
+		if typeof(val) != TYPE_DICTIONARY or (val as Dictionary).size() > MAX_COLLECTION:
+			err(path, "není slovník")
+			return res
+		for k in val:
+			if typeof(k) != TYPE_STRING or not catalog.has(k):
+				_unknown("%s.%s" % [path, str(k).substr(0, 24)], "neznámá osa")
+				continue
+			var x = val[k]
+			if not CV._is_num(x):
+				err("%s.%s" % [path, k], "není číslo")
+				continue
+			var f := float(x)
+			if f < lo or f > hi:
+				if strict:
+					err("%s.%s" % [path, k], "mimo rozsah %s–%s" % [str(lo), str(hi)])
+				f = clampf(f, lo, hi)
+			res[String(k)] = CV.quant(f)
 		return res
 
 	## Přesně povinné klíče + volitelně "hidden" (bool; ve veřejném snapshotu nepřípustné – skryté položky

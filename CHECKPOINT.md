@@ -1,24 +1,24 @@
 # CHECKPOINT
 
-**Stav: běh 19 dokončen (ruční spuštění, 22. 10. 2026 ~10:55–11:40 UTC).**
+**Stav: běh 20 dokončen (plánovaný, 22. 10. 2026 ~15:40–16:15 UTC).**
 
 ## Shrnutí
-- C4b+ detaily vlasů a vousů (hair_builder.gd): okraj skořepiny u spánků bez schodů (dělení trojúhelníků přes linii,
-  nejdelší hrana 18 → 8,6 mm); copánky a dredy nepravidelné (tloušťka, délka, tuhost, odklon, houpání; dredy bez
-  „korálků“) a rámují obličej (osa ≥ 8,5 cm od středu); plnovous končí pod čelistí (nejníž 1,517 m), bez sloupců,
-  bez mezery pod rtem.
-- Testy: test_hair 60/60 (+5 kontrol, průnik přesnou projekcí), test_assets 150/150, test_neck_seam 56/56,
-  test_character 157/157, godot_check 60/60, --test 7 OK. Gemini: 1 oprava, 5 zdůvodněně odmítnuto.
-- Render prohlédnutý: docs/images/c4bp-hair-run19.jpg.
-- Běh 18 (C3+ B obličej) byl dokončen předtím ve stejný den (payload ručního spuštění o něm nevěděl).
-- GitHub: push blokovaný proxy → ZIP pro ruční sync v res://previews/export (MD5 ve zprávě v místnosti).
+- 1. osa psychiky: `scripts/psyche/psyche_model.gd` (osobnost P 6 os, 9 dispozic D, profily úzkosti a deprese jako data
+  v `data/conditions/`, modulace s limity a „why“, acyklický graf vazeb, `explain()`); do 4 háčků MentalState jde jen reziduum
+  D − D_legacy (individualita z `personality.psyche_seed`, zadaná osobnost) → nic dvakrát; schéma v5 s migrací.
+- Testy: test_psyche 93/93 + regrese 20 sad beze změny, `--test 7` OK, hra 25 s bez chyb, godot_check 60/60.
+- Gemini: 6 bodů, 0 oprav (zdůvodněno). Self-review: 1 bug opraven.
+- GitHub: push blokovaný proxy → ZIP v res://previews/export (MD5 a počet dílů ve zprávě v místnosti).
 
-## Další krok (běh 20)
-- 1. osa psychiky – společný rámec dimenzí (docs/design/psyche-model.md), potom C5 oblečení.
+## Další krok (běh 21)
+- C5 oblečení + drobnosti vlasů z #145 (copánky/dredy textura, prameny na temeni); potom integrovaný průchod (#141).
 
 ## Rendery
-- docs/images/c4bp-hair-run19.jpg (běh 19), docs/images/c3b-face-run18-before.jpg / -after.jpg (běh 18)
+- tento běh žádné (bez vizuálních změn); poslední docs/images/c4bp-hair-run19.jpg
 
-## Změněné soubory (běh 19)
-- scripts/assets/hair_builder.gd, tests/test_hair.gd, tools/hair_export.gd, docs/images/c4bp-hair-run19.jpg,
-  docs/character-creator.md, docs/roadmap.md, docs/testing.md, README.md, ROADMAP.md, AUDIT.md, DEVLOG.md, CHECKPOINT.md
+## Změněné soubory (běh 20)
+- scripts/psyche/psyche_model.gd, data/conditions/anxiety.json, data/conditions/depression.json, tests/test_psyche.gd(.tscn),
+  scripts/sim/mental_state.gd, sim_agent.gd, utility_planner.gd, scripts/character/character_schema.gd, character_validator.gd,
+  character_codec.gd, character_randomizer.gd, tests/test_neck_length.gd, docs/mental-health.md, docs/design/psyche-model.md,
+  docs/character-creator.md, docs/testing.md, docs/roadmap.md, docs/architecture.md, README.md, ROADMAP.md, AUDIT.md,
+  DEVLOG.md, CHECKPOINT.md

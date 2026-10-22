@@ -27,7 +27,7 @@ automated development process (see [Development process](docs/development-proces
 | Area | State |
 |---|---|
 | Simulation core: needs, mood, 15 traits, utility AI, player commands | ✅ playable |
-| Mental health: stress, anxiety, panic, depression, coping, intrusive thoughts | ✅ base done, 🟡 expanding |
+| Mental health: stress, anxiety, panic, depression, coping, intrusive thoughts; psyche model (personality, 9 dispositions, conditions as data, run 20) | ✅ base done, ✅ axis 1, 🟡 expanding |
 | Relationships: grudges, guilt, apologies, reconciliation, jealousy, household dynamics (frictions, shared moments, life events, de-escalation) | ✅ |
 | Multiplayer: authoritative ENet server, private state, validation | ✅ |
 | Character creator: data model (C1), body (C2), face (C3), skin (C4a), hair, beards and eyebrows (C4b) | ✅ C1–C3 (neck, seam, neck length, face polish done), ✅ C4a, ✅ C4b (+ hair details, run 19) |
@@ -105,6 +105,8 @@ godot --headless --path . res://tests/test_household_dynamics.tscn
 main.gd / main.tscn     Main scene: builds the lot, household, camera, HUD; network session; headless test
 scripts/core/           Autoloads: GameClock, GameSettings (content settings), Czech grammar helper
 scripts/sim/            Simulation: agents, needs, mood, traits, utility AI, mental state, depression, relationships
+scripts/psyche/         Psyche model: personality, dispositions, condition profiles, modulations, explanations
+data/conditions/        Mental-health condition profiles as data (JSON)
 scripts/character/      Character creator back-end: data, schema, validator, codec, randomizer, morphs, skin
 scripts/assets/         Runtime asset library, LSX decoder, procedural head, character assembly, animations
 scripts/net/            Multiplayer session and protocol validation

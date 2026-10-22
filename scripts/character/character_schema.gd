@@ -22,6 +22,7 @@ extends RefCounted
 ##   ["name", min_len, max_len]   – jméno (písmena, mezera, spojovník, apostrof, tečka)
 ##   ["text", max_len, víceřádkový?] – volný text (bez řídicích/bidi znaků; v BBCode UI escapovat přes CharacterValidator.display_safe)
 ##   ["color", výchozí]           – barva "#rrggbb"
+##   ["axes", katalog, min, max]   – slovník {osa z katalogu: číslo v rozsahu}; chybějící osa = odvozená
 ## Pole, která v datech chybí, doplní validátor výchozí hodnotou (kromě povinných jmen).
 
 ## v2 (běh 9): obličej má 3 explicitní osy asymetrie místo jedné velikosti (asym_eyes / asym_mouth /
@@ -32,7 +33,10 @@ extends RefCounted
 ##     tlačítko „jiné rozmístění“), nikdy ze jména. Migrace v2 → v3 ho jednou odvodí z náhodného uid postavy.
 ## v4 (běh 13): body.neck_length −1..1 (délka krku ±15 mm ≈ ±17 %, 0 = anatomicky upravená výchozí délka).
 ##     Migrace v3 → v4 doplní 0; ostatní proporce se nemění.
-const VERSION := 4
+## v5 (běh 20, 1. osa psychiky): personality.hexaco {osa: −1..1} (volitelná explicitní osobnost; chybějící osa se
+##     odvodí z rysů) a personality.psyche_seed 0..65535 (individualita psychiky, explicitní, nikdy ze jména). Obojí
+##     soukromé. Migrace v4 → v5: hexaco {} a seed jednou z náhodného uid (CharacterCodec._v4_to_v5).
+const VERSION := 5
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -100,6 +104,12 @@ const BOTTOMS := {
 const SHOES := {
 	"tenisky": "Tenisky", "polobotky": "Polobotky", "kozacky": "Kozačky", "lodicky": "Lodičky", "sandaly": "Sandály",
 	"pracovni": "Pracovní boty", "bacory": "Bačkory", "bosy": "Naboso",
+}
+
+## Osobnost – 6 os (HEXACO-like, −1..1): nízký pól ↔ vysoký pól. Rysy jsou předvolby nad nimi (PsycheModel.TRAIT_P).
+const HEXACO := {
+	"honesty": "Poctivost", "emotionality": "Emocionalita", "extraversion": "Extraverze",
+	"agreeableness": "Přívětivost", "conscientiousness": "Svědomitost", "openness": "Otevřenost",
 }
 
 const TRAIT_COST := {
@@ -232,6 +242,8 @@ const GROUPS := {
 	"personality": {"public_fields": ["traits"], "fields": {
 		"traits": ["traits"],
 		"aspirations": ["set", ASPIRATIONS, MAX_ASPIRATIONS],
+		"hexaco": ["axes", HEXACO, -1.0, 1.0],          # soukromé; {} = vše z rysů
+		"psyche_seed": ["i", 0, 65535, 0],             # soukromé; individualita psychiky (PsycheModel)
 	}},
 	"story": {"fields": {
 		"family": ["e", FAMILY, "neuvedeno"],
@@ -291,7 +303,7 @@ static func default_value(spec: Array) -> Variant:
 			return spec[2]
 		"set", "traits":
 			return []
-		"predisp":
+		"predisp", "axes":
 			return {}
 		"name", "text":
 			return ""
