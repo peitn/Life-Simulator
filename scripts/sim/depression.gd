@@ -48,6 +48,19 @@ const CONTACT_TAU := 360.0
 ## Minimální kvalita kontaktu, která vůbec ruší izolaci.
 const CONTACT_MIN_QUALITY := 0.2
 const MAX_EXPECT := 256
+## Závažnost epizody (rozpětí mírná → středně těžká → těžká, 23. 10. 2026). Hranice podle zátěže
+## s hysterezí (nahoru při UP, zpět až pod DOWN), aby se popis nepřeklápěl každou hodinu.
+const SEV_NAMES := ["", "Mírná depresivní epizoda", "Středně těžká depresivní epizoda", "Těžká depresivní epizoda"]
+const SEV_UP := [0.0, 0.0, 0.7, 0.82]
+const SEV_DOWN := [0.0, 0.0, 0.64, 0.76]
+## Těžkou epizodu potvrdí až zátěž nad hranicí aspoň půl herního dne (herní komprese jako u začátku epizody).
+const SEV_SEVERE_MINUTES := 720.0
+## Měkký „strop“ zátěže podle zranitelnosti: bez predispozice se zátěž ustálí kolem 0,7 (spíš mírné
+## epizody), u silné predispozice může dojít až k těžké. Velké životní události ho mohou překročit.
+const CEIL_BASE := 0.72
+const CEIL_VULN := 0.28
+## Zotavení podle závažnosti: z mírné epizody se postava zvedá snáz, z těžké pomaleji.
+const SEV_RECOVERY := [1.0, 1.15, 1.0, 0.75]
 
 var burden := 0.05
 var hedonic := 1.0
@@ -60,6 +73,12 @@ var vuln := 0.0
 var morning_pattern := false
 var episode_active := false
 var episode_count := 0
+## Aktuální závažnost epizody 0 = bez epizody, 1 mírná, 2 středně těžká, 3 těžká.
+var severity := 0
+## Nejvyšší závažnost v probíhající (nebo poslední) epizodě a počty epizod podle ní.
+var peak_severity := 0
+var severity_counts := [0, 0, 0]
+var severe_minutes := 0.0
 var expect := {}        # id akce -> [mu, n]
 var activity_log := {}  # id akce -> [počet (vyprchávající), čas posledního dokončení]
 var relief_recent := 0.0  # nedávná úleva z aktivit (vyprchává s RELIEF_TAU)
@@ -101,13 +120,16 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	if burden < floor_b:
 		gain += (floor_b - burden) * 0.0002
 	# Blízko stropu zátěž roste už jen pomalu (epizoda může trvat dlouho, ale nezamrzne na maximu).
-	gain *= clampf((1.0 - burden) / 0.3, 0.1, 1.0)
+	# Strop závisí na zranitelnosti: kdo nemá predispozici, zůstává spíš u mírné epizody.
+	var ceil_b := CEIL_BASE + CEIL_VULN * v
+	gain *= clampf((ceil_b - burden) / 0.2, 0.05, 1.0) * clampf((1.0 - burden) / 0.3, 0.1, 1.0)
 	# Zotavení: úměrné zátěži (nelineární), rychlejší ve spánku a s oporou, pomalejší ve stresu.
 	var rec := 0.00007 * (1.0 + support * 1.5) * (1.0 - 0.5 * v)
 	if sleeping:
 		rec *= 2.0
 	if stress > 60.0:
 		rec *= 0.6
+	rec *= SEV_RECOVERY[severity]
 	burden += (gain - rec * (0.3 + burden)) * dm
 	burden = clampf(burden, 0.0, _cap(cfg))
 	rumination *= exp(-dm / 240.0)
@@ -131,11 +153,50 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	if not episode_active and can_ep and above_at_start and burden > EPISODE_START and high_minutes >= EPISODE_MIN_MINUTES:
 		episode_active = true
 		episode_count += 1
+		# Závažnost se pozná podle hloubky, které zátěž dosáhla už během nástupu (severe_minutes běží i před epizodou).
+		severity = 1
+		peak_severity = 1
 	elif episode_active and (burden < EPISODE_END or not can_ep):
 		episode_active = false
 		high_minutes = 0.0
-		scar = clampf(scar + 0.05, 0.0, 0.3)
+		# Stopa po epizodě je tím silnější, čím těžší epizoda byla.
+		scar = clampf(scar + 0.03 + 0.02 * peak_severity, 0.0, 0.3)
+		severity_counts[clampi(peak_severity, 1, 3) - 1] += 1
+		severity = 0
+		severe_minutes = 0.0
+	if burden > SEV_UP[3]:
+		severe_minutes += dm
+	else:
+		severe_minutes = maxf(severe_minutes - dm * (2.0 if episode_active else 0.5), 0.0)
+	if high_minutes <= 0.0 and not episode_active:
+		severe_minutes = 0.0
+	if episode_active:
+		_update_severity(dm)
 	scar *= exp(-dm / 86400.0)
+
+
+## Závažnost s hysterezí; těžká až po delším trvání nad hranicí.
+func _update_severity(_dm: float) -> void:
+	var s := severity
+	if s < 2 and burden > SEV_UP[2]:
+		s = 2
+	if s < 3 and severe_minutes >= SEV_SEVERE_MINUTES:
+		s = 3
+	if s == 3 and burden < SEV_DOWN[3]:
+		s = 2
+	if s >= 2 and burden < SEV_DOWN[2]:
+		s = 1
+	severity = maxi(s, 1)
+	peak_severity = maxi(peak_severity, severity)
+
+
+## Závažnost pro popis – i když byla epizoda nastavena zvenčí (testy, načtení), bez uložené závažnosti.
+func severity_level() -> int:
+	if not episode_active:
+		return 0
+	if severity > 0:
+		return severity
+	return 3 if burden > SEV_UP[3] else (2 if burden > SEV_UP[2] else 1)
 
 
 func _cap(cfg: Dictionary) -> float:
@@ -262,17 +323,22 @@ func on_rumination(hours: float) -> void:
 
 # ---------------------------------------------------------------- vliv na simulaci
 
+## Těžká epizoda přidává k účinkům zátěže ještě vlastní složku (únava, horší spánek, stažení).
+func _sev_extra() -> float:
+	return [0.0, 0.0, 0.05, 0.15][severity_level()]
+
+
 func energy_drain_mult() -> float:
-	return 1.0 + 0.35 * burden
+	return 1.0 + 0.35 * burden + _sev_extra()
 
 
 func sleep_quality_mult() -> float:
-	return 1.0 - 0.2 * burden
+	return 1.0 - 0.2 * burden - _sev_extra() * 0.5
 
 
 ## Únava táhne k posteli a gauči (ne zákaz čehokoli jiného).
 func rest_pull() -> float:
-	return 1.0 + 0.4 * burden
+	return 1.0 + 0.4 * burden + _sev_extra()
 
 
 ## Úroveň pro depresivní myšlenky (0 = žádné).
@@ -287,6 +353,11 @@ func mood_entries(hour: int) -> Array:
 			"strength": -lerpf(5.0, 24.0, clampf((burden - 0.2) / 0.8, 0.0, 1.0)), "remaining": -1.0})
 	if hedonic < 0.6:
 		out.append({"id": "anhedonie", "label": "Nic mě netěší", "emotion": "sklesly", "strength": -6.0, "remaining": -1.0})
+	match severity_level():
+		2:
+			out.append({"id": "tezke_dny", "label": "Všechno je těžké", "emotion": "sklesly", "strength": -4.0, "remaining": -1.0})
+		3:
+			out.append({"id": "tezke_dny", "label": "Sotva zvládám den", "emotion": "sklesly", "strength": -8.0, "remaining": -1.0})
 	if morning_drag(hour) > 0.08:
 		out.append({"id": "rano_nejhorsi", "label": "Ráno je nejhorší", "emotion": "sklesly", "strength": -6.0, "remaining": -1.0})
 	return out
@@ -295,7 +366,7 @@ func mood_entries(hour: int) -> Array:
 ## Slovní popis (bez čísel). Diagnostický název jen s povolenými tématy.
 func label(cfg: Dictionary = {}) -> String:
 	if episode_active and bool(cfg.get("conditions", true)):
-		return "Depresivní epizoda"
+		return SEV_NAMES[severity_level()]
 	if burden > 0.45:
 		return "Sklíčenost"
 	if burden > 0.25:
@@ -306,6 +377,8 @@ func label(cfg: Dictionary = {}) -> String:
 func to_dict() -> Dictionary:
 	return {"burden": burden, "hedonic": hedonic, "vigour": vigour, "pessimism": pessimism, "scar": scar,
 		"morning_pattern": morning_pattern, "episode_active": episode_active, "episode_count": episode_count,
+		"severity": severity, "peak_severity": peak_severity, "severity_counts": severity_counts.duplicate(),
+		"severe_minutes": severe_minutes,
 		"expect": expect.duplicate(true), "rumination": rumination, "isolation": isolation, "high_minutes": high_minutes,
 		"activity_log": activity_log.duplicate(true), "relief_recent": relief_recent, "relief_t": relief_t,
 		"contact_recent": contact_recent, "last_connection": _last_connection}
@@ -335,6 +408,14 @@ func from_dict(d: Dictionary) -> void:
 	morning_pattern = bool(d.get("morning_pattern", false))
 	episode_active = bool(d.get("episode_active", false))
 	episode_count = int(_num(d.get("episode_count", 0), 0.0, 10000.0, 0.0))
+	severity = int(_num(d.get("severity", 0), 0.0, 3.0, 0.0)) if episode_active else 0
+	peak_severity = int(_num(d.get("peak_severity", 0), 0.0, 3.0, 0.0))
+	severe_minutes = _num(d.get("severe_minutes", 0.0), 0.0, 1.0e6, 0.0)
+	severity_counts = [0, 0, 0]
+	var sc = d.get("severity_counts", [])
+	if typeof(sc) == TYPE_ARRAY and sc.size() == 3:
+		for i in 3:
+			severity_counts[i] = int(_num(sc[i], 0.0, 10000.0, 0.0))
 	isolation = clampf(isolation, 0.0, 1.0e6)
 	high_minutes = clampf(high_minutes, 0.0, 1.0e6)
 	relief_recent = _num(d.get("relief_recent", 0.0), 0.0, 10.0, 0.0)
