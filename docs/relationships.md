@@ -129,3 +129,33 @@ between them.
 - Worldview axes and "who knows what about whom", with coming out as an optional, contextual process.
 - Household dynamics in multiplayer: a per-player opt-out from being the target of frictions, and spatial
   filtering when lots hold many characters (the pair check is O(n²) per 10 game minutes).
+
+## Crowded households (tuning of 23 October 2026)
+
+A stress test with 7 characters for 30 game days collapsed: 5 of 7 ended in a permanent depressive episode, 68 % of
+conversations were arguments and there were 573 noise frictions. Control runs showed the cause was the scaling of social
+systems with the number of people (pair-wise frictions and shared moments grow with n²), not the illnesses or the furniture:
+7 healthy characters collapsed too, and 4 extra beds did not help. The tuning (`sensory_profile.gd` and changes in
+`household_dynamics.gd`, `sim_agent.gd`, `mental_state.gd`, `depression.gd`, `utility_planner.gd`, `action_library.gd`):
+
+- **Individual sensitivities** (`SensoryProfile`, deterministic from traits, predispositions and the character's seed, never
+  from the name): noise sensitivity (a lazy sleeper sleeps through anything, an anxious one wakes up), crowd sensitivity
+  (a loner is drained, a sociable person barely notices), joy sensitivity, light sensitivity and an **anticipation
+  threshold**. Characters get used to noise and crowds over time (habituation, max 0.7, fades over ~10 days).
+- **Noise:** probability × sensitivity × (1 − habituation) × distance fall-off²; one sleeper is annoyed by noise at most once
+  per cooldown, however many sources there are.
+- **Daily patience:** after two frictions in a day, further ones weigh less (1, 1, 0.5, 0.33 …).
+- **Crowds:** stress per extra person × crowd sensitivity; a liked person (relationship > 30) counts half. Since run 23,
+  only while awake (sleeping next to others is not crowd stress).
+- **Shared moments:** at most one per person per 2 hours (a film with 7 people no longer creates 21 moments at once).
+- **Joy capacity:** pleasant moodlets (a nice conversation, shared moments, good news, being listened to, reconciliation,
+  new **morning light**) scale with `joy_sens × liking × (1 − 0.45 × high-stress share)`; too weak a joy is not felt at all.
+- **Anticipation threshold:** expected pleasure must exceed a personal threshold to motivate fully (low for optimists and
+  playful characters, high for cynics and grumps); pessimism and stress raise it. Nothing ever drops to zero.
+- **The body comes first:** at critical hunger (< 15) or exhaustion (< 12) everything that does not address it loses most of
+  its appeal. This fixed a loop of “fall asleep → hunger wakes me → TV → sleep again”.
+- **Emergency sleep** (`sleep_floor`, “sleeps in the armchair”) when beds and the sofa are taken; worse than the sofa.
+
+Measured (local Godot 4.7.2, 30 days, 4 seeds per household): 3-person household arguments 18–29 %, all moods positive;
+7 healthy characters arguments 16–24 %, nobody collapses; 7 characters with predispositions arguments 14–23 %, the severe
+cases have episodes **with recovery** (no saturation), panic attacks 0–2 per month, at most ~1 drink a day.

@@ -514,6 +514,11 @@ func _apply_colors() -> void:
 	set_col.call("eye_iris", lp.get("iris", Color(0.3, 0.42, 0.55)))
 	set_col.call("eye_limbus", lp.get("limbus", Color(0.14, 0.2, 0.27)))
 	set_col.call("eye_lash", lp.get("lash", Color(0.06, 0.045, 0.035)))
+	# běh 22: tmavší kořen řas – barva vrcholů karet (HeadBuilder) násobí albedo
+	if _mats.has("eye_lash") and _mats["eye_lash"] is StandardMaterial3D:
+		(_mats["eye_lash"] as StandardMaterial3D).vertex_color_use_as_albedo = true
+	# běh 22: dutina úst není čistě černá – sliznice odvozená z kůže (stejný model pro všechny odstíny), ztmavená hloubkou
+	set_col.call("mouth_inner", skin_color.lerp(Color(0.50, 0.16, 0.16), 0.6).darkened(0.55))
 	set_col.call("teeth_enamel", lp.get("teeth", Color(0.93, 0.92, 0.87)))
 	set_col.call("mouth_gum", lp.get("gum", Color(0.78, 0.42, 0.44)))
 	set_col.call("mouth_tongue", lp.get("tongue", Color(0.74, 0.38, 0.4)))

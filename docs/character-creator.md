@@ -26,7 +26,7 @@ The character creator is the **current top priority** of development. It is buil
 | `character_schema.gd` | The **only** description of fields, ranges, defaults and catalogues. The validator, randomizer, migrations and the future editor's sliders are all generated from it. Field types: `f`, `i`, `b`, `e` (enum), `set`, `name`, `text`, `color`. |
 | `character_data.gd` | The Resource: `to_dict` / `set_from_dict`, `public_snapshot()` (an allowlist from the schema) and `private_part()`. |
 | `character_validator.gd` | `strict` mode for the server (any bad field rejects the data) and `repair` mode for imports (clamp, drop unknowns, fall back to defaults). Details below. |
-| `character_codec.gd` | Canonical JSON for template files, the share code `LSC1.<base64url(zlib(JSON))>.<crc32>`, and migrations v0 → v1 → v2 → v3 → v4 → v5. Every external input goes through size limits → CRC → JSON → migration → validator. |
+| `character_codec.gd` | Canonical JSON for template files, the share code `LSC1.<base64url(zlib(JSON))>.<crc32>`, and migrations v0 → v1 → v2 → v3 → v4 → v5 → v6 → v7. Every external input goes through size limits → CRC → JSON → migration → validator. |
 | `character_randomizer.gd` | A random character "with a sensible distribution, not chaos". Appearance is sampled independently of identity and gender. Supports attribute locks. |
 | `character_history.gd` | Undo/redo over whole canonical dictionaries (a few kB each). Slider drags merge into one step. |
 
@@ -48,6 +48,9 @@ Schema history:
   (0..65535, the character's individuality in the psyche model, never taken from the name). Migration
   v4 → v5 sets `hexaco` to `{}` (behaviour unchanged) and derives the seed once from the random uid. Both
   fields are excluded from the public snapshot. See [mental-health.md](mental-health.md#psyche-model-axis-1-run-20).
+- **v6** (run 21) adds facial details (`face.lash_*`, `face.teeth_*`) and `makeup.mascara`, see below.
+- **v7** (run 22) adds the skin type: `skin.type`, `skin.oiliness`, `skin.dryness` (public, migration v6 → v7 fills in a
+  normal skin), see [Skin micro detail and skin type](#skin-micro-detail-and-skin-type-c4c-run-22).
 
 ### Neck length and neck base (run 13)
 
@@ -150,6 +153,75 @@ Budget: the character is now about 19,300 triangles (lashes about 730, mouth par
 limit went from 18,000 to 20,000. Renders: `docs/images/c3pp-expressions-run21-before.jpg` (8 expressions × 4 views,
 before the smile and lash fixes) and `docs/images/c3pp-mouth-lashes-run21-after.jpg`. Known issue: a fully open mouth
 still has squarish corners.
+
+### Mouth, smile and lip fixes (run 22)
+
+The run 21 renders showed four problems, fixed in `HeadBuilder`:
+
+- **Open mouth.** The jaw rotation used to move every lower-lip vertex by the same angle, so the side columns of the lip
+  rings formed a vertical edge and the opening was a rectangle with sharp corners. The rotation weight now fades towards
+  the corners as `(1 − a²)^0.55` (`mouth_taper`, `a` = position along the mouth, ±1 at the corners) on the lips, the
+  cavity cap and the skin next to the mouth line. The opening is a lens with rounded ends; when the mouth opens the lips
+  narrow by 6 % and the upper lip lifts by up to 0.9 mm. The cavity is no longer black: `SimVisual` derives the mucosa
+  colour from the skin colour (the same rule for every skin tone).
+- **Smile.** The corners move further up (7.4 mm), out (5.8 mm) and back. A nasolabial fold (`nasolabial()`: a segment
+  from the nose wing to a point about 10 mm outside and below the corner) pushes the cheek forward on its outer side
+  with a shallow groove along it, the cheeks rise, and the lower lids rise more (Duchenne smile). The frown pulls the
+  corners down further (1.9 mm).
+- **Lips.** More volume (upper 5.2 mm, lower 6.2 mm forward at the default), a deeper Cupid's bow with two peaks under
+  the philtrum columns (the columns now diverge towards the peaks), a fuller lower lip with two soft "pillows", and a
+  sharper vermilion border (0.7 mm roll).
+- **Neck in profile.** Under the chin the jaw weight now falls off with depth (chin 1, throat about 0), and the
+  vertical ramp is longer, ending 2 mm above the seam band (the neck below 1.52 m never moves). The extra bend under the
+  chin with the jaw fully open went from about 50° to 29° (`previews/diag/jaw_profile.gd`, checked in
+  `test_face_detail`). The remaining bend comes from the coarse lattice under the chin (one quad spans the submental
+  area); a finer lattice there is a candidate for later.
+- **Eyelashes.** 24 + 13 wider cards per eye instead of 34 + 18 thin ones. Neighbouring cards lean towards each other at
+  the tip (clumps), the curl is stronger, the length variation smaller, and the root is darker (vertex colour 0.45 at the
+  lid, 1.0 at the tip, multiplied with the lash colour).
+
+### Skin micro detail and skin type (C4c, run 22)
+
+Schema **v7** adds three public fields to `skin` (migration v6 → v7 fills in a "normal" skin):
+
+| Field | Range | Default | Meaning |
+|---|---|---|---|
+| `type` | `normal` / `dry` / `combination` / `oily` | `normal` | *where* sebum and dryness show: T-zone (forehead, nose, chin) versus cheeks and body |
+| `oiliness` | 0..1 | 0.35 | sebum: shine, a thin clear-coat film, larger pores |
+| `dryness` | 0..1 | 0.25 | matte surface, more visible skin lines; very dry skin gets fine flakes |
+
+Choosing a type in the editor sets typical values (`Schema.SKIN_TYPE_PRESETS`); both strengths stay independently
+adjustable. The type is independent of gender, identity, skin tone and name. Sebum decreases with age (from about 45),
+dryness increases (from about 50) and skin weathering adds dryness and micro relief.
+
+`SkinLayers.micro()` turns this into shader parameters (quantized, identical on every peer): sebum and dryness per zone
+(`oil_t`, `oil_c`, `dry_t`, `dry_c`; a combination skin has an oily T-zone and drier cheeks), pore size, micro-relief
+strength and the vellus colour (the natural hair colour, lightened; dyeing the head hair does not change it).
+
+`skin.gdshader`:
+- **Roughness and specular by zone** replace the fixed "T-zone −0.08" of C4a. The default normal skin stays close to the
+  old look (T-zone −0.065). Sebum also raises specular and adds a thin clear-coat film.
+- **Pores** (one pit per cell of about 0.75 mm, finer on the eyelids, denser on the nose and cheeks), **skin lines**
+  (ridged noise) and the **age wrinkles** perturb the normal through screen-space derivatives (no tangents or textures,
+  positions in the rest pose `CUSTOM0`, so the detail stays put under morphs and animation). The detail switches off
+  when a pore is smaller than a pixel (`fwidth`) or the character is far away, so it does not shimmer. `micro_bump = 0`
+  disables it (quality setting).
+- **Very dry skin** gets small flakes and a slight ashy cast. That is a real effect that shows more on darker skin; it
+  does not change the skin tone model.
+- **Vellus hair** is a faint fuzz at the silhouette (rim light plus a Fresnel mix towards the vellus colour), almost
+  invisible with light hair.
+- None of the micro-detail code reads the melanin or the other chromophores, so it behaves the same on every skin tone
+  (`test_skin_micro` checks this in the shader source).
+
+`tests/test_skin_micro.gd` covers the schema, migration, strict server validation with fuzzing, the zones per type, age,
+quantization, determinism through the share code, independence from tone, gender and name, the randomizer
+distribution (normal 35 %, combination 30 %, dry 18 %, oily 17 %, adjusted for age) and locks, the public snapshot, the
+shader (parameters, compilation, the roughness formula against a CPU mirror, LOD) and performance.
+
+Visual check (run 23, Blender approximation of the shader, `docs/images/c4c-skin-types-run22.jpg` and
+`docs/images/c4c-expressions-run22-final.jpg`): normal, dry and combination skin read as intended; very dry skin shows
+sparse flakes in small groups. The oily type looked wet across the whole cheek, so its cheek sebum factor went from 0.8
+to 0.55 (the T-zone stays at 1.0). The Blender material is an approximation and looks glossier than the game shader.
 
 ## Appearance pipeline
 

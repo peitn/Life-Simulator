@@ -77,6 +77,27 @@ const PANIC_END := 55.0
 const PANIC_MIN_MINUTES := 5.0
 const PANIC_MAX_MINUTES := 25.0
 const PANIC_COOLDOWN := 360.0
+## Opakované ataky: každá ataka za posledních ~3 dny prodlouží refrakterní dobu (6 h → nejvýš 24 h);
+## tělo po sérii atak „nemá z čeho brát“ – zůstává vyčerpané a otupělé, ne v nekonečné smyčce.
+const PANIC_RECENT_WINDOW := 4320.0
+const PANIC_COOLDOWN_STEP := 0.75
+const PANIC_COOLDOWN_MAX := 1440.0
+## Vyčerpání po atace: snížený cíl aktivace na pár hodin.
+const PANIC_EXHAUST_MINUTES := 180.0
+const PANIC_EXHAUST_AROUSAL := 15.0
+## Měkký strop stresu: nad STRESS_SOFT se další stres přidává jen částečně (člověk „otupí“).
+const STRESS_SOFT := 70.0
+## Spontánní vlny úzkosti za den při závažnosti 1.0 (škáluje se kvadraticky se závažností).
+const SURGE_PER_DAY := 0.18
+## Váha neuspokojených potřeb ve stresu.
+## Váha neuspokojených potřeb ve spánku (násobí UNMET_WEIGHT): tělo ano, sociální a ostatní ne.
+const SLEEP_UNMET := {"hunger": 0.5, "energy": 0.0}
+const UNMET_WEIGHT := {"hunger": 1.0, "energy": 1.0, "hygiene": 0.4, "fun": 0.4, "social": 0.5, "comfort": 0.4}
+## Alkohol: každá další dávka v jednom dni uleví méně a láká méně (kocovina a „už mi to nepomáhá“).
+const DRINK_DAY_RELIEF_K := 0.5
+const DRINK_DAY_APPEAL_K := 1.2
+## Okno, ve kterém se dávky sčítají („dnes už toho bylo dost“) – ~16 h.
+const DRINK_WINDOW := 960.0
 const MAX_THOUGHTS := 6
 
 ## Rušivé myšlenky podle kontextu. Vždy subjektivní interpretace (UI je označí „myšlenka, ne fakt“).
@@ -152,6 +173,11 @@ var panic_active := false
 var panic_elapsed := 0.0
 var panic_cooldown := 0.0
 var panic_count := 0
+var panic_times: Array = []  # časy začátků atak (posledních pár dní)
+var panic_exhaust := 0.0
+var drink_times: Array = []  # časy posledních dávek (klouzavé okno DRINK_WINDOW)
+var surge_count := 0
+var _now := 0.0
 var coping_log := {}   # id -> Array[float] časů použití
 var coping_counts := {}
 var last_daily := {}   # id -> den posledního plného účinku
@@ -266,6 +292,8 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	var reg := regulation(energy, hunger)
 	var s_eff := effective_sensitivity(cfg)
 	_hour = int(ctx.get("hour", 12))
+	_now = float(ctx.get("now", _now))
+	panic_exhaust = maxf(panic_exhaust - dm, 0.0)
 
 	# Vnímaná hrozba rychle odeznívá (když se nic neděje, situace se „uklidní“).
 	threat *= exp(-dm / 25.0)
@@ -276,10 +304,18 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	for k in nd:
 		var v: float = float(nd[k])
 		if v < 25.0:
-			unmet += (25.0 - v) / 25.0
+			# Tělo (hlad, únava) stresuje naplno; zanedbaná hygiena, nuda nebo samota méně.
+			var wgt := float(UNMET_WEIGHT.get(String(k), 0.5))
+			if sleeping:
+				# Ve spánku samota, nuda ani hygiena nestresují; hlad jen napůl (běh 23: osamělá postava v depresi
+				# jinak přes noc nabírala ~17 bodů stresu „ze samoty“ a nikdy se nedostala z vysokého stresu).
+				wgt *= float(SLEEP_UNMET.get(String(k), 0.0))
+			unmet += (25.0 - v) / 25.0 * wgt
 	if unmet > 0.0:
-		stress += unmet * 0.045 * dm
-	var calm := 0.012 if not sleeping else 0.05
+		var add := unmet * 0.045 * dm * stress_gain_factor()
+		stress += add
+		stress_sources["needs"] = float(stress_sources.get("needs", 0.0)) + add
+	var calm := 0.012 if not sleeping else 0.07
 	calm *= reg * (1.0 + support)
 	stress -= calm * dm * (0.5 + stress / 100.0)
 	stress = clampf(stress, 0.0, 100.0)
@@ -290,6 +326,8 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	target -= (reg - 0.5) * 10.0
 	if sleeping:
 		target *= 0.6
+	if panic_exhaust > 0.0:
+		target -= PANIC_EXHAUST_AROUSAL * panic_exhaust / PANIC_EXHAUST_MINUTES
 	target = clampf(target, 0.0, 100.0)
 	var tau := 6.0 if target > arousal else (40.0 / (0.6 + reg)) * float(_hk("arousal_decay_tau", cfg, 1.0))
 	if panic_active:
@@ -322,6 +360,20 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	dep.tick(dm, {"stress": stress, "social": float(nd.get("social", 70.0)), "energy": energy,
 		"support": support, "sleeping": sleeping, "night": bool(ctx.get("night", false)), "hour": _hour,
 		"now": float(ctx.get("now", 0.0)), "cfg": cfg})
+
+	# Úzkostná porucha: občasná vlna úzkosti „z čista jasna“ (bez vnějšího spouštěče) – u těžké predispozice
+	# pár za měsíc. Ne každá vlna skončí atakou; zvládnutelnost a opora ji tlumí.
+	var anx := float(conditions.get("anxiety", 0.0)) if bool(cfg.get("conditions", true)) else 0.0
+	if anx > 0.0 and not sleeping:
+		var lam_s := anx * anx * SURGE_PER_DAY / 1440.0 * (1.2 - mastery * 0.6)
+		if rng.randf() < 1.0 - exp(-lam_s * dm):
+			threat = clampf(threat + rng.randf_range(0.3, 0.6), 0.0, 1.0)
+			arousal = clampf(maxf(arousal, 50.0 + 32.0 * anx * rng.randf_range(0.6, 1.25)), 0.0, 100.0)
+			surge_count += 1
+			# Vlna může přerůst v ataku – pravděpodobnost podle závažnosti, zvládnutelnosti a citlivosti.
+			var p_att := anx * (0.25 + 0.5 * (1.0 - mastery)) * (0.5 + s_eff)
+			if not panic_active and panic_cooldown <= 0.0 and can_panic(cfg) and rng.randf() < p_att:
+				_start_panic()
 
 	# Panická ataka.
 	panic_cooldown = maxf(panic_cooldown - dm, 0.0)
@@ -372,10 +424,40 @@ func new_day() -> void:
 # ---------------------------------------------------------------- události
 
 ## Stresor: kind = argue / insulted / insult / stigma / jealousy / crowd / witness_conflict
+## Kolik z přírůstku stresu se opravdu projeví (měkký strop nad STRESS_SOFT).
+## Kolik dávek alkoholu za posledních ~16 h.
+func recent_drinks(now: float) -> int:
+	var n := 0
+	for t in drink_times:
+		if now - float(t) < DRINK_WINDOW and now >= float(t):
+			n += 1
+	return n
+
+
+## Odkud stres přitekl (kumulativně, zdroj → body): „needs“, „crowd“, „argue“… Pro vysvětlení v UI („co mě
+## stresuje“) a diagnostiku zátěžových testů; čte se a nuluje zvenku (take_stress_sources). Neukládá se.
+var stress_sources := {}
+
+
+func take_stress_sources() -> Dictionary:
+	var d := stress_sources
+	stress_sources = {}
+	return d
+
+
+func stress_gain_factor() -> float:
+	if stress <= STRESS_SOFT:
+		return 1.0
+	return clampf((100.0 - stress) / (100.0 - STRESS_SOFT), 0.15, 1.0)
+
+
 func on_stressor(kind: String, amount: float, cfg: Dictionary = {}) -> void:
 	var bias := 1.0 + _cond_param("threat_bias", cfg) + trait_vuln * 0.6
 	var social := _cond_param("social", cfg)
-	stress = clampf(stress + amount, 0.0, 100.0)
+	var before := stress
+	stress = clampf(stress + amount * (stress_gain_factor() if amount > 0.0 else 1.0), 0.0, 100.0)
+	if stress > before:
+		stress_sources[kind] = float(stress_sources.get(kind, 0.0)) + stress - before
 	var th := amount / 40.0 * bias * float(_hk("threat_gain", cfg, 1.0))
 	if kind == "crowd":
 		th = amount / 40.0 * (0.3 + social * 1.5 + trait_vuln) * float(_hk("crowd_gain", cfg, 1.0))
@@ -469,8 +551,15 @@ func apply_coping(id: String, fraction: float, ctx: Dictionary) -> Dictionary:
 		dep.on_rumination((1.0 if id == "hide" else 0.5) * clampf(fraction, 0.0, 1.0))
 	if id == "drink":
 		# Tolerance: čím častěji, tím menší úleva; alkohol se počítá vždy celý.
-		d_ar *= 1.0 - tolerance * 0.7
-		d_st *= 1.0 - tolerance * 0.7
+		var recent := recent_drinks(now)
+		var day_k := 1.0 / (1.0 + DRINK_DAY_RELIEF_K * recent)
+		d_ar *= (1.0 - tolerance * 0.7) * day_k
+		d_st *= (1.0 - tolerance * 0.7) * day_k
+		# Do okna se počítá i nedopitá dávka (Gemini, běh 23: opakované přerušení pod 0,3 by obcházelo limit).
+		if fraction > 0.1:
+			drink_times.append(now)
+			while drink_times.size() > 12:
+				drink_times.pop_front()
 		alcohol = clampf(alcohol + float(def["alcohol"]) * clampf(fraction, 0.0, 1.0), 0.0, 1.0)
 		tolerance = clampf(tolerance + 0.04 * clampf(fraction, 0.0, 1.0), 0.0, 1.0)
 	arousal = clampf(arousal + d_ar, 0.0, 100.0)
@@ -504,6 +593,9 @@ func _start_panic() -> void:
 	panic_active = true
 	panic_elapsed = 0.0
 	panic_count += 1
+	panic_times.append(_now)
+	while panic_times.size() > 12:
+		panic_times.pop_front()
 	arousal = maxf(arousal, 92.0)
 
 
@@ -511,7 +603,12 @@ func end_panic() -> void:
 	if not panic_active:
 		return
 	panic_active = false
-	panic_cooldown = PANIC_COOLDOWN
+	var recent := 0
+	for t in panic_times:
+		if _now - float(t) < PANIC_RECENT_WINDOW:
+			recent += 1
+	panic_cooldown = minf(PANIC_COOLDOWN * (1.0 + PANIC_COOLDOWN_STEP * maxf(recent - 1, 0)), PANIC_COOLDOWN_MAX)
+	panic_exhaust = PANIC_EXHAUST_MINUTES
 	# Po atace zůstává vyčerpání a strach z další ataky (malý nárůst citlivosti).
 	sensitivity = clampf(sensitivity + 0.01, 0.02, 1.0)
 	stress = clampf(stress + 6.0, 0.0, 100.0)
@@ -575,6 +672,8 @@ func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsi
 		k *= (0.5 + (1.0 - reg) * 0.9 + (0.5 if impulsive else 0.0)) * float(_hk("unhealthy_appeal", cfg, 1.0))
 		if id == "drink":
 			k *= 1.0 + tolerance * 0.8  # návyk: čím častěji, tím víc to táhne
+			var rd := recent_drinks(now)
+			k /= 1.0 + DRINK_DAY_APPEAL_K * rd * rd  # dnes už toho bylo dost
 	return need * k
 
 
@@ -639,18 +738,19 @@ func to_dict() -> Dictionary:
 	return {"stress": stress, "arousal": arousal, "threat": threat, "sensitivity": sensitivity,
 		"mastery": mastery, "support": support, "conditions": conditions.duplicate(),
 		"trait_vuln": trait_vuln, "day_factor": day_factor, "alcohol": alcohol, "tolerance": tolerance,
-		"rebound": rebound, "panic_cooldown": panic_cooldown, "coping_log": coping_log.duplicate(true),
+		"rebound": rebound, "panic_cooldown": panic_cooldown, "panic_exhaust": panic_exhaust, "drink_times": drink_times.duplicate(), "coping_log": coping_log.duplicate(true),
 		"last_daily": last_daily.duplicate(), "trait_dep": trait_dep, "dep": dep.to_dict()}
 
 
 func from_dict(d: Dictionary) -> void:
 	for k in ["stress", "arousal", "threat", "sensitivity", "mastery", "support", "trait_vuln",
-			"day_factor", "alcohol", "tolerance", "rebound", "panic_cooldown", "trait_dep"]:
+			"day_factor", "alcohol", "tolerance", "rebound", "panic_cooldown", "panic_exhaust", "trait_dep"]:
 		if d.has(k):
 			set(k, float(d[k]))
 	conditions = d.get("conditions", {}).duplicate()
 	coping_log = d.get("coping_log", {}).duplicate(true)
 	last_daily = d.get("last_daily", {}).duplicate()
+	drink_times = (d.get("drink_times", []) as Array).duplicate() if typeof(d.get("drink_times", [])) == TYPE_ARRAY else []
 	panic_active = false
 	if typeof(d.get("dep")) == TYPE_DICTIONARY:
 		dep.from_dict(d["dep"])

@@ -158,6 +158,8 @@ static func migrate(d) -> Dictionary:
 		data = _v4_to_v5(data)
 	if v <= 5:
 		data = _v5_to_v6(data)
+	if v <= 6:
+		data = _v6_to_v7(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -235,6 +237,19 @@ static func _v5_to_v6(src: Dictionary) -> Dictionary:
 	var mk = d.get("makeup", null)
 	if typeof(mk) == TYPE_DICTIONARY and not mk.has("mascara"):
 		mk["mascara"] = 0.0
+	return d
+
+
+## v6 → v7 (běh 22): typ pleti. Chybějící pole = „normální“ pleť s výchozí mazovitostí a suchostí (shader pak dá
+## T-zóně stejnou drsnost jako dřív); existující hodnoty se nepřepisují.
+static func _v6_to_v7(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 7
+	var skin = d.get("skin", null)
+	if typeof(skin) == TYPE_DICTIONARY:
+		for k in ["type", "oiliness", "dryness"]:
+			if not skin.has(k):
+				skin[k] = Schema.default_value(Schema.GROUPS["skin"]["fields"][k])
 	return d
 
 

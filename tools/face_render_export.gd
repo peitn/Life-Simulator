@@ -104,7 +104,53 @@ static func _row(name: String, snap: Dictionary, ex: Dictionary) -> Dictionary:
 	for k in ["skin", "lips", "iris", "hair", "top", "bottom", "teeth", "gum", "tongue", "lash", "limbus"]:
 		if r.has(k) and typeof(r[k]) == TYPE_COLOR:
 			row[k] = _hex(r[k])
+	# běh 22: dutina úst jako v SimVisual (sliznice z kůže) a mikrodetail kůže pro materiál v Blenderu (skin_micro.py)
+	if r.has("skin") and typeof(r["skin"]) == TYPE_COLOR:
+		row["mouth"] = _hex((r["skin"] as Color).lerp(Color(0.50, 0.16, 0.16), 0.6).darkened(0.55))
+	var sl: Dictionary = r.get("skin_layers", {})
+	var mc := {}
+	for k in ["oil_t", "oil_c", "dry_t", "dry_c", "pore_size", "micro", "vellus", "pores", "wrinkles"]:
+		if sl.has(k):
+			mc[k] = float(sl[k])
+	if sl.has("vellus_color"):
+		var v: Vector3 = sl["vellus_color"]
+		mc["vellus_color"] = [v.x, v.y, v.z]
+	row["micro"] = mc
 	return row
+
+
+## Běh 22 (C3++ opravy + C4c): mimika po opravách a typy pleti na různých tónech kůže (mikrodetail musí fungovat všude).
+static func run22_rows() -> Array:
+	var base := _with(func(_d): pass)
+	var skin_row := func(t: String, tone: float, under: float, age: int, hair_mel: float) -> Dictionary:
+		return _with(func(d):
+			d["skin"]["type"] = t
+			var pr: Array = Schema.SKIN_TYPE_PRESETS[t]
+			d["skin"]["oiliness"] = float(pr[0]) + (0.15 if t == "oily" else 0.0)
+			d["skin"]["dryness"] = float(pr[1]) + (0.2 if t == "dry" else 0.0)
+			d["skin"]["tone"] = tone
+			d["skin"]["undertone"] = under
+			d["body"]["age"] = age
+			d["hair"]["melanin"] = hair_mel)
+	return [
+		["neutralni", base, {}],
+		["usmev", base, {"ex_smile": 1.0, "ex_jaw_open": 0.25}],
+		["usta_otevrena", base, {"ex_jaw_open": 1.0}],
+		["zamraceni_obocí", base, {"ex_frown": 1.0}],
+		["plet_sucha_tmava", skin_row.call("dry", 0.9, 0.2, 58, 0.95), {}],
+		["plet_smisena_stredni", skin_row.call("combination", 0.5, 0.4, 34, 0.7), {}],
+		["plet_mastna_svetla", skin_row.call("oily", 0.12, -0.3, 24, 0.2), {}],
+		["plet_mastna_tmava", skin_row.call("oily", 0.85, 0.1, 27, 0.9), {}],
+	]
+
+
+static func write_run22(name := "c4c_run22") -> Dictionary:
+	var rows: Array = []
+	var names: Array = []
+	for t in run22_rows():
+		rows.append(_row(t[0], t[1], t[2]))
+		names.append(t[0])
+	return _store(name, rows, names)
 
 
 static func _store(name: String, rows: Array, names: Array) -> Dictionary:

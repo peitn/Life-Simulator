@@ -161,3 +161,72 @@ Later steps:
 - personality disorders, never as villain templates;
 - dialogue with narrowed choices, where choices stay visible but feel "heavy";
 - the **EmotionPresenter** layer (posture, face, breath, micro-actions, adaptive music).
+
+## Tuning after the crowded-household stress test (23 October 2026)
+
+- **Soft stress ceiling:** above 70, new stress counts only partly (down to 15 %); sleep calms more (0.05 → 0.07).
+- **Unmet needs** weigh by type in stress: hunger and energy fully, social 0.5, hygiene, fun and comfort 0.4.
+- **Depression:** recovery in sleep ×2.0 (was ×1.6) and under stress ×0.6 (was ×0.4); growth slows near the cap, so a long
+  episode no longer freezes at 1.0. Strong predispositions keep a mild floor of low mood (0.35 × (vulnerability − 0.3)) and
+  have more frequent endogenous dips (rate 0.1 × (vulnerability − 0.2) per day).
+- **Anxiety:** occasional waves “out of the blue” for an anxiety predisposition (0.18 × severity² per day, lower with
+  mastery); a wave can turn into a panic attack depending on severity, mastery and sensitivity. The refractory time after an
+  attack grows with repeated attacks in the last 3 days (6 h → at most 24 h), followed by exhaustion with lower arousal.
+  Content settings off → no waves and no attacks.
+- **Alcohol:** each further drink within ~16 hours gives less relief (1 / (1 + 0.5 n)) and appeals much less
+  (1 / (1 + 1.2 n²)), on top of tolerance and the next-day rebound.
+
+## Stress sources and sleep (run 23)
+
+`MentalState.stress_sources` records where stress came from (`needs`, `crowd`, `argue`, `friction`, `witness_conflict`,
+`stigma`, `life` …) as the amount actually added. `take_stress_sources()` returns and clears it. It is not saved or sent
+over the network; it serves diagnostics now and a future "what is stressing me" explanation in the UI.
+
+The household matrix (`test_household_matrix`) found a character with a strong anxiety and a moderate depression
+predisposition stuck above stress 85 for 20 game days in an 8-person household. The sources showed why:
+- crowd stress was applied while asleep (with 3 beds for 8 people, characters slept on the floor next to each other);
+- from about day 10, unmet needs added about 40 points a day, and loneliness (social need at 0) kept adding stress during
+  sleep (about 17 points a night), so the night never brought relief.
+
+Now crowding counts only while awake, and during sleep only bodily needs add stress (hunger at half weight; loneliness,
+boredom, hygiene and comfort do not). Disturbance in sleep is handled by noise (`HouseholdDynamics`). On the same seed the
+character now has a hard week (stress around 70–77, burden up to 0.47) and then recovers. Discomfort of sleeping on the
+floor should reduce sleep quality rather than add stress; that belongs to the furniture and housing work.
+
+## Severity range of depressive episodes (23 October 2026)
+
+A depressive episode is no longer a single state. It has three severities, shown only in words, never as numbers:
+
+| Severity | HUD label | When |
+|---|---|---|
+| Mild | Mírná depresivní epizoda | Every episode starts here (burden above 0.6 for 2 game days) |
+| Moderate | Středně těžká depresivní epizoda | Burden above 0.70; drops back below 0.64 |
+| Severe | Těžká depresivní epizoda | Burden above 0.85 for at least one game day; drops back below 0.79 |
+
+The bands use hysteresis, so the label does not flip back and forth near a boundary.
+
+**Vulnerability decides how deep an episode can go.** Burden growth slows near a soft ceiling of
+`0.72 + 0.28 × vulnerability`:
+- a character with no predisposition reaches at most a mild episode, even under long stress and isolation;
+- moderate predisposition leads to moderate episodes;
+- strong predisposition (or the scar left by earlier episodes) can lead to severe ones.
+
+Large life events (`on_event`) can still push anyone past the ceiling.
+
+**Effects scale with severity:**
+- Burden already drives anhedonia, pessimism, low vigour, fatigue and poor sleep.
+- A moderate episode adds the mood entry "Všechno je těžké".
+- A severe episode adds "Sotva zvládám den", plus extra fatigue, worse sleep and a stronger pull to bed and sofa.
+
+**Recovery:**
+- Recovery is faster from a mild episode (×1.15) and slower from a severe one (×0.75), but always possible.
+- The scar after an episode is `0.03 + 0.02 × peak severity` and fades over time.
+- Episodes are counted by peak severity (`severity_counts`), which is saved and validated on load.
+
+With the mental-health topics turned off there are still no episodes and no diagnostic names, only "Skleslost" or "Sklíčenost".
+
+Tests: `test_depression` section "Rozpětí deprese" (13 checks) covers:
+- the three predisposition levels and the label;
+- the mood entry and the stronger effects;
+- the delayed onset of severe episodes and the hysteresis;
+- recovery and scar by severity, and save/load including garbage input.

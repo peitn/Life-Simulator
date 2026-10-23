@@ -28,9 +28,9 @@ automated development process (see [Development process](docs/development-proces
 |---|---|
 | Simulation core: needs, mood, 15 traits, utility AI, player commands | ✅ playable |
 | Mental health: stress, anxiety, panic, depression, coping, intrusive thoughts; psyche model (personality, 9 dispositions, conditions as data, run 20) | ✅ base done, ✅ axis 1, 🟡 expanding |
-| Relationships: grudges, guilt, apologies, reconciliation, jealousy, household dynamics (frictions, shared moments, life events, de-escalation) | ✅ |
+| Relationships: grudges, guilt, apologies, reconciliation, jealousy, household dynamics (frictions, shared moments, life events, de-escalation), crowded households up to 8 characters (sensory profiles, household matrix, run 23) | ✅ |
 | Multiplayer: authoritative ENet server, private state, validation | ✅ |
-| Character creator: data model (C1), body (C2), face (C3), skin (C4a), hair, beards and eyebrows (C4b) | ✅ C1–C3 (neck, seam, neck length, face polish; eyelashes, teeth and facial expressions in run 21), ✅ C4a, ✅ C4b (+ hair details, run 19) |
+| Character creator: data model (C1), body (C2), face (C3), skin (C4a, C4c), hair, beards and eyebrows (C4b) | ✅ C1–C3 (neck, seam, neck length, face polish; eyelashes, teeth and facial expressions in run 21; mouth, smile, lip and eyelash fixes in run 22), ✅ C4a, ✅ C4c (skin micro detail and skin type, run 22), ✅ C4b (+ hair details, run 19) |
 | Character creator: clothing (C5), editor UI (C6–C7), integration (C8) | ⬜ planned |
 | Visuals: Blender asset pipeline, day/night cycle, PsycheFX | ✅ |
 | Audio: custom synthesizer, 5 songs (music v3), apartment ambience, tension layer, argument voices, 3D object sounds, anxiety audio | ✅ |
@@ -81,6 +81,9 @@ godot --headless --path . -- --test 14
 
 # Household balance across 16 seeds × 14 days (about 75 s)
 godot --headless --path . res://tests/test_household_dynamics.tscn
+
+# Crowded households: 4 / 6 / 8 characters × 4 seeds × 30 days (slow, ~25 min)
+godot --headless --path . res://tests/test_household_matrix.tscn
 ```
 
 ## Documentation

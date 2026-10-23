@@ -40,7 +40,11 @@ extends RefCounted
 ##     0,5 = dosavadní vzhled), zuby (teeth_shade odstín skloviny, teeth_gap mezera mezi horními jedničkami,
 ##     teeth_crooked mírně vybočené zuby; 0 = rovné) a makeup.mascara. Vše veřejné (je vidět). Migrace v5 → v6
 ##     doplní výchozí hodnoty (CharacterCodec._v5_to_v6), vzhled migrované postavy se nemění.
-const VERSION := 6
+## v7 (běh 22, C4c mikrodetail kůže): skin.type (typ pleti: normální / suchá / smíšená / mastná – určuje, KDE se maz
+##     a suchost projeví: T-zóna vs. tváře a tělo), skin.oiliness a skin.dryness 0..1 (síla). Čistě vzhled → veřejné.
+##     Nezávislé na rodu, identitě, tónu kůže i jménu. Migrace v6 → v7 doplní výchozí „normální“ pleť
+##     (CharacterCodec._v6_to_v7); drsnost T-zóny zůstane blízko dřívější (−0,065 proti −0,08).
+const VERSION := 7
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -103,6 +107,10 @@ const FACIAL_HAIR := {
 	"plnovous": "Plnovous", "licousy": "Licousy",
 }
 const GLASSES := {"zadne": "Žádné", "kulate": "Kulaté", "hranate": "Hranaté", "tenke": "Tenké obroučky", "silne": "Silné obroučky"}
+## Typ pleti (v7). Popisky pro editor; předvolba = typické [oiliness, dryness] (editor je nastaví při volbě typu,
+## hráč je pak může doladit – obě osy zůstávají nezávislé). Randomizér losuje kolem předvoleb.
+const SKIN_TYPES := {"normal": "Normální", "dry": "Suchá", "combination": "Smíšená", "oily": "Mastná"}
+const SKIN_TYPE_PRESETS := {"normal": [0.35, 0.25], "dry": [0.15, 0.65], "combination": [0.6, 0.4], "oily": [0.75, 0.12]}
 
 const OUTFIT_CATEGORIES := {
 	"bezne": "Běžné", "pracovni": "Pracovní", "spolecenske": "Společenské", "spani": "Na spaní", "sport": "Sport",
@@ -218,6 +226,9 @@ const GROUPS := {
 		"vitiligo": ["f", 0.0, 1.0, 0.0],
 		"weathering": ["f", 0.0, 1.0, 0.0],     # stárnutí kůže navíc k věku (slunce, životní styl)
 		"detail_seed": ["i", 0, 65535, 0],      # rozmístění detailů kůže (explicitní atribut, ne ze jména)
+		"type": ["e", SKIN_TYPES, "normal"],    # v7: kde se projeví maz a suchost (T-zóna / tváře / tělo)
+		"oiliness": ["f", 0.0, 1.0, 0.35],      # v7: maz → lesk a větší póry (hlavně T-zóna)
+		"dryness": ["f", 0.0, 1.0, 0.25],       # v7: suchost → matnost, mikroreliéf, u velmi suché šupinky
 	}},
 	"hair": {"public": true, "fields": {
 		"style": ["e", HAIR_STYLES, "kratke"],

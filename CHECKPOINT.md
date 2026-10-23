@@ -1,26 +1,19 @@
 # CHECKPOINT
 
-**Stav: běh 21 dokončen (22. 10. 2026, ~21:45 UTC).** První pokus spadl v 19:05, druhé plánované spuštění (20:58) ho dokončilo.
-
-## Cíl běhu
-C3++ detaily obličeje a mimika (řasy, zuby/dáseň/jazyk, dutina úst, limbus a zornice, výrazy jako blend shapes, SimVisual
-mrkání/výraz/řeč, schéma v6).
+**Stav: běh 23 dokončen** (23. 10. 2026, ~02:50–04:05 UTC, plánovaný).
 
 ## Shrnutí
-- Implementace + test_face_detail 55/55; regrese 22 sad OK (3 zastaralé testy upraveny na schéma v6 a rozpočet 20 000 tri).
-- Render v Blenderu → oprava úsměvu (koutky) a řas (směr), přeimport GLB, render po opravě prohlédnut.
-- Výkon posuvníku 5,8 → 3,7 ms (cache polí face, vah obličeje, názvů blend shapes, zápis jen změn).
-- Gemini 8 bodů (1 opraven), AUDIT.md, DEVLOG.md, ROADMAP.md, docs (character-creator, asset-pipeline, testing, roadmap), README.
+- Uzavřen běh 22 (C4c render prohlédnut, mastná pleť zmírněna – tváře 0,55; obrázky docs/images/c4c-*.jpg).
+- Ověřeno ladění plné domácnosti z hlavního chatu (#161) + Gemini (2 opravy: seed SensoryProfile, okno pití).
+- Nový `tests/test_household_matrix.gd` (4/6/8 postav × 4 seedy × 30 dní, determinismus, kritéria podle #157/#164).
+- Matice našla chybu (stres ze samoty a davu i ve spánku → úzkostná postava 139 h nad 85); opraveno, max úsek 17 h.
+- `MentalState.stress_sources` (zdroje stresu).
+- Testy: matice 105/106 (otevřený nález: 4 postavy ~41 % neúspěšných rozhovorů, třenice „nádobí“ 3/den);
+  regrese OK; test_character posuvník pod zátěží (C6); test_multiplayer časový flake (okno 5 s, potřetí 67/67).
+- Docs (testing, mental-health, relationships, character-creator, roadmap, README), ROADMAP.md, AUDIT.md, DEVLOG.md.
+- Místnost: #162 plán, #163 review soubor, #165 odpověď na #164, AUDIT.md rev. 17, paměť current_state rev. 21.
+- GitHub: push blokuje proxy (403) → ZIP res://previews/export/lifesim.zip + e00…; MD5 ve zprávě v místnosti.
 
-## Další krok (běh 22)
-C5 oblečení + zaoblit koutky otevřených úst; potom integrovaný průchod a 2. osa psychiky.
-
-## Testy
-Všech 22 sad prošlo, `--test 7` OK, hra 25 s, `godot_check` 60/60. Dlouhé testy spouštět na pozadí (setsid, logy
-previews/testlogs) – godot_run/godot_run_script mají strop 120 s.
-
-## Rendery
-- docs/images/c3pp-expressions-run21-before.jpg, docs/images/c3pp-mouth-lashes-run21-after.jpg
-
-## Sync
-- ZIP v res://previews/export/ (MD5 a počet dílů ve zprávě #152 v místnosti); GitHub push z plánovaného běhu viz DEVLOG.
+## Další krok (běh 24)
+C5 oblečení (+ koutky otevřených úst). Krátce předem: třenice „nádobí“ v malé domácnosti / neúspěšný rozhovor ≠ hádka;
+kontrolované scénáře matice (#164).

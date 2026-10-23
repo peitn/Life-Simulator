@@ -50,6 +50,16 @@ const ACTIONS: Array = [
 		"base_appeal": -6.0,
 		"moodlet": ["bolava_zada", "Bolí ho záda z gauče", "nesvuj", -8.0, 240.0],
 	},
+	# Nouzový spánek, když jsou postele i gauč obsazené (plná domácnost): kdekoli v křesle nebo na zemi.
+	# Horší než gauč, ale lepší než nespat vůbec – bez něj zůstane někdo v přeplněném bytě celé noci vzhůru.
+	{
+		"id": "sleep_floor", "label": "Spí v křesle", "object": "", "duration": 420.0,
+		"rate": {"energy": 7.0, "comfort": 0.0}, "until_full": "energy",
+		"suppress": {"energy": 0.0, "comfort": 0.6, "hunger": 0.45, "fun": 0.15, "social": 0.15, "hygiene": 0.5},
+		"tags": ["sleep", "rest", "solo"], "posture": "sit", "interruptible": false,
+		"base_appeal": -10.0,
+		"moodlet": ["prolezeny", "Celá rozlámaná z křesla", "nesvuj", -10.0, 300.0],
+	},
 	{
 		"id": "nap", "label": "Zdřímne si", "object": "bed", "duration": 45.0,
 		"effects": {"energy": 14.0, "comfort": 6.0},

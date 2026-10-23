@@ -24,7 +24,7 @@ const TICK := 10.0
 
 # ---------------------------------------------------------------- třenice
 ## Akce, při kterých postava spí (hluk ji ruší).
-const SLEEP_IDS := ["sleep", "sleep_sofa", "nap"]
+const SLEEP_IDS := ["sleep", "sleep_sofa", "sleep_floor", "nap"]
 ## Hlučné akce (televize, běžecký pás, vaření – nádobí, digestoř).
 const NOISY_IDS := ["watch_tv", "workout", "cook"]
 ## Do jaké vzdálenosti (m) je druhý „slyšet“ / vidět nepořádek.
@@ -48,6 +48,14 @@ const FRICTION_GRUDGE := 2.0
 const FRICTION_MOOD := -6.0
 const FRICTION_MOOD_MINUTES := 120.0
 ## Jak dlouho platí stížnost do příštího oslovení: SimAgent.COMPLAINT_TTL.
+## Kolik drobností za den člověka ještě „rozhodí“; další mají klesající váhu (v plném domě
+## se postavy nehádají o každou maličkost – po pár třenicích to začnou přecházet).
+const FRICTION_DAILY_SOFT := 2.0
+## Ranní světlo: drobná radost pro toho, kdo je ráno vzhůru (podle citlivosti a toho, kolik radosti zrovna unese).
+const MORNING_FROM := 6
+const MORNING_TO := 10
+const MORNING_LIGHT_MOOD := 4.0
+const MORNING_LIGHT_MINUTES := 120.0
 const COMPLAINT_LABEL := {"noise": "hluk v noci", "bathroom": "obsazená koupelna", "dishes": "nádobí po vaření"}
 
 # ---------------------------------------------------------------- společné chvíle
@@ -55,6 +63,8 @@ const COMPLAINT_LABEL := {"noise": "hluk v noci", "bathroom": "obsazená koupeln
 const SHARED_SOFA_IDS := ["watch_tv", "relax"]
 const SHARED_DIST := 4.0
 const SHARED_COOLDOWN := 240.0
+## Jedna společná chvíle na osobu za tuto dobu (škálování s počtem lidí).
+const SHARED_PERSON_COOLDOWN := 120.0
 ## Zisk vztahu (× warmth_mult – živá křivda ho brzdí), obroušení křivdy, moodlet.
 const SHARED_REL := 2.0
 const SHARED_SOFTEN := 2.0
@@ -95,6 +105,8 @@ var _acc := 0.0
 var _last_friction := {}  # "A>B>téma" -> čas
 var _last_shared := {}    # "A+B" -> čas
 var _prev_acting := {}    # jméno postavy -> id akce, kterou dělala v minulém kroku
+var _friction_day := {}  # jméno postavy -> [den, počet třenic dnes]
+var _morning := {}       # jméno postavy -> den, kdy už mělo ranní světlo
 var _cooked := {}         # jméno postavy -> minuty nepřetržitého vaření (pro nádobí)
 ## Statistiky (testy, ladění, budoucí HUD „jak to doma vypadá“).
 var stats := {}
@@ -144,8 +156,17 @@ func tick(all_sims: Array, hour: int, now: float) -> void:
 			var topic := friction_topic(s, o, hour, prev)
 			if topic == "" or not can_friction(s, o, topic, now):
 				continue
-			if s.rng.randf() < float(FRICTION_P[topic]) * irritability(s):
+			var p := float(FRICTION_P[topic]) * irritability(s) * friction_weight(s, now)
+			if topic == "noise":
+				# Hluk: záleží na citlivosti, návyku a vzdálenosti; jeden spáč se kvůli hluku naštve
+				# nejvýš jednou za cooldown, ať je zdrojů kolik chce.
+				var d: float = s.global_position.distance_to(o.global_position)
+				var fall := clampf(1.0 - d / FRICTION_NEAR, 0.0, 1.0)
+				p *= sensory_noise(s) * fall * fall
+				expose_noise(s, fall)
+			if s.rng.randf() < p:
 				apply_friction(s, o, topic, now)
+	_morning_light(sims, hour, now)
 	_shared_moments(sims, now)
 	_neglect(sims, now)
 	for x in sims:
@@ -184,7 +205,44 @@ static func friction_topic(s, o, hour: int, prev_o: String) -> String:
 
 
 func can_friction(s, o, topic: String, now: float) -> bool:
+	if topic == "noise" and now - float(_last_friction.get("%s>*>noise" % s.sim_name, -1.0e9)) < float(FRICTION_COOLDOWN["noise"]):
+		return false
 	return now - float(_last_friction.get(_fkey(s, o, topic), -1.0e9)) >= float(FRICTION_COOLDOWN[topic])
+
+
+## Váha další třenice podle toho, kolik jich postava dnes už měla (1, 1, 0.5, 0.33…).
+func friction_weight(s, now: float) -> float:
+	var day := int(now / 1440.0)
+	var e: Array = _friction_day.get(s.sim_name, [day, 0])
+	if int(e[0]) != day:
+		return 1.0
+	return 1.0 / maxf(1.0, float(e[1]) - FRICTION_DAILY_SOFT + 1.0)
+
+
+static func sensory_noise(s) -> float:
+	var sp = s.get("sensory")
+	return 1.0 if sp == null else float(sp.noise_factor())
+
+
+static func expose_noise(s, amount: float) -> void:
+	var sp = s.get("sensory")
+	if sp != null and amount > 0.0:
+		sp.expose_noise(amount)
+
+
+## Ranní světlo – jednou za den pro toho, kdo je ráno vzhůru a nespí.
+func _morning_light(sims: Array, hour: int, now: float) -> void:
+	if hour < MORNING_FROM or hour >= MORNING_TO:
+		return
+	var day := int(now / 1440.0)
+	for x in sims:
+		if int(_morning.get(x.sim_name, -1)) == day or x._is_sleeping():
+			continue
+		_morning[x.sim_name] = day
+		var sp = x.get("sensory")
+		var ls: float = 1.0 if sp == null else float(sp.light_sens)
+		if x.has_method("add_joy_moodlet"):
+			x.add_joy_moodlet("ranni_svetlo", "Ranní světlo", "spokojeny", MORNING_LIGHT_MOOD * ls, MORNING_LIGHT_MINUTES)
 
 
 ## Následky třenice: `s` je naštvaný/á na `o` kvůli `topic`.
@@ -197,6 +255,13 @@ func apply_friction(s, o, topic: String, now: float) -> void:
 	s.pending_complaints[o.sim_name] = {"topic": topic, "t": now}
 	s._detail_dirty = true
 	_last_friction[_fkey(s, o, topic)] = now
+	if topic == "noise":
+		_last_friction["%s>*>noise" % s.sim_name] = now
+	var day := int(now / 1440.0)
+	var e: Array = _friction_day.get(s.sim_name, [day, 0])
+	if int(e[0]) != day:
+		e = [day, 0]
+	_friction_day[s.sim_name] = [day, int(e[1]) + 1]
 	stats["friction"][topic] = int(stats["friction"].get(topic, 0)) + 1
 
 
@@ -226,9 +291,15 @@ func _shared_moments(sims: Array, now: float) -> void:
 			var key := "%s+%s" % [a.sim_name, b.sim_name]
 			if kind == "" or now - float(_last_shared.get(key, -1.0e9)) < SHARED_COOLDOWN:
 				continue
+			# Jedna společná chvíle na osobu za čas – u filmu se sedmi lidmi nevzniká 21 „chvilek“ najednou.
+			if now - float(_last_shared.get(a.sim_name, -1.0e9)) < SHARED_PERSON_COOLDOWN \
+					or now - float(_last_shared.get(b.sim_name, -1.0e9)) < SHARED_PERSON_COOLDOWN:
+				continue
 			if a.ledger.grudge(b.sim_name) > SHARED_MAX_GRUDGE or b.ledger.grudge(a.sim_name) > SHARED_MAX_GRUDGE:
 				continue
 			_last_shared[key] = now
+			_last_shared[a.sim_name] = now
+			_last_shared[b.sim_name] = now
 			for pr in [[a, b], [b, a]]:
 				var x = pr[0]
 				var y = pr[1]
@@ -237,7 +308,7 @@ func _shared_moments(sims: Array, now: float) -> void:
 				x.relationships[y.sim_name] = nv
 				x.last_talk[y.sim_name] = now  # být spolu je taky kontakt (proti „zanedbání“)
 				x.ledger.soften(y.sim_name, SHARED_SOFTEN)
-				x.mood.add_moodlet("spolu_%s_%s" % [kind, y.name], "Chvíle spolu: %s (%s)" % [y.first_name(), kind],
+				x.add_joy_moodlet("spolu_%s_%s" % [kind, y.name], "Chvíle spolu: %s (%s)" % [y.first_name(), kind],
 					"stastny", SHARED_MOOD, SHARED_MOOD_MINUTES)
 				x.note_relationship_change(y, cur, nv)
 				x._detail_dirty = true
@@ -262,8 +333,11 @@ func life_event(x, now: float) -> void:
 	var e: Array = pool[x.rng.randi() % pool.size()]
 	var label := Grammar.form(String(e[0]), x.grammar)
 	var strength: float = float(e[1]) * x.rng.randf_range(0.7, 1.3)
-	x.mood.add_moodlet("udalost_%d" % int(now), label, "stastny" if good else "smutny", strength,
-		x.rng.randf_range(EVENT_MIN_MINUTES, EVENT_MAX_MINUTES))
+	var dur: float = x.rng.randf_range(EVENT_MIN_MINUTES, EVENT_MAX_MINUTES)
+	if good and x.has_method("add_joy_moodlet"):
+		x.add_joy_moodlet("udalost_%d" % int(now), label, "stastny", strength, dur)
+	else:
+		x.mood.add_moodlet("udalost_%d" % int(now), label, "stastny" if good else "smutny", strength, dur)
 	if not good:
 		x.mental.on_stressor("life", absf(strength) * EVENT_STRESS_SHARE, x.mental_cfg())
 	stats["events"]["good" if good else "bad"] += 1

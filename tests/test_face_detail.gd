@@ -54,6 +54,7 @@ func _ready() -> void:
 	_test_blink()
 	_test_teeth()
 	_test_expressions()
+	_test_run22_shapes()
 	await _test_glb_visual()
 	finish("test_face_detail")
 
@@ -164,7 +165,7 @@ func _test_schema_v6() -> void:
 	for k in Schema.FACE_DETAILS:
 		if not fs.has(k):
 			miss.append(k)
-	check(Schema.VERSION == 6 and miss.is_empty(), "schéma v6: detaily obličeje ve skupině face", str(miss))
+	check(Schema.VERSION >= 6 and miss.is_empty(), "schéma v6+: detaily obličeje ve skupině face", str(miss))
 	check(Schema.GROUPS["makeup"]["fields"].has("mascara") and Schema.is_public("face", "teeth_gap") and Schema.is_public("makeup", "mascara"),
 		"řasenka v make-upu, detaily jsou veřejné (vidí je všichni)")
 	var v5 := Schema.defaults()
@@ -177,7 +178,7 @@ func _test_schema_v6() -> void:
 	v5["makeup"].erase("mascara")
 	v5["face"]["nose_width"] = 0.4
 	var r := Codec.from_dict(v5)
-	check(bool(r["ok"]) and int(r["from_version"]) == 5 and int(r["data"]["v"]) == 6, "v5 se zmigruje na v6", str(r["errors"]))
+	check(bool(r["ok"]) and int(r["from_version"]) == 5 and int(r["data"]["v"]) == Schema.VERSION, "v5 se zmigruje na aktuální verzi", str(r["errors"]))
 	if bool(r["ok"]):
 		var f: Dictionary = r["data"]["face"]
 		check(is_equal_approx(float(f["lash_length"]), 0.5) and float(f["teeth_gap"]) == 0.0 and float(r["data"]["makeup"]["mascara"]) == 0.0
@@ -495,6 +496,96 @@ func _test_expressions() -> void:
 		for i in a.size():
 			wl = maxf(wl, a[i].distance_to(e[i]))
 	check(wl < 0.0006, "výrazy na 50 %% v blend shapes ≈ přesný tvar (nejhůř %.2f mm)" % (wl * 1000.0))
+
+
+## Běh 22 (opravy z kontroly renderu): čočkovitý otvor úst se zaoblenými koutky, Duchennův úsměv (koutek, nasolabiální
+## rýha, tváře, dolní víčko), objem rtů, profil krku při otevřené čelisti, shluky řas.
+func _mr(ring: int, a: float, upper: bool) -> int:
+	for i in _idx("mr"):
+		var r: Array = topo.recipes[i]
+		if int(r[1]) == ring and is_equal_approx(float(r[2]), a) and ((float(r[3]) > 0.0) == upper) and absf(float(r[3])) > 0.99:
+			return i
+	return -1
+
+
+func _test_run22_shapes() -> void:
+	section("Běh 22: tvar úst, úsměv, rty, profil, řasy")
+	var pj := HB.positions(topo, {"ex_jaw_open": 1.0})
+	var gaps: Array = []
+	for a in [0.0, 0.25, 0.5, 0.75, 0.875, 1.0]:
+		var u := _mr(3, a, true)
+		var lo := _mr(3, a, false)
+		gaps.append((pj[u].y - pj[lo].y) * 1000.0 if u >= 0 and lo >= 0 else -99.0)
+	var mono := true
+	for k in range(1, gaps.size()):
+		mono = mono and float(gaps[k]) <= float(gaps[k - 1]) + 0.05
+	check(not gaps.has(-99.0) and float(gaps[0]) > 9.0 and float(gaps[5]) < 1.0 and mono, "otevřená ústa: čočka – uprostřed %.1f mm, ke koutku plynule k %.1f mm" % [gaps[0], gaps[5]], str(gaps))
+	# zaoblení: ve 3/4 šířky je otvor ještě ≥ 55 % středu (obdélník by měl ~100 %, ostrý klín ~25 %), u koutku (0,88) ≤ 75 %
+	check(float(gaps[3]) > 0.55 * float(gaps[0]) and float(gaps[4]) < 0.75 * float(gaps[0]), "otvor je zaoblený (0,75 šířky: %.0f %%, 0,88: %.0f %% středu)" % [100.0 * float(gaps[3]) / float(gaps[0]), 100.0 * float(gaps[4]) / float(gaps[0])])
+	var ps := HB.positions(topo, {"ex_smile": 1.0})
+	var corner := _mr(1, 1.0, true)
+	check(corner >= 0 and ps[corner].y - p0[corner].y > 0.0045 and ps[corner].x - p0[corner].x > 0.003,
+		"Duchennův úsměv: koutek nahoru o %.1f mm, do strany o %.1f mm" % [(ps[corner].y - p0[corner].y) * 1000.0, (ps[corner].x - p0[corner].x) * 1000.0])
+	var d0 := HB.derive({})
+	var cheek := 0.0
+	var fold := 0.0
+	for i in _idx("g"):
+		var q := p0[i]
+		if q.z < 0.04:
+			continue
+		var nl := HB.nasolabial(q.x, q.y, signf(q.x) if q.x != 0.0 else 1.0, d0)
+		if nl > 0.0015:
+			cheek = maxf(cheek, ps[i].z - q.z)
+		elif nl < -0.0005:
+			fold = minf(fold, ps[i].z - q.z - 0.0)
+	check(cheek > 0.0015, "úsměv: lícní polštář laterálně od nasolabiální rýhy dopředu o %.1f mm" % (cheek * 1000.0))
+	var e: Dictionary = HB.derive({"ex_smile": 1.0})["eye1"]
+	check(float(e["lo_raise"]) >= 0.4, "úsměv přimhouří dolní víčka (lo_raise %.2f)" % float(e["lo_raise"]))
+	var up1 := _mr(1, 0.0, true)
+	var up2 := _mr(2, 0.0, true)
+	var lo2 := _mr(2, 0.0, false)
+	var lo1 := _mr(1, 0.0, false)
+	check(p0[up2].z - p0[up1].z > 0.0035 and p0[lo2].z - p0[lo1].z > 0.004, "objem rtů: horní %.1f mm, dolní %.1f mm před linií rtu" % [(p0[up2].z - p0[up1].z) * 1000.0, (p0[lo2].z - p0[lo1].z) * 1000.0])
+	var bow_c := _mr(1, 0.0, true)
+	var bow_p := _mr(1, 0.25, true)
+	check(p0[bow_p].y - p0[bow_c].y > 0.0012, "Cupidův luk: vrchol o %.1f mm nad prohlubní" % ((p0[bow_p].y - p0[bow_c].y) * 1000.0))
+	var D = load("res://previews/diag/jaw_profile.gd")
+	var worst := 0.0
+	for col in [12, 10, 8]:
+		var ch: PackedInt32Array = D.chain(topo, col)
+		var b0: Array = D.bends(p0, ch)
+		var b1: Array = D.bends(pj, ch)
+		for n in b0.size():
+			worst = maxf(worst, float(b1[n]) - float(b0[n]))
+	check(worst < 32.0, "profil při otevřené čelisti: lom krku pod bradou zesílí nejvýš o %.1f° (dřív ~50°)" % worst)
+	check(HB.LASH_UP <= 26 and HB.LASH_LO <= 14 and HB.LASH_W_UP >= 0.0008, "řasy: méně, ale širších karet (%d + %d)" % [HB.LASH_UP, HB.LASH_LO])
+	var t0 := _lash_tip(0)
+	var t1 := _lash_tip(1)
+	check(t0 >= 0 and t1 >= 0 and HB.vertex_pos(topo.recipes[t0], d0).distance_to(HB.vertex_pos(topo.recipes[t1], d0)) < 0.0035,
+		"řasy tvoří shluky (špičky sousedních karet u sebe)")
+	AssetLibrary.clear_cache()
+	var root := AssetLibrary.instantiate("character")
+	var cmin := 2.0
+	var cmax := -1.0
+	if root != null:
+		for mi in root.find_children("*", "MeshInstance3D", true, false):
+			if String(mi.name).find("eye_lash") >= 0 and mi.mesh != null:
+				var arr: Array = mi.mesh.surface_get_arrays(0)
+				var cols = arr[Mesh.ARRAY_COLOR]
+				if cols is PackedColorArray:
+					for c in cols:
+						cmin = minf(cmin, c.r)
+						cmax = maxf(cmax, c.r)
+		root.free()
+	check(cmin < 0.5 and cmax > 0.95, "GLB: kořen řas tmavší než špička (barva vrcholů %.2f–%.2f)" % [cmin, cmax])
+
+
+func _lash_tip(k: int) -> int:
+	for i in _idx("lash"):
+		var r: Array = topo.recipes[i]
+		if int(r[1]) == 1 and int(r[2]) == 1 and int(r[3]) == 10 + k and int(r[4]) == HB.LASH_ST:
+			return i
+	return -1
 
 
 func _test_glb_visual() -> void:

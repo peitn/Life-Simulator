@@ -975,3 +975,58 @@ spadl po implementaci (checkpoint 19:05, „ROZPRACOVÁN“); druhé plánované
 ### Návrh dalšího kroku
 - C5 oblečení (kategorie, střihy přes morfy těla jako vlastní povrchy, PBR, převlékání podle situace, MP replikace) + zaoblit
   koutky otevřených úst; potom integrovaný průchod (Grok #141) a 2. osa psychiky (s metrikou rezidua – Grok #148).
+
+
+## 2026-10-23 (běh 23, ~02:50–04:05 UTC, plánovaný) – uzavření běhu 22, ladění plné domácnosti, zátěžová matice
+**Oblast:** stabilizace (uzavření C4c z běhu 22 + ověření ladění domácnosti z hlavního chatu #161) a (c) vztahy/domácnost.
+Běh 22 spadl po implementaci (checkpoint 22:40, „ROZPRACOVÁN“); mezi běhy hlavní chat integroval ladění plné domácnosti
+(02:50) a během tohoto běhu (03:21) ještě stupně závažnosti depresivních epizod (`depression.gd`, `test_depression.gd` 106,
+docs/mental-health.md) – regrese je zahrnuje. Plán #162.
+
+### Průběžné checkpointy
+- ~03:00 editor import (class cache) → godot_check 60/60; render C4c prohlédnut, oily tváře 0,8 → 0,55; backup.
+- ~03:15 regrese 23 sad (r23), Gemini (2 opravy), `test_household_matrix` napsán; review soubor #163; backup.
+- ~03:30 matice 1. průchod 110/112 → diagnostika Lucie (`stress_sources`) → 2 opravy (dav a samota ve spánku); backup.
+- ~03:45 kritéria matice podle ChatGPT #164, 2. průchod matice + regrese simulace (r23c/r23d), docs, AUDIT.
+
+### Co přibylo / změnilo se
+- `tests/test_household_matrix.gd` (+tscn, `tests/data/household_extra.json` = 8. postava): 4/6/8 postav × 4 seedy × 30 dní,
+  vzorek každou herní hodinu; po běhu hádky, vztahy (průměr, sd, podíl ≤ −50, rozpětí), stres > 85 (podíl, nejdelší úsek),
+  saturace deprese, potřeby, pití, ataky, epizody; souhrn průměr ± sd po velikostech, report `previews/testlogs/household_matrix.json`,
+  determinismus stejného seedu. Volby `--sizes --seeds --days`.
+- `MentalState.stress_sources` + `take_stress_sources()` – odkud stres přitekl (pro diagnostiku a budoucí UI „co mě stresuje“).
+- Opravy z matice: tlačenice jen v bdělosti (`sim_agent._mental_tick`); ve spánku stresují jen tělesné potřeby
+  (`MentalState.SLEEP_UNMET`, hlad ×0,5).
+- Gemini: `SensoryProfile` seed bez `hash(Array)`; do okna pití se počítá i nedopitá dávka (> 0,1).
+- `SkinLayers.SKIN_TYPE_ZONES` oily: maz na tvářích 0,8 → 0,55 (render).
+- Diagnostika `previews/diag/lucie_diag.gd`; docs: testing (matice, crowded, oprava tabulátorů), mental-health (zdroje stresu
+  a spánek), relationships, character-creator (vizuální kontrola C4c), roadmap, README; ROADMAP.md; AUDIT.md (běh 22 + 23).
+- Obrázky `docs/images/c4c-skin-types-run22.jpg`, `c4c-expressions-run22-final.jpg`.
+
+### Ověření
+- Regrese (r23, před opravami): 22 sad OK, test_character 156/157 (posuvník pod zátěží). Po opravách: crowded_household 50,
+  mental_health 95, depression 106, household_dynamics 78, psyche 93, reconciliation 58, player_commands 40,
+  psyche_presentation 19, multiplayer 67 (2× flake „pauza na klientech“, potřetí OK), character 156/157 (posuvník 4,6–6,2 ms
+  při zátěži). godot_check 60/60.
+- test_household_matrix 105/106: 4 postavy hádky 41 ± 2 % (✘), 6 postav 19 ± 3 %, 8 postav 24 ± 2 %; zdraví bez extrémního
+  stresu; nejdelší úsek stresu > 85 17 h (dřív 139 h); Tomáš epizoda 4/12; determinismus ✔.
+- Render C4c prohlédnut (mimika + 4 typy pleti). Gemini 2 kola (2 + 0 oprav, zbytek zdůvodněn v AUDIT.md).
+
+### Známé problémy
+- **4 postavy (Jana, Petr, Eliška, Tomáš): ~41 % neúspěšných rozhovorů** (průměr přes seedy, mez 15–40 % ✘). Rozbor 12 dní:
+  121 rozhovorů / 55 neúspěšných, 36 třenic kvůli nádobí (3/den), polarizované vztahy (Jana–Eliška +75, Jana–Tomáš −28,
+  Petr–Eliška −23). Další běh: četnost třenic „nádobí“ v malé domácnosti a oddělit „neúspěšný rozhovor“ od „hádky“.
+- Výkon posuvníku pod zátěží stroje 5,4–6,3 ms (samostatně 3,9 ms v běhu 22); `public_snapshot` znovu validuje → C6.
+- Zátěž serveru (2 jádra) – dlouhé testy běží na pozadí; godot_run má strop 120 s.
+- GitHub: push dál blokuje proxy (repo mimo autorizované zdroje, add_repo v plánovaném běhu chybí) → ZIP v previews/export.
+- `scripts/circulatory/` (Grok) – skeleton v rezervoáru, nezapojen; kompiluje se.
+
+### room_last_id: 167 (#166 = stupně závažnosti deprese z hlavního chatu, zahrnuto v regresi; #167 = shrnutí běhu 23)
+
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 (rev. 17 – výřez běhu 23) · ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f (změny v docs/roadmap.md) · review běhu 23: 366048dec1e9405182dbe8103f73e54a
+- Paměť: stav cdf19b25a96e48f4924a7c5fd49a2617, rozhodnutí 1a6bcb6b69b04fd6930e4de2519ebced, plán psychiky 4c7ad4fd2b154e1487be3c0cf7d4f3ab
+
+### Návrh dalšího kroku
+- C5 oblečení (+ koutky otevřených úst); před ním nebo souběžně krátce: třenice „nádobí“ v malé domácnosti a rozlišení
+  neúspěšného rozhovoru od hádky; kontrolované scénáře matice (podpora × izolace, spánek) podle #164.

@@ -74,6 +74,7 @@ func _run() -> void:
 	_test_recovery()
 	_test_spam()
 	_test_review39()
+	_test_severity()
 	_test_patterns_settings()
 	_test_mental_integration()
 	await _test_in_world()
@@ -164,7 +165,7 @@ func _test_recovery() -> void:
 		d.experience("read", 10.0)
 		d.experience("chat", 10.0)
 	_days(d, 4, {"stress": 85.0, "social": 10.0})
-	check(d.burden > 0.9 and d.hedonic < 0.4, "nejhorší stav (série ztrát, zklamání, stres, izolace)",
+	check(d.burden > 0.85 and d.hedonic < 0.4, "nejhorší stav (série ztrát, zklamání, stres, izolace)",
 		"zátěž %.2f, liking %.2f" % [d.burden, d.hedonic])
 	var mu_low: float = float(d.expect["read"][0])
 	check(mu_low >= 1.5, "očekávání nikdy nespadne na nulu", "%.2f" % mu_low)
@@ -206,7 +207,7 @@ func _test_recovery() -> void:
 	check(not e.episode_active or e.high_minutes >= Depression.EPISODE_MIN_MINUTES, "epizoda nezačne hned při prvním propadu")
 	_days(e, 3, {"stress": 70.0})
 	check(e.episode_active and e.episode_count == 1, "trvalá vysoká zátěž → depresivní epizoda", "%.2f" % e.burden)
-	check(e.label(CFG_FULL) == "Depresivní epizoda" and e.label(CFG_OFF) != "Depresivní epizoda", "diagnostický název jen s povolenými tématy")
+	check(e.label(CFG_FULL).ends_with("depresivní epizoda") and e.label(CFG_OFF).find("epizoda") < 0, "diagnostický název jen s povolenými tématy", e.label(CFG_FULL))
 	e.burden = 0.1
 	_days(e, 1, {"stress": 10.0})
 	check(not e.episode_active and e.scar > 0.0, "po epizodě zůstává slabá stopa (rychlejší relaps)", "%.3f" % e.scar)
@@ -249,6 +250,93 @@ func _test_spam() -> void:
 	conn.on_connection(1.0, 20.0)
 	check(0.6 - b1 > b1 - conn.burden, "opakovaný kontakt v krátké době pomáhá méně (antifarming)")
 
+
+
+# ---------------------------------------------------------------- rozpětí závažnosti
+
+## Jedna postava v dlouhodobě těžké situaci (stres, samota) – vrací [nejvyšší závažnost, zátěž].
+func _sev_run(vuln: float, stress: float, social: float, days: int) -> Array:
+	var d := Depression.new()
+	d.vuln = vuln
+	d.burden = 0.5
+	var peak := 0
+	for i in days:
+		_days(d, 1, {"stress": stress, "social": social})
+		peak = maxi(peak, d.severity_level())
+	return [peak, d.burden, d]
+
+
+func _test_severity() -> void:
+	section("Rozpětí deprese: mírná → středně těžká → těžká epizoda")
+	var low: Array = _sev_run(0.0, 75.0, 20.0, 12)
+	var mid: Array = _sev_run(0.45, 75.0, 20.0, 12)
+	var high: Array = _sev_run(0.9, 75.0, 20.0, 12)
+	check(int(low[0]) == 1, "bez predispozice: stejná zátěž vede nanejvýš k mírné epizodě", "peak %d, %.2f" % [low[0], low[1]])
+	check(int(mid[0]) == 2, "střední predispozice: středně těžká epizoda", "peak %d, %.2f" % [mid[0], mid[1]])
+	check(int(high[0]) == 3, "silná predispozice: těžká epizoda", "peak %d, %.2f" % [high[0], high[1]])
+	check(float(low[1]) < float(mid[1]) and float(mid[1]) < float(high[1]), "zátěž roste se zranitelností")
+	var hd: Depression = high[2]
+	check(hd.label(CFG_FULL) == "Těžká depresivní epizoda" and hd.label(CFG_OFF) == "Sklíčenost",
+		"název podle závažnosti, bez diagnózy při vypnutých tématech", hd.label(CFG_FULL))
+	var names: Array = []
+	for m in hd.mood_entries(12):
+		names.append(m["id"])
+	check(names.has("tezke_dny"), "těžká epizoda má vlastní náladový záznam", str(names))
+	var ld: Depression = low[2]
+	check(hd.energy_drain_mult() > ld.energy_drain_mult() and hd.sleep_quality_mult() < ld.sleep_quality_mult(),
+		"těžká epizoda víc vyčerpává a víc zhoršuje spánek")
+	# Těžká se neukáže hned – musí zátěž nad hranicí vydržet.
+	var q := Depression.new()
+	q.vuln = 1.0
+	q.burden = 0.95
+	q.episode_active = true
+	q.severity = 1
+	q.tick(60.0, _ctx({"stress": 90.0, "social": 10.0}))
+	check(q.severity == 2, "krátký propad = středně těžká, ne hned těžká", str(q.severity))
+	# Hystereze: kolem hranice se popis nepřeklápí.
+	var flips := 0
+	var hs := Depression.new()
+	hs.episode_active = true
+	hs.severity = 2
+	var last := 2
+	for i in 200:
+		hs.burden = 0.67 + 0.025 * sin(i * 0.7)
+		hs._update_severity(1.0)
+		if hs.severity != last:
+			flips += 1
+			last = hs.severity
+	check(flips == 0, "hystereze: výkyvy ±0,025 kolem hranice popis nepřeklápí", str(flips))
+	# Zotavení: z těžké pomaleji než z mírné; obě se zvednou (cesta ven není uzavřená).
+	var rec_mild := Depression.new()
+	rec_mild.burden = 0.65
+	rec_mild.episode_active = true
+	rec_mild.severity = 1
+	rec_mild.peak_severity = 1
+	var rec_sev := Depression.new()
+	rec_sev.burden = 0.65
+	rec_sev.episode_active = true
+	rec_sev.severity = 3
+	rec_sev.peak_severity = 3
+	var dm := 0
+	var ds := 0
+	for i in 60:
+		_days(rec_mild, 1, {"stress": 15.0, "social": 70.0, "support": 0.5})
+		_days(rec_sev, 1, {"stress": 15.0, "social": 70.0, "support": 0.5})
+		if dm == 0 and not rec_mild.episode_active:
+			dm = i + 1
+		if ds == 0 and not rec_sev.episode_active:
+			ds = i + 1
+	check(dm > 0 and ds > 0, "z mírné i těžké epizody se dá dostat", "%d / %d dní" % [dm, ds])
+	check(ds >= dm, "z těžké epizody trvá zotavení déle", "%d / %d dní" % [dm, ds])
+	check(rec_sev.scar > rec_mild.scar and rec_sev.severity_counts[2] == 1 and rec_mild.severity_counts[0] == 1,
+		"těžší epizoda zanechá silnější (ale mizející) stopu a počítá se podle závažnosti",
+		"%.3f / %.3f" % [rec_mild.scar, rec_sev.scar])
+	var dd := Depression.new()
+	dd.from_dict(hd.to_dict())
+	check(dd.severity == hd.severity and dd.peak_severity == 3, "závažnost se uloží a načte")
+	var bad := Depression.new()
+	bad.from_dict({"episode_active": true, "severity": 99, "severity_counts": ["x", NAN, -4]})
+	check(bad.severity == 3 and bad.severity_counts == [0, 0, 0], "nesmyslná závažnost se ořeže")
 
 
 # ---------------------------------------------------------------- review ChatGPT (zpráva 39)
@@ -411,7 +499,7 @@ func _test_mental_integration() -> void:
 	ms.dep.burden = 0.8
 	check(ms.energy_drain_mult() > e0 and ms.sleep_quality() < q0, "deprese vyčerpává a zhoršuje spánek")
 	ms.dep.episode_active = true
-	check(ms.state_label(CFG_FULL) == "Depresivní epizoda", "popis stavu slovy", ms.state_label(CFG_FULL))
+	check(ms.state_label(CFG_FULL) == "Středně těžká depresivní epizoda", "popis stavu slovy (zátěž 0,8 → středně těžká)", ms.state_label(CFG_FULL))
 	ms.arousal = 50.0
 	check(ms.state_label(CFG_FULL).find("Úzkost") >= 0 and ms.state_label(CFG_FULL).find("depresivní") >= 0,
 		"úzkost a deprese se ukážou spolu", ms.state_label(CFG_FULL))

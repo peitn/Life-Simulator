@@ -88,6 +88,13 @@ colours for the teeth, gums, tongue, lashes and limbus; `face_render.py` gives t
 renders can hit the service's HTTP timeout (524) although Blender finishes: the rendered rows stay in `/tmp/rt` and
 the sheet can be assembled and sent in a second call.
 
+Run 22 added `tools/blender/skin_micro.py`, a Cycles approximation of the C4c skin shader (zone masks for sebum and
+dryness from the position, pores from a Voronoi texture and skin lines from ridged noise through a Bump node, flakes,
+clear coat for sebum, sheen for vellus hair), the lash material with the root-darkening vertex colour, and the mouth
+colour derived from the skin. `face_render_export.gd` writes the micro-detail parameters per row (`write_run22()`). Long
+renders now run as a detached Blender process on the render service (rows land in `/tmp/rt`), which avoids the HTTP
+timeout of a single call.
+
 ## Head–body seam (C3+)
 
 The body's neck is cut above a 16-vertex loop at import (`CharacterAssembly.cut_body_neck`). The procedural head

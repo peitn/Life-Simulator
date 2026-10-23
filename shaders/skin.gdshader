@@ -29,6 +29,16 @@ uniform float vitiligo = 0.0;
 uniform float wrinkles = 0.0;
 uniform float age_spots = 0.0;
 uniform float pores = 0.6;
+// --- C4c mikrodetail (běh 22, SkinLayers.micro) ---
+uniform float oil_t = 0.21;          // maz v T-zóně (čelo, nos, brada)
+uniform float oil_c = 0.12;          // maz na tvářích a těle
+uniform float dry_t = 0.125;         // suchost v T-zóně
+uniform float dry_c = 0.125;         // suchost na tvářích a těle
+uniform float pore_size = 1.0;       // násobek velikosti pórů (maz, věk)
+uniform float micro = 0.3;           // síla kožních linií (suchost, věk)
+uniform float vellus = 0.5;          // chloupky (fuzz na siluetě)
+uniform vec3 vellus_color = vec3(0.35, 0.28, 0.22);
+uniform float micro_bump = 1.0;      // přepínač kvality (0 = bez normálové poruchy)
 uniform float eyeliner = 0.0;
 uniform float eyeshadow = 0.0;
 uniform vec3 eyeshadow_color = vec3(0.15, 0.1, 0.19);
@@ -373,18 +383,81 @@ void fragment() {
 		alb = mix(alb, eyeshadow_color, clamp(sh * eyeshadow * 0.75, 0.0, 0.8));
 	}
 
-	// --- drsnost: T-zóna lesklejší, póry, vrásky matnější ---
-	if (head && front && ax < 0.025 && p.y > 1.61) {
-		rough -= 0.08;
+	// --- C4c (běh 22): zóny mazu a suchosti podle typu pleti (T-zóna = čelo, nos, brada; tváře) ---
+	// Nahrazuje pevné „T-zóna −0,08“ z C4a; výchozí normální pleť je mu blízko (T-zóna −0,065, tváře −0,03).
+	float tz = 0.0;
+	float cz = 0.0;
+	if (head && front) {
+		float fore = band(p.y, 1.695, 1.775, 0.012) * (1.0 - smoothstep(0.03, 0.05, ax));
+		float nose = band(p.y, 1.612, 1.700, 0.008) * (1.0 - smoothstep(0.010, 0.018, ax));
+		float chin = band(p.y, 1.552, 1.588, 0.006) * (1.0 - smoothstep(0.016, 0.026, ax));
+		tz = max(fore, max(nose, chin));
+		cz = exp(-pow((ax - 0.045) / 0.020, 2.0) - pow((p.y - 1.630) / 0.024, 2.0));
+	}
+	float oil = head ? mix(oil_c, oil_t, tz) : oil_c * 0.5;
+	float dry = head ? mix(dry_c, dry_t, tz) : dry_c;
+	rough += 0.22 * (dry - 0.125) - 0.38 * (oil - 0.04);
+	// Velmi suchá pleť: řídké drobné šupinky ve skupinkách (ne „tečky všude“ – render běhu 22) a lehce „popelavý“ nádech
+	// (na tmavé kůži reálně viditelnější; nemění tón).
+	float flake_amt = smoothstep(0.45, 0.9, dry);
+	if (flake_amt > 0.001 && near > 0.01) {
+		float patch = smoothstep(0.5, 0.75, vnoise(p * 70.0 + vec3(seed * 0.7)));
+		float fl = cell_spots(p, 0.0016, 0.25 * flake_amt * patch, 0.0003, 0.0006, 7.0) * near;
+		float ash = flake_amt * 0.04 + fl * 0.12 * flake_amt;
+		alb = mix(alb, vec3(0.60, 0.58, 0.56), clamp(ash, 0.0, 0.2));
+		rough += 0.12 * fl;
+	}
+
+	// --- mikroreliéf: póry, kožní linie a jemné vrásky jako porucha normály (bump z derivací, bez tangent) ---
+	// Hloubka h v metrech v klidových souřadnicích (deterministicky ze seed); vypne se, když je pór menší než pixel
+	// (fwidth) nebo je postava daleko (near) – žádné mihotání ani zbytečný výpočet.
+	float h = 0.0;
+	float fw = length(fwidth(p));
+	float pz = 0.25;
+	if (head) {
+		pz = front ? (0.55 + 0.45 * max(tz, cz)) : 0.35;
+		float lid = exp(-pow(length(vec2(ax - eye.x, (p.y - eye.y) * 1.3)) / 0.016, 2.0));
+		pz *= 1.0 - 0.7 * lid;   // víčka a okolí očí jemnější
+	}
+	float cell = 0.00075 * pore_size * mix(0.7, 1.0, pz);
+	float lod_p = near * (1.0 - smoothstep(cell * 0.3, cell * 1.1, fw));
+	if (lod_p > 0.01 && micro_bump > 0.0) {
+		float pit = cell_spots(p, cell, 0.8, 0.12 * cell, 0.26 * cell, 5.0);
+		h -= pit * 0.00006 * pores * pz;
+		float rr = 1.0 - abs(2.0 * vnoise(p * 2300.0 + vec3(seed)) - 1.0);
+		h -= smoothstep(0.80, 1.0, rr) * 0.000025 * micro;
+		h *= lod_p;
+	}
+	float lod_w = near * (1.0 - smoothstep(0.0006, 0.002, fw));
+	h -= crease * 0.00012 * lod_w * micro_bump;
+	vec3 dpdx = dFdx(VERTEX);
+	vec3 dpdy = dFdy(VERTEX);
+	float dhx = dFdx(h);
+	float dhy = dFdy(h);
+	vec3 r1 = cross(dpdy, NORMAL);
+	vec3 r2 = cross(NORMAL, dpdx);
+	float det = dot(dpdx, r1);
+	if (abs(det) > 1e-14) {
+		vec3 grad = sign(det) * (dhx * r1 + dhy * r2);
+		NORMAL = normalize(abs(det) * NORMAL - grad);
 	}
 	if (near > 0.01) {
 		rough += (vnoise(p * 1800.0) - 0.5) * 0.12 * pores * near;
 	}
 	rough += 0.08 * crease;
 
+	// --- chloupky (vellus): jemný „fuzz“ na okraji siluety v barvě přirozených vlasů (u světlých skoro neviditelný) ---
+	float vz = head ? (front ? 0.6 + 0.4 * cz : 0.8) : 0.45;
+	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+	alb = mix(alb, vellus_color, clamp(fres * vellus * vz * 0.22, 0.0, 0.2));
+
 	ALBEDO = alb;
-	ROUGHNESS = clamp(rough, 0.25, 0.85);
-	SPECULAR = 0.35;
+	ROUGHNESS = clamp(rough, 0.22, 0.88);
+	SPECULAR = 0.35 + 0.25 * oil;
+	CLEARCOAT = 0.3 * oil * oil;          // mazový film (mastná T-zóna) jako tenká lesklá vrstva (render: 0,5 bělilo světlou pleť)
+	CLEARCOAT_ROUGHNESS = 0.32;
+	RIM = vellus * vz * 0.22;
+	RIM_TINT = 0.6;
 	AO = 1.0 - 0.45 * crease;
 	SSS_STRENGTH = sss;
 }

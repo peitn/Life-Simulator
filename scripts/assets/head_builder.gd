@@ -41,17 +41,24 @@ const DETAIL_KEYS := ["lash_length", "lash_curl", "lash_density", "teeth_gap", "
 ## Mimika (prezentace klienta, SimVisual): jednostranné 0..1 kromě zornice (−1..1). Levá = +x (postava hledí do +z).
 const EXPR_KEYS := ["ex_blink_l", "ex_blink_r", "ex_smile", "ex_frown", "ex_brow_up", "ex_jaw_open", "ex_pupil"]
 ## Řasy: počet karet na víčko (jedna karta = chomáček několika řas), stanic podél karty (+ špička), šířka a délka u kořene.
-const LASH_UP := 34
-const LASH_LO := 18
+## Běh 22 (kontrola renderu): méně, ale širších karet – každá karta je „trs“ řas (shluk), ne jeden chloupek;
+## dřív 34 + 18 tenkých karet působilo roztřepeně.
+const LASH_UP := 24
+const LASH_LO := 13
 const LASH_ST := 4
-const LASH_W_UP := 0.00062
-const LASH_W_LO := 0.00040
+const LASH_W_UP := 0.00085
+const LASH_W_LO := 0.00048
 const LASH_L_UP := 0.0086
 const LASH_L_LO := 0.0046
 ## Čelist: osa otáčení (temporomandibulární kloub před uchem) a úhel plně otevřených úst (~17 mm mezi řezáky).
 const JAW_HINGE_Y := 1.652
 const JAW_HINGE_Z := -0.008
 const JAW_OPEN_DEG := 9.0
+## Běh 22: tvar otvoru úst – rotace čelisti se ke koutkům vytrácí (1 − |a|²)^MOUTH_TAPER_P → čočka se zaoblenými
+## konci místo obdélníku; rty se při otevření lehce zúží (MOUTH_OPEN_NARROW) a horní ret se zvedne (MOUTH_OPEN_LIFT).
+const MOUTH_TAPER_P := 0.55
+const MOUTH_OPEN_NARROW := 0.06
+const MOUTH_OPEN_LIFT := 0.0009
 ## Zuby jedné poloviny oblouku od středu: [šířka mesiodistálně, výška korunky, tloušťka u krčku, tloušťka u hrany,
 ## výška hrany vůči linii úst My, šířka hrany / šířka zubu]. Hodnoty dospělého chrupu (řezák 8–9 mm, špičák ~10 mm).
 const TEETH_UP := [[0.0086, 0.0105, 0.0068, 0.0013, -0.0009, 0.98], [0.0066, 0.0090, 0.0060, 0.0012, -0.0008, 0.96],
@@ -375,8 +382,9 @@ static func derive(p: Dictionary) -> Dictionary:
 	# C3+ B (běh 18): rty s objemem – vyšší červeň (horní ~7,5 mm, dolní ~10 mm u výchozí), větší vyklenutí a
 	# o 2 mm širší ústa (koutky se stáčejí dozadu, v čelním pohledu měřila ~41 mm místo ~50);
 	# rozsah lip_* kolem nové výchozí hodnoty zůstává ve stejném poměru.
-	d["lipU"] = 0.0045 * (1.0 + 0.42 * v.call("lip_upper"))
-	d["lipL"] = 0.0052 * (1.0 + 0.38 * v.call("lip_lower"))
+	# Běh 22 (render): rty pořád ploché → víc objemu (horní +15 %, dolní +19 %), rozsah lip_* ve stejném poměru.
+	d["lipU"] = 0.0052 * (1.0 + 0.40 * v.call("lip_upper"))
+	d["lipL"] = 0.0062 * (1.0 + 0.36 * v.call("lip_lower"))
 	d["lipUh"] = 0.0094 * (1.0 + 0.24 * v.call("lip_upper"))
 	d["lipLh"] = 0.0106 * (1.0 + 0.21 * v.call("lip_lower"))
 	d["mouth_asym"] = 0.0015 * v.call("asym_mouth")
@@ -399,7 +407,8 @@ static func derive(p: Dictionary) -> Dictionary:
 		var bl := clampf(v.call("ex_blink_l" if s > 0 else "ex_blink_r"), 0.0, 1.0)
 		# zamračení víčko lehce přivře, zvednuté obočí ho pootevře; úsměv (Duchenne) a zamračení zvednou dolní víčko
 		e["blink"] = clampf(bl + 0.10 * float(d["ex_frown"]) - 0.10 * float(d["ex_brow"]), -0.15, 1.0)
-		e["lo_raise"] = 0.30 * float(d["ex_smile"]) + 0.10 * float(d["ex_frown"])
+		# Běh 22: Duchennův úsměv – dolní víčko výrazněji nahoru (přimhouření), dřív 0,30
+		e["lo_raise"] = 0.42 * float(d["ex_smile"]) + 0.10 * float(d["ex_frown"])
 	# Řezáky: hloubka labiální plochy uprostřed (za vnitřní linií rtů), výška linie úst.
 	d["Tz"] = float(surface_xy(0.0, float(d["My"]), d).z) - TEETH_BACK
 	return d
@@ -549,7 +558,9 @@ static func _relief(px: float, py: float, pz: float, d: Dictionary) -> float:
 	r += _nose(x, y, d) * fr
 	var phy := my + 0.0145
 	var pf := 1.0 + 0.9 * float(d["philtrum"])
-	r += 0.0014 * pf * _g2(ax - 0.0045, y - phy, 0.0018, 0.005) * fr
+	# běh 22: sloupky filtra se dole rozbíhají k vrcholům Cupidova luku (4,7 → 6,2 mm od středu)
+	var pcx := 0.0047 + 0.0015 * _smooth(phy + 0.005, phy - 0.007, y)
+	r += 0.0016 * pf * _g2(ax - pcx, y - phy, 0.0018, 0.005) * fr
 	r -= 0.0010 * pf * _g2(x, y - phy, 0.0022, 0.005) * fr
 	r += 0.0045 * maxf(0.0, float(d["fat"])) * _g3(x, y + 0.112, z - 0.04, 0.03, 0.012, 0.03)
 	return r
@@ -774,9 +785,11 @@ static func _eye_cap_pos(d: Dictionary, s: int, a: float, b: float) -> Vector3:
 # ======================================================================================
 static func _lip_curves(d: Dictionary, a: float) -> Vector2:
 	var aa := clampf(absf(a), 0.0, 1.0)
-	var bow := 1.0 - 0.16 * exp(-pow(a / 0.11, 2.0)) + 0.07 * exp(-pow((aa - 0.26) / 0.12, 2.0))
-	var up := float(d["lipUh"]) * pow(1.0 - pow(aa, 2.2), 0.55) * bow
-	var lo := -float(d["lipLh"]) * pow(1.0 - aa * aa, 0.6)
+	# Běh 22: výraznější Cupidův luk (prohlubeň uprostřed + dva vrcholy pod sloupky filtra, ~6,5 mm od středu)
+	var bow := 1.0 - 0.21 * exp(-pow(a / 0.085, 2.0)) + 0.10 * exp(-pow((aa - 0.24) / 0.10, 2.0))
+	# Běh 22 (render zblízka): červeň rtů se ke koutkům zužovala až těsně u nich („krabicový“ ret) → plynulejší mandle
+	var up := float(d["lipUh"]) * pow(1.0 - aa * aa, 0.8) * bow
+	var lo := -float(d["lipLh"]) * pow(1.0 - pow(aa, 1.8), 0.85)
 	return Vector2(up, lo)
 
 
@@ -799,7 +812,8 @@ static func _mouth_ring_pos(d: Dictionary, ring: int, a: float, b: float, gi: in
 				return Vector3(ps.x, ps.y, float(ps.z) - 0.0025)
 			var g := surface(lattice_dir(gi, gj, NZ), d)
 			var p := surface_xy(x + (float(g.x) - x) * 0.12, (my + y) + (float(g.y) - (my + y)) * 0.12, d, 0.09)
-			return Vector3(p.x, p.y, float(p.z) + 0.0004 * fz)
+			# vermilionový okraj (white roll): běh 22 0,4 → 0,7 mm – ostřejší přechod kůže/ret
+			return Vector3(p.x, p.y, float(p.z) + 0.0007 * fz)
 		2:
 			var x := a * mw * 0.97
 			var y := float(ul.x) * 0.45 if upper else float(ul.y) * 0.62
@@ -807,6 +821,9 @@ static func _mouth_ring_pos(d: Dictionary, ring: int, a: float, b: float, gi: in
 				y = 0.0006 * b
 			var p := surface_xy(x, my + y, d, 0.09)
 			var full := float(d["lipU"]) if upper else float(d["lipL"])
+			if not upper:
+				# dolní ret: dva „polštářky“ po stranách středu (plnější, ne válec)
+				full *= 1.0 + 0.10 * exp(-pow((absf(a) - 0.32) / 0.22, 2.0))
 			return Vector3(p.x, p.y, float(p.z) + full * fz)
 		3:
 			var x := a * mw * 0.93
@@ -932,21 +949,23 @@ static func _lash_pos(d: Dictionary, s: int, up: int, k: int, st: int, side: int
 	var sg := 1.0 if up == 1 else -1.0
 	var h := _lash_hash(s, up, k)
 	var ll := (LASH_L_UP if up == 1 else LASH_L_LO) * (0.45 + 0.55 * sin(PI * clampf(t * 0.92 + 0.04, 0.0, 1.0))) * (0.86 + 0.28 * t)
-	ll *= (1.0 + 0.24 * float(d["lash_len"])) * (0.92 + 0.16 * h)
+	ll *= (1.0 + 0.24 * float(d["lash_len"])) * (0.88 + 0.24 * h)
 	var dens := float(d["lash_dens"])
 	# řidší řasy: část karet se zkrátí (které – určuje hash, ne poloha), hustší: karty se rozšíří
 	ll *= 1.0 - 0.6 * maxf(0.0, -dens) * (0.35 + 0.65 * h)
 	var ww := (LASH_W_UP if up == 1 else LASH_W_LO) * (1.0 + 0.45 * maxf(0.0, dens))
-	var curl := 0.38 + 0.30 * float(d["lash_curl"])
+	var curl := 0.46 + 0.30 * float(d["lash_curl"])
 	# Běh 21 (render): řasy vycházejí hlavně DOPŘEDU (z) a teprve se stáčejí nahoru/dolů – dřív mířily podél normály
 	# víčka nahoru a zepředu vypadaly jako vějíř pod obočím.
 	var dir0 := (nrm * 0.45 + Vector3(0.0, 0.04 * sg, 0.0) + Vector3(0.0, 0.0, 0.90)).normalized()
 	var bend := (Vector3(0.0, sg, 0.0) + Vector3(0.0, 0.0, 0.25) - nrm * 0.15).normalized()
 	var u := float(st) / float(LASH_ST)
 	var q := base + dir0 * ll * u + bend * ll * curl * u * u
+	# běh 22: shluky – sousední karty se ke špičce sklánějí k sobě (páry), špička je užší než kořen
+	q += tan * (1.0 if k % 2 == 0 else -1.0) * ww * 0.35 * u * u
 	if st >= LASH_ST:
 		return q
-	return q + tan * float(side) * ww * 0.5 * (1.0 - 0.85 * u)
+	return q + tan * float(side) * ww * 0.5 * (1.0 - 0.88 * u)
 
 
 static var _arch_tab: Dictionary = {}
@@ -1099,11 +1118,13 @@ static func _expr_field(q: Vector3, d: Dictionary, upper_lip: bool) -> Vector3:
 	var sm := float(d["ex_smile"])
 	if sm > 0.0:
 		for c in [1.0, -1.0]:
-			var g := exp(-(pow(float(q.x) - c * mw, 2.0) + pow(float(q.y) - my, 2.0)) / pow(0.0115, 2.0))
-			# koutek nahoru a dozadu (zygomaticus major); užší pole než dřív, aby se linie úst opravdu prohnula
-			off += Vector3(c * 0.0042, 0.0058, -0.0034) * g * sm
-		var gc := exp(-(pow((ax - 0.036) / 0.016, 2.0) + pow((float(q.y) - 1.632) / 0.012, 2.0)))
-		off += Vector3(0.0, 0.0022, 0.0016) * gc * sm
+			var g := exp(-(pow(float(q.x) - c * mw * 1.02, 2.0) + pow(float(q.y) - my, 2.0)) / pow(0.0125, 2.0))
+			# koutek nahoru, do strany a dozadu (zygomaticus major); běh 22 výrazněji (render: „šklebení“)
+			off += Vector3(c * 0.0058, 0.0074, -0.0030) * g * sm
+			off.z += nasolabial(float(q.x), float(q.y), c, d) * sm
+		# Duchenne: zvednuté tváře (lícní polštář nahoru a dopředu)
+		var gc := exp(-(pow((ax - 0.039) / 0.018, 2.0) + pow((float(q.y) - 1.633) / 0.013, 2.0)))
+		off += Vector3(0.0, 0.0036, 0.0028) * gc * sm
 		if upper_lip:
 			off.y += 0.0008 * sm * exp(-pow(float(q.x) / 0.016, 2.0))
 		else:
@@ -1116,7 +1137,7 @@ static func _expr_field(q: Vector3, d: Dictionary, upper_lip: bool) -> Vector3:
 			var g := exp(-(pow((float(q.x) - c * 0.017) / 0.014, 2.0) + pow((float(q.y) - 1.690) / 0.010, 2.0)))
 			off += Vector3(-c * 0.0024, -0.0030, 0.0006) * g * fr
 			var gm := exp(-(pow(float(q.x) - c * mw, 2.0) + pow(float(q.y) - my, 2.0)) / pow(0.010, 2.0))
-			off += Vector3(0.0, -0.0012, 0.0) * gm * fr
+			off += Vector3(0.0, -0.0019, 0.0) * gm * fr
 		var g0 := exp(-(pow(float(q.x) / 0.008, 2.0) + pow((float(q.y) - 1.683) / 0.008, 2.0)))
 		off += Vector3(0.0, -0.0010, 0.0007) * g0 * fr
 	var bu := float(d["ex_brow"])
@@ -1127,17 +1148,53 @@ static func _expr_field(q: Vector3, d: Dictionary, upper_lip: bool) -> Vector3:
 	return off * front
 
 
+## Nasolabiální rýha při úsměvu (běh 22): úsečka od křídla nosu k bodu ~10 mm vně a ~10 mm pod koutkem; laterálně
+## od ní se lícní polštář vyboulí dopředu, v ní je mělká rýha. Vrací posun v z (m) pro stranu c = ±1.
+static func nasolabial(x: float, y: float, c: float, d: Dictionary) -> float:
+	var my := float(d["My"])
+	var a0 := Vector2(c * 0.0170, my + 0.0285)
+	var a1 := Vector2(c * (float(d["Mw"]) + 0.0100), my - 0.0100)
+	var dv := a1 - a0
+	var ln := dv.length()
+	if ln < 1e-6:
+		return 0.0   # audit Gemini (běh 22): pojistka, u platných dat je úsečka dlouhá ≥ 3 cm
+	dv /= ln
+	var nrm := Vector2(dv.y, -dv.x)
+	if nrm.x * c < 0.0:
+		nrm = -nrm
+	var rel := Vector2(x, y) - a0
+	var tt := rel.dot(dv) / ln
+	var sd := rel.dot(nrm)
+	var win := _smooth(-0.15, 0.12, tt) * (1.0 - _smooth(0.85, 1.15, tt))
+	var bulge := 0.0024 * exp(-pow((sd - 0.0065) / 0.0060, 2.0))
+	var groove := -0.0009 * exp(-pow(sd / 0.0018, 2.0))
+	return (bulge + groove) * win
+
+
+## Zúžení rotace čelisti ke koutkům: a = poloha podél úst (−1..1, koutky ±1) → 1 uprostřed, 0 v koutku.
+static func mouth_taper(a: float) -> float:
+	return pow(maxf(0.0, 1.0 - a * a), MOUTH_TAPER_P)
+
+
 ## Váha rotace dolní čelisti pro vrchol (poloha před mimikou). Mřížka: pod linií úst (do stran klesá k úhlu čelisti),
 ## vpředu, nad krkem; rty a vnitřek úst podle strany (b < 0 = dolní), dolní zuby a dáseň 1, jazyk 0,65.
 static func _jaw_w(rec: Array, q: Vector3, d: Dictionary) -> float:
 	match String(rec[0]):
 		"g":
 			var yb := float(d["My"]) - 0.0015 - 0.30 * maxf(0.0, absf(float(q.x)) - 0.022)
-			return _smooth(yb + 0.002, yb - 0.008, float(q.y)) * _smooth(-0.03, 0.01, float(q.z)) * _smooth(1.528, 1.566, float(q.y))
+			# Běh 22 (render, profil): pod bradou plná váha od z = 1 cm stáčela hrdlo dozadu → lom ~50° na krku.
+			# Teď váha pod čelistí klesá s hloubkou (brada 1, hrdlo ~0) a svislá rampa je delší.
+			var under := lerpf(_smooth(-0.010, 0.085, float(q.z)), 1.0, _smooth(1.556, 1.590, float(q.y)))
+			var w := _smooth(yb + 0.002, yb - 0.008, float(q.y)) * _smooth(-0.03, 0.01, float(q.z)) * under \
+				* _smooth(1.522, 1.572, float(q.y))
+			# u linie úst se rotace ke koutkům vytrácí stejně jako na rtech (navazuje na prstenec 1)
+			var near := 1.0 - _smooth(float(d["My"]) - 0.004, float(d["My"]) - 0.022, float(q.y))
+			var ae := clampf(absf(float(q.x)) / (float(d["Mw"]) * 1.04), 0.0, 1.0)
+			return w * lerpf(1.0, mouth_taper(ae), near)
 		"mr":
-			return _smooth(0.35, -0.35, float(rec[3]))
+			return _smooth(0.35, -0.35, float(rec[3])) * mouth_taper(float(rec[2]))
 		"mc":
-			return _smooth(0.35, -0.35, float(rec[2]))
+			return _smooth(0.35, -0.35, float(rec[2])) * mouth_taper(float(rec[1]))
 		"th", "gm":
 			return 1.0 if int(rec[1]) < 0 else 0.0
 		"tg":
@@ -1171,6 +1228,13 @@ static func _apply_expressions(t: Topo, p: PackedVector3Array, d: Dictionary) ->
 					off = _expr_field(q, d, false)
 			"mr":
 				off = _expr_field(q, d, float(rec[3]) > 0.0)
+				var ej := float(d["ex_jaw"])
+				if ej > 0.0:
+					# rty se při otevření zakulatí: lehce k sobě do středu, horní ret nahoru (víc uprostřed)
+					var tp := mouth_taper(float(rec[2]))
+					off.x -= (float(q.x) - 0.0) * MOUTH_OPEN_NARROW * ej
+					if float(rec[3]) > 0.0:
+						off.y += MOUTH_OPEN_LIFT * tp * ej
 			"mc":
 				# vnitřek dutiny se nedeformuje, jen okraj navazující na rty
 				var f := 1.0 - maxf(absf(float(rec[1])), absf(float(rec[2])))
@@ -2237,6 +2301,16 @@ static func build_instances(data: Dictionary, head_bone: int, neck_bone: int) ->
 			arrays[Mesh.ARRAY_INDEX] = idx
 			arrays[Mesh.ARRAY_BONES] = sb
 			arrays[Mesh.ARRAY_WEIGHTS] = sw
+			if mat == "lash":
+				# běh 22: tmavší kořen řas (barva vrcholu 0,45 u víčka → 1 na špičce; materiál ji násobí albedem)
+				var cols := PackedColorArray()
+				cols.resize(inv.size())
+				for i in inv.size():
+					var rc: Array = t.recipes[inv[i]]
+					var lu := float(rc[4]) / float(LASH_ST) if String(rc[0]) == "lash" else 1.0
+					var lg := lerpf(0.45, 1.0, clampf(lu, 0.0, 1.0))
+					cols[i] = Color(lg, lg, lg)
+				arrays[Mesh.ARRAY_COLOR] = cols
 			var blend: Array = []
 			for ki in keys.size():
 				var tp: PackedVector3Array = tgt_pos[ki]
@@ -2267,6 +2341,7 @@ static func build_instances(data: Dictionary, head_bone: int, neck_bone: int) ->
 			smat.metallic = float(md["metal"])
 			if mat == "lash":
 				smat.cull_mode = BaseMaterial3D.CULL_DISABLED   # karta řas je vidět z obou stran
+				smat.vertex_color_use_as_albedo = true
 			am.surface_set_material(0, smat)
 			var nm := "%s__%s__%s" % ["eyes" if part == "eyes" else "head", PART_NAMES[part], md["name"]]
 			am.resource_name = nm

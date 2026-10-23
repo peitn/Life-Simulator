@@ -92,6 +92,8 @@ static func generate(rng: RandomNumberGenerator, base: Dictionary = {}, locks: A
 	d["personality"]["psyche_seed"] = rng.randi_range(0, 65535)
 	# v6 (běh 21): detaily obličeje až za seedem psychiky – stejný seed dá ve všech ostatních polích postavu jako ve v5.
 	_face_details(rng, d, age)
+	# v7 (běh 22): typ pleti až na konci – stejný seed dá ve všech ostatních polích postavu jako ve v6.
+	_skin_type(rng, d, age)
 	# Zámky: převzít hodnoty z base (celé skupiny nebo jednotlivá pole).
 	for lk in locks:
 		var p := String(lk).split(".")
@@ -119,6 +121,20 @@ static func _face_details(rng: RandomNumberGenerator, d: Dictionary, age: int) -
 	var mk: Dictionary = d["makeup"]
 	var made_up := float(mk.get("eyeliner", 0.0)) > 0.0 or float(mk.get("eyeshadow", 0.0)) > 0.0 or float(mk.get("lipstick", 0.0)) > 0.0
 	mk["mascara"] = rng.randf_range(0.3, 0.9) if rng.randf() < (0.7 if made_up else 0.03) else 0.0
+
+
+## Typ pleti (v7): normální 35 %, smíšená 30 %, suchá 18 %, mastná 17 % (mladší častěji mastná, starší suchá – maz
+## s věkem ubývá). Síla mazu a suchosti kolem předvolby typu. Nezávislé na rodu, identitě, tónu kůže i jménu.
+static func _skin_type(rng: RandomNumberGenerator, d: Dictionary, age: int) -> void:
+	var s: Dictionary = d["skin"]
+	var young := 1.0 if age < 26 else 0.0
+	var old := clampf((float(age) - 50.0) / 25.0, 0.0, 1.0)
+	var t := String(_weighted(rng, {"normal": 35.0, "combination": 30.0, "dry": 18.0 + 17.0 * old,
+		"oily": maxf(17.0 + 10.0 * young - 12.0 * old, 3.0)}))
+	var pr: Array = Schema.SKIN_TYPE_PRESETS[t]
+	s["type"] = t
+	s["oiliness"] = _n(rng, float(pr[0]), 0.1, 0.0, 1.0)
+	s["dryness"] = _n(rng, float(pr[1]), 0.1, 0.0, 1.0)
 
 
 static func _locked(locks: Array, path: String) -> bool:

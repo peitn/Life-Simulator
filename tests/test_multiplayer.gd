@@ -114,7 +114,10 @@ func _run() -> void:
 	check(await wait_until(func(): return clock.speed_index == 4, 2.0), "oba chtějí Ultra → Ultra")
 	a.net.request_speed(0)
 	check(await wait_until(func(): return clock.speed_index == 0, 2.0), "jeden pauzne → pauza pro všechny")
-	check(await wait_until(func(): return a.clock.speed_index == 0 and b.clock.speed_index == 0, 2.0), "klientské hodiny převzaly pauzu")
+	# Reálný čas: na přetíženém hostiteli trvá doručení stavu hodin klientům déle (běh 21 a 23: občasný flake při 2 s).
+	check(await wait_until(func(): return a.clock.speed_index == 0 and b.clock.speed_index == 0, 5.0), "klientské hodiny převzaly pauzu",
+		"klienti %d/%d, server %d, synchronizací %d/%d" % [a.clock.speed_index, b.clock.speed_index, clock.speed_index,
+		int(a.net.stats.get("clock_syncs", -1)), int(b.net.stats.get("clock_syncs", -1))])
 	a.net.request_speed(3)
 	check(await wait_until(func(): return clock.speed_index == 3, 2.0), "remíza hlasů 3 vs 4 → pomalejší (3)")
 	await wait_seconds(2.5)

@@ -29,6 +29,38 @@ const EYE_SHAPE := Vector4(0.0151, 0.0058, 0.0046, 0.0698)   # půlšířka, vý
 const MOUTH := Vector3(0.0, 1.6035, 0.0255)          # (x, y, půlšířka úst)
 const HEAD_C := Vector3(0.0, 1.668, 0.0)
 
+## Typ pleti (v7) → násobky mazu a suchosti podle zóny: [maz T-zóna, maz tváře/tělo, suchost T-zóna, suchost tváře/tělo].
+## Smíšená = mastná T-zóna a sušší tváře; suchá = suchost všude, maz minimálně; mastná = maz všude.
+## Výchozí „normální“ (0,35 × 0,6 ≈ 0,21 v T-zóně) dává v shaderu drsnost T-zóny blízkou C4a (−0,065 proti −0,08).
+const SKIN_TYPE_ZONES := {
+	"normal": [0.6, 0.35, 0.5, 0.5],
+	"oily": [1.0, 0.55, 0.3, 0.3],   # běh 23: tváře 0,8 → 0,55 (render: lesk po celé tváři působil mokře/plastově)
+	"combination": [1.0, 0.25, 0.25, 1.0],
+	"dry": [0.4, 0.2, 0.9, 1.0],
+}
+
+
+## Mikrodetail kůže (C4c, běh 22): maz a suchost po zónách, velikost pórů, mikroreliéf, chloupky (vellus).
+## Čistá funkce veřejného snapshotu, kvantovaná → stejná na všech peerech. Věk: maz od ~45 let ubývá, suchost
+## přibývá (od ~50); stárnutí kůže (weathering) přidá suchost i mikroreliéf. Nezávislé na rodu a tónu kůže.
+static func micro(skin: Dictionary, age: float, weather: float, wrinkles: float, vellus_hair: Color) -> Dictionary:
+	var t = skin.get("type", "normal")
+	var zt: Array = SKIN_TYPE_ZONES.get(t if typeof(t) == TYPE_STRING else "normal", SKIN_TYPE_ZONES["normal"])
+	var oil := _num(skin, "oiliness", 0.35) * (1.0 - 0.35 * smoothstep(45.0, 80.0, age))
+	var dry := clampf(_num(skin, "dryness", 0.25) + 0.2 * smoothstep(50.0, 85.0, age) + 0.1 * weather, 0.0, 1.0)
+	var oil_t := clampf(oil * float(zt[0]), 0.0, 1.0)
+	var vc := vellus_hair.lerp(Color(0.86, 0.80, 0.70), 0.5)
+	return {
+		"oil_t": _q(oil_t),
+		"oil_c": _q(clampf(oil * float(zt[1]), 0.0, 1.0)),
+		"dry_t": _q(clampf(dry * float(zt[2]), 0.0, 1.0)),
+		"dry_c": _q(clampf(dry * float(zt[3]), 0.0, 1.0)),
+		"pore_size": _q(1.0 + 0.45 * oil_t + 0.15 * smoothstep(35.0, 75.0, age)),
+		"micro": _q(clampf(0.25 + 0.35 * dry + 0.3 * wrinkles, 0.0, 1.0)),
+		"vellus": 0.5,
+		"vellus_color": _qv(Vector3(vc.r, vc.g, vc.b)),
+	}
+
 ## Id vzorů tetování v shaderu.
 const DESIGN_ID := {"text": 0, "kvetina": 1, "geometricky": 2, "zvire": 3, "abstraktni": 4, "symbol": 5, "ornament": 6, "portret": 7}
 ## Obočí: [tloušťka m, oblouk m, vnitřní okraj |x| m, srostlé 0/1]
@@ -186,6 +218,8 @@ static func resolve(snap: Dictionary) -> Dictionary:
 	var bsh: Array = BROW_SHAPES.get(bs, BROW_SHAPES["prirozene"])
 	out["brow_shape"] = Vector4(bsh[0], bsh[1], bsh[2], bsh[3])
 	out["brow_density"] = _q(_num(hair, "brow_density", 0.6))
+	# C4c (běh 22): mikrodetail – chloupky mají přirozenou barvu vlasů (ne barvenou), světlejší než vlas
+	out.merge(micro(skin, age, weather, wrinkles, nat), true)
 	var fstyle := String(hair.get("facial", "zadne")) if typeof(hair.get("facial")) == TYPE_STRING else "zadne"
 	var fc: Array = FACIAL.get(fstyle, FACIAL["zadne"])
 	out["facial_mask"] = fc[0]

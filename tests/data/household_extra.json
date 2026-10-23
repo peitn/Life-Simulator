@@ -1,0 +1,33 @@
+[
+ {
+  "uid": "0d2e00000000d02e",
+  "identity": {
+   "first_name": "Ondřej",
+   "last_name": "Beneš",
+   "grammar": "m",
+   "gender_identity": "muz",
+   "attracted_to": [
+    "muzi"
+   ]
+  },
+  "body": {
+   "height_cm": 178.0,
+   "age": 38
+  },
+  "personality": {
+   "traits": [
+    "gurman",
+    "aktivni",
+    "vznetlivy"
+   ],
+   "aspirations": [
+    "nezavislost"
+   ]
+  },
+  "mind": {
+   "predispositions": {
+    "anxiety": 0.3
+   }
+  }
+ }
+]

@@ -111,6 +111,10 @@ var _audio: Node = null
 var dynamics = HouseholdDynamics.new()
 var _test_mode := false
 var _test_days := 3
+## Zátěžové testy (jen headless --test): jiná domácnost z JSON souboru, posun seedů, denní výpis.
+static var household_override: Array = []
+var _seed_offset := 0
+var _daily_stats := false
 
 
 func _ready() -> void:
@@ -249,13 +253,24 @@ func _config_from_args() -> Dictionary:
 		cfg["character"] = args[ch + 1]
 	if _test_mode:
 		cfg["mode"] = "offline"
+		var hh := args.find("--household")
+		if hh >= 0 and hh + 1 < args.size():
+			var parsed = JSON.parse_string(FileAccess.get_file_as_string(args[hh + 1]))
+			if typeof(parsed) == TYPE_ARRAY:
+				household_override = parsed
+			else:
+				push_error("--household: soubor %s není JSON pole postav" % args[hh + 1])
+		var sd := args.find("--seed")
+		if sd >= 0 and sd + 1 < args.size() and args[sd + 1].is_valid_int():
+			_seed_offset = int(args[sd + 1])
+		_daily_stats = args.has("--daily")
 	return cfg
 
 
 ## Kanonická (validovaná) data členů startovní domácnosti.
 static func household_characters() -> Array:
 	var out: Array = []
-	for entry in HOUSEHOLD:
+	for entry in (household_override if not household_override.is_empty() else HOUSEHOLD):
 		var d := Schema.defaults()
 		for g in entry:
 			if typeof(entry[g]) == TYPE_DICTIONARY and d.has(g):
@@ -277,7 +292,10 @@ static func household_characters() -> Array:
 func _spawn_household() -> void:
 	var chars := household_characters()
 	for idx in chars.size():
-		spawn_character(chars[idx], HOUSEHOLD_POS[idx % HOUSEHOLD_POS.size()], 1000 + idx * 77)
+		var pos: Vector3 = HOUSEHOLD_POS[idx % HOUSEHOLD_POS.size()]
+		if idx >= HOUSEHOLD_POS.size():
+			pos += Vector3(0.6 * float(idx / HOUSEHOLD_POS.size()), 0, 0.5)
+		spawn_character(chars[idx], pos, 1000 + idx * 77 + _seed_offset * 7919)
 
 
 ## Server/offline: vytvoří postavu z KANONICKÝCH (validovaných) dat CharacterData.
@@ -466,6 +484,12 @@ func _run_headless_test(days: int) -> void:
 				min_need[n][k] = minf(min_need[n][k], s.needs.values[k])
 				if s.needs.values[k] < 10.0:
 					crit_minutes[n] += 1
+		if _daily_stats and m % 1440 == 1439:
+			for s2 in sims:
+				var mm = s2.mental
+				print("DAYSTAT|%d|%s|%.1f|%.1f|%.1f|%.3f|%.3f|%.3f|%d|%d|%s|%.1f|%d" % [m / 1440 + 1, s2.sim_name, s2.mood.value,
+					mm.stress, mm.arousal, mm.dep.burden, mm.dep.hedonic, mm.dep.vigour, mm.panic_count, mm.dep.episode_count,
+					mm.state_label(), s2.needs.average(), int(mm.coping_counts.get("drink", 0))])
 		if m % 240 == 0:
 			if day_night != null:
 				day_night.update_cycle(clock.day_fraction())
@@ -516,7 +540,7 @@ func _run_headless_test(days: int) -> void:
 		if min_avg[n] < 20.0:
 			print("  !! CHYBA: průměr potřeb klesl pod 20")
 			ok = false
-		if int(s.action_counts.get("sleep", 0)) + int(s.action_counts.get("sleep_sofa", 0)) < days - 1:
+		if int(s.action_counts.get("sleep", 0)) + int(s.action_counts.get("sleep_sofa", 0)) + int(s.action_counts.get("sleep_floor", 0)) < days - 1:
 			print("  !! CHYBA: postava téměř nespí")
 			ok = false
 		if int(s.action_counts.get("insult", 0)) > 0:

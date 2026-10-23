@@ -7,6 +7,88 @@ Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --
 
 ---
 
+## 2026-10-23 (běh 23, ~02:50–04:05 UTC, plánovaný) – uzavření běhu 22 + ladění plné domácnosti + zátěžová matice
+
+**Rozsah:** dokončení běhu 22 (spadl před uzavřením; C3++ opravy, C4c mikrodetail kůže, schéma v7), ladění plné domácnosti
+z hlavního chatu (#161: `sensory_profile.gd`, `household_dynamics.gd`, `mental_state.gd`, `depression.gd`, `utility_planner.gd`,
+`sim_agent.gd`, `action_library.gd`, `main.gd`, `test_crowded_household`), nově v běhu 23: `tests/test_household_matrix.gd`,
+`tests/data/household_extra.json`, `MentalState.stress_sources`, opravy z matice (`sim_agent.gd`, `mental_state.gd`),
+`skin_layers.gd` (mastná pleť), docs. Souběžně (03:21 UTC) hlavní chat upravil `depression.gd` + `test_depression.gd`
++ docs/mental-health.md (stupně závažnosti epizod) – regrese běhu 23 je zahrnuje.
+
+**Běh 22 (doplněno, běh spadl před zápisem):** testy test_skin_micro 50/50 (nový), test_face_detail 66/66 (nové kontroly tvaru),
+regrese všech sad OK; Gemini 5 bodů – 1 oprava (pojistka logaritmu v `nasolabial()`), 4 zdůvodněně odmítnuty (podrobnosti
+se z checkpointu nedochovaly); review C4c v místnosti #156 (soubor 6b07570a…) zatím bez odpovědi.
+
+**a) Self-review a vizuální kontrola:**
+- `godot_check` hlásil chybu v `scripts/circulatory/test_circulatory_smoke.gd` (skeleton Groka, mimo plán): třída
+  `CirculatorySystem` nebyla v cache globálních tříd. Editor import (`--editor --quit`) cache obnovil → 60/60 bez zásahu do
+  souborů. Krevní oběh zůstává v rezervoáru, do simulace zapojen není.
+- Render C4c (Blender, finální GLB md5 d9fd3513…) prohlédnut: otevřená ústa jako čočka a Duchennův úsměv OK; typy pleti:
+  normální, suchá (řídké šupinky ve skupinkách) a smíšená OK, **mastná působila mokře po celé tváři** → `SKIN_TYPE_ZONES`
+  oily: maz na tvářích 0,8 → 0,55 (T-zóna 1,0). Obrázky `docs/images/c4c-skin-types-run22.jpg`, `c4c-expressions-run22-final.jpg`.
+- Self-review `sensory_profile.gd` a výňatků domácnosti (hlavní chat): bez chyb; poznámky viz Gemini.
+
+**b) Testy (na pozadí, logy previews/testlogs):**
+- Před opravami z matice (r23/r23b): crowded_household 50, household_dynamics 78, mental_health 95, depression 92,
+  reconciliation 58, player_commands 40, psyche_presentation 19, net_protocol 34, multiplayer 67, psyche 93, character_v2 43,
+  character_net 28, neck_length 36, body_morphs 62, skin 61, skin_micro 50, face_detail 66, hair 60, neck_seam 56,
+  assets 155, audio_tone 222, head 43. **test_character 156/157** – posuvník 5,36–6,34 ms (limit 4) při zátěži stroje;
+  rozpad při zátěži: validace ~3,0 ms, `public_snapshot` ~3,9 ms (znovu validuje přes `repaired`), aplikace ~2,7 ms. Běh 22
+  naměřil samostatně 3,94 ms. Nejde o regresi kódu běhu 23; optimalizace snapshotu (nevalidovat podruhé data, která
+  prošla validátorem) je v ROADMAP pro C6.
+- **Zátěžová matice** (nový `test_household_matrix`, 1. průchod): 110/112. ✘ 4 postavy seed 3: hádky 42 % (domácnost
+  Jana/Petr/Eliška/Tomáš má 2 bručouny ze 4); ✘ 8 postav seed 1: Lucie (úzkost 0,9 + deprese 0,45 + šikana) 139 h v kuse
+  se stresem > 85, nálada −86; seed 3: 69 h. Determinismus stejného seedu ✔. Tomáš (deprese 0,95 + 2 traumata): epizoda
+  v 6 z 12 běhů.
+- **Diagnostika** (`previews/diag/lucie_diag.gd`, nový čítač `MentalState.stress_sources`): (1) stres z tlačenice se
+  počítal i ve spánku (8 lidí, 3 postele → spaní na zemi vedle ostatních; ~64 bodů první den), (2) od ~10. dne „needs“
+  ~40 bodů/den – samota (social 0) stresovala i ve spánku (~17 bodů za noc). **Opravy:** tlačenice jen v bdělosti
+  (`sim_agent._mental_tick`), ve spánku stresují jen tělesné potřeby (`MentalState.SLEEP_UNMET`: hlad ×0,5). Stejný seed:
+  stresový týden (⌀ 70–77, deprese do 0,47), pak zotavení (⌀ ~40), bez saturace.
+- **Kritéria matice upravena podle review ChatGPT #164** (distribuce, ne „všichni zdraví“): zdravé postavy přísně v každém
+  běhu (stres > 85 < 10 % času a ≤ 24 h v kuse); dlouhý těžký stav (> 85 déle než 72 h) u predispozice přípustný v ≤ ~¼
+  běhů dané velikosti; hádky v jednom běhu 10–45 %, průměr velikosti 15–40 %.
+- Po opravách (r23c/r23d/r23e): **test_household_matrix 105/106** – 4 postavy hádky 41 ± 2 % (✘ průměr 15–40 %; jednotlivé
+  běhy 41–44 %, vztahy ⌀ +12), 6 postav 19 ± 3 %, 8 postav 24 ± 2 %; stres > 85 u zdravých 0 % ve všech bězích; nejdelší úsek
+  > 85 u predispozice 17 h (dřív 139 h); Lucie v 8 lidech: seed 1 nálada −1 (dřív −86), seedy 2–3 těžší průběh (nálada −61/−70,
+  19–27 % času nad 85, max 17 h v kuse) – přípustný menšinový průběh; Tomáš: epizoda ve 4 z 12 běhů; determinismus ✔.
+  Rozbor 4 postav (12 dní): 121 rozhovorů, 55 neúspěšných, 36 třenic „nádobí“ (3/den), polarizované vztahy (Jana–Eliška +75,
+  Jana–Tomáš −28, Petr–Eliška −23) → **otevřený nález** pro další běh (četnost „nádobí“ v malé domácnosti; neúspěšný
+  rozhovor ≠ hádka).
+  Regrese simulace po opravách: crowded_household 50, mental_health 95, depression 106 (se stupni závažnosti z hlavního
+  chatu), household_dynamics 78, psyche 93, reconciliation 58, player_commands 40, psyche_presentation 19; test_multiplayer
+  2× ✘ „klientské hodiny převzaly pauzu“ (i samostatně), potřetí samostatně **67/67** → časový flake (okno 2 s → 5 s,
+  kontrola teď vypisuje rychlosti a počet synchronizací); test_character 156/157 – posuvník 4,61–6,18 ms při zátěži.
+  `godot_check` 60/60.
+
+**c) Gemini** (`gemini-3.5-flash-lite`; `3.5-pro` neexistuje, `3.5-flash` přetížený):
+1. *VYSOKÁ: `hash([seed, "sensory"])` nedeterministický* – **částečně**: `hash()` pole je v rámci jedné verze enginu
+   deterministický a profil je jen na serveru, ale závisí na implementaci enginu (uložené hry po upgradu) → **opraveno**:
+   explicitní míchání `(seed * 0x9E3779B1 + 0x5E5E5017) & 0x7FFF…`.
+2. *VYSOKÁ: O(n²) v `HouseholdDynamics.tick`* – **zamítnuto**: ≤ 8 postav = 56 dvojic za 10 herních minut; prostorový filtr
+   je v ROADMAP pro větší parcely.
+3. *VYSOKÁ: hádky na dálku přes manipulaci paketů* – **zamítnuto**: tření počítá jen server, klient nic takového neposílá.
+4. *VYSOKÁ: pití lze „optimalizovat“* – **částečně**: AI ne, ale hráč mohl opakovaně přerušit pití pod 0,3 dávky a obejít
+   okno → **opraveno**: do okna se počítá dávka > 0,1. Trvalé „ničení“ zdravých copingů za alkohol odmítnuto (nerealistické).
+5. *STŘEDNÍ: `exp(-dm/τ)` nestabilní pro velké dm* – **zamítnuto**: exponenciální rozpad je přesný pro libovolné dm.
+6. *STŘEDNÍ: derivace v shaderu nejsou deterministické* – **zamítnuto**: jde jen o vykreslení, simulace ani snapshot je nepoužívají.
+- Druhé kolo (opravy z matice): (1) *spánek jako „tlačítko proti stresu“* – **zamítnuto/ověřeno**: uklidnění ve spánku
+  existovalo dřív, změna jen přestala přičítat samotu a dav; spánek končí při plné energii (`until_full`) a přes den ho
+  planner tlumí – hráč z něj nástroj neudělá; usínání při vysoké aktivaci (nespavost) je otevřený bod. (2) *časovač
+  tlačenice závislý na snímcích* – zamítnuto (počítá se v herních minutách `dm`). (3) *nepohodlí spaní na zemi by mělo
+  stresovat* – **částečně**: realističtěji snižuje kvalitu spánku → otevřený bod pro bydlení/nábytek. (4) *alokace slovníku*
+  – zamítnuto (volá se jen v diagnostice).
+
+**d) Review v místnosti:** ChatGPT #164 (distribuce místo „všichni zdraví“, kontrolované scénáře, víc seedů) – zapracováno do
+kritérií, scénáře a víc seedů v ROADMAP; Grok #157 (kritéria matice) – zapracováno; review soubor #163 (sensory_profile,
+test_household_matrix) čeká na odpověď.
+
+**Otevřené body:** výkon posuvníku pod zátěží (C6); nespavost při vysoké aktivaci; kvalita spánku na zemi; kontrolované
+scénáře matice; krevní oběh (rezervoár, rozhodne uživatelka); GitHub push z plánovaných běhů dál blokuje proxy.
+
+---
+
 ## 2026-10-22 (běh 21, ~18:20–19:05 + ~20:58–21:45 UTC, plánovaný; první pokus spadl) – C3++ detaily obličeje a mimika
 
 **Rozsah:** `scripts/assets/head_builder.gd` (řasy, zuby, dáseň, jazyk, dutina úst, limbus, zornice, mimika `ex_*`, rotace

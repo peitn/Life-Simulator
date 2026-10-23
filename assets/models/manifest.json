@@ -59,7 +59,7 @@
       "body",
       "character_head"
     ],
-    "glb_bytes": 3553652,
+    "glb_bytes": 3438116,
     "lsx_crc": {
       "body": "fb77b75a",
       "character_head": "d674db1b"
@@ -286,7 +286,7 @@
         "hair_short__hair_short__hair_main": 8
       },
       "head": {
-        "faces": 5364,
+        "faces": 5244,
         "keys": {
           "eyes": 9,
           "head": 86,
@@ -294,9 +294,9 @@
           "mouth": 7
         },
         "morphs": 93,
-        "topo_verts": 5742,
-        "tris": 10144,
-        "verts": 5990
+        "topo_verts": 5472,
+        "tris": 9934,
+        "verts": 5720
       },
       "height": 1.78,
       "key_resid": {
@@ -462,8 +462,8 @@
     "ok": true,
     "parts": 18,
     "source": "tools/blender/char.py + scripts/assets/head_builder.gd",
-    "tris": 19260,
-    "verts": 10748
+    "tris": 19050,
+    "verts": 10478
   },
   "fridge": {
     "aabb_max": [
