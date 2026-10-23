@@ -31,6 +31,11 @@ const BEDTIME_PULL := 40.0
 const APOLOGY_GUILT := 15.0
 ## AI se stejné postavě znovu omlouvá nejdřív po 12 herních hodinách (hráč smí kdykoli).
 const APOLOGY_COOLDOWN := 720.0
+## Kritický hlad: pod touto hodnotou ztrácí lákavost všechno, co hlad neřeší (i spánek).
+const HUNGER_CRITICAL := 15.0
+const HUNGER_CRITICAL_MULT := 0.25
+const ENERGY_CRITICAL := 12.0
+const ENERGY_CRITICAL_MULT := 0.3
 
 
 static func expected_effects(a: Dictionary) -> Dictionary:
@@ -72,6 +77,9 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 			var ant := prior
 			if sim.mental != null:
 				ant = sim.mental.dep.anticipated(String(a["id"]), prior)
+				# Práh těšení: pod ním věc táhne jen málo (cynik, stres, pesimismus ho zvedají).
+				if sim.get("sensory") != null:
+					ant = sim.sensory.anticipation_after_threshold(ant, sim.mental.dep.pessimism, sim.mental.stress)
 			gain += ant * ANTICIPATION
 	for t in tags:
 		if sim.mood.has_moodlet("craving_" + t):
@@ -82,6 +90,15 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 	for t in tags:
 		mult *= Traits.tag_multiplier(sim.trait_ids, t)
 		mult *= Mood.emotion_tag_multiplier(sim.mood.emotion, t)
+	# Tělo má přednost: při kritickém hladu se nedá usnout ani se soustředit na zábavu
+	# (jinak smyčka „usnu → hlad mě vzbudí → televize → zase spát“ a vyčerpání bez konce).
+	var hunger: float = sim.needs.values["hunger"]
+	if hunger < HUNGER_CRITICAL and not eff.has("hunger"):
+		mult *= lerpf(HUNGER_CRITICAL_MULT, 1.0, hunger / HUNGER_CRITICAL)
+	# Totéž u vyčerpání: kdo se sotva drží na nohou, nekouká do noci na televizi (výjimka: jídlo).
+	var energy: float = sim.needs.values["energy"]
+	if energy < ENERGY_CRITICAL and not eff.has("energy") and not eff.has("hunger"):
+		mult *= lerpf(ENERGY_CRITICAL_MULT, 1.0, energy / ENERGY_CRITICAL)
 	var night := hour >= 23 or hour < 6
 	# Cirkadiánní rytmus – v noci se spí, přes den jen když je postava opravdu vyčerpaná.
 	if tags.has("sleep"):

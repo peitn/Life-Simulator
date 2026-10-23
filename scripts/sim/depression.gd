@@ -25,6 +25,10 @@ const CAP_NO_CONDITIONS := 0.4
 ## Strop při „ztlumeně“ (bez epizod).
 const CAP_NO_EPISODES := 0.55
 const EPISODE_START := 0.6
+## „Podlaha“ zátěže u silné predispozice (× (zranitelnost − 0.3)).
+const FLOOR_K := 0.35
+## Endogenní propady za den × (zranitelnost − 0.2).
+const DIP_RATE := 0.1
 ## Epizoda začne, až zátěž nad prahem vydrží. ZÁMĚRNÁ HERNÍ KOMPRESE: klinické kritérium
 ## je „aspoň dva týdny“ (20 160 min); hra ho zkracuje na 2 herní dny, stejně jako zkracuje
 ## i jiné životní děje (herní den ≈ týden prožitku). Prahová minuta se vyhodnocuje se stavem
@@ -92,12 +96,18 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	if bool(ctx.get("night", false)) and not sleeping:
 		gain += 0.00003
 	gain *= 1.0 + 1.6 * v
+	# Silná predispozice: i v klidném období zůstává mírná skleslost („podlaha“), ze které se snáz propadne.
+	var floor_b := FLOOR_K * maxf(v - 0.3, 0.0)
+	if burden < floor_b:
+		gain += (floor_b - burden) * 0.0002
+	# Blízko stropu zátěž roste už jen pomalu (epizoda může trvat dlouho, ale nezamrzne na maximu).
+	gain *= clampf((1.0 - burden) / 0.3, 0.1, 1.0)
 	# Zotavení: úměrné zátěži (nelineární), rychlejší ve spánku a s oporou, pomalejší ve stresu.
 	var rec := 0.00007 * (1.0 + support * 1.5) * (1.0 - 0.5 * v)
 	if sleeping:
-		rec *= 1.6
+		rec *= 2.0
 	if stress > 60.0:
-		rec *= 0.4
+		rec *= 0.6
 	burden += (gain - rec * (0.3 + burden)) * dm
 	burden = clampf(burden, 0.0, _cap(cfg))
 	rumination *= exp(-dm / 240.0)
@@ -150,8 +160,8 @@ func new_day(rng: RandomNumberGenerator, cfg: Dictionary = {}) -> bool:
 	# U predispozice přicházejí občas propady i bez vnější příčiny (endogenní složka) –
 	# ne trest ani selhání postavy; častější s „jizvou“ po předchozích epizodách.
 	var v := clampf(vuln + scar, 0.0, 1.0)
-	if v > 0.2 and rng.randf() < (v - 0.2) * 0.06:
-		burden = clampf(burden + rng.randf_range(0.08, 0.2), 0.0, _cap(cfg))
+	if v > 0.2 and rng.randf() < (v - 0.2) * DIP_RATE:
+		burden = clampf(burden + rng.randf_range(0.1, 0.25) * (0.6 + v), 0.0, _cap(cfg))
 		return true
 	return false
 

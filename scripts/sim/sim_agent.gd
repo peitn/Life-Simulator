@@ -15,6 +15,7 @@ const MentalState := preload("res://scripts/sim/mental_state.gd")
 const PsycheModel := preload("res://scripts/psyche/psyche_model.gd")
 const RelLedger := preload("res://scripts/sim/rel_ledger.gd")
 const Grammar := preload("res://scripts/core/grammar_cs.gd")
+const SensoryProfile := preload("res://scripts/sim/sensory_profile.gd")
 ## Volitelné externí rozhodování sociálních interakcí (experiment FCCS, jen headless test).
 static var social_oracle = null
 
@@ -46,6 +47,8 @@ const INSULT_IGNORE_MINUTES := 120.0
 const WITNESS_DIST := 12.0
 const CROWD_DIST := 2.5
 const CROWD_INTERVAL := 15.0
+## Stres z tlačenice za každého člověka navíc (× citlivost postavy na tlačenici).
+const CROWD_STRESS := 1.0
 ## --- vyvážení vztahů (převzato z experimentu FCCS v3/v4, viz docs/relationships.md)
 ## Hádka ubere ×0,6 nominální ztráty – jinak při ~30 % hádek vztahy nutně padají („studená válka“).
 const ARGUE_REL_MULT := 0.6
@@ -111,6 +114,9 @@ var trait_ids: Array = []
 var needs
 var mood
 var mental
+## Individuální citlivosti (hluk, tlačenice, radost, práh těšení) a jejich návyky.
+var sensory = SensoryProfile.new()
+var _seed := 0
 ## Křivdy a vina (cesta zpět z konfliktu – omluva, usmíření).
 var ledger
 var rng := RandomNumberGenerator.new()
@@ -187,6 +193,7 @@ func setup(p_name: String, p_grammar: Variant, p_traits: Array, p_color: Color, 
 	body_color = p_color
 	world = p_world
 	rng.seed = p_seed
+	_seed = p_seed
 	needs = Needs.new(rng)
 	mood = Mood.new()
 	mental = MentalState.new(rng, grammar)
@@ -195,6 +202,7 @@ func setup(p_name: String, p_grammar: Variant, p_traits: Array, p_color: Color, 
 	mental.sensitivity = mental.baseline_sensitivity()
 	ledger = RelLedger.new()
 	Traits.apply_decay(trait_ids, needs)
+	sensory.setup(trait_ids, {}, p_seed)
 	name = node_name_for(p_name)
 
 
@@ -205,6 +213,7 @@ func set_conditions(conds: Dictionary) -> void:
 		if MentalState.CONDITIONS.has(String(id)) and (typeof(conds[id]) == TYPE_FLOAT or typeof(conds[id]) == TYPE_INT):
 			mental.conditions[String(id)] = clampf(float(conds[id]), 0.0, 1.0)
 	mental.sensitivity = mental.baseline_sensitivity(mental_cfg())
+	sensory.setup(trait_ids, mental.conditions, _seed)
 
 
 ## Soukromá část CharacterData (jen server/offline): predispozice a vzorce z `mind`.
@@ -301,6 +310,7 @@ func sim_tick(dm: float) -> void:
 	suppress["energy"] = float(suppress.get("energy", 1.0)) * mental.energy_drain_mult()
 	needs.tick(dm, suppress)
 	mood.tick(dm)
+	sensory.tick(dm)
 	_check_cravings()
 	_mental_tick(dm)
 	ledger.decay(dm, Traits.mult_param(trait_ids, "grudge_tau"), Traits.mult_param(trait_ids, "guilt_tau"))
@@ -324,6 +334,19 @@ func sim_tick(dm: float) -> void:
 
 
 ## Aktuální herní čas v minutách.
+## Kolik radosti postava právě dokáže prožít (anhedonie z deprese + stres + vlastní citlivost).
+func joy_capacity() -> float:
+	return sensory.joy_capacity(mental.dep.hedonic, mental.stress)
+
+
+## Příjemný moodlet: síla podle toho, kolik radosti postava právě unese (ne každého potěší stejně).
+func add_joy_moodlet(id: String, label: String, emo: String, strength: float, duration: float) -> void:
+	var k := joy_capacity() if strength > 0.0 else 1.0
+	if strength > 0.0 and strength * k < 1.0:
+		return  # tak slabé, že to postava ani nevnímá
+	mood.add_moodlet(id, label, emo, strength * k, duration)
+
+
 func now() -> float:
 	return _clock.total_minutes
 
@@ -403,13 +426,19 @@ func _mental_tick(dm: float) -> void:
 	_crowd_timer -= dm
 	if _crowd_timer <= 0.0 and world != null:
 		_crowd_timer = CROWD_INTERVAL
-		var near := 0
+		var near := 0.0
+		var cnt := 0
 		for o in world.get_sims():
 			if o != self and o.global_position.distance_to(global_position) < CROWD_DIST:
-				near += 1
-		if near >= 2:
-			var amt := 1.5 * near * (2.0 if trait_ids.has("samotar") else 1.0)
-			mental.on_stressor("crowd", amt, cfg)
+				cnt += 1
+				# Blízcy lidé nejsou „dav“ – oblíbený člověk vedle vadí jen napůl.
+				near += 0.5 if float(relationships.get(o.sim_name, 0.0)) > 30.0 else 1.0
+		if cnt >= 2:
+			# Tlačenice nevyčerpává každého stejně (samotář vs. společenský) a člověk si zvyká.
+			var amt := CROWD_STRESS * maxf(near - 1.0, 0.0) * sensory.crowd_factor()
+			sensory.expose_crowd(CROWD_INTERVAL)
+			if amt > 0.2:
+				mental.on_stressor("crowd", amt, cfg)
 	if mental.panic_active and not _in_panic_action() and not _grounding_now():
 		_enter_panic()
 	elif not mental.panic_active and was_panic:
@@ -501,7 +530,7 @@ func accepts_support() -> bool:
 func receive_support_from(helper: Node3D) -> void:
 	var rel: float = float(helper.relationships.get(sim_name, 0.0))
 	mental.receive_support(rel, Traits.mult_param(trait_ids, "support_accept"), now())
-	mood.add_moodlet("pomoc_" + String(helper.name), "Někdo při mně stál", "spokojeny", 8.0, 600.0)
+	add_joy_moodlet("pomoc_" + String(helper.name), "Někdo při mně stál", "spokojeny", 8.0, 600.0)
 	remember("%s mi pomohl%s při panické atace" % [helper.sim_name, Grammar.past(helper.grammar)])
 	for pair in [[self, helper], [helper, self]]:
 		var a: Node3D = pair[0]
@@ -811,7 +840,7 @@ func _finish(interrupted: bool) -> void:
 		if ml.size() == 5:
 			var scale := Traits.moodlet_multiplier(trait_ids, current_action.get("tags", []))
 			if float(ml[3]) > 0.0:
-				scale *= mental.dep.hedonic  # liking: prožitá radost (anhedonie ji tlumí)
+				scale *= joy_capacity()  # liking: prožitá radost (anhedonie a stres ji tlumí, citlivost postavy)
 			mood.add_moodlet(ml[0], ml[1], ml[2], float(ml[3]) * scale, float(ml[4]))
 			# Do paměti jen silné zážitky (např. gurmánovo vaření).
 			var mem = current_action.get("memory", null)
@@ -1067,7 +1096,7 @@ func note_relationship_change(b: Node3D, cur: float, nv: float) -> void:
 	if nv > cur:
 		if nv >= FRIEND_LEVEL:
 			remember("%s je teď %s %s" % [b.sim_name, pron, new_l])
-			mood.add_moodlet("novy_vztah_" + b.name, "Nové přátelství" if cur < FRIEND_LEVEL else "Sblížili jsme se",
+			add_joy_moodlet("novy_vztah_" + b.name, "Nové přátelství" if cur < FRIEND_LEVEL else "Sblížili jsme se",
 				"stastny", 15.0, 360.0)
 		else:
 			remember("Vztah se zlepšil: %s už není %s %s" % [b.sim_name, pron, old_l])
@@ -1101,7 +1130,7 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 	else:
 		act["label"] = "Svěřuje se: " + partner.first_name()
 		partner_act["label"] = "Naslouchá: " + first_name()
-		mood.add_moodlet("vyslechl_" + String(partner.name), "Někdo mě vyslechl", "spokojeny", 10.0, 480.0)
+		add_joy_moodlet("vyslechl_" + String(partner.name), "Někdo mě vyslechl", "spokojeny", 10.0, 480.0)
 		for pair in [[self, partner], [partner, self]]:
 			var a: Node3D = pair[0]
 			var b: Node3D = pair[1]
@@ -1163,7 +1192,7 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 				var cur: float = float(a.relationships.get(b.sim_name, 0.0))
 				var nv := clampf(cur + 8.0, -100.0, 100.0)
 				a.relationships[b.sim_name] = nv
-				a.mood.add_moodlet("usmireni_" + String(b.name), "Usmířili jsme se: " + b.first_name(), "spokojeny", 10.0, 480.0)
+				a.add_joy_moodlet("usmireni_" + String(b.name), "Usmířili jsme se: " + b.first_name(), "spokojeny", 10.0, 480.0)
 				a.remember("Usmířil(a) jsem se – %s" % b.sim_name)
 				a.note_relationship_change(b, cur, nv)
 				a.social_event.emit(a, true, relationship_label(cur, b.grammar) != relationship_label(nv, b.grammar))
@@ -1240,7 +1269,7 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 		var new_label := relationship_label(nv, b.grammar)
 		a.social_event.emit(a, positive, new_label != old_label)
 		if positive:
-			a.mood.add_moodlet("rozhovor_" + b.name, "Příjemný rozhovor", "stastny", 10.0, 150.0)
+			a.add_joy_moodlet("rozhovor_" + b.name, "Příjemný rozhovor", "stastny", 10.0, 150.0)
 		elif kind == "insult":
 			if a == self:
 				# Ten, kdo uráží: bručoun nebo naštvaný si uleví, ostatní mají výčitky.
