@@ -603,7 +603,7 @@ class _V:
 			err("clothing", "není slovník")
 			src = {}
 		for k in src:
-			if typeof(k) != TYPE_STRING or not Schema.OUTFIT_CATEGORIES.has(k):
+			if typeof(k) != TYPE_STRING or (not Schema.OUTFIT_CATEGORIES.has(k) and k != "active"):
 				_unknown("clothing.%s" % str(k), "neznámá kategorie oblečení")
 		for cat in Schema.OUTFIT_CATEGORIES:
 			var o = src.get(cat, null)
@@ -637,6 +637,11 @@ class _V:
 					err(p + ".bottom", "bez spodního dílu jen se šaty")
 				d["bottom"] = defs[cat]["bottom"] if defs[cat]["bottom"] != "zadne" else "kalhoty"
 			res[cat] = d
+		if src.has("active"):
+			if typeof(src["active"]) == TYPE_STRING and Schema.OUTFIT_CATEGORIES.has(src["active"]):
+				res["active"] = String(src["active"])
+			else:
+				err("clothing.active", "neplatná kategorie")
 		out["clothing"] = res
 
 	func _cross_checks() -> void:
@@ -649,9 +654,11 @@ class _V:
 		# Nastavení obsahu: vypnutá témata duševního zdraví → citlivé údaje se nepřijímají (ne chyba).
 		if not public_only and out.has("mind") and mh == "off":
 			var m: Dictionary = out["mind"]
-			if not (m.get("predispositions", {}) as Dictionary).is_empty() or not (m.get("traumas", []) as Array).is_empty() \
+			if not (m.get("predispositions", {}) as Dictionary).is_empty() or not (m.get("dispositions", {}) as Dictionary).is_empty() \
+				or not (m.get("traumas", []) as Array).is_empty() \
 					or bool(m.get("morning_worse", false)):
 				warn("mind", "témata duševního zdraví jsou vypnutá – predispozice a traumata se nepoužijí")
 			m["predispositions"] = {}
+			m["dispositions"] = {}
 			m["traumas"] = []
 			m["morning_worse"] = false

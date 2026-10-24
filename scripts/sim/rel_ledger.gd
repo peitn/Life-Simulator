@@ -25,6 +25,49 @@ var hurt_at := {}          # jméno -> kdy mi naposledy ublížil/a
 var apologies_from := {}   # jméno -> Array[float] časů omluv, které jsem dostal/a
 var broken := {}           # jméno -> „počet“ porušených omluv (pomalu vyprchává)
 var apologized_to := {}    # jméno -> kdy jsem se mu/jí naposledy omluvil/a
+## Private, direction-specific bond. This is NOT identical to liking (relationship −100..100).
+## A character can love someone without depending on them, or depend on an ambivalent relationship.
+## name -> {"importance": 0..1, "dependency": 0..1}; absent = importance inferred from liking only.
+var attachments := {}
+
+
+## Attachments are authored/learned per individual, not by global psychological traits.
+## Validated here because NPC/AI code can supply values in addition to character UI.
+func set_attachment(who: String, importance: float, dependency: float) -> bool:
+	if who.is_empty() or who.length() > 160 or not is_finite(importance) or not is_finite(dependency):
+		return false
+	if importance < 0.0 or importance > 1.0 or dependency < 0.0 or dependency > 1.0:
+		return false
+	attachments[who] = {"importance": importance, "dependency": dependency}
+	return true
+
+
+## Liking determines a baseline importance, never emotional dependency.
+## Explicit bonds allow high dependency with negative or ambivalent feelings.
+func attachment_to(who: String, liking: float) -> Dictionary:
+	var default_importance := clampf(0.08 + maxf(liking, 0.0) / 100.0 * 0.72, 0.08, 0.8)
+	var a: Dictionary = attachments.get(who, {})
+	var importance := clampf(float(a.get("importance", default_importance)), 0.0, 1.0)
+	var dependency := clampf(float(a.get("dependency", 0.0)), 0.0, 1.0)
+	# The dependent person may matter intensely even during conflict, without being trusted.
+	var impact := clampf(importance * (0.84 + dependency * 0.16) + dependency * 0.35, 0.0, 1.0)
+	return {"importance": importance, "dependency": dependency, "impact": impact}
+
+
+## Display is a qualitative private description; the returned label is not a diagnosis.
+func attachment_label(who: String, liking: float) -> String:
+	var a := attachment_to(who, liking)
+	if float(a["dependency"]) >= 0.75:
+		return "silná emoční závislost"
+	if float(a["dependency"]) >= 0.4:
+		return "zvýšená emoční závislost"
+	if float(a["impact"]) < 0.18:
+		return "spíše lhostejný vztah"
+	if float(a["importance"]) >= 0.7:
+		return "velmi důležitý člověk"
+	if float(a["importance"]) >= 0.4:
+		return "důležitý člověk"
+	return "slabší citová vazba"
 
 
 func grudge(who: String) -> float:
@@ -163,10 +206,21 @@ func soften(who: String, amount: float) -> void:
 func to_dict() -> Dictionary:
 	return {"grudges": grudges.duplicate(), "guilt": guilt.duplicate(), "hurt_at": hurt_at.duplicate(),
 		"apologized_to": apologized_to.duplicate(),
-		"apologies_from": apologies_from.duplicate(true), "broken": broken.duplicate()}
+		"apologies_from": apologies_from.duplicate(true), "broken": broken.duplicate(),
+		"attachments": attachments.duplicate(true)}
 
 
 func from_dict(d: Dictionary) -> void:
+	attachments = {}
+	var raw: Variant = d.get("attachments", {})
+	if typeof(raw) == TYPE_DICTIONARY:
+		for who in raw:
+			if typeof(raw[who]) == TYPE_DICTIONARY:
+				var a: Dictionary = raw[who]
+				var imp: Variant = a.get("importance", null)
+				var dep: Variant = a.get("dependency", null)
+				if (typeof(imp) in [TYPE_INT, TYPE_FLOAT]) and (typeof(dep) in [TYPE_INT, TYPE_FLOAT]):
+					set_attachment(String(who), float(imp), float(dep))
 	grudges = _num_dict(d.get("grudges", {}), 0.0, 100.0)
 	guilt = _num_dict(d.get("guilt", {}), 0.0, 100.0)
 	hurt_at = _num_dict(d.get("hurt_at", {}), -1.0e12, 1.0e12)

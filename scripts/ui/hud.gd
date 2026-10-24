@@ -5,6 +5,7 @@ extends CanvasLayer
 ## i SimPuppet (klient).
 
 const Needs := preload("res://scripts/sim/needs.gd")
+const CharacterEditorPanel := preload("res://scripts/ui/character_editor_panel.gd")
 const Mood := preload("res://scripts/sim/mood.gd")
 const Traits := preload("res://scripts/sim/traits.gd")
 const ActionLibrary := preload("res://scripts/sim/action_library.gd")
@@ -17,6 +18,8 @@ var main: Node
 var _time_label: Label
 var _speed_label: Label
 var _name_label: Label
+var _edit_button: Button
+var _character_editor: Control
 var _info_label: Label
 var _bars := {}
 var _moodlet_label: Label
@@ -73,6 +76,11 @@ func _ready() -> void:
 	_name_label = Label.new()
 	_name_label.add_theme_font_size_override("font_size", 22)
 	v.add_child(_name_label)
+	_edit_button = Button.new()
+	_edit_button.name = "EditCharacter"
+	_edit_button.text = "Upravit postavu"
+	_edit_button.pressed.connect(_on_edit_character)
+	v.add_child(_edit_button)
 	_info_label = Label.new()
 	_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(_info_label)
@@ -164,6 +172,23 @@ func _ready() -> void:
 		main.net.chat_received.connect(_on_chat)
 		main.net.notice.connect(show_notice)
 		main.net.disconnected.connect(show_notice)
+
+
+func _on_edit_character() -> void:
+	if main == null or main.net == null or main.net.is_networked():
+		show_notice("Editor je zatím dostupný pouze offline.")
+		return
+	var sim = main.get_selected_sim()
+	if sim == null or is_instance_valid(_character_editor):
+		return
+	var editor: Control = CharacterEditorPanel.new()
+	editor.main = main
+	add_child(editor)
+	if not editor.open_character(String(sim.name)):
+		editor.queue_free()
+		show_notice("Úprava této postavy není povolena.")
+	else:
+		_character_editor = editor
 
 
 func _make_bar(parent: Control, title: String) -> ProgressBar:
@@ -345,6 +370,8 @@ func _process(delta: float) -> void:
 	_time_label.text = "%s · %s" % [clock.time_string(), clock.phase_name()]
 	_speed_label.text = "Rychlost: " + clock.SPEED_NAMES[clock.speed_index]
 	_chat_panel.visible = main.net.is_networked()
+	_edit_button.visible = not main.net.is_networked()
+	_edit_button.disabled = main.get_selected_sim() == null
 	_render_roster()
 	var sim = main.get_selected_sim()
 	_cmd_refresh -= 0.2
@@ -408,8 +435,14 @@ func _process(delta: float) -> void:
 	var rl: PackedStringArray = []
 	var rel: Dictionary = info.get("rel", {})
 	var grudge: Dictionary = info.get("grudge", {}) if typeof(info.get("grudge")) == TYPE_DICTIONARY else {}
+	# Bond/dependency is a private per-person value; never put it into net_detail
+	# or call a local server-only method on network SimPuppets.
+	var attachments: Dictionary = {}
+	if not main.net.is_networked() and sim.has_method("private_attachment_labels"):
+		attachments = sim.private_attachment_labels()
 	for n in rel:
-		rl.append("%s %+d%s" % [String(n).split(" ")[0], int(rel[n]), " (křivda)" if grudge.has(n) else ""])
+		var bond_text := (" · " + String(attachments[n])) if attachments.has(n) else ""
+		rl.append("%s %+d%s%s" % [String(n).split(" ")[0], int(rel[n]), " (křivda)" if grudge.has(n) else "", bond_text])
 	_rel_label.text = "Vztahy: " + (", ".join(rl) if not rl.is_empty() else "—")
 	var mem: PackedStringArray = []
 	var mems: Array = info.get("mem", [])

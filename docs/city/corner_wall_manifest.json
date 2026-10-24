@@ -1,0 +1,101 @@
+{
+  "asset": "wall_corner_2m",
+  "version": "0.1",
+  "source": "tools/blender/city/corner_wall.py",
+  "license": "Original Life Simulator asset; all rights reserved",
+  "units": "meters",
+  "axes": "Blender Z-up to Godot Y-up; legs +X and -Z",
+  "pivot": [
+    0,
+    0,
+    0
+  ],
+  "height_m": 2.8,
+  "leg_length_m": 2,
+  "core_depth_m": 0.2,
+  "grid_m": 0.5,
+  "sockets": [
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      -2
+    ]
+  ],
+  "triangles": 492,
+  "mesh_count": 3,
+  "materials": [
+    "Warm plaster",
+    "Painted door trim"
+  ],
+  "uv": "1UV unit/m; dominant-plane projection before 2mm bevel",
+  "textures": [],
+  "collision_boxes": [
+    {
+      "center": [
+        0.95,
+        1.4,
+        0
+      ],
+      "size": [
+        2.1,
+        2.8,
+        0.2
+      ]
+    },
+    {
+      "center": [
+        0,
+        1.4,
+        -1.05
+      ],
+      "size": [
+        0.2,
+        2.8,
+        1.9
+      ]
+    }
+  ],
+  "interaction_points": [],
+  "blender_checks": {
+    "manifold": [
+      "corner_core",
+      "skirting_outer",
+      "skirting_inner"
+    ],
+    "nondegenerate": true,
+    "unit_normals": true,
+    "large_quad_uv_density": true
+  },
+  "notes": "Three continuous manifold L-prisms. 2mm end bevel intentional joint. Solid-color PBR only; no texture maps, navmesh or gameplay FPS claim.",
+  "validation": {
+    "run_id": "city-1792873902-112872",
+    "godot_checks": 36,
+    "solid_regression": 37,
+    "doorway_regression": 31,
+    "exit": 0,
+    "timeout": false,
+    "renders": [
+      "corner_outer.jpg",
+      "corner_inner.jpg",
+      "corner_top.jpg"
+    ],
+    "visual": "Three actual Blender CPU renders inspected",
+    "gemini": "Actual independent review; tested dispositions in review-corner-wall-20261024.md",
+    "performance": "3.729ms warm fixture /10.121ms first observed; not gameplay FPS",
+    "limitations": [
+      "No texture maps; bevel-strip density not certified",
+      "No navmesh or actual locomotion/sliding test",
+      "No large-scene FPS benchmark"
+    ]
+  },
+  "hashes": {
+    "glb": "cb6b94811cdfe67f2c2baba4f355f07836dd30390a8db87e4b13912df976baea",
+    "blend": "be765f7b9dd3e921ae2863b1774995a6fcd9558a0191ff0b0011417932c890e1",
+    "scene": "f00b753f61eb4abd3cbec74616f67bef186f2671c1b83487350c109cfe423adf"
+  }
+}

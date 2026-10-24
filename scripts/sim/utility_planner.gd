@@ -59,7 +59,7 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 	var coping: String = a.get("coping", "")
 	if coping != "" and sim.mental != null:
 		var ca: float = sim.mental.coping_appeal(coping, sim.needs.values["energy"], sim.needs.values["hunger"],
-			sim.now(), Traits.has_flag(sim.trait_ids, "impulsive"), sim.mental_cfg())
+			sim.now(), Traits.flag_strength(sim.trait_profile, "impulsive"), sim.mental_cfg())
 		if ca <= 0.0 and not bool(a.get("leisure", false)):
 			return 0.0
 		gain += ca
@@ -72,7 +72,7 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 	# a zkreslené pesimismem v depresi.
 	var ml: Array = a.get("moodlet", [])
 	if ml.size() != 5 or not sim.mood.has_moodlet(ml[0]):
-		var prior := ActionLibrary.hedonic_prior(a) * Traits.moodlet_multiplier(sim.trait_ids, tags)
+		var prior := ActionLibrary.hedonic_prior(a) * Traits.moodlet_multiplier(sim.trait_profile, tags)
 		if prior > 0.0:
 			var ant := prior
 			if sim.mental != null:
@@ -88,7 +88,7 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 		return 0.0
 	var mult := 1.0
 	for t in tags:
-		mult *= Traits.tag_multiplier(sim.trait_ids, t)
+		mult *= Traits.tag_multiplier(sim.trait_profile, t)
 		mult *= Mood.emotion_tag_multiplier(sim.mood.emotion, t)
 	# Tělo má přednost: při kritickém hladu se nedá usnout ani se soustředit na zábavu
 	# (jinak smyčka „usnu → hlad mě vzbudí → televize → zase spát“ a vyčerpání bez konce).
@@ -127,7 +127,7 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 		mult *= 1.0 - diff * (0.3 if coping != "" else 0.5)
 	# Novost – stejnou věc dvakrát po sobě dělá nerad (impulzivní méně).
 	if a["id"] == sim.last_action_id:
-		mult *= 0.6 / Traits.mult_param(sim.trait_ids, "novelty")
+		mult *= 0.6 / Traits.mult_param(sim.trait_profile, "novelty")
 	return gain * mult
 
 
@@ -139,7 +139,7 @@ static func apology_score(sim, other, base: float, friendship: float) -> float:
 		return 0.0
 	if sim.now() - float(sim.ledger.apologized_to.get(other.sim_name, -1.0e9)) < APOLOGY_COOLDOWN:
 		return 0.0
-	var s := g * 0.8 * Traits.mult_param(sim.trait_ids, "pride") * base
+	var s := g * 0.8 * Traits.mult_param(sim.trait_profile, "pride") * base
 	if friendship > 50.0:
 		s *= 0.4  # vztah je v pořádku, není co spravovat
 	var since: float = sim.now() - float(other.ledger.hurt_at.get(sim.sim_name, -1.0e9))

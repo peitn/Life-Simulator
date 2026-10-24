@@ -340,3 +340,56 @@ Findings from the run 12 render (`docs/images/c3-neck-seam-run12-a.jpg` and `-b.
   the dark band above the upper lip at the max extreme, and a light "collar" on muscular or heavy bodies;
 - open then: hair was still a shell ("helmet") and there were no geometric eyebrows – both done in C4b (run 17);
   still open: the lips are flat and the eyes small (C3+ B), and the head can look small on a very muscular body.
+
+## Continuous personality & mental-health sliders (schema v8)
+
+The new `scripts/ui/personality_slider_editor.gd` is a reusable C6/C7 UI component for `CharacterData` (not yet wired into the game's main menu). It builds real `HSlider` controls for all 15 legacy trait concepts, 6 HEXACO-like personality axes, 9 psyche dispositions, and currently available condition predispositions (anxiety and depression). A condition label is not a rigid behaviour script, and 0..1 represents a gameplay susceptibility, not a clinical diagnosis.
+
+- `personality.trait_levels`: optional map from `Schema.TRAIT_SLIDERS` identifiers to intensities 0..1. When nonempty it takes precedence over the old `personality.traits` array for simulation; absent identifiers contribute 0. Old characters with an empty map retain their old trait behaviour. Opposing traits can coexist at any intensity; there is no trait budget for sliders. All runtime trait multipliers, mood effects, social chemistry, basic coping tendencies, sensory sensitivities, and psyche model trait contributions scale by intensity. A few legacy discrete flag-specific events retain a threshold at 0.5 pending a future behaviour polish.
+- `personality.hexaco`: existing optional explicit axes −1..1; omitted axes derive from trait levels (or legacy traits).
+- `mind.dispositions`: optional explicit 0..1 values on the nine `PsycheModel.DIMS`. Omitted dimensions are calculated normally; explicit values feed the existing residual hooks in `MentalState`. These are enduring dispositions, not momentary symptoms. Subject to mental-health content settings and private from non-owners.
+- `mind.predispositions`: existing 0..1 intensity per supported condition (currently anxiety/depression), used continuously by the mental-state engine. Future profiles can extend `Schema.PREDISPOSITIONS` without introducing required boolean character types.
+
+For a new random character, all 15 trait levels are continuous, with the old legacy trait selection used as an initial randomisation bias. Editing a legacy character first converts all old traits to 0 or 1 and then changes only the selected slider so other properties do not vanish. Schema v7 → v8 migration adds empty `trait_levels` and `dispositions` dictionaries without changing existing characters. The server validator bounds, quantises, and accepts these private maps; the public multiplayer snapshot excludes them. UI use: instantiate `personality_slider_editor.gd`, call `load_character(CharacterData)`, and use `export_data()` for a repaired result. Full creator-menu integration still belongs to C6/C7.
+
+Regression: `tests/test_personality_sliders.tscn` (24 checks passed on 23 October 2026). Existing character (157), psyche (93), mental-health (95), depression (106), command (40), multiplayer (67) tests still passed after the change; a 3-game-day headless simulation also passed. Further long-run household balance calibration is recommended when extending slider-driven AI.
+
+## C5 clothing prototype — first live garment pass (23 October 2026)
+
+After reconnecting Blender 4.0.2, imported the real 3,438,116-byte `character.glb` from the Godot server into Blender and rendered the original character with CPU Cycles (denoising disabled because the remote Blender build lacks OpenImageDenoiser). Confirmed that the model actually includes separate shirt (830 vertices / 1,600 triangles), pants (1,263 / 2,480), shoes (402 / 768), and body skin meshes, all with 10 body blend shapes and bone weights. This is not a proxy/placeholder mesh examination.
+
+Added `scripts/assets/clothing_variants.gd`: generates cached, individually adjustable variants from the existing Blender garment mesh surfaces, retaining all skeleton arrays, skinning data, and 10 blend-shape targets; modest radial/hem tailoring differentiates fitted versus looser garments. Material variants use the existing PBR fabric/leather detail pipeline. `SimVisual._apply_outfit` replaces just the garment meshes and materials; the body and procedural face remain intact. `AppearanceResolver` now reads the selected clothing category from optional public `clothing.active` (fallback `bezne`). `CharacterValidator` checks and preserves that category and rejects unknown values. All five existing outfit categories (everyday, work, formal, sleeping, sport) can therefore select colours and garment styles without requiring a new character schema version.
+
+**Scope and limitations:** This is **C5 stage 1 / a garment-fitting and appearance MVP**, not the finished C5 clothing system. Styles such as hoodie and jacket currently share the source shirt topology with altered fit and materials; no authored hood, lapels or cardigan opening yet. Likewise, shorts, skirts and dresses still require new geometrically correct Blender meshes (current selection is a placeholder), and bare feet simply hide the shoe mesh rather than providing detailed feet. Outfit selection is read from the public character snapshot at render time; real-time multiplayer wardrobe changes need a validated server command and live replication. These pieces must not be marked complete until done.
+
+Regression: `tests/test_clothing_c5.tscn` **16/16**, plus `test_character` 157/157, `test_character_net` 28/28, `test_assets` 155/155, `test_body_morphs` 62/62, `test_skin` 61/61. Running a render check with multiple body extremes, animation poses and the separate authored clothing cuts remains the next visual milestone.
+
+## C5 authored wardrobe — 23 October 2026
+
+This replaces the earlier C5 *colour/fit prototype* description above. Blender 4.0.2 now authors 57 separate skinned garment meshes. The set contains an actual hood, long sleeves, collars, shirt buttons, pocket, flared skirt, dress lower section, cropped shorts and tall-boot shafts. Every component carries ten original body morphs and is skinned to the existing 17-bone character. Blender sources: tools/blender/clothing_c5.py and tools/blender/clothing_c5_lsx_export.py. The Godot runtime reads five compact assets/src/clothing_c5/*.lsx bundles, not the Blender-exported GLB (the Godot server currently hangs importing that GLB even with a simple test cube).
+
+The runtime ClothingWardrobe.gd includes seven types of textured materials (cotton, denim, fleece, knit, leather, satin and suiting). All fourteen actual PNG albedo/normal textures are in assets/textures/clothing_c5, with their source material collection also stored in the Blender library. Garments follow all body morphs. The critical bone index mismatch between Blender LSX and the original Godot Skin bind order is explicitly remapped and tested.
+
+Characters may choose a stored outfit category through clothing.active; default category is bezne. Five categories are supported, including skirts/dresses with a separate lower-leg skin surface, while the bosy style hides shoes. In SimVisual, the same avatar skeleton is reused and garment instances are swapped; the original shirt, trousers and shoes are hidden. A four-angle/variant Cycles visual sheet is in previews/c5_qa_*.b64 and the generator is reproducible using tools/blender/clothing_c5_render.py.
+
+C5 remains IN PROGRESS: visible joins around some long sleeves, a cylindrical-looking hood, fabric intersections under animation and extreme body morphs, improved feet and footwear, and live wardrobe-switch commands / replication in multiplayer still need polish. This is a working authored-mesh implementation, not finished game-art quality.
+
+## C5.1 — Subculture wardrobe expansion (24 October 2026)
+
+Eight independently selectable styles: punk, metal, emo, goth, kawaii, harajuku, grunge, visual kei. Every style consists of its own validated top, bottom and shoes identifiers (24 new selectable garment styles total), separate from personality, gender and body. The Blender generator now authors **151 skinned mesh components** across 19 top styles, 16 bottom styles, 15 shoe styles, dress and exposed-leg helpers. Subculture-specific geometry includes punk vest studs/wristbands, hanging waist chains, corset lacing, decorative bows, multiple skirt cuts, long sleeves and boot shafts. The 10 body morphs and 17-bone skin mapping are preserved.
+
+Presets are data-only and editable: `scripts/assets/subculture_wardrobe.gd` exposes `STYLES`, `outfit(style)`, `apply_to_character(character, style, slot)`. They populate an existing clothing slot, default `bezne`, without changing character identity or psychology. Individual items can then be mixed freely. `CharacterSchema.TOPS/BOTTOMS/SHOES` registers all 24 new item IDs so the existing editor and validator can use them. C5.1 Blender geometry is in the five existing LSX files, and the runtime `ClothingWardrobe` includes exposed leg skin for new skirts.
+
+Tests: `tests/test_subculture_wardrobe.tscn` **11/11**, `test_clothing_authored.tscn` **14/14**, `test_clothing_c5.tscn` **16/16**. Still prototype geometry and materials: fine graphic prints, exact plaid fabric, accurate metal hardware shaders, realistic cloth simulation and automatic outfit switching require subsequent passes.
+
+## C5.2 — Pastel pink cat-ear kawaii hoodie (24 October 2026)
+
+A new independent top item `kawaii_kocici_mikina` is now included in the Blender-authored LSX wardrobe. This is a real skinned pink hoodie, with full-length sleeves, a back hood, two protruding 3D cat ears with contrasting inner triangles, front kangaroo pocket, two drawstrings, and a hand-built front cat face motif (oval face, two pointed ears, eyes, nose and whiskers). The accessory meshes retain the existing 17-bone skeleton and all ten body morphs. The matching preset `kawaii_kocka` selects the hoodie, kawaii skirt and shoes, with pastel-pink top colour `#f5a6d0`. Users can mix the hoodie with any other bottoms/shoes; the preset does not change personality or identity. The top style is registered in `CharacterSchema.TOPS` and uses the existing fleece material with tint.
+
+The five LSX bundles have been rebuilt from Blender; the wardrobe now has 172 authored components including 118 top meshes in 20 top styles. Checks: subculture wardrobe 14/14, authored wardrobe 14/14, original C5 16/16. Further visual polishing is needed for cat print shading, ear silhouette in animation, garment-body intersections and high-detail fabric simulation.
+
+
+
+### Continuous trait effects (24 October 2026)
+
+Simulation consumes `Traits.flag_strength()` for jealousy and impulsivity; grumpiness scales relief and guilt continuously. `has_flag()` is retained for compatibility/presentation, not simulation scoring. Scalar overrides use a weighted mean with unused weight assigned to the fallback, independent of dictionary insertion order. Dictionary reductions use canonical key order. These changes preserve single-trait legacy endpoints. The main-game editor integration remains tracked by H2/H3 in the implementation sequence.

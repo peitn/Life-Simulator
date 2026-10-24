@@ -125,6 +125,82 @@ func _run() -> void:
 	var spawn_json := JSON.stringify(s_own.look)
 	check(spawn_json.find("predispositions") < 0 and spawn_json.find("Tajná") < 0, "spawn data obsahují jen veřejný snapshot")
 
+
+	section("H2b staged Apply through production hello/spawn/controller")
+	# Explicitly enabled only inside this fixture; production default remains false.
+	check(not server.net.character_edit_apply_rpc_enabled, "production Apply defaults disabled")
+	server.net.character_edit_apply_rpc_enabled = true
+	a.net.character_edit_apply_rpc_enabled = true
+	b.net.character_edit_apply_rpc_enabled = true
+	var replies_a: Array = []
+	var replies_b: Array = []
+	a.net.character_edit_apply_result.connect(func(key, accepted, revision, changed, reason):
+		replies_a.append({"key":key,"ok":accepted,"revision":revision,"changed":changed,"reason":reason}))
+	b.net.character_edit_apply_result.connect(func(key, accepted, revision, changed, reason):
+		replies_b.append({"key":key,"ok":accepted,"revision":revision,"changed":changed,"reason":reason}))
+	clock.running = false
+	var edit_key: String = a.net.my_sim
+	var original: Dictionary = server._character_records[edit_key].to_dict()
+	var edited: Dictionary = original.duplicate(true)
+	edited["body"]["height_cm"] = 179.0
+	edited["personality"]["trait_levels"] = {"optimista":0.49,"brucoun":0.51}
+	edited["mind"]["dispositions"]["hypervigilance"] = 0.64
+	edited["mind"]["dispositions"]["rejection_reactivity"] = 0.73
+	var old_revision: int = server._character_revisions[edit_key]
+	s_own.mental.sensitivity = 0.91
+	var saved_rng = s_own.rng.state
+	var saved_needs = s_own.needs.values.duplicate(true)
+	check(a.net.request_character_edit_apply(old_revision,edited), "real owner sends Apply")
+	check(await wait_until(func(): return replies_a.size()==1,3.0), "production controller returns private acknowledgement")
+	check(replies_a.size()==1 and replies_a[0]["ok"] and replies_a[0]["revision"]==old_revision+1,
+		"production commit accepted exactly one revision")
+	check(replies_b.is_empty(), "other gameplay client receives no private Apply acknowledgement")
+	check(server._character_records[edit_key].body["height_cm"]==179.0 and s_own.look["body"]["height_cm"]==179.0,
+		"real canonical record and SimAgent appearance updated")
+	check(s_own.mental.sensitivity==0.91 and s_own.rng.state==saved_rng and s_own.needs.values==saved_needs,
+		"production Apply preserves adaptation RNG and needs")
+	var public_wire := JSON.stringify(s_own.look)
+	check(not public_wire.contains("trait_levels") and not public_wire.contains("hypervigilance") and
+		not public_wire.contains("rejection_reactivity") and not public_wire.contains("Tajná"),
+		"new private axes and history excluded from post-Apply public snapshot")
+	a.net.request_character_edit_apply(old_revision,edited)
+	check(await wait_until(func(): return replies_a.size()==2,3.0), "stale request gets owner-only response")
+	check(replies_a.size()==2 and not replies_a[1]["ok"] and replies_a[1]["reason"]=="conflict",
+		"production controller rejects stale replay")
+	var assigned_b: String = b.net.my_sim
+	b.net.my_sim = edit_key
+	b.net.request_character_edit_apply(old_revision+1,edited)
+	await wait_seconds(0.25)
+	check(replies_b.is_empty() and server._character_revisions[edit_key]==old_revision+1,
+		"household peer cannot impersonate owner or alter revision")
+	b.net.my_sim = assigned_b
+	# Verify fresh private read after commit via real transport, not direct fixture access.
+	var snapshots: Array = []
+	a.net.character_edit_snapshot.connect(func(key,data,revision): snapshots.append({"key":key,"data":data,"revision":revision}))
+	a.net.request_character_edit_snapshot()
+	check(await wait_until(func(): return snapshots.size()==1,3.0), "owner reads committed snapshot")
+	check(snapshots.size()==1 and snapshots[0]["revision"]==old_revision+1 and
+		snapshots[0]["data"]["mind"]["dispositions"]["rejection_reactivity"]==0.73,
+		"private committed axes returned only through owner read")
+
+	# Owner may edit private dispositions, but cannot bypass strict server bounds.
+	server.net._edit_limiters.clear()
+	var invalid_axes: Dictionary = server._character_records[edit_key].to_dict()
+	invalid_axes["mind"]["dispositions"]["rejection_reactivity"] = 9.0
+	a.net.request_character_edit_apply(old_revision+1,invalid_axes)
+	check(await wait_until(func(): return replies_a.size()==3,3.0), "invalid axis receives bounded response")
+	check(replies_a.size()==3 and not replies_a[2]["ok"] and replies_a[2]["reason"]=="invalid_character",
+		"production validator rejects out-of-range private axis")
+	check(server._character_revisions[edit_key]==old_revision+1 and
+		server._character_records[edit_key].mind["dispositions"]["rejection_reactivity"]==0.73,
+		"rejected private-axis edit preserves data and revision")
+
+	# Public change replication is the next implementation unit, not claimed here.
+	print("H2B_PUBLIC_REPLICATION_CURRENT=",pa.look==s_own.look and pb.look==s_own.look)
+	server.net.character_edit_apply_rpc_enabled = false
+	a.net.character_edit_apply_rpc_enabled = false
+	b.net.character_edit_apply_rpc_enabled = false
+
 	section("Odmítnutí nevalidní postavy")
 	var bad := _char(502)
 	bad["identity"]["first_name"] = "Rob\u202Ein"

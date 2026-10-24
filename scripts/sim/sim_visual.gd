@@ -11,6 +11,8 @@ const AssetLibrary := preload("res://scripts/assets/asset_library.gd")
 const CharacterAnims := preload("res://scripts/assets/character_anims.gd")
 const AppearanceResolver := preload("res://scripts/character/appearance_resolver.gd")
 const BodyMorphs := preload("res://scripts/character/body_morphs.gd")
+const ClothingVariants := preload("res://scripts/assets/clothing_variants.gd")
+const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
 const SkinLayers := preload("res://scripts/character/skin_layers.gd")
 const HairRig := preload("res://scripts/assets/hair_rig.gd")
 ## Části vlasů z karet (C4b): vlasy na hlavě, obočí, vousy.
@@ -74,6 +76,10 @@ var _speed := 0.0                # vyhlazená rychlost (m/s)
 var _last_pos := Vector3.ZERO
 var _has_last := false
 var _body_mesh_cache: Array = []
+var _outfit_mats: Dictionary = {}
+var _c5_nodes: Array = []
+var _c5_infos: Array = []
+var _c5_signature := ""
 var _face_mesh_cache: Array = []
 var _rest0: Array = []            # původní lokální klidové polohy kostí
 var _skin_copy: Skin = null       # vlastní kopie Skin (inverzní bind matice podle kloubů této postavy)
@@ -359,8 +365,95 @@ func _apply_model_variant() -> void:
 			continue
 		var grp := String(mi.name).get_slice("__", 0)
 		mi.visible = bool(show.get(grp, true))
+	_apply_outfit(lp)
 	apply_body_shape(lp)
 	apply_face_shape(lp)
+
+
+## C5: use the separate garment mesh surfaces authored in Blender as the source for
+## tailored shape-key-preserving variants. All three parts retain skinning to the
+## original 17-bone skeleton, and current outfit fields come from the public snapshot.
+func _apply_outfit(lp: Dictionary) -> void:
+	if _model == null:
+		return
+	if ClothingWardrobe.is_available():
+		_apply_c5_wardrobe(lp)
+		return
+	var garments := {
+		"cloth_shirt": ["top", String(lp.get("outfit_top", "tricko")), lp.get("top", body_color)],
+		"cloth_pants": ["bottom", String(lp.get("outfit_bottom", "dziny")), lp.get("bottom", bottom_color)],
+		"shoe_leather": ["shoe", String(lp.get("outfit_shoes", "tenisky")), Color(0.14, 0.13, 0.13)],
+	}
+	for mi in _body_meshes():
+		var mname := AssetLibrary.part_material_name(mi)
+		if not garments.has(mname):
+			continue
+		var props: Array = garments[mname]
+		var part: String = props[0]
+		var garment: String = props[1]
+		if not mi.has_meta("c5_source_mesh"):
+			mi.set_meta("c5_source_mesh", mi.mesh)
+		var source: Mesh = mi.get_meta("c5_source_mesh")
+		var tailored := ClothingVariants.variant_mesh(source, part, garment)
+		if tailored != null and mi.mesh != tailored:
+			mi.mesh = tailored
+		var mkey := mname + "/" + garment
+		if not _outfit_mats.has(mkey):
+			_outfit_mats[mkey] = ClothingVariants.garment_material(garment, part, props[2])
+		var mat: StandardMaterial3D = _outfit_mats[mkey]
+		mat.albedo_color = props[2]
+		mi.material_override = mat
+		# True bare feet and dresses/skirts will get tailored meshes in stage C5b.
+		mi.visible = garment != "zadne" and garment != "bosy"
+
+
+## C5 authored Blender wardrobe: accessory geometry, actual skirt/shorts/hood/collar and
+## PBR textures all come from Blender and are transported via the existing LSX decoder.
+## We reuse the character's skeleton/Skin, do not duplicate the rig or body.
+func _apply_c5_wardrobe(lp: Dictionary) -> void:
+	var skel := _skeleton()
+	if skel == null:
+		return
+	var source_skin: Skin = _skin_copy
+	if source_skin == null:
+		for body_mi in AssetLibrary.parts_in_group(_model, "body"):
+			if body_mi.skin != null:
+				source_skin = body_mi.skin
+				break
+	if source_skin == null:
+		return
+	var signature := "%s/%s/%s" % [String(lp.get("outfit_top", "tricko")),
+		String(lp.get("outfit_bottom", "dziny")), String(lp.get("outfit_shoes", "tenisky"))]
+	if signature != _c5_signature:
+		for node in _c5_nodes:
+			if is_instance_valid(node):
+				(node as Node).get_parent().remove_child(node)
+				(node as Node).free()
+		_c5_nodes.clear()
+		_c5_infos.clear()
+		_body_mesh_cache.clear()
+		var entries := ClothingWardrobe.active_parts(lp)
+		for entry in entries:
+			var mi := MeshInstance3D.new()
+			mi.name = "C5_" + String(entry.get("category", "")) + "_" + String(entry["name"])
+			mi.mesh = entry["mesh"]
+			skel.add_child(mi)
+			mi.skeleton = NodePath("..")
+			mi.skin = source_skin
+			mi.material_override = ClothingWardrobe.material_instance(entry, lp)
+			mi.visible = true
+			_c5_nodes.append(mi)
+			_c5_infos.append(entry)
+		_c5_signature = signature
+	else:
+		for i in _c5_nodes.size():
+			var mi: MeshInstance3D = _c5_nodes[i]
+			if is_instance_valid(mi) and mi.material_override is StandardMaterial3D:
+				(mi.material_override as StandardMaterial3D).albedo_color = ClothingWardrobe.tint(_c5_infos[i], lp)
+	for body_mi in AssetLibrary.parts_in_group(_model, "body"):
+		var mname := AssetLibrary.part_material_name(body_mi)
+		if mname in ["cloth_shirt", "cloth_pants", "shoe_leather"]:
+			body_mi.visible = false
 
 
 ## Obličej (C3): váhy blend shapes hlavy, očí a vlasů (vlasy převzaly morfy lebky při importu, takže sedí
@@ -418,7 +511,11 @@ func apply_body_shape(lp: Dictionary) -> int:
 		return 0
 	var w: Dictionary = lp.get("body", {})
 	var count := 0
-	for mi in _body_meshes():
+	# Base body remains the four original meshes (used by anatomical tests).
+	# Authored C5 garments also receive the ten body morph weights.
+	var shaped_parts: Array = _body_meshes().duplicate()
+	shaped_parts.append_array(_c5_nodes)
+	for mi in shaped_parts:
 		for k in w:
 			var idx: int = mi.find_blend_shape_by_name(StringName(k))
 			if idx >= 0:

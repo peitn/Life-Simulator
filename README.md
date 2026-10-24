@@ -31,12 +31,12 @@ automated development process (see [Development process](docs/development-proces
 | Relationships: grudges, guilt, apologies, reconciliation, jealousy, household dynamics (frictions, shared moments, life events, de-escalation), crowded households up to 8 characters (sensory profiles, household matrix, run 23) | ✅ |
 | Multiplayer: authoritative ENet server, private state, validation | ✅ |
 | Character creator: data model (C1), body (C2), face (C3), skin (C4a, C4c), hair, beards and eyebrows (C4b) | ✅ C1–C3 (neck, seam, neck length, face polish; eyelashes, teeth and facial expressions in run 21; mouth, smile, lip and eyelash fixes in run 22), ✅ C4a, ✅ C4c (skin micro detail and skin type, run 22), ✅ C4b (+ hair details, run 19) |
-| Character creator: clothing (C5), editor UI (C6–C7), integration (C8) | ⬜ planned |
+| Character creator: clothing (C5), editor UI (C6–C7), integration (C8) | C5 authored wardrobe implemented (20 tops / 16 bottoms / 15 shoes); continuous personality controls and offline main-game editor with preview/Apply/Cancel/Undo implemented; multiplayer appearance replication and full create-to-household flow pending |
 | Visuals: Blender asset pipeline, day/night cycle, PsycheFX | ✅ |
 | Audio: custom synthesizer, 5 songs (music v3), apartment ambience, tension layer, argument voices, 3D object sounds, anxiety audio | ✅ |
 | City, careers, economy, save games | ⬜ planned |
 
-The full plan is in [docs/roadmap.md](docs/roadmap.md).
+The current implementation queue and completion gates are in [docs/implementation-sequence.md](docs/implementation-sequence.md). The wider plan is in [docs/roadmap.md](docs/roadmap.md).
 
 ## Quick start
 

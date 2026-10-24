@@ -120,3 +120,18 @@ Acceptance follows the review in the shared room: healthy characters must stay o
 long severe stretch (above 85 for more than 72 hours) for a predisposed character is allowed as a minority outcome (at most
 about a quarter of the runs per household size). A single run may have 10–45 % arguments; the mean per size must be 15–40 %.
 
+### Continuous personality and psyche sliders (23 October 2026)
+
+`godot --headless --path . res://tests/test_personality_sliders.tscn` — **24/24 passed**. Covers schema v8, v7 migration/back-compat, weighted traits and opposing intensities, input validation including non-finite values, private serialization, direct disposition overrides, runtime `SimAgent` integration, reusable slider UI, and fractional strengths in random characters. Rechecked: character 157/157, psyche 93/93, mental health 95/95, depression 106/106, player commands 40/40, multiplayer 67/67. Three game days headless: TEST OK. The slower household dynamics regression needs a separate unloaded-server rerun before treating balancing as unchanged.
+
+### Authored Blender C5 wardrobe regression — 23 October 2026
+
+tests/test_clothing_authored.tscn: 14/14 PASS, checking authored style count, UV/tangent/morph/skin arrays, seven material groups with actual albedo+normal textures, source-to-avatar bone-bind index mapping, calf-to-leg bindings, runtime outfit swaps and morph application. tests/test_clothing_c5.tscn: 16/16 PASS (original fallbacks and authored meshes). tests/test_body_morphs.tscn: 62/62 PASS after preserving the original four-mesh body API and separately applying morphs to C5 assets. Other recorded PASS results after integration: test_character 157/157, test_character_net 28/28, test_assets 155/155, test_hair 60/60, test_character_v2 43/43, test_multiplayer 67/67. Syntax check: 60/60; three-day headless game run: TEST OK. The visuals themselves are not animation-ready; test clothing fit at motion extremes before marking C5 complete.
+
+The Godot GLTF importer hangs on the Blender-exported GLB here (even an exported primitive cube), so runtime uses the existing tested LSX bridge instead. Important: Blender LSX skin bone order and original character's Skin bind order are not identical; ClothingWardrobe.C5_TO_CHARACTER_BIND remaps them and the dedicated test checks correspondence.
+
+
+
+### Continuous trait regression (24 October 2026)
+
+`tests/test_trait_continuity.tscn` checks order-independent parameter aggregation, boolean compatibility, fractional impulsivity and actual jealousy relationship/grudge consequences at 0, 0.1, 0.49, 0.50, 0.51 and 1. It must pass without runtime errors as well as with exit code 0.

@@ -1,9 +1,11 @@
 extends RefCounted
+const Traits := preload("res://scripts/sim/traits.gd")
 ## Individuální citlivosti postavy (ladění po zátěžovém testu 7 postav × 30 dní, 23. 10. 2026).
 ##
 ## Ne každému vadí hluk stejně a ne každého potěší totéž stejně. Profil je čistý a deterministický:
 ## vychází z rysů povahy, predispozic a z vlastního seedu postavy (nikdy ze jména ani z identity).
-##   noise_sens   – jak moc ruší hluk (hlavně ve spánku): lenoch spí jako dřevo, úzkostlivý se budí
+##   hypersensitivity – obecná citlivost na zvuk/dav/jas/dotyk (z privátní dimenze D)
+##   noise_sens   – individuální sluchová složka, zachovává se kvůli starým simulacím
 ##   crowd_sens   – jak moc vyčerpává tlačenice: samotář hodně, společenský skoro vůbec
 ##   joy_sens     – citlivost na příjemné (rozhovor, ranní světlo, dobré jídlo): optimista víc, cynik méně
 ##   light_sens   – jak moc potěší ranní světlo
@@ -25,6 +27,7 @@ const HABIT_MAX := 0.7
 ## Doba, za kterou návyk vyprchá, když podnět přestane (min).
 const HABIT_TAU := 14400.0
 
+var hypersensitivity := 0.5
 var noise_sens := 0.8
 var crowd_sens := 0.6
 var joy_sens := 1.0
@@ -34,15 +37,15 @@ var noise_habit := 0.0
 var crowd_habit := 0.0
 
 
-static func _sum(table: Dictionary, traits: Array) -> float:
+static func _sum(table: Dictionary, traits: Variant) -> float:
 	var s := 0.0
-	for t in traits:
-		s += float(table.get(String(t), 0.0))
+	for t in (traits.keys() if typeof(traits) == TYPE_DICTIONARY else traits):
+		s += float(table.get(String(t), 0.0)) * Traits.weight(traits, String(t))
 	return s
 
 
 ## Spočítá profil. conditions = {"anxiety": 0..1, "depression": 0..1}, seed = seed postavy.
-func setup(traits: Array, conditions: Dictionary, seed: int) -> void:
+func setup(traits: Variant, conditions: Dictionary, seed: int) -> void:
 	var r := RandomNumberGenerator.new()
 	# Explicitní míchání seedu (Gemini, běh 23): nezávisí na implementaci hash() pro pole, takže profil
 	# zůstane stejný i po změně verze enginu (uložené hry, server × klient).
@@ -74,13 +77,31 @@ func anticipation_after_threshold(ant: float, pessimism: float, stress: float) -
 	return maxf(ant - thr, 0.0) + 0.3 * minf(ant, thr)
 
 
-## Rušivost hluku 0..~1.6 pro spícího (po návyku).
+## D.sensory_sensitivity is a broad hypersensitivity slider (0..1), while
+## noise_sens/crowd_sens preserve older individual baselines and habituation.
+## Neutral slider 0.5 exactly preserves legacy behaviour.
+func configure(d: Dictionary) -> void:
+	hypersensitivity = clampf(float(d.get("sensory_sensitivity", 0.5)), 0.0, 1.0)
+
+
+func sensory_factor(channel: String) -> float:
+	var w := 0.0
+	match channel:
+		"noise": w = 0.45
+		"crowd": w = 0.35
+		"bright_light": w = 0.55
+		"touch": w = 0.45
+		_: return 1.0
+	return clampf(1.0 + (hypersensitivity - 0.5) * 2.0 * w, 0.45, 1.55)
+
+
+## Hluk je jedna dílčí složka hypersenzitivity, stále s vlastním návykem.
 func noise_factor() -> float:
-	return noise_sens * (1.0 - noise_habit)
+	return noise_sens * (1.0 - noise_habit) * sensory_factor("noise")
 
 
 func crowd_factor() -> float:
-	return crowd_sens * (1.0 - crowd_habit)
+	return crowd_sens * (1.0 - crowd_habit) * sensory_factor("crowd")
 
 
 ## Postava byla vystavena hluku (habituace roste pomalu, nejvýš HABIT_MAX).
@@ -99,5 +120,5 @@ func tick(dm: float) -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"noise_sens": noise_sens, "crowd_sens": crowd_sens, "joy_sens": joy_sens, "light_sens": light_sens,
+	return {"hypersensitivity": hypersensitivity, "noise_sens": noise_sens, "crowd_sens": crowd_sens, "joy_sens": joy_sens, "light_sens": light_sens,
 		"anticip_thr": anticip_thr, "noise_habit": noise_habit, "crowd_habit": crowd_habit}

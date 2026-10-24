@@ -3,7 +3,7 @@ extends RefCounted
 ##
 ##   P – osobnost: 6 os (HEXACO-like, −1..1). Uložené volitelně v CharacterData.personality.hexaco; chybějící
 ##       osa se odvodí z rysů (tabulka TRAIT_P). Rysy zůstávají jako předvolby a popisy nad vektorem.
-##   D – psychické dispozice: 9 interpretovatelných dimenzí 0..1 (0,5 = průměr populace), POČÍTANÉ, ne zadávané:
+##   D – psychické dispozice: 11 interpretovatelných dimenzí 0..1 (0,5 = průměr populace), POČÍTANÉ, ne zadávané:
 ##       D = clamp(0,5 + Σ P·W + Σ přímé vlivy rysů + Σ modulace profilů × závažnost (+ individualita), 0, 1)
 ##   C – profily stavů jako data (res://data/conditions/<id>.json) se záznamy modulací add / mul / threshold /
 ##       couple, každý s limitem a povinným „why“. Graf vazeb (couple) musí být acyklický a vyhodnocuje se
@@ -27,14 +27,16 @@ const LSX := preload("res://scripts/assets/lsx_decoder.gd")
 
 const PROFILE_DIR := "res://data/conditions"
 
-## D – 9 dimenzí: [popisek, jedna věta „co to znamená“].
+## D – 11 dimenzí: [popisek, jedna věta „co to znamená“].
 const DIMS := {
 	"threat_sensitivity": ["Citlivost na hrozbu", "Jak snadno se nejasná situace čte jako nebezpečí."],
+	"hypervigilance": ["Hypervigilance", "Jak silně postava sleduje okolí kvůli možným hrozbám a jak dlouho zůstává ostražitá."],
 	"social_threat": ["Sociální hrozba", "Jak silně postava čeká odmítnutí nebo posuzování."],
+	"rejection_reactivity": ["Reaktivita na odmítnutí", "Jak silná je emoční odezva na skutečné nebo domnělé odmítnutí, nikoliv zda je odmítnutí očekávané."],
 	"impulsivity": ["Impulzivita", "Jak rychle se chuť mění v čin."],
 	"regulation_capacity": ["Schopnost regulace", "Jak dobře se napětí a emoce vracejí dolů."],
 	"predictability_need": ["Potřeba předvídatelnosti", "Jak moc postava potřebuje vědět, co přijde."],
-	"sensory_sensitivity": ["Senzorická citlivost", "Jak intenzivně působí hluk, dav a světlo."],
+	"sensory_sensitivity": ["Hypersenzitivita", "Obecná intenzita smyslových podnětů (hluk, přeplnění, jasné světlo a dotyk). Hluk má navíc individuální profil a návyk."],
 	"energy_baseline": ["Vlastní energie", "Normální hladina energie a chuti do věcí – měřítko pro výkyvy."],
 	"reward_sensitivity": ["Radost z činností", "Kolik radosti činnosti přinášejí."],
 	"cognitive_flexibility": ["Kognitivní flexibilita", "Jak snadno se postava přepne, když věci jdou jinak."],
@@ -62,7 +64,9 @@ const TRAIT_P := {
 ## Vliv os osobnosti na dimenze: [osa, dimenze, váha na jednotku osy].
 const P_TO_D := [
 	["emotionality", "threat_sensitivity", 0.15],
+	["emotionality", "hypervigilance", 0.07],
 	["emotionality", "social_threat", 0.08],
+	["emotionality", "rejection_reactivity", 0.12],
 	["emotionality", "regulation_capacity", -0.1],
 	["emotionality", "sensory_sensitivity", 0.06],
 	["extraversion", "social_threat", -0.1],
@@ -326,14 +330,16 @@ static func _f(v, def := 0.0) -> float:
 
 
 ## Osobnost z rysů (bez explicitních hodnot).
-static func traits_personality(traits: Array) -> Dictionary:
+static func traits_personality(traits: Variant) -> Dictionary:
 	var p := {}
 	for a in Schema.HEXACO:
 		p[a] = 0.0
-	for t in traits:
+	var ids: Array = traits.keys() if typeof(traits) == TYPE_DICTIONARY else traits
+	for t in ids:
 		var offs: Dictionary = TRAIT_P.get(String(t), {})
+		var w := Traits.weight(traits, String(t))
 		for a in offs:
-			p[a] = clampf(float(p[a]) + float(offs[a]), -1.0, 1.0)
+			p[a] = clampf(float(p[a]) + float(offs[a]) * w, -1.0, 1.0)
 	return p
 
 
@@ -357,7 +363,11 @@ static func compute(cd, opts := {}) -> Dictionary:
 		for t in tr_src:
 			if typeof(t) == TYPE_STRING and TRAIT_P.has(t) and not traits.has(t):
 				traits.append(t)
-	var p_tr := traits_personality(traits)
+	var profile: Variant = traits
+	var levels = pers.get("trait_levels", {})
+	if typeof(levels) == TYPE_DICTIONARY and not levels.is_empty():
+		profile = levels
+	var p_tr := traits_personality(profile)
 	var p_eff := p_tr.duplicate()
 	var explicit := {}
 	var hx = pers.get("hexaco", {})
@@ -374,10 +384,10 @@ static func compute(cd, opts := {}) -> Dictionary:
 			var src := "hexaco:" + a if explicit.has(a) else "p:" + a
 			contrib.append([row[1], float(p_eff[a]) * float(row[2]), false, src,
 				"osobnost %s %s" % [Schema.HEXACO[a].to_lower(), _sgn(float(p_eff[a]))] + (" (zadáno)" if explicit.has(a) else " (z rysů)")])
-	for t in traits:
+	for t in (profile.keys() if typeof(profile) == TYPE_DICTIONARY else profile):
 		var offs: Dictionary = TRAIT_D.get(t, {})
 		for dim in offs:
-			contrib.append([dim, float(offs[dim]), true, "trait:" + t, "rys %s" % Traits.label(t)])
+			contrib.append([dim, float(offs[dim]) * Traits.weight(profile, String(t)), true, "trait:" + t, "rys %s" % Traits.label(t)])
 	# Profily stavů.
 	var thresholds := {}
 	var couples: Array = []
@@ -469,6 +479,17 @@ static func compute(cd, opts := {}) -> Dictionary:
 		dev_l *= clampf(mf_l, MUL_MIN, MUL_MAX)
 		D[dim] = clampf(0.5 + dev, 0.0, 1.0)
 		DL[dim] = clampf(0.5 + dev_l, 0.0, 1.0)
+	# Editor sliders specify an explicit predisposition baseline (0..1) per dimension.
+	# Omitted values stay derived; a manually chosen D becomes the source of residual hooks.
+	# Content switch affects conditions separately, while personality tendencies remain present.
+	var direct = mind.get("dispositions", {})
+	if typeof(direct) == TYPE_DICTIONARY:
+		for dim in direct:
+			if DIMS.has(dim) and _num(direct[dim]):
+				D[dim] = clampf(float(direct[dim]), 0.0, 1.0)
+				records.append({"dim": dim, "delta": float(D[dim]) - float(DL[dim]),
+					"base": float(D[dim]), "source": "slider:" + dim,
+					"why": "ručně nastavená intenzita dimenze", "carried": false})
 	var resid := {}
 	for dim in DIMS:
 		resid[dim] = float(D[dim]) - float(DL[dim])

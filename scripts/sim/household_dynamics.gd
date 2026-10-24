@@ -183,7 +183,7 @@ static func acting_id(s) -> String:
 
 ## Dráždivost povahy (násobí šanci, že drobnost naštve). Parametr rysů `irritability`.
 static func irritability(s) -> float:
-	return Traits.mult_param(s.trait_ids, "irritability")
+	return Traits.mult_param(s.trait_profile, "irritability")
 
 
 ## Jaká drobnost by mohla `s` naštvat na `o` (bez náhody), nebo "". prev_o = co `o` dělal/a
@@ -248,7 +248,7 @@ func _morning_light(sims: Array, hour: int, now: float) -> void:
 ## Následky třenice: `s` je naštvaný/á na `o` kvůli `topic`.
 func apply_friction(s, o, topic: String, now: float) -> void:
 	var cfg: Dictionary = s.mental_cfg()
-	s.mental.on_stressor("friction", FRICTION_STRESS * Traits.mult_param(s.trait_ids, "stress_gain"), cfg)
+	s.mental.on_stressor("friction", FRICTION_STRESS * Traits.mult_param(s.trait_profile, "stress_gain"), cfg)
 	s.ledger.on_hurt_by(o.sim_name, FRICTION_GRUDGE, now)
 	s.mood.add_moodlet("trenice_%s_%s" % [topic, o.name], "Štve mě %s (%s)" % [o.first_name(), COMPLAINT_LABEL[topic]],
 		"nastvany", FRICTION_MOOD, FRICTION_MOOD_MINUTES)

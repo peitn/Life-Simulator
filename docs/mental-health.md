@@ -230,3 +230,62 @@ Tests: `test_depression` section "Rozpětí deprese" (13 checks) covers:
 - the mood entry and the stronger effects;
 - the delayed onset of severe episodes and the hysteresis;
 - recovery and scar by severity, and save/load including garbage input.
+
+## Slider-driven psychological differences (23 October 2026, schema v8)
+
+The character-creation back-end now allows an independent slider for each of the nine dispositions in `PsycheModel.DIMS` (`mind.dispositions`, 0..1) and a slider for each supported condition's susceptibility (`mind.predispositions`, 0..1). A discrete diagnosis or a stereotyped disorder template is not required to define a character's behaviour. The original derived disposition model remains the default for axes the user has not overridden, while overrides feed the bounded residual hooks. Traits have separate continuous strengths, and an optional six-axis HEXACO-like personality description remains editable. `personality_slider_editor.gd` exposes these controls, currently as a reusable panel for the upcoming character editor.
+
+**Distinction:** Traits and dispositions describe enduring tendencies, conditions describe optional susceptibility, while stress, arousal, reward anticipation, hedonic capacity, and episode state are dynamic simulation variables. The editor should never turn a high slider into a fixed scripted fate or mistake it for a clinical diagnosis. Private slider maps are not included in the public multiplayer snapshot; the content-off validation path clears psychological dispositions together with mental-health predispositions.
+
+
+## Rejection sensitivity / hypersensitivity integration (24 October 2026)
+
+New `rejection_reactivity` slider is separate from `social_threat` (expectations),
+`threat_sensitivity` (meaning assigned to ambiguous signals) and
+`hypervigilance` (attentional scanning). Transient rejection distress responds
+differently to actual versus *perceived* rejection, relational significance,
+regulation and support, and can fade without a new event. Perceived rejection
+after a good conversation does **not** prove objective rejection.
+
+Sensory `sensory_sensitivity` is now labelled broad "Hypersenzitivita":
+audio/noise and nearby crowding are the current live consumers, touch and bright
+light have separately addressable gains for later world interactions. Original
+noise-specific variability and habituation are preserved.
+
+High cumulative rejection distress plus strain can optionally create a **private,
+non-graphic concern** that motivates support-aware future presentation; neither
+self-harm nor suicide is a player or AI action, and no method is represented.
+Concern is OFF by default under `sh_ed_topics=false`, suppressed when mental
+health content is muted/off, and never replicated to other peers or assigned a
+reward/score. It is a gameplay safety signal, not a predictor or diagnosis.
+Tests: `test_rejection_hypersensitivity` plus original mental-health and
+character-editor regression. Recovery remains possible.
+
+
+## Fully obscured optional implied incident presentation (24 October 2026)
+
+A **presentation-only prototype** now exists for an optional *completed*
+self-harm-related narrative incident. It is neither an ActionLibrary action
+nor generated from the rejection distress threshold. The independent
+`scripts/sim/sensitive_privacy_mask.gd` completely hides the character
+visual, replacing it with a neutral **opaque tiled mosaic box**; after the
+short transition, the visual is restored and a **local private HUD notice**
+says a self-harm episode occurred and support may be needed.
+No body part, act, tool, method, animation, injury detail or score is shown.
+
+The internal `SimAgent.present_implied_sensitive_incident()` hook is
+**guarded** by adult-sensitive content opt-in (`sh_ed_topics=true`),
+`mental_health=full`, offline local world with HUD and no active mask.
+The default setting blocks it. It fails closed in networked worlds and
+neither the hook nor the notice is added to player commands,
+`net_detail`, shared snapshots or a reward system.
+
+**Important limitations:** no autonomous self-harm incident is currently
+simulated, no plot director calls the presentation hook in normal
+gameplay, and there is no live-rendered visual screenshot audit yet.
+Future integration requires independently reviewed non-graphic,
+non-inevitable incident logic, positive support/recovery pathways,
+full save/resume and dedicated privacy/accessibility controls. Relationship
+dependency alone cannot force an incident, and there must never be a
+playable harm action or reward. The system models adult character
+experiences; it is not a psychiatric prediction.

@@ -1030,3 +1030,149 @@ docs/mental-health.md) – regrese je zahrnuje. Plán #162.
 ### Návrh dalšího kroku
 - C5 oblečení (+ koutky otevřených úst); před ním nebo souběžně krátce: třenice „nádobí“ v malé domácnosti a rozlišení
   neúspěšného rozhovoru od hádky; kontrolované scénáře matice (podpora × izolace, spánek) podle #164.
+
+
+## GPT implementation, 24 October 2026
+
+Owner authorized implementation and hourly continuation. Reconciled server-only C5/schema-v8 source, new tests and all 19 garment source/texture assets (SHA-256 verified). Blender C5 generator updated to v0.4. Fixed continuous jealousy, impulsivity and insult relief/guilt; scalar trait overrides no longer depend on dictionary insertion order. Added 26-check regression and fixed test Label cleanup. Implementation queue and concurrency lease: docs/implementation-sequence.md. UI integration and full save/load are still pending; next unit H2.
+
+Verified: continuity 26, personality 24, reconciliation 58, mental health 95, psyche 93, authored clothing 14, subcultures 14, depression 106; syntax 60/60. Crowded-household 50/50 passed in 81.7 seconds. Total after repair: 480 checks in nine suites. No full matrix rerun.
+
+Publication: local commit 752543562decc55e1e76b0cf305ac3d093645e29; 63 files match Godot SHA-256. Push to GitHub main rejected by automatic approval review, pending explicit publication approval. Hourly task remains enabled for Godot/Blender development and must not retry publication until approved.
+
+
+## H2a — transactional edit session (24 October 2026)
+Completed: scripts/character/character_edit_session.gd with isolated draft, cancel, undo/redo, slider coalescing, strict Apply validation, fresh controller permission callback, immutable UID/version, and optimistic conflict detection. Applies to CharacterData resources only; not yet wired to live SimAgent/SimVisual or network RPCs. The permission callback is supplied by trusted controller code, not a security boundary for remote clients.
+Local implementation commit: 953da11928717ab4608dd3d2e04adb63d49cdd80 (NOT published).
+New tests: tests/test_character_edit_session.gd and .tscn, 30/30 passed with clean stderr.
+Regressions: personality_sliders 24/24, character 157/157, subculture_wardrobe 14/14; 225 checks total. Character fuzz intentionally emits decompression errors; two existing suites emit the pre-existing 18-ObjectDB shutdown warning. No visual changes or rendered UI claim in this unit.
+Next H2b: create the visible editor entry point/controller, connect PersonalitySliderEditor and wardrobe to the session, keep a private authoritative CharacterData store, refresh SimAgent and SimVisual only after a successful server-validated Apply. Derive ownership from authenticated peer/server state; never accept client permission flags/callbacks. Test actual open/edit/cancel/apply flow, owner change and multiplayer privacy, then inspect rendered UI at normal/narrow viewport. H2 remains incomplete.
+City HANDOFF.md did not exist at this read; city-owned paths untouched. Room has no new messages after #169. GitHub main still 85af65670ffe20a67d5725d1c163622cdec645fe; publication restriction remains.
+## 2026-10-24 — Repair of hourly GPT task coordination
+After enabling the two hourly tasks, an abandoned H2b lock blocked project mutations despite scheduler triggers. Owner gpt-h2b-20261024-0105 last heartbeated 01:05:50 UTC; archive and backup evidence in docs/automation-lock.md. Added tools/automation_lock.gd and a v2 renewable lease protocol, with a per-run run-history JSON and guarded stale-owner archive recovery. Hourly main/city tasks must acquire, periodically renew, verify ownership before writes, and release on all paths. This work changes no H2 gameplay code and does not publish to GitHub.
+
+## 24 October 2026 — H2b live-edit state preservation (partial milestone)
+Run main-1792818264-68050; acquire succeeded and history file verified.
+Recovered and tested existing offline controller work; fixed personality/mind Apply resetting learned mental sensitivity. SimAgent initialization remains the default, while live editor Apply preserves adaptation. Expanded integration coverage to 38 assertions.
+Changed code: main.gd; scripts/sim/sim_agent.gd; tests/test_live_character_edit.gd and .tscn. Local implementation commit: 9038f77457e7bbb6a97eb92d2d543ecc8291a80f (not published).
+Tests: live_character_edit 38, character_edit_session 30, personality_sliders 24, mental_health 95, psyche 93 = 280 passed. Before fix the new regression had exactly two sensitivity failures; after fix all suites exit 0, no timeout. Existing ObjectDB shutdown warning remains; stderr inspected.
+Gemini audit COMPLETED: two actual responses reviewing controller, SimAgent/Sensory contracts and tests. Confirmed sensitivity reset; rejected false sensory-habituation and excerpt-truncation claims. Details: docs/reviews/h2b-live-edit-20261024.md.
+H2b is NOT complete: visible editor/preview, actual UI open/edit/cancel/apply flow and authenticated network editing still pending. Current backend explicitly denies all network modes and identity changes. No UI/render or multiplayer completion claimed.
+Exact next step: wire visible editor using the existing isolated edit session and offline authority methods, with preview, wardrobe/personality controls, Apply/Cancel/Undo, UI integration tests and actual rendered normal/narrow viewport inspection. Implement authenticated peer ownership/replication before enabling network editing.
+GitHub main re-read at 85af65670ffe20a67d5725d1c163622cdec645fe; room read through #174, no messages sent. Publication block remains. No city-owned paths modified.
+
+
+### 24 Oct 2026 07:14 UTC — recurring hourly development lock failure and v3 fix
+Root cause observed: city-1792820091-68355 created solid-wall model/scene and tests at 05:40–05:42 UTC, but ended with stale running history and failed to release common lock. Scheduler continued triggering runs yet writers could not acquire. Before repair backed up 114150 KB project; manually archived untouched stale owner after 40min lease + 20min grace, no competing Godot engine. Added tools/automation_coordinator.py with permanent fcntl.flock gate; rewired tools/automation_lock.gd to it. Tests: isolated acquire, collision, owns, heartbeat, denied wrong release, own release and stale archival; production v2→v3 inspect/heartbeat/release; production v3 acquire; Godot syntax 60/60; city read-only solid-wall validator 28/28 exit 0. Gemini independently reviewed concrete coordinator and found heartbeat/acquire now serialized; residual caveat: /proc identification incomplete in exotic processes, and external file writes must obey G.owns/fresh hashes. All three automation prompts updated for v3, including 40m+20m atomic archival, without manual lock deletion. Unpublished GitHub commits left untouched. H2b not marked done.
+
+
+2026-10-24 09:17–09:24 UTC | main-fallback-1792833453-73364 | H2b partial offline editor recovery. Prior expired fallback run had written HUD/editor without completion evidence; v3 archived stale lease. Pre-change backup 114164 KB. Modified scripts/ui/personality_slider_editor.gd (responsive slider rows), scripts/ui/character_editor_panel.gd (responsive style controls, safe metadata), added tests/test_character_editor_ui.gd + .tscn and docs/reviews/h2b-ui-20261024.md. Final tests UI 29/29, live 38/38, session 30/30, slider 24/24 = 121/121, exit 0, no timeout; syntax 60/60; known ObjectDB warning. Gemini audits 2 with dispositions in review. No actual rendered screenshot, network auth/3D preview pending. GitHub and city untouched. Next: visual preview + viewport inspection, retain offline-only fail-closed editing.
+
+
+## 24 October 2026 — H2b isolated 3D draft preview completed
+Run main-preview-1792835718-79122. Implemented a real non-mutating SimVisual preview in its own SubViewport/World3D, using the existing authored character and C5 clothing. Front/left/right controls, public-only appearance, bounded texture size, updates for wardrobe/undo/redo/Apply; scrollable editor body with visible Apply/Cancel at normal and narrow viewport. No network editing enabled.
+Changed: scripts/ui/character_preview.gd (new), scripts/ui/character_editor_panel.gd, tests/test_character_editor_ui.gd, tests/test_character_preview.gd/.tscn (new), docs/reviews/h2b-preview-20261024.md, this checkpoint and DEVLOG.md. Evidence: previews/editor-preview-1280x900.png and editor-preview-360x800.png.
+Final tests: UI 41, authored preview 13, live edit 38, session 30, personality sliders 24 = 146/146. Separate real graphical run 19/19, exit 0; screenshots actually inspected at 1280x900 and 360x800. Syntax checker 60/60. Initial harness node-path error fixed; initial screenshots obscured by first-run warning were recaptured after non-persistent test acknowledgement. Existing 18 ObjectDB shutdown warnings remain. Software Mesa OpenGL render is verified; Forward+ and detailed clipping/performance are not.
+One actual Gemini review performed; false allegations rejected against source and passing tests, limitations documented. Blender connector still returns Space 503; reused Godot authored assets without pretending Blender was read successfully. Room read through #174. GitHub still read-only at 85af65670ffe20a67d5725d1c163622cdec645fe.
+H2 remains PARTIAL. Exact next: individual top/bottom/shoe selectors across all outfit categories with draft/preview/undo/cancel/apply tests, then authenticated multiplayer ownership/replication. Identity changes, H3–H8 remain unfinished. Pre-edit backup 114171 KB; final backup and released lease verified separately in run history.
+
+[2026-10-24 12:08–12:18 UTC] H2b garment selectors — run main-fallback-1792843723-84490
+Recovered expired main-1792839469-84414 under atomic v3 gate after grace; pre-edit backup 114396 KB.
+Implemented schema-backed per-item top/bottom/shoes UI across all 5 outfits, isolated draft and preview, Undo/Redo/Cancel, invalid-choice guards, dress/no-bottom constraint. Fixed responsive width after initial authored-preview test failed at 360px (451px panel); final 360px test passes.
+Files: scripts/ui/character_editor_panel.gd, tests/test_character_editor_ui.gd, tests/test_character_garment_render.gd, previews/garment-editor-1280x900.png, previews/garment-editor-360x800.png, docs/reviews/h2b-garment-selectors-20261024.md, CHECKPOINT.md, DEVLOG.md.
+Final tests: UI55, session30, live38, personality24, authored preview13 = 160/160, syntax 60/60. Xvfb real rendered screenshots at 1280x900 and 360x800 inspected. No timeout. Existing ObjectDB and Compatibility renderer warnings noted.
+Gemini two real responses; both alleged P1s retracted as false on evidence. H2 partial, network editing remains disabled; next authenticated ownership/replication. GitHub/city untouched.
+
+## 2026-10-24 — H2b secure multiplayer ownership prerequisite (fallback main-fallback-1792847626-91274)
+Implemented server-internal `NetSession.server_can_edit_character()` with server-owned player/character/UID checks and fail-closed handling for wrong sender, duplicate assignment, disconnected state, invalid IDs and queued-for-deletion nodes. Added `tests/test_character_edit_ownership.gd/.tscn`. Network RPC editing is **not** enabled; `main.gd` still rejects network reads/Apply. Test suites: ownership 25, live 38, UI 55, session 30 = 148 passing, exit 0; syntax 60/60. Existing ObjectDB warnings remain. Independent Gemini review with verified mitigations in `docs/reviews/h2b-network-ownership-20261024.md`. Next: actual authenticated RPC read/apply with private replication and multi-client negative tests. No GitHub/city changes.
+
+## 24 October 2026 14:09–14:17 UTC — H2b server edit envelope preflight (fallback)
+Run `main-fallback-1792850950-94308`: main scheduled task had no completed implementation in preceding 75 minutes; the previous fallback completed ownership prerequisite at 13:18 UTC. Acquired protocol-v3 main lock without reclaim; pre-edit backup 114632 KB.
+Implemented bounded, server-INTERNAL (NOT RPC) character edit request preflight in `scripts/net/net_session.gd`: checks current authoritative ownership, integer/nonnegative expected revision, existing canonical revision, PackedByteArray payload type, 1–24576 byte envelope and per-peer token bucket (3 requests, refill 0.2/s). Added limiter cleanup on peer disconnect and session shutdown. Does NOT decode candidate, apply changes, replicate appearance or enable network editor; future RPC must derive sender from authenticated multiplayer state and revalidate ownership/revision at commit.
+Expanded `tests/test_character_edit_ownership.gd` from 25 to 41 checks. Final tests: ownership+envelope 41/41, HUD editor 55/55, edit session 30/30, live edit 38/38 = 164/164, exit 0 and no timeout for these four suites. Godot syntax 60/60. Existing 18 ObjectDB shutdown warning. No visual changes, so no new render.
+Gemini skeptical audit COMPLETED; it raised uncleaned limiter, per-peer-vs-character rate scope, and revision TOCTOU concerns. Source verifies cleanup on disconnect/shutdown and revision-key existence; per-peer limiting is intentional anti-spam. Preflight explicitly does not reserve a revision; authoritative commit must recheck. Experimental extra in-world cleanup/stress regression timed out; removed the experimental assertions and reran the stable suite successfully. Isolated disconnect cleanup check returned 1→0; isolated shutdown call outside a fully initialized multiplayer tree produced a harness null-instance stderr, not counted as a pass. Follow-up needed for lifecycle integration tests.
+Files: `scripts/net/net_session.gd`, `tests/test_character_edit_ownership.gd`, `docs/reviews/h2b-network-envelope-20261024.md`, this checkpoint, `DEVLOG.md`. No city-owned files, GitHub, or AI Room messages changed.
+NEXT: add authenticated RPC read/apply endpoints with server-derived sender, strict decode+validation, revision and ownership recheck at commit, private owner-only response and public appearance replication; test real ENet server with two clients and disconnect/reassignment before enabling remote edits. H2b remains PARTIAL.
+
+
+## 24 October 2026 — H2b strict network candidate preparation
+Run main-1792853823-96151 acquired protocol-v3 lease; immediate history verified. Pre-edit backup114634KB. Fresh checkpoint, plan, lock rules, roadmap read; AGENTS.md absent. Room no messages after174. GitHub main unchanged85af65670ffe20a67d5725d1c163622cdec645fe, read-only.
+Added server_prepare_character_edit in scripts/net/net_session.gd: authorized/rate-limited envelope -> JSON dictionary -> exact current schema/UID/identity and complete groups -> existing strict server-content validator -> fresh ownership/revision check. Returns an isolated private candidate only; NEVER commits or exposes RPC. Malformed requests consume decoder budget. Current network read/Apply stays disabled.
+Expanded tests/test_character_edit_ownership.gd41->62 checks: malformed/non-object JSON, forged UID, fractional and legacy version, identity change, missing group, invalid range, unauthorized privacy, stale revision, invalid-request rate limit, no canonical mutation/alias and accepted continuous .49 intensity. Final62/62, live edit38/38, edit session30/30, UI55/55:185/185; exit0, no timeout, existing18ObjectDB warnings only. No visual changes or new render. No new scene, asset, city file or commit.
+Gemini actually audited candidate function, surrounding ownership/preflight and first58-check test version. No actionable defect supplied; its broad security approval is not a network-integration guarantee. Added4 extra acceptance/version tests independently. Review docs/reviews/h2b-network-candidate-20261024.md records limits.
+NEXT: authenticated read/apply RPC and synchronous authoritative commit recheck; owner-only private reply, public-only appearance replication; real ENet server+two-client tests including disconnect/reassignment before enabling network UI. H2 remains PARTIAL. Final backup requested after hash-verified writes; release recorded in automation history.
+
+## 24 October 2026 — authenticated read-only editor transport
+Run main-1792857742-97115 acquired v3, history verified. Pre-edit backup114690KB. Fresh plan/checkpoint/roadmap/lock docs read; AGENTS absent; room no messages after174.
+Implemented actual read-only RPC in scripts/net/net_session.gd. Sender is derived only from multiplayer.get_remote_sender_id; server ownership gate, shared per-peer rate limit and24KB snapshot limit; private reply uses rpc_id(sender) only. Client checks server sender, own sim, revision/type/size/JSON before emitting character_edit_snapshot. No UI wiring, remote Apply or public appearance replication yet. Existing main.gd offline-only editing restriction remains.
+Added tests/test_character_edit_read_enet.gd: real ENet UDP server and two clients with independent SceneMultiplayer roots in one process. Server registration and actor records are fixtures, not complete hello/spawner integration. Final20/20: owner-private deliveries, forged selection rejection, ownership revocation/removal, throttling, unchanged revision, actual disconnect and production limiter cleanup, forged local reply rejection. Regressions ownership/candidate62, live38, editor UI55 =>175 checks total, exit0/no timeout. Old18ObjectDB warnings remain, no other stderr errors. No visual changes/new render.
+Gemini actually reviewed RPC, ownership/preflight and initial17-check harness. Alleged missing limiter cleanup disproved by existing disconnect handler and added actual ENet disconnect test. Future commit TOCTOU and receiver schema validation remain explicit integration requirements. Review docs/reviews/h2b-network-read-20261024.md.
+Changed net_session.gd, new ENet test, this checkpoint, DEVLOG and review. Backups before/after; hashes verified; no GitHub writes or city changes.
+NEXT: authenticated Apply RPC with synchronous current ownership/revision check at commit, private result and public-only appearance replication, then UI integration and full hello/spawn/disconnect/reassignment tests. H2 remains PARTIAL; read transport completed, network editing not enabled.
+
+### 2026-10-24 18:10 UTC — fallback H2b internal commit regression
+- Run `main-fallback-1792865414-97937`; v3 acquire recovered expired main-1792861709-97622 after grace; pre-edit backup 114704 KB.
+- Source change ONLY `tests/test_character_edit_ownership.gd`: 14 additional commit-path assertions covering owner, revocation, revision, canonical body/personality, public appearance, stale replay and no-op. Existing `main.gd` server-internal commit code was authored by an interrupted earlier run; not changed here.
+- Actual Godot suites: ownership 75, ENet read 20 (direct .gd; nonexistent .tscn attempt failed first), live38, session30, UI55 = 218 passed. Godot check 60/60; exit0, no timeout for final runs; pre-existing ObjectDB stderr warning.
+- Gemini skeptical audit completed; two claimed P0 issues are inapplicable given synchronous no-await and existing typed authenticated ownership checks. Partial-state side effects remain a future hardening/test item. See docs/reviews/h2b-server-commit-regression-20261024.md.
+- Remote Apply RPC still disabled; H2b not complete. GitHub and city untouched. Next authenticated RPC/replication plus two-client adversarial integration.
+
+### 2026-10-24 19:08–19:13 UTC — H2b fallback staged private Apply RPC (OFF by default)
+Run main-fallback-1792868917-99778. Files: scripts/net/net_session.gd (staged authenticated Apply request/response and private acknowledgement, feature flag disabled); tests/test_character_edit_apply_enet.gd (new real ENet two-client transport regression); CHECKPOINT.md; DEVLOG.md; docs/reviews/h2b-apply-rpc-staging-20261024.md. Pre-write backup 114705 KB. First fixture lacked required personality trait, resulting in 10 test failures; fixed fixture, final Apply ENet 23/23 exit0, read ENet20/20, ownership75/75, live38/38, session30/30, UI55/55 =>241/241; syntax60/60; no timeouts, only old ObjectDB warnings. Gemini audit completed, no confirmed P0/P1, feature must remain disabled. No UI render required (no UI changes). Public replication and production full-lifecycle test still missing; network editing not enabled. GitHub and city untouched.
+
+
+[2026-10-24] Manual user-requested vigilance trait/state — `main-manual-vigilance-1792869825-102918`
+Editor/schema and Psyche D now carry hypervigilance independently of threat appraisal,
+expected social rejection and existing noise sensitivity. New server-only Vigilance state reacts
+to conflict, insult and rejected apology with bounded impulses; safe time restores baseline.
+Integrated with SimAgent, explicitly NOT FCCS. Added isolated regression suite 19/19;
+existing personality24, psyche93, editor55, mental-health95 pass. Fixed two stale psyche test
+assertions that assumed exactly nine D dimensions. Household long test timed out at 45s before
+completion; not counted as a pass. No network editing exposure and no GitHub publication.
+
+- Final validation: Godot syntax checker 60/60, 7-day headless --test 7 exit 0 and TEST OK (5.1s simulated); 50 conversations / 20 arguments, no critical need minutes and no panic attacks in that smoke fixture. The longer 16-seed household test remains incomplete after an earlier 45s timeout; the seven-day smoke is not a replacement.
+
+
+[2026-10-24] Manual rejection/hypersensitivity work — `main-rejection-hypersens-1792870884-105964`
+Added independent rejection-reactivity disposition and non-graphic private
+rejection-distress engine; integrated direct rejection, dismissed confidences,
+insult and occasional perceived ambiguous social cue in SimAgent, without FCCS.
+Generalized existing auditory sensitivity to broader hypersensitivity slider
+(noise/crowd live, tactile/bright-light accessors reserved). Safe opt-in only
+for support concern related to potential self-harm; no gameplay self-harm event.
+Tests: new 39, vigilance 19, personality 24, psyche 93, mental health 95,
+editor UI 55 all pass; --test 7 headless pass, parser checker 60/60.
+Full household matrix not completed. GitHub read-only; H2/H3 sequence
+unchanged. See docs/design/psyche-model.md and docs/mental-health.md.
+
+- Final expanded regressions: `test_character` **157/157** (exit 0; the negative decompression-fuzz checks intentionally produce stderr warnings), `test_character_net` **28/28** (exit 0). `test_crowded_household` reached and passed the first two 7-person healthy seeds and the first stressed seed; **timed out after 65 seconds before finishing the fourth seed**, so the suite as a whole is NOT certified. No regressions were asserted from an unfinished run. Other completed suites and the 7-day smoke remain clean.
+
+## 24 October 2026 — H2b production Apply lifecycle regression
+Run main-1792872215-110560 acquired v3 lease, history verified. Fresh plan/checkpoint/roadmap/lock docs read; AGENTS absent. Reconciled subsequent fallback and manual psyche changes instead of overwriting them. Pre-edit backup 114713 KB. GitHub head unchanged 85af65670ffe20a67d5725d1c163622cdec645fe; room no new messages after174.
+
+Changed tests/test_character_net.gd: added 16 integration assertions to the existing real ENet production hello/spawn/SimAgent/controller test (no World commit stub). Explicitly enables staged Apply only in fixture. Covers authorized private acknowledgement, canonical/live update, unchanged adaptation/RNG/needs, stale replay, forged selection, fresh private read, private new psyche axes excluded from public snapshot, strict out-of-range rejection without mutation. Existing join/rejection/content-settings/despawn checks retained. Suite 44/44 exit0; diagnostic H2B_PUBLIC_REPLICATION_CURRENT=false confirms clients still have old look after server Apply. This diagnostic is NOT counted as a passing replication test.
+
+Recovered tests/test_character_edit_commit.gd from interrupted main run: initial27/28 exposed a wrong test assumption, not a data leak. Schema explicitly declares personality.traits public; changed assertion to deny private trait_levels/psyche_seed/aspirations and mind instead of denying whole personality group. Specification justifies expectation correction; production privacy rules were not weakened. Final28/28. Ownership/commit75/75, live edit38/38: total185/185 final checks; all exit0/no timeout, pre-existing18ObjectDB shutdown warnings. No runtime/asset/UI code changed, no new render needed or claimed.
+
+Gemini audit actually returned two responses reviewing actual old/new integration test, recovered test and surrounding main/net contracts. Initial P0 incorrectly treated private axes as forbidden owner edits; independently added ENet rejection_reactivity=9.0 regression (server rejects invalid_character, preserves .73 and revision), explained authorized owner editing, Gemini retracted P0. Its broad remaining-gap/security claims are not proof of exhaustiveness. Review docs/reviews/h2b-production-apply-lifecycle-20261024.md.
+Files changed: tests/test_character_net.gd, tests/test_character_edit_commit.gd, review, CHECKPOINT.md, DEVLOG.md. No production feature enabled, no city changes, no commit/push/PR.
+NEXT SINGLE STEP: implement public-only appearance replication after Apply, including late join; use this actual production lifecycle harness to assert client look/visual resolver matches canonical public snapshot and no private data leaks. Then rendered verification and network UI wiring. H2 remains PARTIAL; failure recovery and more reassignment cases remain open.
+
+
+[2026-10-24] Manual relationship-specific rejection + censored implied event —
+run `main-attachment-and-sensitive-scenes-1792872522-111020`: after another main writer released the lock, acquired the
+v3 main lease and uploaded pre-edit backup. Added per-person directional
+attachment and dependency to RelLedger (private, validated, persisted),
+consumed in actual SimAgent rejection-cue impact and shown only in offline
+HUD. High affection never automatically creates dependency. Added an
+optional presentation-only offline owner HUD mosaic/notification hook for
+a previously decided non-playable self-harm narrative event (no graphic,
+method, action, automatic trigger or network data). Tests: new 31,
+rejection39, vigilance19, personality24, mental95, editor55, net44,
+psyche93, character157 => 557/557 checks from 9 complete suites.
+Seven-day headless smoke passed; large household suite timed out and is
+not certified. No screenshot/render inspection and no GitHub publish.
+See docs/relationships.md, docs/mental-health.md and CHECKPOINT.md.
+
+## 24 October 2026 — owner-requested Godot/GitHub synchronization
+Transferred 157 verified server source/support files plus 52 stable Godot metadata files; excluded 12 generated preflight outputs. Owner explicitly authorized GitHub publication. Local Godot 4.7 validation: 121 syntax checks, 30 suites/validators, 1461 assertions, all passed; 14-day simulation TEST OK. Server sources unchanged. Scope, remaining gaps and per-file SHA-256 are recorded in docs/reviews/github-sync-20261024.md and godot-snapshot-20261024.json.

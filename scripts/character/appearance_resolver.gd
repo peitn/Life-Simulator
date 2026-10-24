@@ -139,8 +139,12 @@ static func resolve(snap: Dictionary) -> Dictionary:
 			hc = _qc(Color.html(dc).lerp(Color(0.8, 0.8, 0.79), clampf(float(_g(snap, "hair", "grey", 0.0)), 0.0, 1.0) * 0.3))
 	var outfit: Dictionary = {}
 	var cl = snap.get("clothing", {})
-	if typeof(cl) == TYPE_DICTIONARY and typeof(cl.get("bezne")) == TYPE_DICTIONARY:
-		outfit = cl["bezne"]
+	var outfit_cat := "bezne"
+	if typeof(cl) == TYPE_DICTIONARY:
+		var requested := String(cl.get("active", "bezne"))
+		if Schema.OUTFIT_CATEGORIES.has(requested) and typeof(cl.get(requested)) == TYPE_DICTIONARY:
+			outfit_cat = requested
+		outfit = cl.get(outfit_cat, {})
 	var top := _color_or(outfit.get("top_color", ""), Color(0.36, 0.42, 0.48))
 	var bottom := _color_or(outfit.get("bottom_color", ""), Color(0.18, 0.23, 0.29))
 	# Šířka jen pro náhradu z primitiv (model z Blenderu má tvar z blend shapes).
@@ -158,6 +162,10 @@ static func resolve(snap: Dictionary) -> Dictionary:
 		"iris": iris_color(float(_g(snap, "eyes", "iris", 0.6))),
 		"top": top,
 		"bottom": bottom,
+		"outfit_category": outfit_cat,
+		"outfit_top": String(outfit.get("top", "tricko")),
+		"outfit_bottom": String(outfit.get("bottom", "dziny")),
+		"outfit_shoes": String(outfit.get("shoes", "tenisky")),
 		"height_scale": sc["height_scale"],
 		"head_scale": sc["head_scale"],
 		"leg_scale": sc["leg_scale"],

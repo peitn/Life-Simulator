@@ -107,6 +107,30 @@ const CONFLICTS := [["spolecensky", "samotar"], ["lenoch", "aktivni"], ["optimis
 	["optimista", "cynik"], ["brucoun", "cynik"]]
 
 
+## Trait profiles accept either the old Array[String] (full-strength selected traits),
+## or the new {trait_id: intensity_0_to_1} for independent continuous sliders.
+## No arbitrary number-of-traits limit applies to slider profiles.
+static func weight(profile: Variant, id: String) -> float:
+	if typeof(profile) == TYPE_DICTIONARY:
+		var value = profile.get(id, 0.0)
+		if typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT:
+			return clampf(float(value), 0.0, 1.0) if not is_nan(float(value)) and not is_inf(float(value)) else 0.0
+		return 0.0
+	if typeof(profile) == TYPE_ARRAY:
+		return 1.0 if profile.has(id) else 0.0
+	return 0.0
+
+
+static func _ids(profile: Variant) -> Array:
+	if typeof(profile) == TYPE_DICTIONARY:
+		var ids: Array = profile.keys()
+		ids.sort()
+		return ids
+	if typeof(profile) == TYPE_ARRAY:
+		return profile
+	return []
+
+
 static func label(id: String) -> String:
 	return String(DEFS.get(id, {}).get("label", id))
 
@@ -114,94 +138,107 @@ static func label(id: String) -> String:
 static func labels(ids: Array) -> String:
 	var out: PackedStringArray = []
 	for id in ids:
-		out.append(label(id))
+		out.append(label(String(id)))
 	return ", ".join(out)
 
 
-static func apply_decay(ids: Array, needs) -> void:
-	for id in ids:
+static func apply_decay(profile: Variant, needs) -> void:
+	for id in _ids(profile):
+		var w := weight(profile, String(id))
 		var decay: Dictionary = DEFS.get(id, {}).get("decay", {})
 		for k in decay:
-			needs.decay_mult[k] = float(needs.decay_mult.get(k, 1.0)) * float(decay[k])
+			needs.decay_mult[k] = float(needs.decay_mult.get(k, 1.0)) * lerpf(1.0, float(decay[k]), w)
 
 
-static func tag_multiplier(ids: Array, tag: String) -> float:
+static func tag_multiplier(profile: Variant, tag: String) -> float:
 	var m := 1.0
-	for id in ids:
+	for id in _ids(profile):
 		var tags: Dictionary = DEFS.get(id, {}).get("tags", {})
-		m *= float(tags.get(tag, 1.0))
+		m *= lerpf(1.0, float(tags.get(tag, 1.0)), weight(profile, String(id)))
 	return m
 
 
-static func moodlet_multiplier(ids: Array, action_tags: Array) -> float:
+static func moodlet_multiplier(profile: Variant, action_tags: Array) -> float:
 	var m := 1.0
-	for id in ids:
+	for id in _ids(profile):
 		var bonus: Dictionary = DEFS.get(id, {}).get("moodlet_bonus", {})
+		var w := weight(profile, String(id))
 		for t in action_tags:
-			m *= float(bonus.get(t, 1.0))
+			m *= lerpf(1.0, float(bonus.get(t, 1.0)), w)
 	return m
 
 
-static func mood_bias(ids: Array) -> float:
+static func mood_bias(profile: Variant) -> float:
 	var b := 0.0
-	for id in ids:
-		b += float(DEFS.get(id, {}).get("mood_bias", 0.0))
+	for id in _ids(profile):
+		b += float(DEFS.get(id, {}).get("mood_bias", 0.0)) * weight(profile, String(id))
 	return b
 
 
-static func negative_scale(ids: Array) -> float:
+static func negative_scale(profile: Variant) -> float:
 	var s := 1.0
-	for id in ids:
-		s *= float(DEFS.get(id, {}).get("negative_scale", 1.0))
+	for id in _ids(profile):
+		s *= lerpf(1.0, float(DEFS.get(id, {}).get("negative_scale", 1.0)), weight(profile, String(id)))
 	return s
 
 
-static func chemistry(ids: Array) -> float:
+static func chemistry(profile: Variant) -> float:
 	var c := 0.0
-	for id in ids:
-		c += float(DEFS.get(id, {}).get("chemistry", 0.0))
+	for id in _ids(profile):
+		c += float(DEFS.get(id, {}).get("chemistry", 0.0)) * weight(profile, String(id))
 	return c
 
 
-## Seznam tužeb: [[tag, hodiny, popisek, emoce, síla], …]
-static func cravings(ids: Array) -> Array:
+static func cravings(profile: Variant) -> Array:
 	var out: Array = []
-	for id in ids:
+	for id in _ids(profile):
+		var w := weight(profile, String(id))
 		var c: Array = DEFS.get(id, {}).get("craving", [])
-		if c.size() == 5:
-			out.append(c)
+		if c.size() == 5 and w > 0.0:
+			out.append([c[0], float(c[1]) / maxf(w, 0.05), c[2], c[3], float(c[4]) * w])
 	return out
 
 
-## Součet číselného parametru přes všechny rysy (např. vulnerability, stigma, argue_bias).
-static func sum_param(ids: Array, key: String) -> float:
+static func sum_param(profile: Variant, key: String) -> float:
 	var s := 0.0
-	for id in ids:
-		s += float(DEFS.get(id, {}).get(key, 0.0))
+	for id in _ids(profile):
+		s += float(DEFS.get(id, {}).get(key, 0.0)) * weight(profile, String(id))
 	return s
 
 
-## Součin násobícího parametru (výchozí 1), např. stress_gain, support_accept, novelty.
-static func mult_param(ids: Array, key: String) -> float:
+static func mult_param(profile: Variant, key: String) -> float:
 	var m := 1.0
-	for id in ids:
-		m *= float(DEFS.get(id, {}).get(key, 1.0))
+	for id in _ids(profile):
+		m *= lerpf(1.0, float(DEFS.get(id, {}).get(key, 1.0)), weight(profile, String(id)))
 	return m
 
 
-static func has_flag(ids: Array, key: String) -> bool:
-	for id in ids:
+## Continuous strength; max avoids counting overlapping aliases twice.
+static func flag_strength(profile: Variant, key: String) -> float:
+	var strength := 0.0
+	for id in _ids(profile):
 		if bool(DEFS.get(id, {}).get(key, false)):
-			return true
-	return false
+			strength = maxf(strength, weight(profile, String(id)))
+	return strength
 
 
-static func get_param(ids: Array, key: String, fallback: float) -> float:
-	for id in ids:
+## Compatibility/presentation only; simulation uses flag_strength().
+static func has_flag(profile: Variant, key: String) -> bool:
+	return flag_strength(profile, key) >= 0.5
+
+
+static func get_param(profile: Variant, key: String, fallback: float) -> float:
+	# A weighted mean with the unused weight assigned to the default.
+	# This is commutative, continuous, bounded, and preserves a single legacy override.
+	var total := 0.0
+	var weighted := 0.0
+	for id in _ids(profile):
 		var d: Dictionary = DEFS.get(id, {})
 		if d.has(key):
-			return float(d[key])
-	return fallback
+			var w := weight(profile, String(id))
+			total += w
+			weighted += float(d[key]) * w
+	return (weighted + fallback * maxf(1.0 - total, 0.0)) / maxf(1.0, total)
 
 
 static func conflicts_with(id: String, chosen: Array) -> bool:

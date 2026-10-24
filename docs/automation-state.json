@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "status": "idle",
+  "run_id": null,
+  "lease_expires_at": null,
+  "last_completed_unit": "Godot source snapshot reconciled for owner-requested GitHub synchronization",
+  "next_milestone": "H2",
+  "plan": "docs/implementation-sequence.md",
+  "publication": "owner_authorized_github_sync",
+  "prepared_commit": null,
+  "lock_mode": "godot_atomic_directory"
+}

@@ -1,0 +1,81 @@
+{
+  "asset": "wall_solid_2m",
+  "version": "0.1",
+  "license": "Original Life Simulator asset; all rights reserved",
+  "source": "tools/blender/city/solid_wall.py",
+  "units": "meters",
+  "godot_axes": "Y up; width X; thickness Z",
+  "pivot": [
+    0,
+    0,
+    0
+  ],
+  "wall_extent": [
+    2,
+    2.8,
+    0.2
+  ],
+  "visual_depth": 0.248,
+  "grid_m": 0.5,
+  "triangles": 324,
+  "mesh_count": 3,
+  "materials": [
+    "Warm plaster",
+    "Painted door trim"
+  ],
+  "uv": "1 UV unit per meter; projected before bevel",
+  "textures": [],
+  "collision_boxes": [
+    {
+      "center": [
+        1,
+        1.4,
+        0
+      ],
+      "size": [
+        2,
+        2.8,
+        0.2
+      ]
+    }
+  ],
+  "interaction_points": [],
+  "notes": "Solid wall with two-sided skirting. Matches doorway core and skirting. End bevel 2mm creates intentional joint line; no texture maps or corner connector yet.",
+  "validation": {
+    "date": "2026-10-24",
+    "run_id": "city-1792837782-83277",
+    "solid_checks": 37,
+    "doorway_checks": 31,
+    "exit": 0,
+    "timeout": false,
+    "negative_test": "disabled standalone collider in memory:4 expected failures,exit1",
+    "visual": "Four existing Blender renders inspected; no regenerated render",
+    "gemini": "Two actual responses; dispositions review-solid-wall-20261024.md",
+    "blender_library": "PENDING: McpServerError: Space 503 (list and metadata)",
+    "performance": "75.8ms import+validation; not gameplay FPS",
+    "next": "Verify existing Blender kit, then compatible corner module"
+  },
+  "builder_validation": {
+    "run_id": "city-1792856089-96579",
+    "checks": 26,
+    "solid_regression": 37,
+    "doorway_regression": 31,
+    "exit": 0,
+    "timeout": false,
+    "authored_scenes": "hashes unchanged",
+    "gemini": "actual review and tested dispositions in review-builder-preflight-20261024.md",
+    "limitation": "two output saves not crash/IO atomic",
+    "blender": "UNAVAILABLE Space 503"
+  },
+  "last_availability_check": {
+    "run_id": "city-1792873902-112872",
+    "status": "available",
+    "operations": [
+      "library_list lifesim-city",
+      "library_get solid-wall-kit"
+    ],
+    "glb_sha256": "bd86dbd0f73a3d15e8f1a5688b28b980985c707aadd36c102d1201fa6fd59251",
+    "godot_match": true,
+    "asset_changes": false
+  }
+}

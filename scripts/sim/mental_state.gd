@@ -657,7 +657,7 @@ func social_difficulty(cfg: Dictionary = {}) -> float:
 
 ## Chuť na coping (pro utility AI). Nezdravé copingy lákají víc, když je postava vyčerpaná
 ## (nízká regulace) nebo impulzivní; zdravé, když má kapacitu.
-func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsive := false, cfg: Dictionary = {}) -> float:
+func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsive: Variant = 0.0, cfg: Dictionary = {}) -> float:
 	var def: Dictionary = COPINGS.get(id, {})
 	if def.is_empty():
 		return 0.0
@@ -666,10 +666,14 @@ func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsi
 		return 0.0
 	var reg := regulation(energy, hunger)
 	var k := habituation(id, now)
+	# Boolean callers retain their old 0/1 effect; sliders retain fractional strength.
+	var impulse := clampf(float(impulsive), 0.0, 1.0)
+	if is_nan(impulse) or is_inf(impulse):
+		impulse = 0.0
 	if bool(def.get("healthy", false)):
 		k *= (0.5 + reg * 0.7 + mastery * 0.3) * float(_hk("healthy_appeal", cfg, 1.0))
 	else:
-		k *= (0.5 + (1.0 - reg) * 0.9 + (0.5 if impulsive else 0.0)) * float(_hk("unhealthy_appeal", cfg, 1.0))
+		k *= (0.5 + (1.0 - reg) * 0.9 + 0.5 * impulse) * float(_hk("unhealthy_appeal", cfg, 1.0))
 		if id == "drink":
 			k *= 1.0 + tolerance * 0.8  # návyk: čím častěji, tím víc to táhne
 			var rd := recent_drinks(now)

@@ -1,0 +1,865 @@
+{
+  "source": "Godot MCP project lifesim at peiti-godot-mcp.hf.space",
+  "date": "2026-10-24",
+  "github_baseline": "85af65670ffe20a67d5725d1c163622cdec645fe",
+  "snapshot_recheck": {
+    "changed_during_transfer": [],
+    "new_source_files": [],
+    "removed_source_files": []
+  },
+  "files": [
+    {
+      "path": "CHECKPOINT.md",
+      "source_sha256": "a508eee58c404147d026ac65ae5693bbddd853805bd688b2149fa5974fb69a9f",
+      "github_sha256": "b780f0ffabf075ee5d09fbf8e97e6f5d15f529002037372927448284c156704f"
+    },
+    {
+      "path": "DEVLOG.md",
+      "source_sha256": "8a410e5d2086305446143bd04fb89d15cf111d04673ae3d5825acf6bf2dc4d38",
+      "github_sha256": "d688c972a459ad1ce2d7c55ed07d99101467b247070692742a7f9f87c9e4ac99"
+    },
+    {
+      "path": "README.md",
+      "source_sha256": "51758ba4bff39a37691b1f938a52e7f168c32a5d033266f79f2827c818e6c3e8",
+      "github_sha256": "7a223caa21d925853ae3a4c5571d47d2b76da80e3be64e2d50ffc5475e2e90c3"
+    },
+    {
+      "path": "ROADMAP.md",
+      "source_sha256": "798241754d58109303f7a6119f2c1ed9845671811dd748fba4bb42b3bcd39efa",
+      "github_sha256": "798241754d58109303f7a6119f2c1ed9845671811dd748fba4bb42b3bcd39efa"
+    },
+    {
+      "path": "assets/city/wall_corner_2m.glb",
+      "source_sha256": "cb6b94811cdfe67f2c2baba4f355f07836dd30390a8db87e4b13912df976baea",
+      "github_sha256": "cb6b94811cdfe67f2c2baba4f355f07836dd30390a8db87e4b13912df976baea"
+    },
+    {
+      "path": "assets/city/wall_doorway_2m.glb",
+      "source_sha256": "b8d7e5a72fab076d79b7d8c19c87675170da05d1acdef3f6366f482c1bcab20e",
+      "github_sha256": "b8d7e5a72fab076d79b7d8c19c87675170da05d1acdef3f6366f482c1bcab20e"
+    },
+    {
+      "path": "assets/city/wall_solid_2m.glb",
+      "source_sha256": "bd86dbd0f73a3d15e8f1a5688b28b980985c707aadd36c102d1201fa6fd59251",
+      "github_sha256": "bd86dbd0f73a3d15e8f1a5688b28b980985c707aadd36c102d1201fa6fd59251"
+    },
+    {
+      "path": "assets/src/clothing_c5/bottom.lsx",
+      "source_sha256": "feb10b691ce12f67248b669e8f7069ffdb4725ed760a2da104480a210544f151",
+      "github_sha256": "feb10b691ce12f67248b669e8f7069ffdb4725ed760a2da104480a210544f151"
+    },
+    {
+      "path": "assets/src/clothing_c5/dress.lsx",
+      "source_sha256": "037ff89be4a6e41e48712888357a8fd792cba6fba9450104bb0f20797ea584d3",
+      "github_sha256": "037ff89be4a6e41e48712888357a8fd792cba6fba9450104bb0f20797ea584d3"
+    },
+    {
+      "path": "assets/src/clothing_c5/legs.lsx",
+      "source_sha256": "ec4ceda5b38f12636572bff567e6a6c38540dd2be48033005d7762305e8a3e52",
+      "github_sha256": "ec4ceda5b38f12636572bff567e6a6c38540dd2be48033005d7762305e8a3e52"
+    },
+    {
+      "path": "assets/src/clothing_c5/shoes.lsx",
+      "source_sha256": "6fa80123904cfa64079411f3eeb9bca2d387a86f47f47656729fefc34eb1c8f2",
+      "github_sha256": "6fa80123904cfa64079411f3eeb9bca2d387a86f47f47656729fefc34eb1c8f2"
+    },
+    {
+      "path": "assets/src/clothing_c5/top.lsx",
+      "source_sha256": "b71d2d84ca869f7492785ccd2461c0992e40112c0200cc17e8eb0f43b79627e6",
+      "github_sha256": "b71d2d84ca869f7492785ccd2461c0992e40112c0200cc17e8eb0f43b79627e6"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_cotton_A.png",
+      "source_sha256": "e45ea315df66785ae86145a526f534d3d056fe6a42b2674112b0cebf36ae91e1",
+      "github_sha256": "e45ea315df66785ae86145a526f534d3d056fe6a42b2674112b0cebf36ae91e1"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_cotton_N.png",
+      "source_sha256": "c1984982df64aa9464af824f1e1c73587261c8e7f9fe3274da10f094cae2cdff",
+      "github_sha256": "c1984982df64aa9464af824f1e1c73587261c8e7f9fe3274da10f094cae2cdff"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_denim_A.png",
+      "source_sha256": "fcb669d3e6025a65615d3fe25adc516feb6cc5c8147cf1f91d708a5ee0640046",
+      "github_sha256": "fcb669d3e6025a65615d3fe25adc516feb6cc5c8147cf1f91d708a5ee0640046"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_denim_N.png",
+      "source_sha256": "fcd9649708e4a4a1079ee4269f0aedd7420902122a7983366fea526f01865a99",
+      "github_sha256": "fcd9649708e4a4a1079ee4269f0aedd7420902122a7983366fea526f01865a99"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_fleece_A.png",
+      "source_sha256": "832f9eb1274b5474c57ba2a3f65e496eb81293401302345c138531d506a8ddf9",
+      "github_sha256": "832f9eb1274b5474c57ba2a3f65e496eb81293401302345c138531d506a8ddf9"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_fleece_N.png",
+      "source_sha256": "53f18334074dc5d8e1b0a0ae921e117bec7c5a559bf2938b8067e522a896a801",
+      "github_sha256": "53f18334074dc5d8e1b0a0ae921e117bec7c5a559bf2938b8067e522a896a801"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_knit_A.png",
+      "source_sha256": "d4c02383f6c150c7d468f24bfec1f7e7ab6b0694527d38119bef9834616d07f6",
+      "github_sha256": "d4c02383f6c150c7d468f24bfec1f7e7ab6b0694527d38119bef9834616d07f6"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_knit_N.png",
+      "source_sha256": "20d53c2faab5094b930faf639bf040d5fa096e1ed63f06a961d07f910491bf60",
+      "github_sha256": "20d53c2faab5094b930faf639bf040d5fa096e1ed63f06a961d07f910491bf60"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_leather_A.png",
+      "source_sha256": "a3f50b5e2946ec17161a2d259e488eca175f0fca0afa89fede1f6e219ddcfdb6",
+      "github_sha256": "a3f50b5e2946ec17161a2d259e488eca175f0fca0afa89fede1f6e219ddcfdb6"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_leather_N.png",
+      "source_sha256": "078d90b728accfac5abd03fedfbee807ab62202059d8ef5ca624f93e79b18feb",
+      "github_sha256": "078d90b728accfac5abd03fedfbee807ab62202059d8ef5ca624f93e79b18feb"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_satin_A.png",
+      "source_sha256": "e45ea315df66785ae86145a526f534d3d056fe6a42b2674112b0cebf36ae91e1",
+      "github_sha256": "e45ea315df66785ae86145a526f534d3d056fe6a42b2674112b0cebf36ae91e1"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_satin_N.png",
+      "source_sha256": "c1984982df64aa9464af824f1e1c73587261c8e7f9fe3274da10f094cae2cdff",
+      "github_sha256": "c1984982df64aa9464af824f1e1c73587261c8e7f9fe3274da10f094cae2cdff"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_suiting_A.png",
+      "source_sha256": "d0f6b3f2e005f1e1a1229e038b0cf387c485b51efacfedbcd539c4101d4d177e",
+      "github_sha256": "d0f6b3f2e005f1e1a1229e038b0cf387c485b51efacfedbcd539c4101d4d177e"
+    },
+    {
+      "path": "assets/textures/clothing_c5/C5_suiting_N.png",
+      "source_sha256": "3383a0c60eb7fbf2f123e9b5993a14b363f3096d69f562a411990ccc1280f416",
+      "github_sha256": "3383a0c60eb7fbf2f123e9b5993a14b363f3096d69f562a411990ccc1280f416"
+    },
+    {
+      "path": "docs/asset-pipeline.md",
+      "source_sha256": "faea64c2447dc2c0f665f31eb2f75d2f2009ac81af1bc980f6337ae8a2716b8e",
+      "github_sha256": "faea64c2447dc2c0f665f31eb2f75d2f2009ac81af1bc980f6337ae8a2716b8e"
+    },
+    {
+      "path": "docs/automation-lock.md",
+      "source_sha256": "bfc15e2597fad2a6d6ddb3e514d6cb010657dae878300d9a072c8f83100adeb5",
+      "github_sha256": "bfc15e2597fad2a6d6ddb3e514d6cb010657dae878300d9a072c8f83100adeb5"
+    },
+    {
+      "path": "docs/automation-state.json",
+      "source_sha256": "2c31e07bd32a25c2ad4456da0c434edbf203ab1bb80be78dde44b9f005994eae",
+      "github_sha256": "f93b0a733304b75f12a1242d5b785fc0e7f303ba033bad962b4c918cbc95306f"
+    },
+    {
+      "path": "docs/character-creator.md",
+      "source_sha256": "4fce7c4a89f33c72b7c72d7fb4e78da63eaf63ce4aa328bb31b4ed5539ae69c4",
+      "github_sha256": "4fce7c4a89f33c72b7c72d7fb4e78da63eaf63ce4aa328bb31b4ed5539ae69c4"
+    },
+    {
+      "path": "docs/city/CHECKPOINT.md",
+      "source_sha256": "b006634a82a29430cb86cf6c49479bd033044b70fac08428e097f1563e520db0",
+      "github_sha256": "b006634a82a29430cb86cf6c49479bd033044b70fac08428e097f1563e520db0"
+    },
+    {
+      "path": "docs/city/HANDOFF.md",
+      "source_sha256": "9bb0f304f98715641686553627917abdf2074f82a300891eaddbd550e75eebea",
+      "github_sha256": "9bb0f304f98715641686553627917abdf2074f82a300891eaddbd550e75eebea"
+    },
+    {
+      "path": "docs/city/PLAN.md",
+      "source_sha256": "c6aaa6c3056a29448c09766362d45dd1c8d16ecfecc6e66559defdea513e6dc0",
+      "github_sha256": "c6aaa6c3056a29448c09766362d45dd1c8d16ecfecc6e66559defdea513e6dc0"
+    },
+    {
+      "path": "docs/city/back.jpg",
+      "source_sha256": "6e1439c27110350557c76b0edeab18d91ae34eddab14c80c2738f487ef383773",
+      "github_sha256": "6e1439c27110350557c76b0edeab18d91ae34eddab14c80c2738f487ef383773"
+    },
+    {
+      "path": "docs/city/corner_inner.jpg",
+      "source_sha256": "63f9e9883750d857d5e0bd08d5ca8f7033d3e59e65d2322f77cf2544619840ea",
+      "github_sha256": "63f9e9883750d857d5e0bd08d5ca8f7033d3e59e65d2322f77cf2544619840ea"
+    },
+    {
+      "path": "docs/city/corner_outer.jpg",
+      "source_sha256": "3f608fe2425af8ec8e2935834c0fe6c9e5aeb07d6d17b60082b7c710b3454631",
+      "github_sha256": "3f608fe2425af8ec8e2935834c0fe6c9e5aeb07d6d17b60082b7c710b3454631"
+    },
+    {
+      "path": "docs/city/corner_top.jpg",
+      "source_sha256": "8175102506f597d5c35bc0c024870a3a788dfd1d8baff4c889d70c0ead5552b4",
+      "github_sha256": "8175102506f597d5c35bc0c024870a3a788dfd1d8baff4c889d70c0ead5552b4"
+    },
+    {
+      "path": "docs/city/corner_wall_manifest.json",
+      "source_sha256": "b3894d242890640c40e48f558ee4804eb6fbbbf5b1a47abcb43fe4a45f59abba",
+      "github_sha256": "b3894d242890640c40e48f558ee4804eb6fbbbf5b1a47abcb43fe4a45f59abba"
+    },
+    {
+      "path": "docs/city/front.jpg",
+      "source_sha256": "3a7c184ff3d5e67d12b802d9dab600fe16bd74d89678a0a059e1e4031618cfe2",
+      "github_sha256": "3a7c184ff3d5e67d12b802d9dab600fe16bd74d89678a0a059e1e4031618cfe2"
+    },
+    {
+      "path": "docs/city/manifest.json",
+      "source_sha256": "2e837b35e52945182d2ecba224f2dfe6463fa293380d0c38506a43b0a398885a",
+      "github_sha256": "2e837b35e52945182d2ecba224f2dfe6463fa293380d0c38506a43b0a398885a"
+    },
+    {
+      "path": "docs/city/review-builder-preflight-20261024.md",
+      "source_sha256": "21540ddbf17932aeb649d832c89fc01ecf306517f8d68b5b11d9aef3564f83d1",
+      "github_sha256": "21540ddbf17932aeb649d832c89fc01ecf306517f8d68b5b11d9aef3564f83d1"
+    },
+    {
+      "path": "docs/city/review-corner-wall-20261024.md",
+      "source_sha256": "d62c16dfa0babe760dbc537feab8f7e84fb6bafef491c07e41e3e2e9d293ea4d",
+      "github_sha256": "d62c16dfa0babe760dbc537feab8f7e84fb6bafef491c07e41e3e2e9d293ea4d"
+    },
+    {
+      "path": "docs/city/review-solid-wall-20261024.md",
+      "source_sha256": "94cee40410622d166bb345ebc2cf0c862a742826518e72b3e8030734596f734c",
+      "github_sha256": "94cee40410622d166bb345ebc2cf0c862a742826518e72b3e8030734596f734c"
+    },
+    {
+      "path": "docs/city/review-validator-20261024.md",
+      "source_sha256": "e870947ed11248d97796291982991f7942ea082e8e9c4af39941f271b0c58db7",
+      "github_sha256": "e870947ed11248d97796291982991f7942ea082e8e9c4af39941f271b0c58db7"
+    },
+    {
+      "path": "docs/city/solid_assembly_back.jpg",
+      "source_sha256": "824ffbb66c4f58b24aaccfdbeeb0793c3b4ca9869a293b94f599c3ee4417688c",
+      "github_sha256": "824ffbb66c4f58b24aaccfdbeeb0793c3b4ca9869a293b94f599c3ee4417688c"
+    },
+    {
+      "path": "docs/city/solid_assembly_front.jpg",
+      "source_sha256": "c52da638e1cf899da30dafe84b303f6c31198a5378520b29c9eb373e7b6b2773",
+      "github_sha256": "c52da638e1cf899da30dafe84b303f6c31198a5378520b29c9eb373e7b6b2773"
+    },
+    {
+      "path": "docs/city/solid_back.jpg",
+      "source_sha256": "72d25d38f5ba8a8fbe670c3f05c2d4b5e4433f21c6a2edfec6ccfd00a087c266",
+      "github_sha256": "72d25d38f5ba8a8fbe670c3f05c2d4b5e4433f21c6a2edfec6ccfd00a087c266"
+    },
+    {
+      "path": "docs/city/solid_front.jpg",
+      "source_sha256": "9e77604027ea12dabb435d63c881e12007c289e18438de1bdbd6983eccd94d67",
+      "github_sha256": "9e77604027ea12dabb435d63c881e12007c289e18438de1bdbd6983eccd94d67"
+    },
+    {
+      "path": "docs/city/solid_wall_manifest.json",
+      "source_sha256": "761ee5fcd812a74e97b819201d7ec24e74eba075ace501e7de70f3374cf79253",
+      "github_sha256": "761ee5fcd812a74e97b819201d7ec24e74eba075ace501e7de70f3374cf79253"
+    },
+    {
+      "path": "docs/design/psyche-model.md",
+      "source_sha256": "ecd084b3d1e762736a9dc11e92083b6e2325256b0cb4da4f8a51f06d0bc6c517",
+      "github_sha256": "ecd084b3d1e762736a9dc11e92083b6e2325256b0cb4da4f8a51f06d0bc6c517"
+    },
+    {
+      "path": "docs/development-process.md",
+      "source_sha256": "30e527088f056efc88e06930d2596c3b624bdbce17fd244e51b1b3f8d4109948",
+      "github_sha256": "30e527088f056efc88e06930d2596c3b624bdbce17fd244e51b1b3f8d4109948"
+    },
+    {
+      "path": "docs/implementation-sequence.md",
+      "source_sha256": "eb4a84e16b3d0fe3afff90f26cbdbf0f6f73929b173e0e007f43d9c88009184a",
+      "github_sha256": "559c2e467a9baa52b1db08653f4529e3fbd6b8c55a7106c852fc5e5d008abf5e"
+    },
+    {
+      "path": "docs/mental-health.md",
+      "source_sha256": "c26eafab90cf0b39271e473ee659fc082b9582d41cbe59a92f22c9a3ffb646cc",
+      "github_sha256": "c26eafab90cf0b39271e473ee659fc082b9582d41cbe59a92f22c9a3ffb646cc"
+    },
+    {
+      "path": "docs/relationships.md",
+      "source_sha256": "4e37ba691bb465b19601e81a0e073a1db3d25a243575cc444d5c25155f764104",
+      "github_sha256": "4e37ba691bb465b19601e81a0e073a1db3d25a243575cc444d5c25155f764104"
+    },
+    {
+      "path": "docs/reviews/h2b-apply-rpc-staging-20261024.md",
+      "source_sha256": "d72620cc5e66d0a00a90d8a2f4ea88c2eb6b122a9271c1b6eb7e3a919b845b6b",
+      "github_sha256": "d72620cc5e66d0a00a90d8a2f4ea88c2eb6b122a9271c1b6eb7e3a919b845b6b"
+    },
+    {
+      "path": "docs/reviews/h2b-garment-selectors-20261024.md",
+      "source_sha256": "a3d52681268233e915e7fd11f640fdb17e2d37dd1e87dac9b42f7243c8da6946",
+      "github_sha256": "a3d52681268233e915e7fd11f640fdb17e2d37dd1e87dac9b42f7243c8da6946"
+    },
+    {
+      "path": "docs/reviews/h2b-live-edit-20261024.md",
+      "source_sha256": "4fbe9371ec1ef51431ae2877a3adab8d5539d0628bc6aab7ee32fe2652918e57",
+      "github_sha256": "4fbe9371ec1ef51431ae2877a3adab8d5539d0628bc6aab7ee32fe2652918e57"
+    },
+    {
+      "path": "docs/reviews/h2b-network-candidate-20261024.md",
+      "source_sha256": "af4c3c99930c8de8cefa8c19dfa0986c2c9a20898747756792af95f198ed4717",
+      "github_sha256": "af4c3c99930c8de8cefa8c19dfa0986c2c9a20898747756792af95f198ed4717"
+    },
+    {
+      "path": "docs/reviews/h2b-network-envelope-20261024.md",
+      "source_sha256": "7ea4a66ed8f49c9947e8b5efdb1329c61a46f79df39cdf159dee5016c162f447",
+      "github_sha256": "7ea4a66ed8f49c9947e8b5efdb1329c61a46f79df39cdf159dee5016c162f447"
+    },
+    {
+      "path": "docs/reviews/h2b-network-ownership-20261024.md",
+      "source_sha256": "c636cc29ab165022020c372037153221ed6b18427c4211b627f9d5261eebc797",
+      "github_sha256": "c636cc29ab165022020c372037153221ed6b18427c4211b627f9d5261eebc797"
+    },
+    {
+      "path": "docs/reviews/h2b-network-read-20261024.md",
+      "source_sha256": "15544696e16d9ef2933a007c2998a86c61e0b22bc6c269c08d8f09a6042ca0c8",
+      "github_sha256": "15544696e16d9ef2933a007c2998a86c61e0b22bc6c269c08d8f09a6042ca0c8"
+    },
+    {
+      "path": "docs/reviews/h2b-preview-20261024.md",
+      "source_sha256": "0a9cd0f2ebe482dfd2a8e432b3276ab05eaefcd53d6e5ee85275b1a6148559ac",
+      "github_sha256": "0a9cd0f2ebe482dfd2a8e432b3276ab05eaefcd53d6e5ee85275b1a6148559ac"
+    },
+    {
+      "path": "docs/reviews/h2b-production-apply-lifecycle-20261024.md",
+      "source_sha256": "f1732ae8ff891cb657043d7a9aed2f6eb9264e762c7128244296f7749b7472a9",
+      "github_sha256": "f1732ae8ff891cb657043d7a9aed2f6eb9264e762c7128244296f7749b7472a9"
+    },
+    {
+      "path": "docs/reviews/h2b-server-commit-regression-20261024.md",
+      "source_sha256": "ef11cec823e5a94a7ecd3a472f62afd2745d01456467c8bd9486faf65054b519",
+      "github_sha256": "ef11cec823e5a94a7ecd3a472f62afd2745d01456467c8bd9486faf65054b519"
+    },
+    {
+      "path": "docs/reviews/h2b-ui-20261024.md",
+      "source_sha256": "789d6309ca05523c561b8e657519529dd9b266249b65e98a37f294d8b8604ea6",
+      "github_sha256": "789d6309ca05523c561b8e657519529dd9b266249b65e98a37f294d8b8604ea6"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "source_sha256": "863f785d191ca1294ff8acced846c5f48276b88fd0ba5ccd72e72cd5a3331e91",
+      "github_sha256": "863f785d191ca1294ff8acced846c5f48276b88fd0ba5ccd72e72cd5a3331e91"
+    },
+    {
+      "path": "docs/testing.md",
+      "source_sha256": "0d3c8b977b16522bc375dceba7beb89a211e5236f1618796f6878d0afa611c92",
+      "github_sha256": "0d3c8b977b16522bc375dceba7beb89a211e5236f1618796f6878d0afa611c92"
+    },
+    {
+      "path": "export_presets.cfg",
+      "source_sha256": "6dd6e54f854a0200293fa3abd8d79a95805a5676bbe7facadaa3593c722f056c",
+      "github_sha256": "6dd6e54f854a0200293fa3abd8d79a95805a5676bbe7facadaa3593c722f056c"
+    },
+    {
+      "path": "main.gd",
+      "source_sha256": "a1d17557210273a46cc53dd388d51bc33c28bc8aa6a552d3510c89d3a644ce6b",
+      "github_sha256": "a1d17557210273a46cc53dd388d51bc33c28bc8aa6a552d3510c89d3a644ce6b"
+    },
+    {
+      "path": "scenes/city/wall_corner_2m.scn",
+      "source_sha256": "f00b753f61eb4abd3cbec74616f67bef186f2671c1b83487350c109cfe423adf",
+      "github_sha256": "f00b753f61eb4abd3cbec74616f67bef186f2671c1b83487350c109cfe423adf"
+    },
+    {
+      "path": "scenes/city/wall_doorway_2m.scn",
+      "source_sha256": "fdd4ffe7378c2d49be0f30ee623c6b35541a70468d6f2eb3934548faa80cab01",
+      "github_sha256": "fdd4ffe7378c2d49be0f30ee623c6b35541a70468d6f2eb3934548faa80cab01"
+    },
+    {
+      "path": "scenes/city/wall_snap_demo.scn",
+      "source_sha256": "cf62e29c866e38641ecda541cfceff31afd07f51fcbf52642292f55c5b31e318",
+      "github_sha256": "cf62e29c866e38641ecda541cfceff31afd07f51fcbf52642292f55c5b31e318"
+    },
+    {
+      "path": "scenes/city/wall_solid_2m.scn",
+      "source_sha256": "b22a20c7fc83bf6097c6d0c2942b29eaa131b7beb8a2afe233c08e7cd3d12f15",
+      "github_sha256": "b22a20c7fc83bf6097c6d0c2942b29eaa131b7beb8a2afe233c08e7cd3d12f15"
+    },
+    {
+      "path": "scripts/assets/clothing_variants.gd",
+      "source_sha256": "7239f5cec90ad05c10172c6371c81546fd8c637372c4e33246bb5a63f65efbcc",
+      "github_sha256": "7239f5cec90ad05c10172c6371c81546fd8c637372c4e33246bb5a63f65efbcc"
+    },
+    {
+      "path": "scripts/assets/clothing_variants.gd.uid",
+      "source_sha256": "2256889ae81a655d409144b702a3faf18c0e3436ed6e1bf8781f2ee45845112e",
+      "github_sha256": "2256889ae81a655d409144b702a3faf18c0e3436ed6e1bf8781f2ee45845112e"
+    },
+    {
+      "path": "scripts/assets/clothing_wardrobe.gd",
+      "source_sha256": "ea916cac609f90999f84c7aabaf18cc25c176956d4374bbe135e0e5a83cd67f2",
+      "github_sha256": "ea916cac609f90999f84c7aabaf18cc25c176956d4374bbe135e0e5a83cd67f2"
+    },
+    {
+      "path": "scripts/assets/clothing_wardrobe.gd.uid",
+      "source_sha256": "d959988c2f278a90b99cb0cb75e346b1c3da4e3feaa08050e523c67dfaab89ff",
+      "github_sha256": "d959988c2f278a90b99cb0cb75e346b1c3da4e3feaa08050e523c67dfaab89ff"
+    },
+    {
+      "path": "scripts/assets/subculture_wardrobe.gd",
+      "source_sha256": "2d446ea5e65832869e22b7f7e23c4b2c086faa74f54f057302a2642fd8d7a60e",
+      "github_sha256": "2d446ea5e65832869e22b7f7e23c4b2c086faa74f54f057302a2642fd8d7a60e"
+    },
+    {
+      "path": "scripts/assets/subculture_wardrobe.gd.uid",
+      "source_sha256": "91c2e40fc0d6a317e29f049a7e9285821fc099ec826cd5c2ce2112c9b16a1fc4",
+      "github_sha256": "91c2e40fc0d6a317e29f049a7e9285821fc099ec826cd5c2ce2112c9b16a1fc4"
+    },
+    {
+      "path": "scripts/character/appearance_resolver.gd",
+      "source_sha256": "a07440d2003678e582cdc74fb218ba8b3d1ed2f5fe419b18c8d6da157d943e4c",
+      "github_sha256": "a07440d2003678e582cdc74fb218ba8b3d1ed2f5fe419b18c8d6da157d943e4c"
+    },
+    {
+      "path": "scripts/character/character_codec.gd",
+      "source_sha256": "9f0ea56a619f160cd20afbbbe6f0b73f5b40f9c694d7a9e69aa1f524570de7b7",
+      "github_sha256": "9f0ea56a619f160cd20afbbbe6f0b73f5b40f9c694d7a9e69aa1f524570de7b7"
+    },
+    {
+      "path": "scripts/character/character_edit_session.gd",
+      "source_sha256": "e06d5e38ea3d5d5a60eb9ace9c5ba53f8f9036c50d8050adaa48999b8095b914",
+      "github_sha256": "e06d5e38ea3d5d5a60eb9ace9c5ba53f8f9036c50d8050adaa48999b8095b914"
+    },
+    {
+      "path": "scripts/character/character_randomizer.gd",
+      "source_sha256": "aee781ed27b685763d8e4a1543cf2ac05e14d3886fe8b72ca135e9117763f6b5",
+      "github_sha256": "aee781ed27b685763d8e4a1543cf2ac05e14d3886fe8b72ca135e9117763f6b5"
+    },
+    {
+      "path": "scripts/character/character_schema.gd",
+      "source_sha256": "10cfde9080f117e5c43baa9c4be3dc095cfdaad07ec7dac00aab358e453713d8",
+      "github_sha256": "10cfde9080f117e5c43baa9c4be3dc095cfdaad07ec7dac00aab358e453713d8"
+    },
+    {
+      "path": "scripts/character/character_validator.gd",
+      "source_sha256": "0223eadd77cb95a780aa0572119b31b8f6cda6e39e64b6d5bac8a8ea3254d0ee",
+      "github_sha256": "0223eadd77cb95a780aa0572119b31b8f6cda6e39e64b6d5bac8a8ea3254d0ee"
+    },
+    {
+      "path": "scripts/city/build_corner_wall.gd",
+      "source_sha256": "19786eb61b6993637cc1ee4926e30c121653bc49d1c2f004c4250baf300bcf10",
+      "github_sha256": "19786eb61b6993637cc1ee4926e30c121653bc49d1c2f004c4250baf300bcf10"
+    },
+    {
+      "path": "scripts/city/build_solid_wall.gd",
+      "source_sha256": "215c414504cd13579c46b6f447fd4b821f72bd934678f88ad55f059fcc7d5e9a",
+      "github_sha256": "215c414504cd13579c46b6f447fd4b821f72bd934678f88ad55f059fcc7d5e9a"
+    },
+    {
+      "path": "scripts/city/test_builder_preflight.gd",
+      "source_sha256": "f49dce754b14497b9004c99c73c6f05b44ac98b61f1e939b3cfdcc3dd3af954d",
+      "github_sha256": "f49dce754b14497b9004c99c73c6f05b44ac98b61f1e939b3cfdcc3dd3af954d"
+    },
+    {
+      "path": "scripts/city/validate_corner_wall.gd",
+      "source_sha256": "3e7e0310979dd8ec66f615a709871d6469d10d90e33e8a2804ab413a98eb4578",
+      "github_sha256": "3e7e0310979dd8ec66f615a709871d6469d10d90e33e8a2804ab413a98eb4578"
+    },
+    {
+      "path": "scripts/city/validate_doorway.gd",
+      "source_sha256": "01c2fb2506517df6f5b860035a41d41e3b53c2245befcf27ec2d544828dd0aae",
+      "github_sha256": "01c2fb2506517df6f5b860035a41d41e3b53c2245befcf27ec2d544828dd0aae"
+    },
+    {
+      "path": "scripts/city/validate_solid_wall.gd",
+      "source_sha256": "31f9451d2d019f2a8c300fb6aa3658199b0641ffc4a5744fe0e3b90cceae5095",
+      "github_sha256": "31f9451d2d019f2a8c300fb6aa3658199b0641ffc4a5744fe0e3b90cceae5095"
+    },
+    {
+      "path": "scripts/net/net_session.gd",
+      "source_sha256": "e17a90f6361c2e4659cbc8f4ff30183057f41e1df27cefbe72e96c7bb74faeb5",
+      "github_sha256": "e17a90f6361c2e4659cbc8f4ff30183057f41e1df27cefbe72e96c7bb74faeb5"
+    },
+    {
+      "path": "scripts/psyche/psyche_model.gd",
+      "source_sha256": "3bbc3fd5e57954670c29241ddcd5664b1d140281265fb21374ff1b88d1675e57",
+      "github_sha256": "3bbc3fd5e57954670c29241ddcd5664b1d140281265fb21374ff1b88d1675e57"
+    },
+    {
+      "path": "scripts/sim/household_dynamics.gd",
+      "source_sha256": "60060b54833fceaaed86731f9a9772d78b87519d6ff1e7d405be448373e63440",
+      "github_sha256": "60060b54833fceaaed86731f9a9772d78b87519d6ff1e7d405be448373e63440"
+    },
+    {
+      "path": "scripts/sim/mental_state.gd",
+      "source_sha256": "5e08ab4624115a8b6bed9f191cdb5da1f21e06005c39eabeea4cec2bb0f0d0bb",
+      "github_sha256": "5e08ab4624115a8b6bed9f191cdb5da1f21e06005c39eabeea4cec2bb0f0d0bb"
+    },
+    {
+      "path": "scripts/sim/mood.gd",
+      "source_sha256": "90e10f0e554fc3831778e70bf33a29bbd4adc6893d4a12c1c6798124baa56fbc",
+      "github_sha256": "90e10f0e554fc3831778e70bf33a29bbd4adc6893d4a12c1c6798124baa56fbc"
+    },
+    {
+      "path": "scripts/sim/rejection_response.gd",
+      "source_sha256": "7e9fdf6418ee31dfa98f09a101ce52b300e8d4f3a050596d7a5f048ab985c2c5",
+      "github_sha256": "7e9fdf6418ee31dfa98f09a101ce52b300e8d4f3a050596d7a5f048ab985c2c5"
+    },
+    {
+      "path": "scripts/sim/rel_ledger.gd",
+      "source_sha256": "8f39ce8b6598f858834b64e39a876f7b2cfb055558d32867462cc039021e242f",
+      "github_sha256": "8f39ce8b6598f858834b64e39a876f7b2cfb055558d32867462cc039021e242f"
+    },
+    {
+      "path": "scripts/sim/sensitive_privacy_mask.gd",
+      "source_sha256": "04994f4725b6326ca8e91c0ce50a15d0984e379a94b05e49002da9027ff87d2d",
+      "github_sha256": "04994f4725b6326ca8e91c0ce50a15d0984e379a94b05e49002da9027ff87d2d"
+    },
+    {
+      "path": "scripts/sim/sensory_profile.gd",
+      "source_sha256": "5fba5b70e6e1c8ec77ecd9365616e8230f4837d924f04487f7a97cb6fa5c568e",
+      "github_sha256": "5fba5b70e6e1c8ec77ecd9365616e8230f4837d924f04487f7a97cb6fa5c568e"
+    },
+    {
+      "path": "scripts/sim/sim_agent.gd",
+      "source_sha256": "7d70016f3c02f42c4d98e519e2a1db93954f73b529b862310d81b841a50157b9",
+      "github_sha256": "7d70016f3c02f42c4d98e519e2a1db93954f73b529b862310d81b841a50157b9"
+    },
+    {
+      "path": "scripts/sim/sim_visual.gd",
+      "source_sha256": "cb4f6603fdc0f13c60a3738954fb8a5206bce4c835f4621708ecf1a9c8d72e08",
+      "github_sha256": "cb4f6603fdc0f13c60a3738954fb8a5206bce4c835f4621708ecf1a9c8d72e08"
+    },
+    {
+      "path": "scripts/sim/traits.gd",
+      "source_sha256": "5dbdb60f5293a6441c846788051a21444ff7034b72db0ebff64d92508ed43b72",
+      "github_sha256": "5dbdb60f5293a6441c846788051a21444ff7034b72db0ebff64d92508ed43b72"
+    },
+    {
+      "path": "scripts/sim/utility_planner.gd",
+      "source_sha256": "dba97ce48a43460be596d73f83e378c49ef6c9413e77a50488488dc2f6122154",
+      "github_sha256": "dba97ce48a43460be596d73f83e378c49ef6c9413e77a50488488dc2f6122154"
+    },
+    {
+      "path": "scripts/sim/vigilance.gd",
+      "source_sha256": "d45bc32b8d645dc0c49c8c4c9b9e6a369133745cfe5f2c9ef79b82163ad43d88",
+      "github_sha256": "d45bc32b8d645dc0c49c8c4c9b9e6a369133745cfe5f2c9ef79b82163ad43d88"
+    },
+    {
+      "path": "scripts/ui/character_editor_panel.gd",
+      "source_sha256": "fed0a67f295ef97e74e3a1e0756121f3eedb14e01418600d83d9fa378cfd5323",
+      "github_sha256": "fed0a67f295ef97e74e3a1e0756121f3eedb14e01418600d83d9fa378cfd5323"
+    },
+    {
+      "path": "scripts/ui/character_preview.gd",
+      "source_sha256": "c323452b5484b435aaa86b1e50957d4ff4b38078b6bee5f66c32a39a600e68a5",
+      "github_sha256": "c323452b5484b435aaa86b1e50957d4ff4b38078b6bee5f66c32a39a600e68a5"
+    },
+    {
+      "path": "scripts/ui/hud.gd",
+      "source_sha256": "bb358f2d4d55ef1996f5aa895867eb33a87c785fb8211aaa084dd7bd9a86716e",
+      "github_sha256": "bb358f2d4d55ef1996f5aa895867eb33a87c785fb8211aaa084dd7bd9a86716e"
+    },
+    {
+      "path": "scripts/ui/personality_slider_editor.gd",
+      "source_sha256": "8346cad62ef157ab20f5bdfa7fc3daab7d90407fa2a394c52971d6ef61ef762e",
+      "github_sha256": "8346cad62ef157ab20f5bdfa7fc3daab7d90407fa2a394c52971d6ef61ef762e"
+    },
+    {
+      "path": "scripts/ui/personality_slider_editor.gd.uid",
+      "source_sha256": "8268c6bbe812f5022122b3b7c2df402c8379ecb9878863a91b0221688d9cfa98",
+      "github_sha256": "8268c6bbe812f5022122b3b7c2df402c8379ecb9878863a91b0221688d9cfa98"
+    },
+    {
+      "path": "tests/test_attachment_sensitive_scene.gd",
+      "source_sha256": "ed6d1db60b44a3b616385eabce6e18d48638d623d5cef23b93f2491670441412",
+      "github_sha256": "ed6d1db60b44a3b616385eabce6e18d48638d623d5cef23b93f2491670441412"
+    },
+    {
+      "path": "tests/test_attachment_sensitive_scene.tscn",
+      "source_sha256": "a4c978764553e111eca15d1539088d68f8300875fe24ab0fb2b6c86b65a9266c",
+      "github_sha256": "a4c978764553e111eca15d1539088d68f8300875fe24ab0fb2b6c86b65a9266c"
+    },
+    {
+      "path": "tests/test_character_edit_apply_enet.gd",
+      "source_sha256": "00946c390a4488adb038dc69d237ac036706c9da2e87e29c7beb80abb1cca2db",
+      "github_sha256": "00946c390a4488adb038dc69d237ac036706c9da2e87e29c7beb80abb1cca2db"
+    },
+    {
+      "path": "tests/test_character_edit_commit.gd",
+      "source_sha256": "f3937e429f6365e3ab7481b60e5004ce119bb7d368c16fd94e83fd73115a9903",
+      "github_sha256": "f3937e429f6365e3ab7481b60e5004ce119bb7d368c16fd94e83fd73115a9903"
+    },
+    {
+      "path": "tests/test_character_edit_commit.tscn",
+      "source_sha256": "30a6cfbd4d1bf183028f40d00df541c229fbe4f7da425cecf1281e3d8365c656",
+      "github_sha256": "30a6cfbd4d1bf183028f40d00df541c229fbe4f7da425cecf1281e3d8365c656"
+    },
+    {
+      "path": "tests/test_character_edit_ownership.gd",
+      "source_sha256": "cc9c6fa8a1511357154d0e69e926c8974f9b78a14dd0c12ce94a928d11c13467",
+      "github_sha256": "cc9c6fa8a1511357154d0e69e926c8974f9b78a14dd0c12ce94a928d11c13467"
+    },
+    {
+      "path": "tests/test_character_edit_ownership.tscn",
+      "source_sha256": "531dead7ea6cbfe33b98b5f47d989f6a37c2d37d599040f6c7f0e1da5c71b835",
+      "github_sha256": "531dead7ea6cbfe33b98b5f47d989f6a37c2d37d599040f6c7f0e1da5c71b835"
+    },
+    {
+      "path": "tests/test_character_edit_read_enet.gd",
+      "source_sha256": "6f133090652d9aed18ec0b424b9d94210f2beb3cb82474f8e11a6b78350e571f",
+      "github_sha256": "6f133090652d9aed18ec0b424b9d94210f2beb3cb82474f8e11a6b78350e571f"
+    },
+    {
+      "path": "tests/test_character_edit_session.gd",
+      "source_sha256": "972618dec7eba08fe955c963676089cf0d2ef42e4e44f4c783a5a045b6bab7ac",
+      "github_sha256": "972618dec7eba08fe955c963676089cf0d2ef42e4e44f4c783a5a045b6bab7ac"
+    },
+    {
+      "path": "tests/test_character_edit_session.tscn",
+      "source_sha256": "83eb531d655a339378b5f9714496ea777d66d233669e4cb318138272bf02ecdc",
+      "github_sha256": "83eb531d655a339378b5f9714496ea777d66d233669e4cb318138272bf02ecdc"
+    },
+    {
+      "path": "tests/test_character_editor_ui.gd",
+      "source_sha256": "a8498216875a0ad93567521ab694c799c336e83c43d78d52bb1f3d9ef1ccf158",
+      "github_sha256": "a8498216875a0ad93567521ab694c799c336e83c43d78d52bb1f3d9ef1ccf158"
+    },
+    {
+      "path": "tests/test_character_editor_ui.tscn",
+      "source_sha256": "64042a3d66b30e118bb36a78740d47059342ad66739983f820363898c5ad1e9f",
+      "github_sha256": "64042a3d66b30e118bb36a78740d47059342ad66739983f820363898c5ad1e9f"
+    },
+    {
+      "path": "tests/test_character_garment_render.gd",
+      "source_sha256": "7f479e05c28de05437d28dafd6e348d048f4ae3a5d9d810b566c4003620bed93",
+      "github_sha256": "7f479e05c28de05437d28dafd6e348d048f4ae3a5d9d810b566c4003620bed93"
+    },
+    {
+      "path": "tests/test_character_net.gd",
+      "source_sha256": "ded3e89e9e93046e4e53b1341c94d15e172cdd2f260da93b3772c52183d3bec4",
+      "github_sha256": "ded3e89e9e93046e4e53b1341c94d15e172cdd2f260da93b3772c52183d3bec4"
+    },
+    {
+      "path": "tests/test_character_preview.gd",
+      "source_sha256": "14b764bbb389d8770da611258369109ea449a0eca3909ee03068e3d08dec7315",
+      "github_sha256": "14b764bbb389d8770da611258369109ea449a0eca3909ee03068e3d08dec7315"
+    },
+    {
+      "path": "tests/test_character_preview.tscn",
+      "source_sha256": "0c7fb91290fee81ec4841fdf6dc30db9c742e3b41f90a3fe3352addb1094701f",
+      "github_sha256": "0c7fb91290fee81ec4841fdf6dc30db9c742e3b41f90a3fe3352addb1094701f"
+    },
+    {
+      "path": "tests/test_clothing_authored.gd",
+      "source_sha256": "e511a947d4affa4ce30f69c566714db297c067cc71da96b83d67002e665a30ce",
+      "github_sha256": "e511a947d4affa4ce30f69c566714db297c067cc71da96b83d67002e665a30ce"
+    },
+    {
+      "path": "tests/test_clothing_authored.gd.uid",
+      "source_sha256": "8ab84aa63aaf5bf87bc59b67eba20d8cf9c760f26da2aaaafdde91b2b9ec7481",
+      "github_sha256": "8ab84aa63aaf5bf87bc59b67eba20d8cf9c760f26da2aaaafdde91b2b9ec7481"
+    },
+    {
+      "path": "tests/test_clothing_authored.tscn",
+      "source_sha256": "c185dae6493174713d283958b162b87368ec71b942ebbb52b4eb1437c177d71f",
+      "github_sha256": "c185dae6493174713d283958b162b87368ec71b942ebbb52b4eb1437c177d71f"
+    },
+    {
+      "path": "tests/test_clothing_c5.gd",
+      "source_sha256": "efd87a3be19a1b2c697bf657a4b43784c70080d3d8954f319ae711b8636c059d",
+      "github_sha256": "efd87a3be19a1b2c697bf657a4b43784c70080d3d8954f319ae711b8636c059d"
+    },
+    {
+      "path": "tests/test_clothing_c5.gd.uid",
+      "source_sha256": "05a119a22926ab02ee33f3b2300715b7af91805c72c6bb0a45328b6177bf99de",
+      "github_sha256": "05a119a22926ab02ee33f3b2300715b7af91805c72c6bb0a45328b6177bf99de"
+    },
+    {
+      "path": "tests/test_clothing_c5.tscn",
+      "source_sha256": "a7928ebec9c8866f9e070e14826f802f2f4f9e292744f4d43896ae9695668fe7",
+      "github_sha256": "a7928ebec9c8866f9e070e14826f802f2f4f9e292744f4d43896ae9695668fe7"
+    },
+    {
+      "path": "tests/test_household_matrix.gd.uid",
+      "source_sha256": "bb904550ceeb5ffd7608b90696822c00e9751377b88cf23304377755ee2db4e4",
+      "github_sha256": "bb904550ceeb5ffd7608b90696822c00e9751377b88cf23304377755ee2db4e4"
+    },
+    {
+      "path": "tests/test_live_character_edit.gd",
+      "source_sha256": "2a423352ed0637a29bd04bd63330710c0103497286931ee04bf2f4ad2a315bf9",
+      "github_sha256": "2a423352ed0637a29bd04bd63330710c0103497286931ee04bf2f4ad2a315bf9"
+    },
+    {
+      "path": "tests/test_live_character_edit.tscn",
+      "source_sha256": "1cd9676ed23cae3b75f5430e11834174c0359faa24cfc797bd299acc789d1d18",
+      "github_sha256": "1cd9676ed23cae3b75f5430e11834174c0359faa24cfc797bd299acc789d1d18"
+    },
+    {
+      "path": "tests/test_personality_sliders.gd",
+      "source_sha256": "3175de01a87963e80581c8e772c1a137d79bd53c4294daaa48b005b37a00ece2",
+      "github_sha256": "3175de01a87963e80581c8e772c1a137d79bd53c4294daaa48b005b37a00ece2"
+    },
+    {
+      "path": "tests/test_personality_sliders.gd.uid",
+      "source_sha256": "768f3aacb367ae2c4bc502c00a1df46882857731cebece88fe9b2c3bff6f3b44",
+      "github_sha256": "768f3aacb367ae2c4bc502c00a1df46882857731cebece88fe9b2c3bff6f3b44"
+    },
+    {
+      "path": "tests/test_personality_sliders.tscn",
+      "source_sha256": "15f177d11fb358138eeaf7dd291c126a1ad27ef87babbbeedb5d1ee2ccfeb1de",
+      "github_sha256": "15f177d11fb358138eeaf7dd291c126a1ad27ef87babbbeedb5d1ee2ccfeb1de"
+    },
+    {
+      "path": "tests/test_psyche.gd",
+      "source_sha256": "04012b4231157fa50788cbe1e5e9b3de622be5a2cd2d68324b1b8d174f64fa59",
+      "github_sha256": "04012b4231157fa50788cbe1e5e9b3de622be5a2cd2d68324b1b8d174f64fa59"
+    },
+    {
+      "path": "tests/test_rejection_hypersensitivity.gd",
+      "source_sha256": "095e50d05018da53b20917cb792f46a0fdf7c2710bd061485b69415f22559d2b",
+      "github_sha256": "095e50d05018da53b20917cb792f46a0fdf7c2710bd061485b69415f22559d2b"
+    },
+    {
+      "path": "tests/test_rejection_hypersensitivity.tscn",
+      "source_sha256": "5a2e5f3efa8efe966bfb5c00cf0a978b22145c1e8d494007d2dc3e50fd856bcf",
+      "github_sha256": "5a2e5f3efa8efe966bfb5c00cf0a978b22145c1e8d494007d2dc3e50fd856bcf"
+    },
+    {
+      "path": "tests/test_subculture_wardrobe.gd",
+      "source_sha256": "41d8a7ddd0a90cd8ecf7c44c99178ba76da8724ca039b876b011f6c513c48197",
+      "github_sha256": "41d8a7ddd0a90cd8ecf7c44c99178ba76da8724ca039b876b011f6c513c48197"
+    },
+    {
+      "path": "tests/test_subculture_wardrobe.gd.uid",
+      "source_sha256": "ec5ed38d27044222f1f8abc4b5c465a4185f90b67cca40ba74bfd6c1e6bf2b24",
+      "github_sha256": "ec5ed38d27044222f1f8abc4b5c465a4185f90b67cca40ba74bfd6c1e6bf2b24"
+    },
+    {
+      "path": "tests/test_subculture_wardrobe.tscn",
+      "source_sha256": "97dc350deb4bd2a357cad8db1928cab46fec01528f130246e04ad6bf25ea1b1e",
+      "github_sha256": "97dc350deb4bd2a357cad8db1928cab46fec01528f130246e04ad6bf25ea1b1e"
+    },
+    {
+      "path": "tests/test_trait_continuity.gd",
+      "source_sha256": "d25e77bd92f23646cd900a9817f83f34c071b4c2386601934bf86bcda0f997c9",
+      "github_sha256": "d25e77bd92f23646cd900a9817f83f34c071b4c2386601934bf86bcda0f997c9"
+    },
+    {
+      "path": "tests/test_trait_continuity.tscn",
+      "source_sha256": "23d69422be57477463b504b3fe7e98e4cd60254eb960c9ec27685645d458bf48",
+      "github_sha256": "23d69422be57477463b504b3fe7e98e4cd60254eb960c9ec27685645d458bf48"
+    },
+    {
+      "path": "tests/test_vigilance.gd",
+      "source_sha256": "2fa18d8b4764bb1ef82e541c5e74e4db7e397f04418d120060640726cc1bf2c2",
+      "github_sha256": "2fa18d8b4764bb1ef82e541c5e74e4db7e397f04418d120060640726cc1bf2c2"
+    },
+    {
+      "path": "tests/test_vigilance.tscn",
+      "source_sha256": "f1ee39f07340726fb8a29b63b2f2c008b86f16880264b910279d3d22020d4aa5",
+      "github_sha256": "f1ee39f07340726fb8a29b63b2f2c008b86f16880264b910279d3d22020d4aa5"
+    },
+    {
+      "path": "tools/automation_coordinator.py",
+      "source_sha256": "f0450bb1ad5ec81223d39330b39b85caf419502b2d1e8ab46db54f2cfd3c1851",
+      "github_sha256": "f0450bb1ad5ec81223d39330b39b85caf419502b2d1e8ab46db54f2cfd3c1851"
+    },
+    {
+      "path": "tools/automation_lock.gd",
+      "source_sha256": "6cc44dfd6b763b03e747dfed537a420b50814b2ef1f260e4fc6f237c1531f2c4",
+      "github_sha256": "6cc44dfd6b763b03e747dfed537a420b50814b2ef1f260e4fc6f237c1531f2c4"
+    },
+    {
+      "path": "tools/blender/city/corner_wall.py",
+      "source_sha256": "7353e0215eda67c59aa42383e61814d0bd7410f9ffad67089435420aed66aab4",
+      "github_sha256": "7353e0215eda67c59aa42383e61814d0bd7410f9ffad67089435420aed66aab4"
+    },
+    {
+      "path": "tools/blender/city/doorway.py",
+      "source_sha256": "56740913825daf6d6f5283655088d44683e6025efbfb9435ba5dd0ad8c921456",
+      "github_sha256": "56740913825daf6d6f5283655088d44683e6025efbfb9435ba5dd0ad8c921456"
+    },
+    {
+      "path": "tools/blender/city/render_solid_assembly.py",
+      "source_sha256": "4e7781600ece46b788d34138be32df108a3a760da262eb9f42c96e36a7d9f1a8",
+      "github_sha256": "4e7781600ece46b788d34138be32df108a3a760da262eb9f42c96e36a7d9f1a8"
+    },
+    {
+      "path": "tools/blender/city/solid_wall.py",
+      "source_sha256": "1b65d0177b912f305e2afbcc4cd0493699afcc8e90aa13900556e685046a9967",
+      "github_sha256": "1b65d0177b912f305e2afbcc4cd0493699afcc8e90aa13900556e685046a9967"
+    },
+    {
+      "path": "tools/blender/clothing_c5.py",
+      "source_sha256": "9fb62352fffd6ba187add8a0299aed0227379e876eb0a8409e9654397f05c5b9",
+      "github_sha256": "9fb62352fffd6ba187add8a0299aed0227379e876eb0a8409e9654397f05c5b9"
+    },
+    {
+      "path": "tools/blender/clothing_c5_lsx_export.py",
+      "source_sha256": "d93aafb3cbf571b48ee0f00dff27d2ac188dbf22ab88e4a9d450b0d74bb45ba1",
+      "github_sha256": "d93aafb3cbf571b48ee0f00dff27d2ac188dbf22ab88e4a9d450b0d74bb45ba1"
+    },
+    {
+      "path": "tools/blender/clothing_c5_render.py",
+      "source_sha256": "a65a6695046b89e33d8e2e35b088056c3064e5b13b443bb7944a88ede2709905",
+      "github_sha256": "a65a6695046b89e33d8e2e35b088056c3064e5b13b443bb7944a88ede2709905"
+    }
+  ],
+  "generated_stable_godot_metadata": [
+    "assets/city/wall_corner_2m.glb.import",
+    "assets/city/wall_doorway_2m.glb.import",
+    "assets/city/wall_solid_2m.glb.import",
+    "assets/textures/clothing_c5/C5_cotton_A.png.import",
+    "assets/textures/clothing_c5/C5_cotton_N.png.import",
+    "assets/textures/clothing_c5/C5_denim_A.png.import",
+    "assets/textures/clothing_c5/C5_denim_N.png.import",
+    "assets/textures/clothing_c5/C5_fleece_A.png.import",
+    "assets/textures/clothing_c5/C5_fleece_N.png.import",
+    "assets/textures/clothing_c5/C5_knit_A.png.import",
+    "assets/textures/clothing_c5/C5_knit_N.png.import",
+    "assets/textures/clothing_c5/C5_leather_A.png.import",
+    "assets/textures/clothing_c5/C5_leather_N.png.import",
+    "assets/textures/clothing_c5/C5_satin_A.png.import",
+    "assets/textures/clothing_c5/C5_satin_N.png.import",
+    "assets/textures/clothing_c5/C5_suiting_A.png.import",
+    "assets/textures/clothing_c5/C5_suiting_N.png.import",
+    "docs/city/back.jpg.import",
+    "docs/city/corner_inner.jpg.import",
+    "docs/city/corner_outer.jpg.import",
+    "docs/city/corner_top.jpg.import",
+    "docs/city/front.jpg.import",
+    "docs/city/solid_assembly_back.jpg.import",
+    "docs/city/solid_assembly_front.jpg.import",
+    "docs/city/solid_back.jpg.import",
+    "docs/city/solid_front.jpg.import",
+    "scripts/character/character_edit_session.gd.uid",
+    "scripts/city/build_corner_wall.gd.uid",
+    "scripts/city/build_solid_wall.gd.uid",
+    "scripts/city/test_builder_preflight.gd.uid",
+    "scripts/city/validate_corner_wall.gd.uid",
+    "scripts/city/validate_doorway.gd.uid",
+    "scripts/city/validate_solid_wall.gd.uid",
+    "scripts/sim/rejection_response.gd.uid",
+    "scripts/sim/sensitive_privacy_mask.gd.uid",
+    "scripts/sim/vigilance.gd.uid",
+    "scripts/ui/character_editor_panel.gd.uid",
+    "scripts/ui/character_preview.gd.uid",
+    "tests/test_attachment_sensitive_scene.gd.uid",
+    "tests/test_character_edit_apply_enet.gd.uid",
+    "tests/test_character_edit_commit.gd.uid",
+    "tests/test_character_edit_ownership.gd.uid",
+    "tests/test_character_edit_read_enet.gd.uid",
+    "tests/test_character_edit_session.gd.uid",
+    "tests/test_character_editor_ui.gd.uid",
+    "tests/test_character_garment_render.gd.uid",
+    "tests/test_character_preview.gd.uid",
+    "tests/test_live_character_edit.gd.uid",
+    "tests/test_rejection_hypersensitivity.gd.uid",
+    "tests/test_trait_continuity.gd.uid",
+    "tests/test_vigilance.gd.uid",
+    "tools/automation_lock.gd.uid"
+  ],
+  "excluded_generated_fixtures": [
+    "scripts/city/test-runs/city-1792856089-96579-preflight/missing.gd",
+    "scripts/city/test-runs/city-1792856089-96579-preflight/valid.gd",
+    "scripts/city/test-runs/city-1792856089-96579-preflight/valid_demo.scn",
+    "scripts/city/test-runs/city-1792856089-96579-preflight/valid_solid.scn",
+    "scripts/city/test-runs/city-1792856089-96579-preflight/wrong_type.gd",
+    "scripts/city/test-runs/city-1792856089-96579-preflight-v2/missing.gd",
+    "scripts/city/test-runs/city-1792856089-96579-preflight-v2/non_spatial.tscn",
+    "scripts/city/test-runs/city-1792856089-96579-preflight-v2/valid.gd",
+    "scripts/city/test-runs/city-1792856089-96579-preflight-v2/valid_demo.scn",
+    "scripts/city/test-runs/city-1792856089-96579-preflight-v2/valid_solid.scn",
+    "scripts/city/test-runs/city-1792856089-96579-preflight-v2/wrong_root.gd",
+    "scripts/city/test-runs/city-1792856089-96579-preflight-v2/wrong_type.gd"
+  ]
+}

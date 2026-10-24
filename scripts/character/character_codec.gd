@@ -160,6 +160,8 @@ static func migrate(d) -> Dictionary:
 		data = _v5_to_v6(data)
 	if v <= 6:
 		data = _v6_to_v7(data)
+	if v <= 7:
+		data = _v7_to_v8(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -250,6 +252,20 @@ static func _v6_to_v7(src: Dictionary) -> Dictionary:
 		for k in ["type", "oiliness", "dryness"]:
 			if not skin.has(k):
 				skin[k] = Schema.default_value(Schema.GROUPS["skin"]["fields"][k])
+	return d
+
+
+## v7 → v8: scalar trait intensities and explicit psyche dispositions.
+## Empty trait_levels retains the legacy categorical profile until edited.
+static func _v7_to_v8(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 8
+	var pers = d.get("personality", null)
+	if typeof(pers) == TYPE_DICTIONARY and not pers.has("trait_levels"):
+		pers["trait_levels"] = {}
+	var mind = d.get("mind", null)
+	if typeof(mind) == TYPE_DICTIONARY and not mind.has("dispositions"):
+		mind["dispositions"] = {}
 	return d
 
 

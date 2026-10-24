@@ -1,0 +1,103 @@
+{
+  "asset": "wall_doorway_2m",
+  "version": "0.1",
+  "license": "Original Life Simulator asset; all rights reserved",
+  "source": "tools/blender/city/doorway.py",
+  "units": "meters",
+  "godot_axes": "Y up; width X; thickness Z",
+  "pivot": [
+    0,
+    0,
+    0
+  ],
+  "wall_extent": [
+    2,
+    2.8,
+    0.2
+  ],
+  "visual_depth": 0.26,
+  "opening": {
+    "x": [
+      0.5,
+      1.5
+    ],
+    "y": [
+      0,
+      2.1
+    ]
+  },
+  "grid_m": 0.5,
+  "triangles": 1404,
+  "materials": [
+    "Warm plaster",
+    "Painted door trim"
+  ],
+  "uv": "1 UV unit per meter, projected before bevel",
+  "textures": [],
+  "interaction_points": [],
+  "collision_boxes": [
+    {
+      "center": [
+        0.25,
+        1.4,
+        0
+      ],
+      "size": [
+        0.5,
+        2.8,
+        0.2
+      ]
+    },
+    {
+      "center": [
+        1.75,
+        1.4,
+        0
+      ],
+      "size": [
+        0.5,
+        2.8,
+        0.2
+      ]
+    },
+    {
+      "center": [
+        1,
+        2.45,
+        0
+      ],
+      "size": [
+        1,
+        0.7,
+        0.2
+      ]
+    }
+  ],
+  "notes": "Open doorway, no door leaf yet. Casings decorative; simplified collision excludes 3 cm trim. Navmesh and build-mode integration pending.",
+  "blender_assets": [
+    "lifesim-city-doorway-generator",
+    "lifesim-city-doorway-kit"
+  ],
+  "godot_scene": "res://scenes/city/wall_doorway_2m.scn",
+  "validation": {
+    "passed": 15,
+    "failed": 0,
+    "import_pack_ms": 11.025,
+    "visual_views": [
+      "front",
+      "back"
+    ],
+    "glb_sha256": "b8d7e5a72fab076d79b7d8c19c87675170da05d1acdef3f6366f482c1bcab20e",
+    "read_only_regression": {
+      "run_id": "city-1792817254-67782",
+      "passed": 31,
+      "failed": 0,
+      "exit_code": 0,
+      "timed_out": false,
+      "scene_sha256": "fdd4ffe7378c2d49be0f30ee623c6b35541a70468d6f2eb3934548faa80cab01",
+      "negative_cases": 3,
+      "gemini_review": "docs/city/review-validator-20261024.md",
+      "new_render": false
+    }
+  }
+}

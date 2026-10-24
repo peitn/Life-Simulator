@@ -159,6 +159,7 @@ func join(address: String, port: int, player_name := "", character_code := "") -
 
 
 func shutdown() -> void:
+	_edit_limiters.clear()
 	if multiplayer.multiplayer_peer != null and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer):
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
@@ -480,6 +481,7 @@ func _on_peer_connected(id: int) -> void:
 
 
 func _on_peer_disconnected(id: int) -> void:
+	_edit_limiters.erase(id)
 	pending.erase(id)
 	_kick_at.erase(id)
 	if not players.has(id):
@@ -798,3 +800,218 @@ func _on_server_disconnected() -> void:
 	_connected = false
 	_add_chat("", "Spojení se serverem bylo ukončeno.", true)
 	disconnected.emit("Server ukončil spojení.")
+
+# H2b network ownership prerequisite. This is a SERVER-INTERNAL predicate, NOT an
+# RPC and NOT a remote edit entry point. A future @rpc handler MUST obtain sender
+# exclusively from multiplayer.get_remote_sender_id(), never from packet payload.
+# Both private reads and writes must use this gate; full RPC/replication remains OFF.
+func server_can_edit_character(sender_peer_id: int, sim_node: Variant) -> bool:
+	if mode != Mode.HOST and mode != Mode.DEDICATED:
+		return false
+	if not _connected or not multiplayer.is_server():
+		return false
+	if sender_peer_id < 1 or not players.has(sender_peer_id):
+		return false
+	if typeof(sim_node) != TYPE_STRING or String(sim_node).is_empty():
+		return false
+	var owned: Dictionary = players[sender_peer_id]
+	if not bool(owned.get("own", false)) or String(owned.get("sim", "")) != String(sim_node):
+		return false
+	if world == null or not is_instance_valid(world) or world.is_queued_for_deletion():
+		return false
+	var sim = world.find_sim(String(sim_node))
+	if sim == null or not is_instance_valid(sim) or sim.is_queued_for_deletion() or not bool(sim.get_meta("player_character", false)):
+		return false
+	var uid := String(sim.get_meta("character_uid", ""))
+	if uid.is_empty() or not world._character_records.has(String(sim_node)):
+		return false
+	var record: Resource = world._character_records[String(sim_node)]
+	if record == null or not is_instance_valid(record) or String(record.to_dict().get("uid", "")) != uid:
+		return false
+	# Fail closed on an inconsistent server-side assignment (two alleged owners).
+	for other_id in players:
+		if other_id != sender_peer_id and bool(players[other_id].get("own", false)) and String(players[other_id].get("sim", "")) == String(sim_node):
+			return false
+	return true
+# H2b: bounded server-internal request-envelope preflight. This does NOT
+# decode/validate the candidate, perform Apply, or expose any RPC. A future
+# authenticated RPC must derive sender from multiplayer.get_remote_sender_id(),
+# call this gate, strictly decode/validate the candidate and recheck ownership
+# and revision immediately before the authoritative commit.
+const EDIT_MAX_WIRE_BYTES := 24 * 1024
+const EDIT_BUCKET_CAPACITY := 3.0
+const EDIT_BUCKET_REFILL := 0.2
+var _edit_limiters: Dictionary = {}
+
+func server_preflight_character_edit(sender_peer_id: int, sim_node: Variant, expected_revision: Variant, wire_payload: Variant) -> Dictionary:
+	if not server_can_edit_character(sender_peer_id, sim_node):
+		return {"ok":false,"reason":"unauthorized"}
+	if typeof(expected_revision) != TYPE_INT or int(expected_revision) < 0:
+		return {"ok":false,"reason":"invalid_revision"}
+	if typeof(wire_payload) != TYPE_PACKED_BYTE_ARRAY:
+		return {"ok":false,"reason":"invalid_payload_type"}
+	var wire: PackedByteArray = wire_payload
+	if wire.is_empty() or wire.size() > EDIT_MAX_WIRE_BYTES:
+		return {"ok":false,"reason":"invalid_payload_size"}
+	var key := String(sim_node)
+	if not world._character_revisions.has(key):
+		return {"ok":false,"reason":"missing_revision"}
+	if int(expected_revision) != int(world._character_revisions[key]):
+		return {"ok":false,"reason":"conflict"}
+	if not _edit_limiters.has(sender_peer_id):
+		_edit_limiters[sender_peer_id] = Protocol.RateLimiter.new(EDIT_BUCKET_CAPACITY, EDIT_BUCKET_REFILL, _now())
+	if not _edit_limiters[sender_peer_id].allow(_now()):
+		return {"ok":false,"reason":"rate_limited"}
+	return {"ok":true}
+
+# Decode the current-schema JSON envelope for a future authenticated RPC.
+# SERVER-INTERNAL only; returned data is private and must never be broadcast.
+# No migration/default-group substitution, no commit, and no revision reservation.
+func server_prepare_character_edit(sender_peer_id: int, sim_node: Variant, expected_revision: Variant, wire_payload: Variant) -> Dictionary:
+	var gate := server_preflight_character_edit(sender_peer_id, sim_node, expected_revision, wire_payload)
+	if not gate.get("ok", false):
+		return gate
+	var wire: PackedByteArray = wire_payload
+	var parser := JSON.new()
+	if parser.parse(wire.get_string_from_utf8()) != OK or typeof(parser.data) != TYPE_DICTIONARY:
+		return {"ok":false,"reason":"invalid_json"}
+	var candidate: Dictionary = parser.data
+	var key := String(sim_node)
+	var before: Dictionary = world._character_records[key].to_dict()
+	# JSON numbers decode as floats: exact numeric equality, never int truncation.
+	var version = candidate.get("v")
+	if (typeof(version) != TYPE_INT and typeof(version) != TYPE_FLOAT) or version != before["v"]:
+		return {"ok":false,"reason":"schema_mismatch"}
+	if candidate.get("uid") != before["uid"]:
+		return {"ok":false,"reason":"identity_changed"}
+	for group in CharacterData.GROUP_PROPS:
+		if not candidate.has(group) or typeof(candidate[group]) != TYPE_DICTIONARY:
+			return {"ok":false,"reason":"incomplete_character"}
+	# Existing live edits cannot rename identity while relations use display names.
+	if candidate["identity"] != before["identity"]:
+		return {"ok":false,"reason":"identity_edit_pending"}
+	var gs := get_node_or_null("/root/GameSettings")
+	var mh: String = gs.mental_health_mode() if gs != null else "full"
+	var result: Dictionary = CharacterCodec.Validator.validate(candidate, {"mode":"strict","mental_health":mh})
+	if not result.get("ok",false):
+		# Do not reflect arbitrary packet contents in an error response.
+		return {"ok":false,"reason":"invalid_character"}
+	if not server_can_edit_character(sender_peer_id, key):
+		return {"ok":false,"reason":"unauthorized"}
+	if not world._character_revisions.has(key) or world._character_revisions[key] != expected_revision:
+		return {"ok":false,"reason":"conflict"}
+	return {"ok":true,"data":result["data"],"revision":expected_revision,"warnings":result["warnings"]}
+
+# H2b read-only transport. UI/Apply remain disabled until commit replication lands.
+signal character_edit_snapshot(sim_node: String, data: Dictionary, revision: int)
+
+func request_character_edit_snapshot() -> void:
+	if mode == Mode.CLIENT and _connected and not my_sim.is_empty():
+		_c2s_character_edit_read.rpc_id(1, my_sim)
+
+func server_read_character_edit(sender_peer_id: int, sim_node: Variant) -> Dictionary:
+	if not server_can_edit_character(sender_peer_id, sim_node):
+		return {"ok":false,"reason":"unauthorized"}
+	var key := String(sim_node)
+	if not world._character_revisions.has(key):
+		return {"ok":false,"reason":"missing_revision"}
+	if not _edit_limiters.has(sender_peer_id):
+		_edit_limiters[sender_peer_id] = Protocol.RateLimiter.new(EDIT_BUCKET_CAPACITY, EDIT_BUCKET_REFILL, _now())
+	if not _edit_limiters[sender_peer_id].allow(_now()):
+		return {"ok":false,"reason":"rate_limited"}
+	var wire := JSON.stringify(world._character_records[key].to_dict()).to_utf8_buffer()
+	if wire.is_empty() or wire.size() > EDIT_MAX_WIRE_BYTES:
+		return {"ok":false,"reason":"snapshot_too_large"}
+	return {"ok":true,"wire":wire,"revision":int(world._character_revisions[key])}
+
+@rpc("any_peer", "call_remote", "reliable")
+func _c2s_character_edit_read(sim_node: Variant) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	# Never accept a sender ID or ownership flag from packet contents.
+	var result := server_read_character_edit(sender, sim_node)
+	if not result.get("ok",false):
+		return
+	# No await between authorization and unicast. Never broadcast private data.
+	_s2c_character_edit_snapshot.rpc_id(sender, String(sim_node), result["wire"], result["revision"])
+
+@rpc("authority", "call_remote", "reliable")
+func _s2c_character_edit_snapshot(sim_node: Variant, wire_payload: Variant, revision: Variant) -> void:
+	if mode != Mode.CLIENT or not _connected or multiplayer.get_remote_sender_id()!=1:
+		return
+	if typeof(sim_node)!=TYPE_STRING or sim_node!=my_sim or typeof(revision)!=TYPE_INT or revision<0:
+		return
+	if typeof(wire_payload)!=TYPE_PACKED_BYTE_ARRAY:
+		return
+	var wire: PackedByteArray=wire_payload
+	if wire.is_empty() or wire.size()>EDIT_MAX_WIRE_BYTES:
+		return
+	var parser:=JSON.new()
+	if parser.parse(wire.get_string_from_utf8())!=OK or typeof(parser.data)!=TYPE_DICTIONARY:
+		return
+	character_edit_snapshot.emit(String(sim_node),parser.data,int(revision))
+
+
+# H2b staged write transport. Disabled in production until public appearance
+# replication, UI lifecycle and two-client real-world tests are completed.
+# The trusted world method performs canonical validation and rechecks ownership
+# synchronously before commit. This RPC never accepts peer IDs from packets.
+signal character_edit_apply_result(sim_node: String, accepted: bool, revision: int, changed: bool, reason: String)
+var character_edit_apply_rpc_enabled := false
+
+func request_character_edit_apply(expected_revision: int, candidate: Dictionary) -> bool:
+	if not character_edit_apply_rpc_enabled or mode != Mode.CLIENT or not _connected or my_sim.is_empty():
+		return false
+	if expected_revision < 0:
+		return false
+	var wire := JSON.stringify(candidate).to_utf8_buffer()
+	if wire.is_empty() or wire.size() > EDIT_MAX_WIRE_BYTES:
+		return false
+	_c2s_character_edit_apply.rpc_id(1, my_sim, expected_revision, wire)
+	return true
+
+@rpc("any_peer", "call_remote", "reliable")
+func _c2s_character_edit_apply(sim_node: Variant, expected_revision: Variant, wire_payload: Variant) -> void:
+	if not character_edit_apply_rpc_enabled or not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if not server_can_edit_character(sender, sim_node):
+		return
+	if world == null or not world.has_method("server_apply_character_edit"):
+		return
+	# World is the trusted authoritative game controller. It runs the existing
+	# strict prepare/ownership/revision/commit path without awaiting.
+	var result: Dictionary = world.server_apply_character_edit(sender, sim_node, expected_revision, wire_payload)
+	# Private, bounded acknowledgement only; never send full character data.
+	# Public appearance replication is NOT implemented by this method.
+	var allowed_reasons := ["conflict", "invalid_character", "invalid_json",
+		"invalid_revision", "invalid_payload_type", "invalid_payload_size",
+		"schema_mismatch", "identity_changed", "identity_edit_pending",
+		"incomplete_character", "rate_limited", "missing_character", "unauthorized"]
+	var reason := ""
+	if not result.get("ok", false):
+		reason = str(result.get("reason", "rejected"))
+		if reason not in allowed_reasons:
+			reason = "rejected"
+	var revision := int(result.get("revision", expected_revision)) if typeof(expected_revision) == TYPE_INT else 0
+	_s2c_character_edit_apply_result.rpc_id(sender, String(sim_node),
+		bool(result.get("ok", false)), max(0, revision),
+		bool(result.get("changed", false)) if result.get("ok", false) else false, reason)
+
+@rpc("authority", "call_remote", "reliable")
+func _s2c_character_edit_apply_result(sim_node: Variant, accepted: Variant,
+		revision: Variant, changed: Variant, reason: Variant) -> void:
+	if not character_edit_apply_rpc_enabled or mode != Mode.CLIENT or not _connected:
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	if typeof(sim_node) != TYPE_STRING or sim_node != my_sim:
+		return
+	if typeof(accepted) != TYPE_BOOL or typeof(changed) != TYPE_BOOL:
+		return
+	if typeof(revision) != TYPE_INT or revision < 0:
+		return
+	if typeof(reason) != TYPE_STRING or reason.length() > 40:
+		return
+	character_edit_apply_result.emit(sim_node, accepted, revision, changed, reason)

@@ -133,3 +133,11 @@ grey strands, receding hairline, shells). Cycles renders 5 views per character; 
 with `godot_file_write` in equal parts (so that every part is large enough to be stored as a file on the
 reviewer's side) and is decoded and checked by MD5. The Blender material is an approximation: highlights
 and shells look glossier than in the game.
+
+## C5 wardrobe — Blender to LSX to runtime, 23 October 2026
+
+C5 is made in Blender via tools/blender/clothing_c5.py, moved through tools/blender/clothing_c5_lsx_export.py and reconstructed by scripts/assets/clothing_wardrobe.gd. The authored set contains 57 meshes, all ten body morphs and the character's 17-bone skin, split into five LSX assets in assets/src/clothing_c5/. GLB import of Blender-authored models hangs with Godot 4.7.2 on this server; the original Godot-created avatar GLB still works, so Blender->LSX is the supported wardrobe pipeline.
+
+Original textures include seven 128x128 tileable albedo maps and seven tangent-space normal maps. Files live in assets/textures/clothing_c5 and have persistent Blender/Godot library copies. ClothingWardrobe adds missing UVs and tangents to decoded LSX meshes, creates per-character material tint instances, and remaps LSX bone indices onto the original avatar Skin bind order before attachment. Do not assume skeleton bone index equals Skin bind index. The export presets explicitly include the wardrobe PNGs and .lsx raw files.
+
+Visual QA is reproducible via tools/blender/clothing_c5_render.py, producing previews/c5_qa_*.b64. Check front/back and body/pose extremes before closing the task; the current hoodie hood and sleeve joins remain prototype-quality.

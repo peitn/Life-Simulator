@@ -94,6 +94,9 @@ static func generate(rng: RandomNumberGenerator, base: Dictionary = {}, locks: A
 	_face_details(rng, d, age)
 	# v7 (běh 22): typ pleti až na konci – stejný seed dá ve všech ostatních polích postavu jako ve v6.
 	_skin_type(rng, d, age)
+	# v8: the complete personality uses independent continuous intensities; legacy trait
+	# labels only seed a tendency, they no longer define all-or-nothing behaviour.
+	_trait_sliders(rng, d)
 	# Zámky: převzít hodnoty z base (celé skupiny nebo jednotlivá pole).
 	for lk in locks:
 		var p := String(lk).split(".")
@@ -338,6 +341,17 @@ static func _personality(rng: RandomNumberGenerator, d: Dictionary) -> void:
 	d["personality"]["aspirations"] = asp
 	# Osobnost (HEXACO) zůstává odvozená z rysů ({}); individualita psychiky = explicitní seed (běh 20, losuje se na konci generate).
 	d["personality"]["hexaco"] = {}
+
+
+## All 15 personality properties get continuous strengths in newly generated characters.
+## Random draws happen after v7 fields so previous appearance/identity are stable by seed.
+static func _trait_sliders(rng: RandomNumberGenerator, d: Dictionary) -> void:
+	var chosen: Array = d["personality"].get("traits", [])
+	var strengths := {}
+	for id in Schema.TRAIT_SLIDERS:
+		var value := _n(rng, 0.78 if chosen.has(id) else 0.12, 0.15 if chosen.has(id) else 0.11, 0.0, 1.0)
+		strengths[id] = snappedf(value, 0.001)
+	d["personality"]["trait_levels"] = strengths
 
 
 static func _story(rng: RandomNumberGenerator, d: Dictionary) -> void:

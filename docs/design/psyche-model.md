@@ -280,3 +280,57 @@ Notes on the example:
   0.5–2, thresholds to ±0.2.
 - Axis 2 onwards adds profiles **without** a legacy block. Their D modulations then act through the
   residual directly, and the legacy numbers can be migrated to D-driven mechanics one system at a time.
+
+
+## Implemented extension — hypervigilance (24 October 2026)
+
+The D layer has **10** dimensions as implemented in `scripts/psyche/psyche_model.gd` and
+`CharacterSchema.PSYCHE_SLIDERS` (the nine-row original table above documents the prior baseline).
+An optional `D.hypervigilance` slider [0,1] was added; missing values are derived from personality
+and retain compatible defaults. Existing `D.threat_sensitivity` interprets ambiguity as danger;
+`D.social_threat` is the expectation of judgement/rejection; **neither is synonymous with vigilance**.
+The existing noise-specific sensory profile (`SensoryProfile.noise_sens`) remains unchanged and independent.
+
+Server/offline `SimAgent.vigilance` is a separate mutable state (`alertness`) that responds to
+conflict, being insulted, a rejected apology, safety and passage of game time. It uses the three
+D dimensions, bounded event impulses and a decay toward the individual baseline, including during
+sleep. Explicit negative social cues are distinguished from ambiguous social appraisal. Safe encounters
+can reduce heightened vigilance without forcing trust. No FCCS coupling, no automatic diagnosis,
+no forced player action, and no private mental state in public spawn data. The `mind.dispositions`
+axes are optional so schema v8 remains valid; validate range 0..1 on authority and JSON round-trip.
+Regression: `tests/test_vigilance.tscn`. This is a gameplay model, not a clinical simulator.
+
+
+## Implemented extension — rejection reactivity and broad hypersensitivity (24 October 2026)
+
+The `D` model now has **11 optional dimensions**. Existing `D.social_threat` represents
+**anticipated** social rejection; `D.threat_sensitivity` represents the interpretation of
+ambiguity as danger; `D.hypervigilance` represents ongoing attention to possible threats.
+**New `D.rejection_reactivity` (0..1)** independently determines the intensity of emotional
+response to actual and *perceived* rejection. A perceived cue is always treated as subjective
+appraisal, not evidence of someone else's intentions. Older schema-v8 characters without
+the new key remain valid and derive their baseline from personality.
+
+`scripts/sim/rejection_response.gd` stores short-lived private distress, attenuated
+repeated cues and recovery through passage of time, rest and support. Runtime events include
+explicitly rejected apologies, dismissal when seeking support, being insulted and occasional
+ambiguous interpretation after an objectively positive chat. The last mechanism uses a
+bounded probability derived from social/threat appraisal **independently of whether intrusive
+thought text is shown**. Emotional reactions produce bounded, temporary mood/stress/arousal
+effects; they never dictate behaviour, diagnoses or long-term fate.
+
+**Self-harm is not enacted:** the optional and private `safety_concern` boolean means
+"additional support may be needed" when accumulated distress coexists with severe strain
+and poor regulation/support. It is available only with **both**
+`mental_health = full` and the opt-in `sh_ed_topics = true`; it never enters public
+snapshots, `net_detail`, actions, rewards or automated injury outcomes. It is not a
+clinical risk score. Support and recovery can clear the concern. Content stays hidden by
+default and the vision content restrictions remain unchanged.
+
+`D.sensory_sensitivity` is displayed as **Hypersenzitivita (smyslová citlivost)**,
+not as noise sensitivity alone. `SensoryProfile.configure(D)` applies an interpretable,
+bounded gain to noise and crowd responses in the live simulation. Touch and bright-light
+factors are prepared for future tactile/brightness event producers; those producers have
+**not** yet been integrated. Existing independent `noise_sens`, `crowd_sens`,
+noise/crowd habituation and positive daylight enjoyment remain distinct and compatible.
+No FCCS wiring. New regression: `tests/test_rejection_hypersensitivity.tscn`.

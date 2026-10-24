@@ -1,0 +1,77 @@
+extends "res://tests/test_base.gd"
+## Regression for vigilance trait/state, independent of sound sensitivity and FCCS.
+const Schema := preload("res://scripts/character/character_schema.gd")
+const Validator := preload("res://scripts/character/character_validator.gd")
+const Codec := preload("res://scripts/character/character_codec.gd")
+const Data := preload("res://scripts/character/character_data.gd")
+const Psyche := preload("res://scripts/psyche/psyche_model.gd")
+const Vigilance := preload("res://scripts/sim/vigilance.gd")
+const SimAgent := preload("res://scripts/sim/sim_agent.gd")
+
+func _ready() -> void:
+	section("Schema, persistence, privacy")
+	check(Schema.PSYCHE_SLIDERS.has("hypervigilance"), "Hypervigilance slider exists")
+	check(Schema.PSYCHE_SLIDERS.has("threat_sensitivity") and Schema.PSYCHE_SLIDERS.has("social_threat"), "Distinct threat/rejection sliders kept")
+	var original := Schema.defaults()
+	original["v"] = Schema.VERSION
+	original["personality"]["traits"] = ["optimista"]
+	original["identity"]["first_name"] = "Alex"
+	original["uid"] = Data.new_uid()
+	original["mind"]["dispositions"] = {"hypervigilance": 0.9, "threat_sensitivity": 0.1, "social_threat": 0.8}
+	var validated := Validator.validate(original)
+	check(bool(validated["ok"]), "Validator accepts three independent axes", str(validated["errors"]))
+	var d: Dictionary = validated["data"]
+	var invalid := original.duplicate(true)
+	invalid["mind"]["dispositions"]["hypervigilance"] = 1.2
+	check(not Validator.validate(invalid)["ok"], "Server rejects out-of-range vigilance")
+	invalid = original.duplicate(true)
+	invalid["mind"]["dispositions"]["hypervigilance"] = INF
+	check(not Validator.validate(invalid)["ok"], "Server rejects infinity")
+	var round_trip := Codec.from_json(Codec.to_json(d))
+	check(bool(round_trip["ok"]) and absf(float(round_trip["data"]["mind"]["dispositions"]["hypervigilance"]) - 0.9) < 0.001, "Round-trip preserves vigilance")
+	var cd := Data.create()
+	cd.set_from_dict(d)
+	check(not cd.public_snapshot().has("mind"), "Vigilance remains private")
+	var p := Psyche.compute(cd.to_dict(), {"individual": false})
+	check(absf(float(p["D"]["hypervigilance"]) - 0.9) < 0.001, "Psyche dimension uses selected value")
+	section("Independent appraisal, attention and recovery")
+	var low := Vigilance.new()
+	var high := Vigilance.new()
+	low.configure({"hypervigilance": 0.1, "threat_sensitivity": 0.8, "social_threat": 0.3})
+	high.configure({"hypervigilance": 0.9, "threat_sensitivity": 0.8, "social_threat": 0.3})
+	check(high.notice_probability(0.5) > low.notice_probability(0.5), "High vigilance notices cues more readily")
+	var social_low := Vigilance.new()
+	var social_high := Vigilance.new()
+	social_low.configure({"hypervigilance": 0.9, "threat_sensitivity": 0.5, "social_threat": 0.1})
+	social_high.configure({"hypervigilance": 0.9, "threat_sensitivity": 0.5, "social_threat": 0.9})
+	check(social_high.appraisal("unclear_reply", 0.7) > social_low.appraisal("unclear_reply", 0.7), "Social rejection expectation changes social appraisal")
+	check(absf(social_high.appraisal("alarm") - social_low.appraisal("alarm")) < 0.00001, "Social rejection expectation does not alter non-social alarms")
+	check(high.observe("argument") > low.observe("argument"), "High vigilance adds bounded threat response")
+	var earlier := high.alertness
+	high.tick(300.0, false, true)
+	check(high.alertness < earlier and high.alertness >= high.baseline(), "Safe time allows vigilance to recover")
+	var v := Vigilance.new()
+	v.configure({"hypervigilance": 1.0, "threat_sensitivity": 0.5})
+	for i in 200:
+		v.tick(30.0, false)
+	check(absf(v.alertness - v.baseline()) < 0.0001, "No spontaneous runaway without cues")
+	check(v.observe("safe_social") == 0.0, "Safe encounter adds no threat")
+	section("Runtime integration and noise isolation")
+	var sim := Node3D.new()
+	sim.set_script(SimAgent)
+	sim.setup("Alex", "m", [], Color.WHITE, 51, null)
+	var original_noise: float = sim.sensory.noise_sens
+	sim.apply_character_private(cd.to_dict())
+	check(absf(sim.vigilance.hypervigilance - 0.9) < 0.001, "Autonomous sim reads hypervigilance")
+	check(absf(sim.vigilance.social_threat - 0.8) < 0.001, "Autonomous sim reads social rejection expectation")
+	check(absf(sim.sensory.noise_sens - original_noise) < 0.00001, "Noise sensitivity unchanged by vigilance sliders")
+	sim.free()
+	var ui: Control = load("res://scripts/ui/personality_slider_editor.gd").new()
+	ui.load_character(cd)
+	ui._build()
+	var readout := Label.new()
+	ui._on_slider(0.67, "dispositions", "hypervigilance", readout)
+	check(absf(float(ui.export_data()["mind"]["dispositions"]["hypervigilance"]) - 0.67) < 0.001, "Editor saves vigilance slider")
+	readout.free()
+	ui.free()
+	finish("test_vigilance")

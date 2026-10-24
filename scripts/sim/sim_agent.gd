@@ -16,6 +16,9 @@ const PsycheModel := preload("res://scripts/psyche/psyche_model.gd")
 const RelLedger := preload("res://scripts/sim/rel_ledger.gd")
 const Grammar := preload("res://scripts/core/grammar_cs.gd")
 const SensoryProfile := preload("res://scripts/sim/sensory_profile.gd")
+const Vigilance := preload("res://scripts/sim/vigilance.gd")
+const RejectionResponse := preload("res://scripts/sim/rejection_response.gd")
+const SensitivePrivacyMask := preload("res://scripts/sim/sensitive_privacy_mask.gd")
 ## Volitelné externí rozhodování sociálních interakcí (experiment FCCS, jen headless test).
 static var social_oracle = null
 
@@ -29,6 +32,8 @@ signal panic_changed(sim: Node3D, active: bool)
 ## Běžný rozhovor skončil (ne urážka/omluva/svěření): info = {success, avg_mood, complaint,
 ## deescalated, p} – statistiky domácnosti (HouseholdDynamics) a později HUD.
 signal conversation(sim: Node3D, partner: Node3D, info: Dictionary)
+## Locally-authorized, opt-in non-graphic notice, NEVER an RPC/public snapshot.
+signal private_sensitive_event_notice(text: String)
 
 enum State { IDLE, WALKING, ACTING }
 
@@ -110,12 +115,18 @@ var female: bool:
 ## Veřejný vzhledový snapshot (CharacterData.public_snapshot) – vykreslení na všech peerech.
 var look := {}
 var body_color := Color(0.85, 0.55, 0.45)
-var trait_ids: Array = []
+var trait_ids: Array = [] # legacy/public list for compatibility
+var trait_profile: Variant = [] # Array[String] for old characters or weighted Dictionary for sliders
 var needs
 var mood
 var mental
 ## Individuální citlivosti (hluk, tlačenice, radost, práh těšení) a jejich návyky.
 var sensory = SensoryProfile.new()
+## Independent vigilance/interpretation; never routed through FCCS.
+var vigilance = Vigilance.new()
+## Reakce na skutečné či domnělé odmítnutí: soukromý stav, nikoli hratelná SH akce.
+var rejection = RejectionResponse.new()
+var _privacy_mask: Node3D = null
 var _seed := 0
 ## Křivdy a vina (cesta zpět z konfliktu – omluva, usmíření).
 var ledger
@@ -190,6 +201,7 @@ func setup(p_name: String, p_grammar: Variant, p_traits: Array, p_color: Color, 
 	sim_name = p_name
 	grammar = Grammar.norm(p_grammar) if typeof(p_grammar) == TYPE_STRING else ("f" if bool(p_grammar) else "m")
 	trait_ids = p_traits
+	trait_profile = p_traits
 	body_color = p_color
 	world = p_world
 	rng.seed = p_seed
@@ -197,36 +209,64 @@ func setup(p_name: String, p_grammar: Variant, p_traits: Array, p_color: Color, 
 	needs = Needs.new(rng)
 	mood = Mood.new()
 	mental = MentalState.new(rng, grammar)
-	mental.trait_vuln = Traits.sum_param(trait_ids, "vulnerability")
-	mental.trait_dep = Traits.sum_param(trait_ids, "dep_vuln")
+	mental.trait_vuln = Traits.sum_param(trait_profile, "vulnerability")
+	mental.trait_dep = Traits.sum_param(trait_profile, "dep_vuln")
 	mental.sensitivity = mental.baseline_sensitivity()
 	ledger = RelLedger.new()
-	Traits.apply_decay(trait_ids, needs)
-	sensory.setup(trait_ids, {}, p_seed)
+	Traits.apply_decay(trait_profile, needs)
+	sensory.setup(trait_profile, {}, p_seed)
+	vigilance.configure({}, true)
+	rejection.configure({}, true)
 	name = node_name_for(p_name)
 
 
 ## Predispozice k duševním potížím: {"anxiety": 0.6}. Neznámé diagnózy ignoruje.
-func set_conditions(conds: Dictionary) -> void:
+func set_conditions(conds: Dictionary, initialize_sensitivity: bool = true) -> void:
 	mental.conditions = {}
 	for id in conds:
 		if MentalState.CONDITIONS.has(String(id)) and (typeof(conds[id]) == TYPE_FLOAT or typeof(conds[id]) == TYPE_INT):
 			mental.conditions[String(id)] = clampf(float(conds[id]), 0.0, 1.0)
-	mental.sensitivity = mental.baseline_sensitivity(mental_cfg())
-	sensory.setup(trait_ids, mental.conditions, _seed)
+	# Spawn initializes adaptation; live editor changes preserve learned state.
+	if initialize_sensitivity:
+		mental.sensitivity = mental.baseline_sensitivity(mental_cfg())
+	sensory.setup(trait_profile, mental.conditions, _seed)
 
 
 ## Soukromá část CharacterData (jen server/offline): predispozice a vzorce z `mind`.
-func apply_character_private(cd: Dictionary) -> void:
+func apply_character_private(cd: Dictionary, initialize_sensitivity: bool = true) -> void:
+	var pers = cd.get("personality", {})
+	if typeof(pers) == TYPE_DICTIONARY:
+		var levels = pers.get("trait_levels", {})
+		if typeof(levels) == TYPE_DICTIONARY and not levels.is_empty():
+			trait_profile = levels.duplicate()
+			# Keep readable legacy HUD labels; simulation uses the exact levels.
+			trait_ids = []
+			for id in levels:
+				if float(levels[id]) >= 0.5:
+					trait_ids.append(String(id))
+			trait_ids.sort()
+		else:
+			# Clearing explicit sliders restores the legacy profile, not stale weights.
+			trait_ids = (pers.get("traits", []) as Array).duplicate()
+			trait_profile = trait_ids.duplicate()
+		mental.trait_vuln = Traits.sum_param(trait_profile, "vulnerability")
+		mental.trait_dep = Traits.sum_param(trait_profile, "dep_vuln")
+		for k in needs.decay_mult:
+			needs.decay_mult[k] = 1.0
+		Traits.apply_decay(trait_profile, needs)
 	var m = cd.get("mind", {})
 	if typeof(m) != TYPE_DICTIONARY:
 		return
 	var p = m.get("predispositions", {})
-	set_conditions(p if typeof(p) == TYPE_DICTIONARY else {})
+	set_conditions(p if typeof(p) == TYPE_DICTIONARY else {}, initialize_sensitivity)
 	set_patterns({"morning_worse": bool(m.get("morning_worse", false))})
 	# 1. osa psychiky (běh 20): individualita a explicitní osobnost jako háčky MentalState – pro všechny tři
 	# režimy obsahu, MentalState si vybere podle aktuálního nastavení (přepnutí za běhu funguje hned).
 	mental.set_psyche(PsycheModel.hooks_by_mode(cd))
+	var dispositions: Dictionary = PsycheModel.compute(cd).get("D", {})
+	vigilance.configure(dispositions, initialize_sensitivity)
+	rejection.configure(dispositions, initialize_sensitivity)
+	sensory.configure(dispositions)
 
 
 ## Individuální vzorce průběhu (ne univerzální příznaky): {"morning_worse": true}.
@@ -248,9 +288,9 @@ func _ready() -> void:
 	_clock.time_advanced.connect(sim_tick)
 	_clock.day_changed.connect(_on_day_changed)
 	think_cooldown = rng.randf_range(0.0, 3.0)
-	for c in Traits.cravings(trait_ids):
+	for c in Traits.cravings(trait_profile):
 		last_tag_time[c[0]] = _clock.total_minutes - rng.randf_range(0.0, float(c[1]) * 42.0)
-	mood.evaluate(needs, trait_ids, _extra_moodlets())
+	mood.evaluate(needs, trait_profile, _extra_moodlets())
 	_update_net(0.0)
 	_update_visual()
 
@@ -313,9 +353,9 @@ func sim_tick(dm: float) -> void:
 	sensory.tick(dm)
 	_check_cravings()
 	_mental_tick(dm)
-	ledger.decay(dm, Traits.mult_param(trait_ids, "grudge_tau"), Traits.mult_param(trait_ids, "guilt_tau"))
+	ledger.decay(dm, Traits.mult_param(trait_profile, "grudge_tau"), Traits.mult_param(trait_profile, "guilt_tau"))
 	_heal_relationships(dm)
-	mood.evaluate(needs, trait_ids, _extra_moodlets())
+	mood.evaluate(needs, trait_profile, _extra_moodlets())
 	if speech != "" and _clock.total_minutes > speech_until:
 		speech = ""
 	match state:
@@ -422,6 +462,9 @@ func _mental_tick(dm: float) -> void:
 		"sleeping": _is_sleeping(), "night": _clock.is_night(), "now": now(), "cfg": cfg, "hour": _clock.get_hour(),
 		"grounding": _grounding_now() or _helping_me > 0}
 	mental.tick(dm, ctx)
+	vigilance.tick(dm, _is_sleeping(), mental.support > 0.2)
+	rejection.tick(dm, _is_sleeping(), mental.support, mental.stress,
+		mental.regulation(float(needs.values["energy"]), float(needs.values["hunger"])), _allows_rejection_risk())
 	# Tlačenice: kolik lidí je těsně kolem (sociální úzkost, samotáři).
 	_crowd_timer -= dm
 	# Spící tlačenici nevnímá (běh 23, matice 8 postav: spaní na zemi vedle ostatních přidávalo úzkostné postavě
@@ -501,8 +544,8 @@ func _alert_witnesses() -> void:
 		if o._is_sleeping() or o.mental.panic_active:
 			continue
 		var rel: float = float(o.relationships.get(sim_name, 0.0))
-		var stigma_p := clampf(0.08 + Traits.sum_param(o.trait_ids, "stigma") - rel / 150.0 + o.mental.stress / 300.0, 0.02, 0.8)
-		var help_p := clampf(0.35 + rel / 100.0 - Traits.sum_param(o.trait_ids, "stigma"), 0.0, 0.9)
+		var stigma_p := clampf(0.08 + Traits.sum_param(o.trait_profile, "stigma") - rel / 150.0 + o.mental.stress / 300.0, 0.02, 0.8)
+		var help_p := clampf(0.35 + rel / 100.0 - Traits.sum_param(o.trait_profile, "stigma"), 0.0, 0.9)
 		if o.mental.arousal > 60.0:
 			help_p *= 0.5  # kdo je sám v úzkosti, má málo sil pomáhat
 		if rng.randf() < stigma_p:
@@ -533,7 +576,7 @@ func accepts_support() -> bool:
 
 func receive_support_from(helper: Node3D) -> void:
 	var rel: float = float(helper.relationships.get(sim_name, 0.0))
-	mental.receive_support(rel, Traits.mult_param(trait_ids, "support_accept"), now())
+	mental.receive_support(rel, Traits.mult_param(trait_profile, "support_accept"), now())
 	add_joy_moodlet("pomoc_" + String(helper.name), "Někdo při mně stál", "spokojeny", 8.0, 600.0)
 	remember("%s mi pomohl%s při panické atace" % [helper.sim_name, Grammar.past(helper.grammar)])
 	for pair in [[self, helper], [helper, self]]:
@@ -549,7 +592,7 @@ func receive_support_from(helper: Node3D) -> void:
 ## Bude partner naslouchat, nebo odbyde? (pro svěření se)
 func dismisses_confide(asker: Node3D) -> bool:
 	var rel: float = float(relationships.get(asker.sim_name, 0.0))
-	var p := clampf(0.12 + Traits.sum_param(trait_ids, "stigma") - rel / 120.0 + mental.stress / 250.0, 0.03, 0.85)
+	var p := clampf(0.12 + Traits.sum_param(trait_profile, "stigma") - rel / 120.0 + mental.stress / 250.0, 0.03, 0.85)
 	if mood.emotion == "nastvany":
 		p += 0.15
 	return rng.randf() < p
@@ -837,12 +880,16 @@ func _finish(interrupted: bool) -> void:
 			social_partner.sim_name, social_partner.grammar, now(), mental_cfg())
 		if th != "":
 			_detail_dirty = true
+		# Perceived rejection is independent of intrusive-thought PRESENTATION settings.
+		# A good chat may still be misread; this is not evidence of actual rejection.
+		if _social_positive and id == "chat" and rng.randf() < perceived_rejection_chance():
+			_on_rejection_cue("perceived", social_partner, 0.7)
 	if not interrupted and not bool(current_action.get("system", false)) and not bool(current_action.get("involuntary", false)):
 		_experience_finished()
 	if not interrupted:
 		var ml: Array = current_action.get("moodlet", [])
 		if ml.size() == 5:
-			var scale := Traits.moodlet_multiplier(trait_ids, current_action.get("tags", []))
+			var scale := Traits.moodlet_multiplier(trait_profile, current_action.get("tags", []))
 			if float(ml[3]) > 0.0:
 				scale *= joy_capacity()  # liking: prožitá radost (anhedonie a stres ji tlumí, citlivost postavy)
 			mood.add_moodlet(ml[0], ml[1], ml[2], float(ml[3]) * scale, float(ml[4]))
@@ -867,7 +914,7 @@ func _finish(interrupted: bool) -> void:
 func _experience_finished() -> void:
 	var id: String = current_action.get("id", "")
 	var tags: Array = current_action.get("tags", [])
-	var prior := ActionLibrary.hedonic_prior(current_action) * Traits.moodlet_multiplier(trait_ids, tags)
+	var prior := ActionLibrary.hedonic_prior(current_action) * Traits.moodlet_multiplier(trait_profile, tags)
 	var res := {}
 	if prior > 0.0:
 		res = mental.dep.experience(id, prior)
@@ -900,7 +947,7 @@ func _leave_target() -> void:
 
 ## Touhy povahy: když postava dlouho nedělá, co potřebuje (Aktivní – pohyb), znervózní.
 func _check_cravings() -> void:
-	for c in Traits.cravings(trait_ids):
+	for c in Traits.cravings(trait_profile):
 		var tag: String = c[0]
 		var since: float = _clock.total_minutes - float(last_tag_time.get(tag, _clock.total_minutes))
 		if since > float(c[1]) * 60.0:
@@ -1049,13 +1096,13 @@ func _start_social(partner: Node3D) -> void:
 func talk_success_chance(partner: Node3D, complaint := "") -> float:
 	var friendship: float = float(relationships.get(partner.sim_name, 0.0))
 	var p := TALK_BASE
-	p += Traits.chemistry(trait_ids) + Traits.chemistry(partner.trait_ids)
+	p += Traits.chemistry(trait_profile) + Traits.chemistry(partner.trait_profile)
 	# Nálada obou: v dobré náladě člověk víc snese, ve špatné vybuchne dřív (max ±MOOD_WEIGHT).
 	p += clampf((mood.value + partner.mood.value) * 0.5 / 100.0, -1.0, 1.0) * MOOD_WEIGHT
 	p += friendship / 300.0
 	# Stres a vznětlivost zvyšují riziko hádky.
 	p -= (maxf(mental.stress - TALK_STRESS_FREE, 0.0) + maxf(partner.mental.stress - TALK_STRESS_FREE, 0.0)) / TALK_STRESS_DIV
-	p -= Traits.sum_param(trait_ids, "argue_bias") + Traits.sum_param(partner.trait_ids, "argue_bias")
+	p -= Traits.sum_param(trait_profile, "argue_bias") + Traits.sum_param(partner.trait_profile, "argue_bias")
 	# Špatná nálada (naštvaný, unavený, napjatý) zvyšuje riziko konfliktu.
 	for e in [mood.emotion, partner.mood.emotion]:
 		p -= float(TALK_EMOTION_PENALTY.get(e, 0.0))
@@ -1082,9 +1129,9 @@ func take_complaint(partner: Node3D) -> String:
 
 ## Stres z hádky podle aktuálního stresu a povahy (měkký strop – viz ARGUE_STRESS_CAP).
 func argue_stress_amount() -> float:
-	var cap := Traits.get_param(trait_ids, "argue_stress_cap", ARGUE_STRESS_CAP)
+	var cap := Traits.get_param(trait_profile, "argue_stress_cap", ARGUE_STRESS_CAP)
 	var f := clampf((cap - mental.stress) / ARGUE_STRESS_RAMP, ARGUE_STRESS_MIN, 1.0)
-	return ARGUE_STRESS * Traits.mult_param(trait_ids, "stress_gain") * f
+	return ARGUE_STRESS * Traits.mult_param(trait_profile, "stress_gain") * f
 
 
 ## Zapíše do paměti změnu úrovně vztahu k `b` (cur → nv) podle SMĚRU i úrovně:
@@ -1131,6 +1178,7 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		ledger.on_hurt_by(partner.sim_name, 8.0, now())
 		remember("Svěřil(a) jsem se a %s to odbyl%s" % [partner.sim_name, Grammar.past(partner.grammar)])
 		_social_positive = false
+		_on_rejection_cue("dismissed", partner)
 	else:
 		act["label"] = "Svěřuje se: " + partner.first_name()
 		partner_act["label"] = "Naslouchá: " + first_name()
@@ -1160,7 +1208,7 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 	var cfg := mental_cfg()
 	var rel_p: float = float(partner.relationships.get(sim_name, 0.0))
 	var ev: Dictionary = partner.ledger.evaluate_apology(sim_name, t, rel_p,
-		Traits.sum_param(partner.trait_ids, "forgiveness"), partner.mental.stress, partner.rng.randf())
+		Traits.sum_param(partner.trait_profile, "forgiveness"), partner.mental.stress, partner.rng.randf())
 	var outcome: String = ev["outcome"]
 	last_apology = ev.duplicate()
 	last_apology["target"] = partner.sim_name
@@ -1210,7 +1258,9 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 			mood.add_moodlet("odmitnuta_omluva_" + String(partner.name), "Odmítnutá omluva", "smutny", -8.0, 300.0)
 			remember("%s odmítl%s moji omluvu" % [partner.sim_name, Grammar.past(partner.grammar)])
 			mental.dep.on_event(0.01, cfg)
-			if Traits.mult_param(trait_ids, "pride") < 0.8:
+			mental.threat = clampf(mental.threat + vigilance.observe("rejection"), 0.0, 1.0)
+			_on_rejection_cue("real", partner)
+			if Traits.mult_param(trait_profile, "pride") < 0.8:
 				# Pyšného odmítnutí naštve – „tak si trhni“.
 				relationships[partner.sim_name] = clampf(float(relationships.get(partner.sim_name, 0.0)) - 3.0, -100.0, 100.0)
 	partner.join_social(self, partner_act)
@@ -1232,9 +1282,16 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 	if kind == "argue":
 		mental.on_stressor("argue", argue_stress_amount(), cfg)
 		partner.mental.on_stressor("argue", partner.argue_stress_amount(), cfg)
+		mental.threat = clampf(mental.threat + vigilance.observe("argument", 0.75), 0.0, 1.0)
+		partner.mental.threat = clampf(partner.mental.threat + partner.vigilance.observe("argument", 0.75), 0.0, 1.0)
 	elif kind == "insult":
-		mental.on_stressor("insult", 3.0 * Traits.mult_param(trait_ids, "stress_gain"), cfg)
-		partner.mental.on_stressor("insulted", 16.0 * Traits.mult_param(partner.trait_ids, "stress_gain"), cfg)
+		mental.on_stressor("insult", 3.0 * Traits.mult_param(trait_profile, "stress_gain"), cfg)
+		partner.mental.on_stressor("insulted", 16.0 * Traits.mult_param(partner.trait_profile, "stress_gain"), cfg)
+		partner.mental.threat = clampf(partner.mental.threat + partner.vigilance.observe("insulted"), 0.0, 1.0)
+		partner._on_rejection_cue("real", self)
+	else:
+		vigilance.observe("safe_social")
+		partner.vigilance.observe("safe_social")
 	if not positive:
 		_witness_conflict(partner, cfg)
 	else:
@@ -1247,8 +1304,8 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 		partner.ledger.on_hurt_other(sim_name, 5.0)
 	elif kind == "insult":
 		partner.ledger.on_hurt_by(sim_name, 25.0, now)
-		var vented: bool = trait_ids.has("brucoun") or mood.emotion == "nastvany"
-		ledger.on_hurt_other(partner.sim_name, 6.0 if vented else 20.0)
+		var vented := 1.0 if mood.emotion == "nastvany" else Traits.weight(trait_profile, "brucoun")
+		ledger.on_hurt_other(partner.sim_name, lerpf(20.0, 6.0, vented))
 	for pair in [[self, partner], [partner, self]]:
 		var a: Node3D = pair[0]
 		var b: Node3D = pair[1]
@@ -1277,10 +1334,11 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 		elif kind == "insult":
 			if a == self:
 				# Ten, kdo uráží: bručoun nebo naštvaný si uleví, ostatní mají výčitky.
-				if trait_ids.has("brucoun") or mood.emotion == "nastvany":
-					a.mood.add_moodlet("ulevil_" + b.name, "Ulevil(a) si".replace("(a)", Grammar.past(grammar)), "energicky", 5.0, 90.0)
-				else:
-					a.mood.add_moodlet("vycitky_" + b.name, "Výčitky svědomí", "smutny", -8.0, 240.0)
+				var relief := 1.0 if mood.emotion == "nastvany" else Traits.weight(trait_profile, "brucoun")
+				if relief > 0.0:
+					a.mood.add_moodlet("ulevil_" + b.name, "Ulevil(a) si".replace("(a)", Grammar.past(grammar)), "energicky", 5.0 * relief, 90.0)
+				if relief < 1.0:
+					a.mood.add_moodlet("vycitky_" + b.name, "Výčitky svědomí", "smutny", -8.0 * (1.0 - relief), 240.0)
 				a.remember("Urazil(a) – %s" % b.sim_name)
 			else:
 				a.mood.add_moodlet("urazka_" + b.name, "Urážka od: " + b.first_name(), "nastvany", -18.0, 360.0)
@@ -1289,6 +1347,115 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 			a.mood.add_moodlet("hadka_" + b.name, "Nepříjemná hádka", "nastvany", -14.0, 200.0)
 			a.remember("Pohádal(a) se – %s" % b.sim_name)
 		a.note_relationship_change(b, cur, nv)
+
+
+## Chance of a perceived rejection after an objectively good conversation.
+## Uses threat interpretation rather than the emotional reactivity slider; no
+## forced misinterpretation, deterministic under the character RNG seed.
+func perceived_rejection_chance() -> float:
+	var appraisal := vigilance.appraisal("unclear_reply", 0.7)
+	return clampf((appraisal - 0.34) * 0.30 + maxf(mental.arousal - 50.0, 0.0) / 900.0, 0.0, 0.22)
+
+
+## Risk theme is opt-in and full mental-health presentation only.
+## Never include risk flags in public snapshot, multiplayer net_detail or AI action lists.
+func _allows_rejection_risk() -> bool:
+	if not is_inside_tree():
+		return false
+	var gs = get_node_or_null("/root/GameSettings")
+	return gs != null and gs.mental_health_mode() == "full" and gs.allows_content("sh_ed")
+
+
+## Separate appraisal (expectation) from emotional impact (rejection_reactivity).
+## kind: perceived (an ambiguous social cue), dismissed (not heard), real (direct rejection).
+## No injury, no scripted diagnosis and no forced player action can originate here.
+func _on_rejection_cue(kind: String, other: Node3D, ambiguity := 0.0) -> Dictionary:
+	if not content_allowed("mental_health") or other == null or mental == null:
+		return {}
+	var rel := float(relationships.get(other.sim_name, 0.0))
+	var bond: Dictionary = ledger.attachment_to(other.sim_name, rel)
+	var importance: float = float(bond["impact"])
+	var appraisal := vigilance.appraisal("unclear_reply" if kind == "perceived" else "rejection", ambiguity)
+	if kind == "perceived":
+		mental.threat = clampf(mental.threat + vigilance.observe("unclear_reply", 0.5, ambiguity), 0.0, 1.0)
+	var regulation: float = mental.regulation(float(needs.values["energy"]), float(needs.values["hunger"]))
+	var response := rejection.on_cue(kind, importance, appraisal, mental.support, regulation)
+	var gain: float = float(response.get("stress", 0.0)) * mental.stress_gain_factor()
+	mental.stress = clampf(mental.stress + gain, 0.0, 100.0)
+	mental.arousal = clampf(mental.arousal + float(response.get("arousal", 0.0)), 0.0, 100.0)
+	if gain > 0.0:
+		mental.stress_sources["rejection"] = float(mental.stress_sources.get("rejection", 0.0)) + gain
+	var added := float(response.get("distress_added", 0.0))
+	if added > 0.01:
+		var label := "Obavy z odmítnutí" if kind == "perceived" else "Zasáhlo ji odmítnutí"
+		# Gender-neutral Czech caption for both protagonist and NPC; avoid labelling a guess as fact.
+		if kind != "perceived":
+			label = "Bolestivé odmítnutí"
+		mood.add_moodlet("pocit_odmitnuti_" + other.sim_name, label, "smutny",
+			-maxf(1.0, added * 25.0), 180.0)
+		_detail_dirty = true
+	rejection.update_concern(mental.stress, regulation, mental.support, _allows_rejection_risk())
+	return response
+
+
+## Privately usable by the owning player's editor / future safety-aware support presentation.
+## No numbers, methods or instructions concerning self-harm are exposed.
+func private_rejection_status() -> Dictionary:
+	return rejection.private_status(_allows_rejection_risk())
+
+
+## Writer/editor API: the bond is directional and stored in the existing private ledger.
+## It does not alter the public liking score and creates no guaranteed rejection outcome.
+func set_attachment_to(who: String, importance: float, dependency: float) -> bool:
+	if ledger == null or not ledger.set_attachment(who, importance, dependency):
+		return false
+	_detail_dirty = true
+	return true
+
+
+## Explicit private API for owner-only/offline relationship display.
+func private_attachment_labels() -> Dictionary:
+	var out := {}
+	for n in relationships:
+		out[n] = ledger.attachment_label(String(n), float(relationships[n]))
+	return out
+
+
+## Presentation-only hook for a completed, strictly offscreen, non-playable event.
+## Does NOT perform harm and is never an AI/player action or generated by a risk threshold.
+## Full adult-sensitive opt-in, local offline world + active HUD required: no network leak.
+func present_implied_sensitive_incident(kind: String = "self_harm") -> bool:
+	if kind != "self_harm" or not _allows_rejection_risk():
+		return false
+	if world == null or not is_instance_valid(world) or world.get("net") == null:
+		return false
+	if world.net.is_networked() or world.get("hud") == null or visual == null:
+		return false
+	if _privacy_mask != null and is_instance_valid(_privacy_mask):
+		return false
+	_privacy_mask = SensitivePrivacyMask.new()
+	_privacy_mask.name = "SensitiveEventOccluder"
+	add_child(_privacy_mask)
+	if not _privacy_mask.begin(visual):
+		_privacy_mask.queue_free()
+		_privacy_mask = null
+		return false
+	_privacy_mask.completed.connect(_after_sensitive_incident)
+	return true
+
+
+func _after_sensitive_incident() -> void:
+	if _privacy_mask != null and is_instance_valid(_privacy_mask):
+		_privacy_mask.queue_free()
+		_privacy_mask = null
+	var gs = get_node_or_null("/root/GameSettings")
+	if gs == null or gs.mental_health_mode() != "full" or not gs.allows_content("sh_ed"):
+		return
+	var note := "Došlo k epizodě sebepoškozování. Postava může potřebovat podporu."
+	# HUD is local/offline ONLY. No network RPC, no status or event replicated.
+	if world != null and is_instance_valid(world) and world.get("hud") != null:
+		world.hud.show_notice(note)
+	private_sensitive_event_notice.emit(note)
 
 
 ## Kdo stojí poblíž hádky, toho to taky rozhodí (úzkostné víc).
@@ -1307,7 +1474,10 @@ func _check_jealousy(partner: Node3D, cfg: Dictionary) -> void:
 	if world == null:
 		return
 	for o in world.get_sims():
-		if o == self or o == partner or not o.has_method("command") or not Traits.has_flag(o.trait_ids, "jealous"):
+		if o == self or o == partner or not o.has_method("command"):
+			continue
+		var jealousy := Traits.flag_strength(o.trait_profile, "jealous")
+		if jealousy <= 0.0:
 			continue
 		if o._is_sleeping() or o.global_position.distance_to(global_position) > WITNESS_DIST:
 			continue
@@ -1315,12 +1485,12 @@ func _check_jealousy(partner: Node3D, cfg: Dictionary) -> void:
 			var friend: Node3D = pair[0]
 			var rival: Node3D = pair[1]
 			if float(o.relationships.get(friend.sim_name, 0.0)) >= 40.0 and not o.mood.has_moodlet("zarli_" + String(rival.name)):
-				o.mental.on_stressor("jealousy", 6.0, cfg)
-				o.mood.add_moodlet("zarli_" + String(rival.name), "Žárlí na: " + rival.first_name(), "nastvany", -10.0, 240.0)
-				o.relationships[rival.sim_name] = clampf(float(o.relationships.get(rival.sim_name, 0.0)) - 2.0, -100.0, 100.0)
-				o.ledger.grudges[rival.sim_name] = clampf(o.ledger.grudge(rival.sim_name) + 3.0, 0.0, 100.0)
+				o.mental.on_stressor("jealousy", 6.0 * jealousy, cfg)
+				o.mood.add_moodlet("zarli_" + String(rival.name), "Žárlí na: " + rival.first_name(), "nastvany", -10.0 * jealousy, 240.0)
+				o.relationships[rival.sim_name] = clampf(float(o.relationships.get(rival.sim_name, 0.0)) - 2.0 * jealousy, -100.0, 100.0)
+				o.ledger.grudges[rival.sim_name] = clampf(o.ledger.grudge(rival.sim_name) + 3.0 * jealousy, 0.0, 100.0)
 				o._detail_dirty = true
-				if o.speech == "" and o.rng.randf() < 0.4:
+				if o.speech == "" and o.rng.randf() < 0.4 * jealousy:
 					o.say(ActionLibrary.random_line("jealous", o.rng))
 				break
 

@@ -44,7 +44,8 @@ extends RefCounted
 ##     a suchost projeví: T-zóna vs. tváře a tělo), skin.oiliness a skin.dryness 0..1 (síla). Čistě vzhled → veřejné.
 ##     Nezávislé na rodu, identitě, tónu kůže i jménu. Migrace v6 → v7 doplní výchozí „normální“ pleť
 ##     (CharacterCodec._v6_to_v7); drsnost T-zóny zůstane blízko dřívější (−0,065 proti −0,08).
-const VERSION := 7
+## v8: continuous personality sliders and optional psyche dispositions. Legacy traits remain for migration/presets.
+const VERSION := 8
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -119,20 +120,55 @@ const OUTFIT_CATEGORIES := {
 const TOPS := {
 	"tricko": "Tričko", "tilko": "Tílko", "kosile": "Košile", "halenka": "Halenka", "svetr": "Svetr", "rolak": "Rolák",
 	"mikina": "Mikina", "sako": "Sako s košilí", "saty": "Šaty", "pyzamo": "Pyžamo", "sportovni": "Sportovní tričko",
+	"punk_vesta": "Punková vesta", "metal_tricko": "Metalové tričko", "emo_mikina": "Emo mikina",
+	"goth_korset": "Goth korzet", "kawaii_svetr": "Kawaii svetr", "harajuku_bunda": "Harajuku bunda",
+	"grunge_kosile": "Grunge košile", "visualkei_sako": "Visual kei sako",
+	"kawaii_kocici_mikina": "Růžová kawaii mikina s kočičíma ušima",
 }
 const BOTTOMS := {
 	"dziny": "Džíny", "kalhoty": "Kalhoty", "oblekove": "Oblekové kalhoty", "kratasy": "Kraťasy", "sukne": "Sukně",
 	"teplaky": "Tepláky", "leginy": "Legíny", "pyzamo": "Pyžamové kalhoty", "zadne": "— (šaty)",
+	"punk_kostka": "Punková kostkovaná sukně", "goth_sukne": "Goth dlouhá sukně",
+	"kawaii_sukne": "Kawaii skládaná sukně", "harajuku_sukne": "Harajuku sukně",
+	"metal_dziny": "Metalové džíny", "emo_dziny": "Emo džíny", "grunge_dziny": "Grunge džíny",
+	"visualkei_kalhoty": "Visual kei kalhoty",
 }
 const SHOES := {
 	"tenisky": "Tenisky", "polobotky": "Polobotky", "kozacky": "Kozačky", "lodicky": "Lodičky", "sandaly": "Sandály",
 	"pracovni": "Pracovní boty", "bacory": "Bačkory", "bosy": "Naboso",
+	"punk_kanady": "Punkové kanady", "metal_kanady": "Metalové kanady",
+	"goth_platformy": "Goth platformy", "emo_tenisky": "Emo tenisky",
+	"kawaii_boty": "Kawaii boty", "harajuku_platformy": "Harajuku platformy",
+	"grunge_kanady": "Grunge kanady", "visualkei_boty": "Visual kei boty",
 }
 
 ## Osobnost – 6 os (HEXACO-like, −1..1): nízký pól ↔ vysoký pól. Rysy jsou předvolby nad nimi (PsycheModel.TRAIT_P).
 const HEXACO := {
 	"honesty": "Poctivost", "emotionality": "Emocionalita", "extraversion": "Extraverze",
 	"agreeableness": "Přívětivost", "conscientiousness": "Svědomitost", "openness": "Otevřenost",
+}
+
+## Each traditional trait is an independent 0..1 slider. The old trait budget applies to legacy presets only.
+const TRAIT_SLIDERS := {
+	"lenoch": "Lenost", "aktivni": "Aktivita", "pedant": "Pořádkumilovnost",
+	"spolecensky": "Společenskost", "samotar": "Potřeba samoty", "gurman": "Gurmánství",
+	"hravy": "Hravost", "knihomol": "Záliba ve čtení", "optimista": "Optimismus",
+	"brucoun": "Podrážděnost", "zarlivy": "Žárlivost", "vznetlivy": "Vznětlivost",
+	"cynik": "Cynismus", "impulzivni": "Impulzivita", "uzkostlivy": "Úzkostlivost",
+}
+## Optional enduring dimensions, not current symptoms or diagnostic labels.
+const PSYCHE_SLIDERS := {
+	"threat_sensitivity": "Citlivost na hrozby",
+	"hypervigilance": "Hypervigilance (zvýšená ostražitost)",
+	"social_threat": "Očekávání sociálního odmítnutí",
+	"rejection_reactivity": "Emoční citlivost na odmítnutí",
+	"impulsivity": "Impulzivní reagování",
+	"regulation_capacity": "Schopnost regulace emocí",
+	"predictability_need": "Potřeba předvídatelnosti",
+	"sensory_sensitivity": "Hypersenzitivita (smyslová citlivost)",
+	"energy_baseline": "Obvyklá energie",
+	"reward_sensitivity": "Citlivost na odměnu a radost",
+	"cognitive_flexibility": "Kognitivní flexibilita",
 }
 
 const TRAIT_COST := {
@@ -267,7 +303,8 @@ const GROUPS := {
 		"roughness": ["f", 0.0, 1.0, 0.2],
 	}},
 	"personality": {"public_fields": ["traits"], "fields": {
-		"traits": ["traits"],
+		"traits": ["traits"], # legacy presets; ignored when trait_levels is populated
+		"trait_levels": ["axes", TRAIT_SLIDERS, 0.0, 1.0], # private scalar intensities
 		"aspirations": ["set", ASPIRATIONS, MAX_ASPIRATIONS],
 		"hexaco": ["axes", HEXACO, -1.0, 1.0],          # soukromé; {} = vše z rysů
 		"psyche_seed": ["i", 0, 65535, 0],             # soukromé; individualita psychiky (PsycheModel)
@@ -280,7 +317,8 @@ const GROUPS := {
 		"backstory": ["text", 600, true],
 	}},
 	"mind": {"content": "mental_health", "fields": {
-		"predispositions": ["predisp"],
+		"predispositions": ["predisp"], # 0..1 per condition; already continuous
+		"dispositions": ["axes", PSYCHE_SLIDERS, 0.0, 1.0],
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},

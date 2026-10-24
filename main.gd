@@ -100,6 +100,9 @@ var net: Node
 var sims_root: Node3D
 var sims: Array = []
 var smart_objects: Array = []
+## Full CharacterData stays on the authority; never add this store to replication.
+var _character_records: Dictionary = {}
+var _character_revisions: Dictionary = {}
 var selected := 0
 var day_night: Node3D
 var camera_rig: Node3D
@@ -310,6 +313,8 @@ func spawn_character(cd: Dictionary, pos: Vector3, seed: int, node_name := "") -
 	var node = net.spawn_sim(d)
 	if node != null and node.has_method("apply_character_private"):
 		node.apply_character_private(cd)
+		_character_records[String(node.name)] = c
+		_character_revisions[String(node.name)] = 0
 	return node
 
 
@@ -367,6 +372,8 @@ func register_sim(s: Node) -> void:
 
 
 func unregister_sim(s: Node) -> void:
+	_character_records.erase(String(s.name))
+	_character_revisions.erase(String(s.name))
 	sims.erase(s)
 	selected = clampi(selected, 0, maxi(sims.size() - 1, 0))
 
@@ -642,3 +649,78 @@ func _audio_report() -> bool:
 		print("  !! CHYBA: nesouhlasí počet aktivních zvuků")
 		ok = false
 	return ok
+
+
+## Local controller entry points. No RPC is exposed until edit replication and
+## authenticated ownership are implemented. A supplied peer ID is not authentication.
+func read_character_edit(sim_node: String, peer_id: int = 1) -> Dictionary:
+	if net == null or net.is_networked() or not net.is_authority() or peer_id != 1:
+		return {"ok": false, "reason": "editing_unavailable"}
+	if find_sim(sim_node) == null or not _character_records.has(sim_node):
+		return {"ok": false, "reason": "missing_character"}
+	return {"ok": true, "data": _character_records[sim_node].to_dict(),
+		"revision": _character_revisions[sim_node]}
+
+
+func apply_character_edit(sim_node: String, candidate: Dictionary, expected_revision: int, peer_id: int = 1) -> Dictionary:
+	var current := read_character_edit(sim_node, peer_id)
+	if not current["ok"]:
+		return current
+	if expected_revision != current["revision"]:
+		return {"ok": false, "reason": "conflict"}
+	var before: Dictionary = current["data"]
+	if candidate.get("uid") != before["uid"] or candidate.get("v") != before["v"]:
+		return {"ok": false, "reason": "identity_changed"}
+	# Relationships are currently keyed by display name. Rename/identity editing
+	# needs its own migration; do not silently orphan relations in this first slice.
+	if candidate.get("identity") != before["identity"]:
+		return {"ok": false, "reason": "identity_edit_pending"}
+	var gs := get_node_or_null("/root/GameSettings")
+	var mh: String = gs.mental_health_mode() if gs != null else "full"
+	var result := Validator.validate(candidate, {"mode": "strict", "mental_health": mh})
+	if not result["ok"]:
+		return {"ok": false, "reason": "invalid", "errors": result["errors"]}
+	return _commit_validated_character_edit(sim_node, result["data"], expected_revision, result["warnings"])
+
+
+# Server-INTERNAL entry point. Future RPC MUST derive sender from multiplayer,
+# never from the payload. No await or user callback between recheck and commit.
+func server_apply_character_edit(sender_peer_id: int, sim_node: Variant, expected_revision: Variant, wire_payload: Variant) -> Dictionary:
+	if net == null:
+		return {"ok":false,"reason":"unauthorized"}
+	var prepared: Dictionary = net.server_prepare_character_edit(sender_peer_id, sim_node, expected_revision, wire_payload)
+	if not prepared.get("ok", false):
+		return prepared
+	if not net.server_can_edit_character(sender_peer_id, sim_node):
+		return {"ok":false,"reason":"unauthorized"}
+	return _commit_validated_character_edit(String(sim_node), prepared["data"], int(expected_revision), prepared["warnings"])
+
+
+# Trusted internal sink for strictly validated data, shared with offline Apply.
+# Not RPC. Re-read canonical revision immediately before any live mutation.
+func _commit_validated_character_edit(sim_node: String, after: Dictionary, expected_revision: int, warnings: Array) -> Dictionary:
+	if not _character_records.has(sim_node) or not _character_revisions.has(sim_node) or find_sim(sim_node) == null:
+		return {"ok":false,"reason":"missing_character"}
+	if _character_revisions[sim_node] != expected_revision:
+		return {"ok":false,"reason":"conflict"}
+	var before: Dictionary = _character_records[sim_node].to_dict()
+	if after == before:
+		return {"ok": true, "revision": expected_revision, "changed": false}
+	var sim = find_sim(sim_node)
+	var character: Resource = _character_records[sim_node]
+	character.set_from_dict(after)
+	var snapshot: Dictionary = character.public_snapshot()
+	if snapshot != sim.look:
+		sim.look = snapshot
+		if is_instance_valid(sim.visual):
+			sim.visual.apply_look(snapshot)
+	# Wardrobe/body edits must not reset adaptive sensory state or mental history.
+	if before["personality"] != after["personality"] or before["mind"] != after["mind"]:
+		sim.apply_character_private(after, false)
+		sim.mood.evaluate(sim.needs, sim.trait_profile, sim._extra_moodlets())
+		sim._detail_dirty = true
+		sim._update_net(0.0)
+		sim._update_visual()
+	_character_revisions[sim_node] += 1
+	return {"ok": true, "revision": _character_revisions[sim_node], "changed": true,
+		"warnings": warnings}

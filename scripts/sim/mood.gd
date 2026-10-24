@@ -88,7 +88,7 @@ func tick(minutes: float) -> void:
 
 
 ## extra = moodlety z jiných systémů (duševní stav), přepočítávané každý krok.
-func evaluate(needs, trait_ids: Array, extra: Array = []) -> void:
+func evaluate(needs, trait_ids: Variant, extra: Array = []) -> void:
 	need_moodlets = _compute_need_moodlets(needs, trait_ids) + extra
 	var neg_scale := Traits.negative_scale(trait_ids)
 	var total: float = (needs.average() - 55.0) * 0.5 + Traits.mood_bias(trait_ids)
@@ -115,7 +115,7 @@ func all_moodlets() -> Array:
 	return moodlets + need_moodlets
 
 
-func _compute_need_moodlets(needs, trait_ids: Array) -> Array:
+func _compute_need_moodlets(needs, trait_ids: Variant) -> Array:
 	var out: Array = []
 	var v: Dictionary = needs.values
 	if v["hunger"] < 20.0:

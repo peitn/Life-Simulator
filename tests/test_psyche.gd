@@ -201,7 +201,7 @@ func _test_compute() -> void:
 	var in_range := true
 	for dim in PM.DIMS:
 		in_range = in_range and float(r["D"][dim]) >= 0.0 and float(r["D"][dim]) <= 1.0
-	check(in_range and (r["D"] as Dictionary).size() == 9, "9 dimenzí v 0..1")
+	check(in_range and (r["D"] as Dictionary).size() == PM.DIMS.size(), "%d dimenzí v 0..1" % PM.DIMS.size())
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2020
 	var bad := 0
@@ -246,7 +246,7 @@ func _test_compute() -> void:
 		all_half = all_half and is_equal_approx(float(neutral["D"][dim]), 0.5)
 	check(all_half, "bez rysů, profilů a individuality = průměr populace (0,5)")
 	var junk := PM.compute({"personality": {"traits": "x", "hexaco": [1], "psyche_seed": "abc"}, "mind": 5})
-	check((junk["D"] as Dictionary).size() == 9, "poškozená data nespadnou (výchozí hodnoty)")
+	check((junk["D"] as Dictionary).size() == PM.DIMS.size(), "poškozená data nespadnou (výchozí hodnoty)")
 
 
 func _test_individuality() -> void:

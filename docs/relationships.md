@@ -159,3 +159,35 @@ systems with the number of people (pair-wise frictions and shared moments grow w
 Measured (local Godot 4.7.2, 30 days, 4 seeds per household): 3-person household arguments 18–29 %, all moods positive;
 7 healthy characters arguments 16–24 %, nobody collapses; 7 characters with predispositions arguments 14–23 %, the severe
 cases have episodes **with recovery** (no saturation), panic attacks 0–2 per month, at most ~1 drink a day.
+
+
+## Individual attachment and emotional dependency (24 October 2026)
+
+**Implemented in `RelLedger`**: the legacy public liking score (−100..+100)
+is NOT synonymous with the importance of the relationship. A private,
+direction-specific `attachments[other_name]` entry stores two separate
+0..1 values: `importance` ("how much this specific person matters") and
+`dependency` ("how much acceptance/presence of this person affects
+emotional stability"). `set_attachment(who, importance, dependency)`
+validates inputs, `attachment_to(who, liking)` returns the actual
+reaction weight, and `attachment_label(...)` offers a human-friendly
+private description. The source-of-truth is the same ledger used for
+grudges and guilt; to_dict/from_dict preserve bonds, with compatibility
+for older saves without this field.
+
+When no explicit bond exists, **importance derives gradually from positive
+liking but dependency defaults to zero**. Thus affection does not imply
+dependency; an intensely dependent character can still experience negative
+or ambivalent liking toward someone. The impact is directional: A's
+attachment to B need not equal B's attachment to A. Rejected apology,
+being insulted, dismissal while seeking support and ambiguous
+interpretations after a chat use that specific relationship's impact
+in `SimAgent._on_rejection_cue`. Perceived rejection remains subjective,
+not proof of the other character's intentions. The existing independent
+`rejection_reactivity` slider sets temperament, not identity or diagnosis.
+
+Offline HUD relationship labels now append the private bond description.
+Multiplayer `net_detail` has deliberately **not** been changed to send
+attachment maps; proper owner-only transport/editor sliders per relationship
+are a separate future task. No FCCS involvement. New test suite:
+`tests/test_attachment_sensitive_scene.tscn`.

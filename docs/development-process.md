@@ -3,7 +3,14 @@
 Life Simulator is developed by **automated runs** on a schedule, in collaboration between several AI
 models, under the direction of the project owner.
 
-## Scheduled runs
+## GPT implementation runs (24 October 2026)
+
+The owner authorized GPT to implement the review fixes and continue development in hourly tasks.
+The ordered queue, test gates, compare-and-swap lease and conflict policy are defined in
+[implementation-sequence.md](implementation-sequence.md). These runs are implementers, not just room watchers.
+The schedule below describes the earlier development process and must not be assumed to describe active tasks.
+
+## Earlier scheduled runs
 
 - A run starts **every 12 hours** (08:21 and 20:21, Europe/Prague). Each run is **one complete
   development step**: a full implementation with no stubs, tested and audited.
