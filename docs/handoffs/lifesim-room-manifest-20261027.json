@@ -1,0 +1,2324 @@
+{
+  "schema": "lifesim.room-transfer.v2",
+  "date": "2026-10-27",
+  "room_id": "3fece629a61c4e15b72849ad7e8edc66",
+  "canonical_project": "Godot lifesim",
+  "source_archive": {
+    "name": "lifesim-source-20261027.zip",
+    "first_room_message": 220,
+    "last_room_message": 237,
+    "parts": 18,
+    "size_bytes": 1601060,
+    "sha256": "0490909851c902fe7489993174c62fd01c914c67a2b242ad627c302b367e90c6",
+    "scope": "447 actual source, docs, tests and text configuration files; binary assets/audio/previews not included",
+    "file_inventory": [
+      {
+        "path": "AUDIT.md",
+        "bytes": 109422,
+        "sha256": "e56e6fdd0f85444c0c73628bd1c75c4e2a3e67adc1448c4e112e61dcd98eec4b"
+      },
+      {
+        "path": "CHECKPOINT.md",
+        "bytes": 166766,
+        "sha256": "7df33c55d67ac9cc5e26ae0f8fc1afe76c2acc56e40f67fd686b9bb17878a45b"
+      },
+      {
+        "path": "DEVLOG.md",
+        "bytes": 217210,
+        "sha256": "a2864adcef489e4dba7474f693b62574720e2e6d4fedbfb4dc254eaa82d1eb5d"
+      },
+      {
+        "path": "README.md",
+        "bytes": 36389,
+        "sha256": "38821d8cc71ab6b3669c374eff21f0c405a81d6fd8fbd3156e0710e2b41ba8db"
+      },
+      {
+        "path": "ROADMAP.md",
+        "bytes": 28529,
+        "sha256": "170bccd9bf406aa67e11d1c23047b2e75308596919083434e61a42240e74827d"
+      },
+      {
+        "path": "WEB.md",
+        "bytes": 920,
+        "sha256": "15893c0c6847df72a959600e617be529ddb63d730c07718c7b784866d79a7ef1"
+      },
+      {
+        "path": "assets/anatomy/anatomy_runtime_proxy_v1.json",
+        "bytes": 29752,
+        "sha256": "4303b05c8bdb5a936a494b6601cb4c9e53c35b964a97168a7a3c2e6d860757e9"
+      },
+      {
+        "path": "assets/models/manifest.json",
+        "bytes": 10649,
+        "sha256": "9a4dc2212e69db568b8071cd54853bea440a388f47a07ccc4fa01e4e5054727d"
+      },
+      {
+        "path": "data/conditions/anxiety.json",
+        "bytes": 1282,
+        "sha256": "c678e8eeb668ad3053d719e8bcd243886afa142a8a79664e4ab80a20c74a21d6"
+      },
+      {
+        "path": "data/conditions/depression.json",
+        "bytes": 1090,
+        "sha256": "d65d38871be25e0e90da8f9b132afc4371844b57acba15522f79ed46f94948d8"
+      },
+      {
+        "path": "docs/CIRCULATORY_PHASE1.md",
+        "bytes": 7704,
+        "sha256": "64ddd302c8f52de1ed2d25e4ad7ce2dd2dea7e14d9835409b7e73f7b2abe4789"
+      },
+      {
+        "path": "docs/anatomy/C13_CLOSED_TORSO_NAVEL.md",
+        "bytes": 7208,
+        "sha256": "632f98a5f784e7e2d7f705aefc0be6c853bd04340e3b026d00ed4e8c6f5c320b"
+      },
+      {
+        "path": "docs/anatomy/C14_INDEPENDENT_FINGER_JOINTS.md",
+        "bytes": 6318,
+        "sha256": "9f10d8fe56dccd6ca6255dc8446951ff0e751ac2b713dbdbeba00fc7edeab44e"
+      },
+      {
+        "path": "docs/anatomy/ELMER_3D_HEAT_AND_STRESS_V1.md",
+        "bytes": 8626,
+        "sha256": "931525635f9e89e68d11aeccfd06fbb79b336c0ea539ba2db27a45f5c3daaa15"
+      },
+      {
+        "path": "docs/anatomy/ELMER_FEM.md",
+        "bytes": 8327,
+        "sha256": "e06e525f8cacd32602f1e3d3513a9eaffceab80ad06bfa957a7209ed61789a84"
+      },
+      {
+        "path": "docs/anatomy/IN_GAME_ANATOMY_OVERLAY_V1.md",
+        "bytes": 7694,
+        "sha256": "92f057b32d419d93830a28c6b2313885393530a583d24805c02247cf4c5bfd02"
+      },
+      {
+        "path": "docs/anatomy/MUSCLE_FAT_THERMAL_V1.md",
+        "bytes": 9899,
+        "sha256": "732b42bde58a3efb1bcf78a47df08c0bf119a35192d1868aa70abc5ce1b45a5e"
+      },
+      {
+        "path": "docs/anatomy/README.md",
+        "bytes": 6867,
+        "sha256": "a074f5a344865f53a6960da5949f48a640d86f14f0c0ecb70728f51c2f373fe3"
+      },
+      {
+        "path": "docs/anatomy/TORSO_FINGERS_NAVEL_C12.md",
+        "bytes": 7667,
+        "sha256": "2d0484c1fb1c3ff41933b16c7ac4bec006bf2af8b1d18bedea5f7406b7323255"
+      },
+      {
+        "path": "docs/anatomy/anatomy-physics-v1.json",
+        "bytes": 3957,
+        "sha256": "cd3d4dee772db65786c8044b0dbbc5c30155103f135906fd804d41f911cfee91"
+      },
+      {
+        "path": "docs/anatomy/elmer-fem-results-v1.json",
+        "bytes": 6265,
+        "sha256": "bbae80c807a654af658a53a842fee55a5e38c6b9251821c6b8d3be5b167988a1"
+      },
+      {
+        "path": "docs/anatomy/elmer_muscle_fat_3d_v1.json",
+        "bytes": 4099,
+        "sha256": "dc3e02d40643fc42d2931fa5ae83c5a8622668626e457ad896406e02ed152bc1"
+      },
+      {
+        "path": "docs/anatomy/elmer_muscle_fat_v1.json",
+        "bytes": 6272,
+        "sha256": "7e84853d9753258ff01e16d8247c2ac0a87d0a6aae8c06f030c4e2bb43493d12"
+      },
+      {
+        "path": "docs/architecture.md",
+        "bytes": 9991,
+        "sha256": "f9f6c200ef3c9843c3db630e9529600714180e39e0c3821465e4e22abe75e99e"
+      },
+      {
+        "path": "docs/asset-pipeline.md",
+        "bytes": 10253,
+        "sha256": "faea64c2447dc2c0f665f31eb2f75d2f2009ac81af1bc980f6337ae8a2716b8e"
+      },
+      {
+        "path": "docs/audio.md",
+        "bytes": 8056,
+        "sha256": "8262132fa5f2c9873337388538faba3cbfef9a5c96364e599e86bd1d9e92fa64"
+      },
+      {
+        "path": "docs/automation-lock.md",
+        "bytes": 6669,
+        "sha256": "bfc15e2597fad2a6d6ddb3e514d6cb010657dae878300d9a072c8f83100adeb5"
+      },
+      {
+        "path": "docs/automation-state.json",
+        "bytes": 407,
+        "sha256": "a4bd70906636ee17af37caf738ec09d1becf4c151eb06f89700c293b15a6fc70"
+      },
+      {
+        "path": "docs/character-creator.md",
+        "bytes": 38855,
+        "sha256": "4fce7c4a89f33c72b7c72d7fb4e78da63eaf63ce4aa328bb31b4ed5539ae69c4"
+      },
+      {
+        "path": "docs/city/CHECKPOINT.md",
+        "bytes": 68976,
+        "sha256": "687ff0c4e994671dca4e0a370f43f8022df0762d4722228fd33e6bb83cabc82b"
+      },
+      {
+        "path": "docs/city/HANDOFF.md",
+        "bytes": 41184,
+        "sha256": "f022a41029d5712221ec32e6063bbc1c0be4844f31cdb21a00ea5aa3a50c6ec3"
+      },
+      {
+        "path": "docs/city/PLAN.md",
+        "bytes": 5740,
+        "sha256": "898f08bcbd53140bc84ec037e64309311427af3a8b9688eb855ff5f1018e20a0"
+      },
+      {
+        "path": "docs/city/backups/city-1793018567-220376/CHECKPOINT.md",
+        "bytes": 49203,
+        "sha256": "0b5745aaee47b839f60ee9ded65c68399c1d8013d86e8c776e0edf446c790582"
+      },
+      {
+        "path": "docs/city/backups/city-1793018567-220376/HANDOFF.md",
+        "bytes": 26740,
+        "sha256": "f55f0b5b3c91bb1b6b095f2e29a52f26632158cf657fb764c1dba3c8c11eac61"
+      },
+      {
+        "path": "docs/city/backups/city-1793018567-220376/PLAN.md",
+        "bytes": 3047,
+        "sha256": "33da9e3c710f150689501689e345c23a9caae7d6eb0a62b737dfcb9b4822fbc5"
+      },
+      {
+        "path": "docs/city/ceiling_tile_manifest.json",
+        "bytes": 1975,
+        "sha256": "33e3e2f5de26ee4ae5b858a31f1d16d19015ef1b50310cb8d9516a6a8ed71a75"
+      },
+      {
+        "path": "docs/city/corner_wall_manifest.json",
+        "bytes": 2969,
+        "sha256": "debc369e2b2b5f47a3199cd95024de43d688d838e62297064b5057e3526ebd17"
+      },
+      {
+        "path": "docs/city/floor_tile_manifest.json",
+        "bytes": 4175,
+        "sha256": "69fc51f477358824dc32127abb8db713e25e4e459a9ca6637bbdf25aa2c21944"
+      },
+      {
+        "path": "docs/city/gable_infill_manifest.json",
+        "bytes": 5400,
+        "sha256": "58be73903ccdf7871c69822c6979ae5347fdad8f9c0e881dcb82d879272c0f85"
+      },
+      {
+        "path": "docs/city/manifest.json",
+        "bytes": 1990,
+        "sha256": "2e837b35e52945182d2ecba224f2dfe6463fa293380d0c38506a43b0a398885a"
+      },
+      {
+        "path": "docs/city/physics-walk-before-debug.txt",
+        "bytes": 3744,
+        "sha256": "ad2fddd8d08a1787f70dda5f86757c56b35ab91501b44b3a0c3f4a95a6a11c2f"
+      },
+      {
+        "path": "docs/city/physics-walk-debug.txt",
+        "bytes": 3937,
+        "sha256": "58f5fbe5962bdb4151c47bbf54062e75ea558bb183b54daffe54aa6b2f784f58"
+      },
+      {
+        "path": "docs/city/review-builder-preflight-20261024.md",
+        "bytes": 1823,
+        "sha256": "21540ddbf17932aeb649d832c89fc01ecf306517f8d68b5b11d9aef3564f83d1"
+      },
+      {
+        "path": "docs/city/review-ceiling-tile-20261025.md",
+        "bytes": 2514,
+        "sha256": "a8dad5fe3f42a682dbf42e0ad651495f99d702dba7f730e5f20a4de76806288d"
+      },
+      {
+        "path": "docs/city/review-corner-source-20261025.md",
+        "bytes": 2457,
+        "sha256": "95bd95702816f27f5aec0e52ede141bb65738232a05b2191c5918348b8e2a0b2"
+      },
+      {
+        "path": "docs/city/review-corner-wall-20261024.md",
+        "bytes": 2631,
+        "sha256": "d62c16dfa0babe760dbc537feab8f7e84fb6bafef491c07e41e3e2e9d293ea4d"
+      },
+      {
+        "path": "docs/city/review-floor-tile-20261025.md",
+        "bytes": 2048,
+        "sha256": "5f0eea8984d396b7ba19d092d210117c3d41478b20debdf3eda04165874c7da4"
+      },
+      {
+        "path": "docs/city/review-gable-envelope-20261025.md",
+        "bytes": 1892,
+        "sha256": "0c5aaea7c21959ba34b3816cbbb2c828a59f4a338af8a7c6ece9e92d6706cadf"
+      },
+      {
+        "path": "docs/city/review-roof-assembly-20261025.md",
+        "bytes": 1448,
+        "sha256": "3a38d20e8b8363c5c0a0eb5cd89da34eaf23ac73814283d7f1953feea6f3c480"
+      },
+      {
+        "path": "docs/city/review-roof-demo-20261025.md",
+        "bytes": 712,
+        "sha256": "871d7e34960897f90f6487d86a0711df921ddcf9547f32ec2db3f15fb8017d34"
+      },
+      {
+        "path": "docs/city/review-roof-gable-20261025.md",
+        "bytes": 2664,
+        "sha256": "a471c55f25ca58b25c6b8709f8e6a8c47c55b4ea5cc4fe3676a71b1c58e89807"
+      },
+      {
+        "path": "docs/city/review-solid-wall-20261024.md",
+        "bytes": 3537,
+        "sha256": "94cee40410622d166bb345ebc2cf0c862a742826518e72b3e8030734596f734c"
+      },
+      {
+        "path": "docs/city/review-stair-contact-20261026.md",
+        "bytes": 1635,
+        "sha256": "86ca1676eda2e30499fc33a2a5f46f3fd450e95f286f55d4f60d77f9056741c5"
+      },
+      {
+        "path": "docs/city/review-stair-lift-height-20261027.md",
+        "bytes": 3023,
+        "sha256": "c3f34c4b305011f723a4ca43e187ebd255c7c88df8fd53120e0eea73118bec89"
+      },
+      {
+        "path": "docs/city/review-stair-physics-20261026.md",
+        "bytes": 2751,
+        "sha256": "6c3ba740352867f1919b21abee2efe2a178187ba732d1cae183d9afac93a09ff"
+      },
+      {
+        "path": "docs/city/review-stair-smoothing-ablation-20261026.md",
+        "bytes": 2775,
+        "sha256": "868b82566f61582a6fd708bb472e7e3e76e7f2b9690c58fcdc33b9d6c01c91e8"
+      },
+      {
+        "path": "docs/city/review-staircase-20261026.md",
+        "bytes": 2070,
+        "sha256": "ca1c053f29564d4fc5d63d57392e1f9fd8d06ef77a693f09cacb513d464e7ecb"
+      },
+      {
+        "path": "docs/city/review-validator-20261024.md",
+        "bytes": 2979,
+        "sha256": "e870947ed11248d97796291982991f7942ea082e8e9c4af39941f271b0c58db7"
+      },
+      {
+        "path": "docs/city/review-window-wall-20261025.md",
+        "bytes": 2427,
+        "sha256": "5f03d9283ca9dc93090b4326a5fc814524a68e7af6070912751d196c53921b37"
+      },
+      {
+        "path": "docs/city/roof_gable_manifest.json",
+        "bytes": 4424,
+        "sha256": "666e9d8e598a75ba2cac8f5bb5443de47e50e018c43c5fca43130363fe152e4e"
+      },
+      {
+        "path": "docs/city/solid_wall_manifest.json",
+        "bytes": 2301,
+        "sha256": "761ee5fcd812a74e97b819201d7ec24e74eba075ace501e7de70f3374cf79253"
+      },
+      {
+        "path": "docs/city/stair-validator-city-1793018567-220376-before-tolerance.txt",
+        "bytes": 3910,
+        "sha256": "b42e0836a5a8a70bf06d5ff2b57ecf2c41c41d2e580c46cd8d63bab1911945f8"
+      },
+      {
+        "path": "docs/city/staircase_manifest.json",
+        "bytes": 9298,
+        "sha256": "d146eefa8507c818dd247a71fca0ce8af3b35f84c65b568ab29b0f2d123defc7"
+      },
+      {
+        "path": "docs/city/trajectory-city-1793057445-289586.json",
+        "bytes": 99627,
+        "sha256": "8a3aac73775408fd281fd883451d542469acaf3869b1d6d3fcc4b1633fce097c"
+      },
+      {
+        "path": "docs/city/window_wall_manifest.json",
+        "bytes": 3523,
+        "sha256": "fe401db8ec7b98a6f0813171b68848236f0184bb6ca2a0435032cd11aaf06ad2"
+      },
+      {
+        "path": "docs/design/psyche-model.md",
+        "bytes": 22619,
+        "sha256": "b7e2680e92aefc048295fb4055142108d8ae3c6fac6c229b36e989afc1411157"
+      },
+      {
+        "path": "docs/development-process.md",
+        "bytes": 3711,
+        "sha256": "30e527088f056efc88e06930d2596c3b624bdbce17fd244e51b1b3f8d4109948"
+      },
+      {
+        "path": "docs/implementation-sequence.md",
+        "bytes": 49253,
+        "sha256": "7c6c9b1d58fc4c8cd442a23047ab80c1c831546a6b286c3856a5d81b976f08f6"
+      },
+      {
+        "path": "docs/mental-health.md",
+        "bytes": 20425,
+        "sha256": "46df96dded0f1e463cd0e25b715a6e4f273e93dbe01ee50092794ff00208f5a4"
+      },
+      {
+        "path": "docs/multiplayer.md",
+        "bytes": 3016,
+        "sha256": "b23dab81d8476bca6b2e492458dd7ae7698852a558757981b17552bc1944c3b9"
+      },
+      {
+        "path": "docs/relationships.md",
+        "bytes": 12725,
+        "sha256": "4e37ba691bb465b19601e81a0e073a1db3d25a243575cc444d5c25155f764104"
+      },
+      {
+        "path": "docs/reviews/adult-social-intimacy-20261026.md",
+        "bytes": 12333,
+        "sha256": "28513c5611f29bcba48209565365acaec0c792d69e53f02c348b6b5cab4c290f"
+      },
+      {
+        "path": "docs/reviews/arousal-valence-20261025.md",
+        "bytes": 6462,
+        "sha256": "d88f644048a504d63f37d714d203756ec147f0a8d7dcd16b7d405e8ba415859c"
+      },
+      {
+        "path": "docs/reviews/character-anatomy-ui-sleeve-20261026.md",
+        "bytes": 7645,
+        "sha256": "61fec3054ffa192ecc8785d9f625c9c6bac8fc1f6af1f1395d40572fa7ffeb1a"
+      },
+      {
+        "path": "docs/reviews/emotional-state-20261026.md",
+        "bytes": 9710,
+        "sha256": "359a2a08ace0c53e2b947a1f0a37fc4630161bfbd66fdda16ac9444618a26f93"
+      },
+      {
+        "path": "docs/reviews/extreme-fictional-household-20261025.md",
+        "bytes": 8111,
+        "sha256": "edf482d71942f51053f9b358938d735d70d09436931b5f29fa8147a84c813f3d"
+      },
+      {
+        "path": "docs/reviews/full-household-regression-20261026.md",
+        "bytes": 7447,
+        "sha256": "3314b8dd321c43ca27ccbfd6c27d229f7f192662e40c3e8cf7714253e95e488c"
+      },
+      {
+        "path": "docs/reviews/h2b-apply-rpc-staging-20261024.md",
+        "bytes": 2737,
+        "sha256": "d72620cc5e66d0a00a90d8a2f4ea88c2eb6b122a9271c1b6eb7e3a919b845b6b"
+      },
+      {
+        "path": "docs/reviews/h2b-correlated-read-20261025.md",
+        "bytes": 1131,
+        "sha256": "2fdeab64310969c7c496bc1e860b33967792a6c5f6735e0805a0bcfeb740cc3f"
+      },
+      {
+        "path": "docs/reviews/h2b-correlated-read-timeout-20261025.md",
+        "bytes": 3477,
+        "sha256": "2d5873034e5e3012e9e50ffa7e159b273aa4a7709136b4a54cbfdccbe0ccd690"
+      },
+      {
+        "path": "docs/reviews/h2b-finger-poses-20261026.md",
+        "bytes": 5909,
+        "sha256": "3dbd1e2a10bd8e025c645f8e8cb8818ca4083e6532081166702881fb41cdc782"
+      },
+      {
+        "path": "docs/reviews/h2b-garment-selectors-20261024.md",
+        "bytes": 3899,
+        "sha256": "a3d52681268233e915e7fd11f640fdb17e2d37dd1e87dac9b42f7243c8da6946"
+      },
+      {
+        "path": "docs/reviews/h2b-incarnation-20261025.md",
+        "bytes": 3384,
+        "sha256": "06cd11e999c6132acdf8670cad784d1833bc66abba82911914b8567ada564a0f"
+      },
+      {
+        "path": "docs/reviews/h2b-latejoin-sync-20261025.md",
+        "bytes": 3493,
+        "sha256": "77365e49d92407d0a8a46419fa37e604bc217f1c5d2331d1b8f6147e015ec866"
+      },
+      {
+        "path": "docs/reviews/h2b-live-edit-20261024.md",
+        "bytes": 3447,
+        "sha256": "4fbe9371ec1ef51431ae2877a3adab8d5539d0628bc6aab7ee32fe2652918e57"
+      },
+      {
+        "path": "docs/reviews/h2b-native-network-ui-20261026.md",
+        "bytes": 4326,
+        "sha256": "dd7ccafe3d07e3751a6f4d737ae38676fb702bc0a474e4adb539f612b51e2326"
+      },
+      {
+        "path": "docs/reviews/h2b-network-candidate-20261024.md",
+        "bytes": 2427,
+        "sha256": "af4c3c99930c8de8cefa8c19dfa0986c2c9a20898747756792af95f198ed4717"
+      },
+      {
+        "path": "docs/reviews/h2b-network-envelope-20261024.md",
+        "bytes": 2052,
+        "sha256": "7ea4a66ed8f49c9947e8b5efdb1329c61a46f79df39cdf159dee5016c162f447"
+      },
+      {
+        "path": "docs/reviews/h2b-network-ownership-20261024.md",
+        "bytes": 3061,
+        "sha256": "c636cc29ab165022020c372037153221ed6b18427c4211b627f9d5261eebc797"
+      },
+      {
+        "path": "docs/reviews/h2b-network-panel-20261026.md",
+        "bytes": 3892,
+        "sha256": "f58ab97e759471980937c6a5872e85b279e8bc065fe63d702ee2a16d6edc3484"
+      },
+      {
+        "path": "docs/reviews/h2b-network-read-20261024.md",
+        "bytes": 2430,
+        "sha256": "15544696e16d9ef2933a007c2998a86c61e0b22bc6c269c08d8f09a6042ca0c8"
+      },
+      {
+        "path": "docs/reviews/h2b-pending-incarnations-20261025.md",
+        "bytes": 1741,
+        "sha256": "96d02453f89c3d59383eaaa82f009b3bb85869baea9a3365f71feb647bce7115"
+      },
+      {
+        "path": "docs/reviews/h2b-pending-lifecycle-20261025.md",
+        "bytes": 3568,
+        "sha256": "ba70c709dd455d52274af90fb756fce0fdf8be1b2b498d8e1e09baae39d26045"
+      },
+      {
+        "path": "docs/reviews/h2b-preview-20261024.md",
+        "bytes": 4960,
+        "sha256": "0a9cd0f2ebe482dfd2a8e432b3276ab05eaefcd53d6e5ee85275b1a6148559ac"
+      },
+      {
+        "path": "docs/reviews/h2b-production-apply-lifecycle-20261024.md",
+        "bytes": 2108,
+        "sha256": "f1732ae8ff891cb657043d7a9aed2f6eb9264e762c7128244296f7749b7472a9"
+      },
+      {
+        "path": "docs/reviews/h2b-public-look-order-20261025.md",
+        "bytes": 3059,
+        "sha256": "b03fd0a2c2d18069b7f06e58036a1f154b4f743a035aa650070a5fe30e0625f6"
+      },
+      {
+        "path": "docs/reviews/h2b-public-look-transport-20261025.md",
+        "bytes": 3033,
+        "sha256": "c326eb0958a403316a7fd5d9878e0514f8a390f30ddd2a8b5bf305f52961eb6f"
+      },
+      {
+        "path": "docs/reviews/h2b-public-resync-20261025.md",
+        "bytes": 3826,
+        "sha256": "49159e1c049da46a58e58e535249db52712e07e3e2da266bf775085ccd30f9cc"
+      },
+      {
+        "path": "docs/reviews/h2b-public-resync-retry-20261025.md",
+        "bytes": 2920,
+        "sha256": "7a35f09d845069ba1a0b54c48fe2458eef05a6b2437ff7ba78bbfd4c4b2c74b5"
+      },
+      {
+        "path": "docs/reviews/h2b-read-launch-preflight-20261025.md",
+        "bytes": 3521,
+        "sha256": "599c05a0062720a5f52c6e62e9e06e0a5eecc02bba1cee657a159bb1d96a6792"
+      },
+      {
+        "path": "docs/reviews/h2b-real-hands-barefeet-20261026.md",
+        "bytes": 6485,
+        "sha256": "45b8cbcdf5434c385f321901b2c097de1eabed72f577d418c8e75ffaa071417e"
+      },
+      {
+        "path": "docs/reviews/h2b-recycled-name-diagnostic-20261025.md",
+        "bytes": 3931,
+        "sha256": "c98446426ac674b83bef883195e40a2e0bcf4c659871401610ee5313bc361c9a"
+      },
+      {
+        "path": "docs/reviews/h2b-repeated-apply-20261025.md",
+        "bytes": 3543,
+        "sha256": "7c45765fe66e3e2f79e98359e89571de0853872143b3b037f5c2cad2c53f137b"
+      },
+      {
+        "path": "docs/reviews/h2b-resync-render-20261025.md",
+        "bytes": 2947,
+        "sha256": "91e9efac51f93656c805012695d2783b2b47e01f0ba121bfac8284d5c935a883"
+      },
+      {
+        "path": "docs/reviews/h2b-scoped-read-cancel-20261025.md",
+        "bytes": 2974,
+        "sha256": "53279236db4ba59b630467a348e2d748b19997e7dc62a985ec8a494848a512dc"
+      },
+      {
+        "path": "docs/reviews/h2b-server-commit-regression-20261024.md",
+        "bytes": 2951,
+        "sha256": "ef11cec823e5a94a7ecd3a472f62afd2745d01456467c8bd9486faf65054b519"
+      },
+      {
+        "path": "docs/reviews/h2b-sleeve-runtime-repair-20261026.md",
+        "bytes": 2220,
+        "sha256": "549de85d4ea78cea7e41544922aba1ef66cf5c6d3fed5ea066ae7711862f088d"
+      },
+      {
+        "path": "docs/reviews/h2b-sleeve-vertex-baseline-20261026.md",
+        "bytes": 3077,
+        "sha256": "a8cb9181078f8863e4fb9b3d80ebcdaa5f829ed147afda9fc54c8ac7ef5fc065"
+      },
+      {
+        "path": "docs/reviews/h2b-sleeve-weight-bend-matrix-20261026.md",
+        "bytes": 6799,
+        "sha256": "d9d62d047bd099138175f27568de4089528ae5a75f6f36b952dd80ed789a3d1d"
+      },
+      {
+        "path": "docs/reviews/h2b-sleeve-weight-contamination-20261026.md",
+        "bytes": 3155,
+        "sha256": "a3625e8007dc6cc6797abbadaedbcd895c72dfa84c0ee815b349fd610f215f5e"
+      },
+      {
+        "path": "docs/reviews/h2b-ui-20261024.md",
+        "bytes": 4315,
+        "sha256": "789d6309ca05523c561b8e657519529dd9b266249b65e98a37f294d8b8604ea6"
+      },
+      {
+        "path": "docs/reviews/h2b-wall-clock-retry-20261025.md",
+        "bytes": 1439,
+        "sha256": "29942a2b974d22d19d1433b61fcec35a85359b6ee431a5b06dae3cd135276d1b"
+      },
+      {
+        "path": "docs/reviews/h4-save-autosave-20261025.md",
+        "bytes": 8193,
+        "sha256": "88ae5cdc195be6bfdf0903a17b125cdea0081911720d22bb85d2ae06736c1ba3"
+      },
+      {
+        "path": "docs/reviews/h4-target-point-20261025.md",
+        "bytes": 2139,
+        "sha256": "28acea84c389eb6708c950917eb6ec9b2e6f9c5bf059c94d5439c4e5201139d9"
+      },
+      {
+        "path": "docs/reviews/household-soak-resume-20261025.md",
+        "bytes": 6500,
+        "sha256": "e28d17bd8231a1867b863c8c833c22b88e213b1e4987b68c7a66420c8ac056a3"
+      },
+      {
+        "path": "docs/reviews/hygiene-early-preemption-20261026.md",
+        "bytes": 6583,
+        "sha256": "9fafabd7658ec640a2ffae7bad0d31388d9d937aa65d78abfabc88ac766911b4"
+      },
+      {
+        "path": "docs/reviews/offline-first-playthrough-20261026.md",
+        "bytes": 3572,
+        "sha256": "e6a4b834384ce35b5e85084a9c4242a5e3a92ec7a450d28daba4272c1b5bbb77"
+      },
+      {
+        "path": "docs/reviews/psych-defectiveness-crying-orientation-20261027.md",
+        "bytes": 3840,
+        "sha256": "a3512455a7d491d8d14448347ace814319701a9c845627901bb2f49e504ea920"
+      },
+      {
+        "path": "docs/reviews/social-nuance-20261025.md",
+        "bytes": 8539,
+        "sha256": "dcd8edc3b6bca7f1bcb46b3b0bd4c70c663a9be26e87f5206b6ef471ceeac10c"
+      },
+      {
+        "path": "docs/roadmap.md",
+        "bytes": 13887,
+        "sha256": "2ab197c9b752226852a11fbe18745f4896e65ca6dd1489a2a66773a38f1907c2"
+      },
+      {
+        "path": "docs/testing.md",
+        "bytes": 34107,
+        "sha256": "ba1c64a0630a0ed47372b9a8aedf8745e4b1a501143dcd1d7d8e751b9e06edc3"
+      },
+      {
+        "path": "docs/vision.md",
+        "bytes": 3831,
+        "sha256": "81a22b88a2d5848425072e0e4e4243fd9ac8b3a516efb7cdd0fbe795a6477455"
+      },
+      {
+        "path": "export_presets.cfg",
+        "bytes": 1773,
+        "sha256": "6dd6e54f854a0200293fa3abd8d79a95805a5676bbe7facadaa3593c722f056c"
+      },
+      {
+        "path": "main.gd",
+        "bytes": 41755,
+        "sha256": "3c03d0461ec0df6d6e02ed413944f78ec85f2ece5cb5ccff9076a1cfe3e17dd1"
+      },
+      {
+        "path": "main.tscn",
+        "bytes": 161,
+        "sha256": "48c33cef16d91f694062d8411c71806eede0a530f57f4664f260340e374b4d41"
+      },
+      {
+        "path": "project.godot",
+        "bytes": 944,
+        "sha256": "28727c3bbbecf0bea450bd2637aaa4f20e11bad7bb70d0df4ec9b8c87de53979"
+      },
+      {
+        "path": "scenes/city/roof_assembly_demo.tscn",
+        "bytes": 1692,
+        "sha256": "f96c0a9f377e73bc362dff3f69a9b6773e5594acbc5c43b5b14a4ae4f1748a3b"
+      },
+      {
+        "path": "scenes/city/stair_landing_demo.tscn",
+        "bytes": 499,
+        "sha256": "31d468ecebbbb9f5f2fe9056d7ff558d7f4a6e7acb71e35570728b2829972792"
+      },
+      {
+        "path": "scripts/assets/anatomical_torso_surface.gd",
+        "bytes": 5076,
+        "sha256": "74d37596c7ef9ce189e4bc2126fb29b9b27d33ae1757b21ca63656463b22d5cd"
+      },
+      {
+        "path": "scripts/assets/anatomy_overlay.gd",
+        "bytes": 7477,
+        "sha256": "a2049f0345235f3174f2f991d0001808a9c3414c2d6a9bdc13ce524383517f6e"
+      },
+      {
+        "path": "scripts/assets/asset_library.gd",
+        "bytes": 8293,
+        "sha256": "535af316b876a1eeb64810d5d6f1286e0c14215792d49cd478bd2ae54cf87af6"
+      },
+      {
+        "path": "scripts/assets/character_anims.gd",
+        "bytes": 6002,
+        "sha256": "80db082f397d2cb27b691914a28faf8a11f8b872a8bd59c6f62691b51be301f3"
+      },
+      {
+        "path": "scripts/assets/character_assembly.gd",
+        "bytes": 15090,
+        "sha256": "5110f030c023af95a1de6e4465d57a83b384b1eb468a3706188926044cf2074c"
+      },
+      {
+        "path": "scripts/assets/clothing_variants.gd",
+        "bytes": 4608,
+        "sha256": "7239f5cec90ad05c10172c6371c81546fd8c637372c4e33246bb5a63f65efbcc"
+      },
+      {
+        "path": "scripts/assets/clothing_wardrobe.gd",
+        "bytes": 13419,
+        "sha256": "e8d4a673c8df607f445e924df46448d0095e4198c96a4c3e947fb7d175725e93"
+      },
+      {
+        "path": "scripts/assets/foot_detail_builder.gd",
+        "bytes": 7838,
+        "sha256": "6bb57305049485df67e457690b0d878961270c65a02e7862f1ca0829bee5c355"
+      },
+      {
+        "path": "scripts/assets/hair_builder.gd",
+        "bytes": 51193,
+        "sha256": "0b9a8276f1d20a8981192968608704d30b55800655b4f16b51271d7fe40b719b"
+      },
+      {
+        "path": "scripts/assets/hair_rig.gd",
+        "bytes": 18896,
+        "sha256": "9a424585912a8fbb6334f920de91846c15e7e98e850b9b30dfad17c7b90bcb31"
+      },
+      {
+        "path": "scripts/assets/hand_detail_builder.gd",
+        "bytes": 16911,
+        "sha256": "d50e3fa9f32b178995e7dd02417987f99dd0c0e07984825bdda4a15089fd3fec"
+      },
+      {
+        "path": "scripts/assets/head_builder.gd",
+        "bytes": 103651,
+        "sha256": "50c1bec2d90275b1371f824194241f7e560cebca39b29c8c77d69000fe32449c"
+      },
+      {
+        "path": "scripts/assets/lsx_decoder.gd",
+        "bytes": 22007,
+        "sha256": "3b3709ca6b05bc662c354ee4788185087a6ed8a2c5ce2009831f7a4fb546fc8c"
+      },
+      {
+        "path": "scripts/assets/subculture_wardrobe.gd",
+        "bytes": 2629,
+        "sha256": "2d446ea5e65832869e22b7f7e23c4b2c086faa74f54f057302a2642fd8d7a60e"
+      },
+      {
+        "path": "scripts/assets/subdiv.gd",
+        "bytes": 6735,
+        "sha256": "cebfd1bee8bb5798b01bdd970e44501a2ef73eaac1cef3609a3acc402dbcb387"
+      },
+      {
+        "path": "scripts/assets/torso_detail_builder.gd",
+        "bytes": 6048,
+        "sha256": "5fffee76c486a562e368cd083457b3e0c4e76597eb7185cbca4d9ec563612948"
+      },
+      {
+        "path": "scripts/audio/audio_manager.gd",
+        "bytes": 21187,
+        "sha256": "6c37b6cbba9374ff5031341ee0a0f2730dbd4db6688beb881021419e97b0e81a"
+      },
+      {
+        "path": "scripts/audio/engine_sfx.gd",
+        "bytes": 9303,
+        "sha256": "b9f856407ca8dab649d617b21ecec6448d4bbb4479c90c142a6896537ff56b6f"
+      },
+      {
+        "path": "scripts/audio/music_data.gd",
+        "bytes": 9189,
+        "sha256": "1337aeb0cc3e8204e9ef95e902e91aa95d1500ddb856faf3626b38e123d8c28a"
+      },
+      {
+        "path": "scripts/audio/sound_recipes.gd",
+        "bytes": 16920,
+        "sha256": "b7e8d687637cf10be643f34228ce0971ca222277bf18143b864c93f804c555ff"
+      },
+      {
+        "path": "scripts/audio/synth.gd",
+        "bytes": 22834,
+        "sha256": "355f4c6e3434b8f223365f3e1340137798d3b69f71de088cc19eac2e789046b7"
+      },
+      {
+        "path": "scripts/audio/wav_loader.gd",
+        "bytes": 1493,
+        "sha256": "c38ae6fa19e76531e150bdbd89071257fc6bb9225c7640206dc8602cc30030cf"
+      },
+      {
+        "path": "scripts/character/appearance_resolver.gd",
+        "bytes": 11617,
+        "sha256": "a07440d2003678e582cdc74fb218ba8b3d1ed2f5fe419b18c8d6da157d943e4c"
+      },
+      {
+        "path": "scripts/character/body_morphs.gd",
+        "bytes": 7951,
+        "sha256": "e010e8bc27acc1d087283fa70e4eecb260dea78c5e60d0b086aabf0c7b63d2f9"
+      },
+      {
+        "path": "scripts/character/character_codec.gd",
+        "bytes": 14301,
+        "sha256": "9f0ea56a619f160cd20afbbbe6f0b73f5b40f9c694d7a9e69aa1f524570de7b7"
+      },
+      {
+        "path": "scripts/character/character_data.gd",
+        "bytes": 6565,
+        "sha256": "8b8d4106872e0087b270469e9f6b3c5ade91705b51ed7735658740209e19dd4e"
+      },
+      {
+        "path": "scripts/character/character_edit_session.gd",
+        "bytes": 2860,
+        "sha256": "e06d5e38ea3d5d5a60eb9ace9c5ba53f8f9036c50d8050adaa48999b8095b914"
+      },
+      {
+        "path": "scripts/character/character_history.gd",
+        "bytes": 2019,
+        "sha256": "c04df38724086e1331b6f72a8bf9dd861c276674e1bfc4a2521aef5e7f64a48c"
+      },
+      {
+        "path": "scripts/character/character_randomizer.gd",
+        "bytes": 19237,
+        "sha256": "aee781ed27b685763d8e4a1543cf2ac05e14d3886fe8b72ca135e9117763f6b5"
+      },
+      {
+        "path": "scripts/character/character_schema.gd",
+        "bytes": 22737,
+        "sha256": "ac4e22bf1cfdd5e0496d9a8b84d52404e1c6b494d168d7017e99d8b7d048fefd"
+      },
+      {
+        "path": "scripts/character/character_validator.gd",
+        "bytes": 23149,
+        "sha256": "0223eadd77cb95a780aa0572119b31b8f6cda6e39e64b6d5bac8a8ea3254d0ee"
+      },
+      {
+        "path": "scripts/character/face_morphs.gd",
+        "bytes": 8467,
+        "sha256": "dc543115102b8d513ca4e66b359450a2295259b4100ebffa7a81676c9cddf152"
+      },
+      {
+        "path": "scripts/character/skin_layers.gd",
+        "bytes": 17965,
+        "sha256": "5ea4b9c69f9720b06d0d912737dcad3cd9d61556e347a75729127eca8f5e2469"
+      },
+      {
+        "path": "scripts/character/skin_model.gd",
+        "bytes": 3721,
+        "sha256": "0812353ebb8ef19520df0ea63aff363b03b68b9d47b91d4dcae9dd61a31c2dee"
+      },
+      {
+        "path": "scripts/circulatory/circulatory_system.gd",
+        "bytes": 9623,
+        "sha256": "25d477010ebb612dd47b28d4252b3c65446941618bb1af5f1b4573ca97462389"
+      },
+      {
+        "path": "scripts/circulatory/test_circulatory_smoke.gd",
+        "bytes": 2027,
+        "sha256": "4633fdb23bddeaa997144f9f5df2eaab4afd24abd0a63036c66a7072a0ac45bd"
+      },
+      {
+        "path": "scripts/city/build_ceiling_tile.gd",
+        "bytes": 1949,
+        "sha256": "ddf6902a47cdf24cc682e1a5bcd30981a698bcbed6e4dca65292e5e27531cc25"
+      },
+      {
+        "path": "scripts/city/build_corner_wall.gd",
+        "bytes": 1531,
+        "sha256": "19786eb61b6993637cc1ee4926e30c121653bc49d1c2f004c4250baf300bcf10"
+      },
+      {
+        "path": "scripts/city/build_floor_tile.gd",
+        "bytes": 1940,
+        "sha256": "5b8a4108a7f93e6c02c3e2b12c3b415dd81648a1ccf2bf5bb9fb1164f383df47"
+      },
+      {
+        "path": "scripts/city/build_gable_infill.gd",
+        "bytes": 3326,
+        "sha256": "9ef89c92845956dbc2d83fc8da6d05e95745a4bd918f8e84184ba05d4e886ea6"
+      },
+      {
+        "path": "scripts/city/build_roof_gable.gd",
+        "bytes": 3145,
+        "sha256": "7783918609b89f0f4cfb6dd203d8857c7780856f4f29217306903f71ed355782"
+      },
+      {
+        "path": "scripts/city/build_solid_wall.gd",
+        "bytes": 3469,
+        "sha256": "215c414504cd13579c46b6f447fd4b821f72bd934678f88ad55f059fcc7d5e9a"
+      },
+      {
+        "path": "scripts/city/build_staircase.gd",
+        "bytes": 1443,
+        "sha256": "719b578513a32783ad3b56435655bfd9bec3ff575f60bc1f273d9f74ded8f6fd"
+      },
+      {
+        "path": "scripts/city/build_window_wall.gd",
+        "bytes": 2394,
+        "sha256": "6b7a1c8a66a380cd25ac4850ac7e37980c1218fb7f1b1425192083e921c1b6d1"
+      },
+      {
+        "path": "scripts/city/capture_stair_trajectory.gd",
+        "bytes": 5356,
+        "sha256": "0b38d5b5c388626a58f62c0d3cef8254abee2170b86caf02956b0e058362620c"
+      },
+      {
+        "path": "scripts/city/render_roof_assembly.gd",
+        "bytes": 1292,
+        "sha256": "888fcd211875ec2b2ce53258ce8875bce7a7232010570831d13bbb7530fa90f6"
+      },
+      {
+        "path": "scripts/city/stair_contact_candidate.gd",
+        "bytes": 4266,
+        "sha256": "360eda1a38d2844ce973ccca024846577c2b594ef31f9cf9ed248cbbeb5c3efc"
+      },
+      {
+        "path": "scripts/city/stair_contact_candidate_offsets.gd",
+        "bytes": 2367,
+        "sha256": "0d89978da842b799a4080e3e9a2840ee53785d2be4178b46498316b9dc8a9ee9"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight/missing.gd",
+        "bytes": 3839,
+        "sha256": "5b325217642bf5c58930b9d2d6f97dbfe90aacc1441762d4b902405f4396a3ed"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight/valid.gd",
+        "bytes": 3789,
+        "sha256": "a48fcb95bf0785d4e6b04ee36e2e934f89826eda33490e8bc50326927bcf6fbd"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight/wrong_type.gd",
+        "bytes": 3833,
+        "sha256": "c036a85dd94d0289ae46799b9845f7cfbaac07ca1f857f48b1333280b2e86e0d"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight-v2/missing.gd",
+        "bytes": 3866,
+        "sha256": "00e0d95750e0704f9287b9c2b19f71635f41b14b122bc3e95fe996ff09affa34"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight-v2/non_spatial.tscn",
+        "bytes": 58,
+        "sha256": "c738ff2f8f6733ff14570b889d36acc00dd68207d258d794fc4df99c0350947e"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight-v2/valid.gd",
+        "bytes": 3813,
+        "sha256": "473c640f51979a4c1e748069856a33c0d8bdd46f64e42b0a57fc5500856562a0"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight-v2/wrong_root.gd",
+        "bytes": 3896,
+        "sha256": "26c41599bc80f95b157150ee514b98677989f364f50ab098b1a56bc25b1f9285"
+      },
+      {
+        "path": "scripts/city/test-runs/city-1792856089-96579-preflight-v2/wrong_type.gd",
+        "bytes": 3857,
+        "sha256": "3dd4b452374c1d25cf086742ea946763a217baa3535f9fe60fec98e48e72e6f0"
+      },
+      {
+        "path": "scripts/city/test_builder_preflight.gd",
+        "bytes": 3210,
+        "sha256": "f49dce754b14497b9004c99c73c6f05b44ac98b61f1e939b3cfdcc3dd3af954d"
+      },
+      {
+        "path": "scripts/city/validate_ceiling_tile.gd",
+        "bytes": 6941,
+        "sha256": "435aba2ecd4e839bf7c8184770454442298460a59eea695ddaa2ee2df4168f1e"
+      },
+      {
+        "path": "scripts/city/validate_corner_source.gd",
+        "bytes": 3343,
+        "sha256": "dcc1215fdb80f246d40bc05c40c25ae2d1b7d4e740defedd2c063a1350163a5a"
+      },
+      {
+        "path": "scripts/city/validate_corner_wall.gd",
+        "bytes": 4390,
+        "sha256": "3e7e0310979dd8ec66f615a709871d6469d10d90e33e8a2804ab413a98eb4578"
+      },
+      {
+        "path": "scripts/city/validate_doorway.gd",
+        "bytes": 5656,
+        "sha256": "01c2fb2506517df6f5b860035a41d41e3b53c2245befcf27ec2d544828dd0aae"
+      },
+      {
+        "path": "scripts/city/validate_floor_tile.gd",
+        "bytes": 6334,
+        "sha256": "eae90fe7fc222f9abc04d59a61d4f29a54e76cbd262f3c1397014278a171debb"
+      },
+      {
+        "path": "scripts/city/validate_gable_assembly.gd",
+        "bytes": 4219,
+        "sha256": "8f3219b7a45d5804121f93ef624f1cc0972f91cfadf1de218e0044352dc2d882"
+      },
+      {
+        "path": "scripts/city/validate_gable_collision.gd",
+        "bytes": 1884,
+        "sha256": "61a0780001cce54783eebd9e7e7d2fc8ce50f1bc2d60f159c69c5ff036a484d4"
+      },
+      {
+        "path": "scripts/city/validate_gable_envelope.gd",
+        "bytes": 2785,
+        "sha256": "a35be52bb899fe8516e5980fbbf1665284f91944fd667027c876ed0b08f0f677"
+      },
+      {
+        "path": "scripts/city/validate_gable_infill.gd",
+        "bytes": 2820,
+        "sha256": "c59d2dbc8e3cc279416f06bf9cec50942de88bd8d6258f86745a15ad51c510a1"
+      },
+      {
+        "path": "scripts/city/validate_gable_manifest.gd",
+        "bytes": 2535,
+        "sha256": "10944b23cb76bc2be295f4a00382790a7093e016e2c6b2bab7534effd6f1e230"
+      },
+      {
+        "path": "scripts/city/validate_roof_assembly.gd",
+        "bytes": 3608,
+        "sha256": "56a8b910c7203d7056e118d4c0ca33a7a2da3d25ccd04b02498ec55cf3caf6c8"
+      },
+      {
+        "path": "scripts/city/validate_roof_gable.gd",
+        "bytes": 5958,
+        "sha256": "669f8865e6d37988715e70f2a5d50283247540cae63f98d3ccc534962bc889b4"
+      },
+      {
+        "path": "scripts/city/validate_solid_wall.gd",
+        "bytes": 5365,
+        "sha256": "31f9451d2d019f2a8c300fb6aa3658199b0641ffc4a5744fe0e3b90cceae5095"
+      },
+      {
+        "path": "scripts/city/validate_stair_capsule_traversal.gd",
+        "bytes": 3873,
+        "sha256": "312cb5f35417e0bca7f1df04c4e64bcf03b41451506b303c67a270c15d728453"
+      },
+      {
+        "path": "scripts/city/validate_stair_landing_demo.gd",
+        "bytes": 2243,
+        "sha256": "3e0b9c8f0c33d536f6e8c885ffd409f4fedcb60bb2943a0ac99225c92ed782df"
+      },
+      {
+        "path": "scripts/city/validate_stair_lateral_offsets.gd",
+        "bytes": 2371,
+        "sha256": "57bdeb194ccb59f2297ff616174533d22f552bc2ba020c808a3b1bcff6b57036"
+      },
+      {
+        "path": "scripts/city/validate_stair_physics_walk.gd",
+        "bytes": 4030,
+        "sha256": "e8a8864661f467f04cf4536a4c3bd966a69f9499451ded12741ba0e4a58f3333"
+      },
+      {
+        "path": "scripts/city/validate_staircase.gd",
+        "bytes": 3943,
+        "sha256": "89f9ea9d80a89afcd5fc78b3d91e640d1e8e5ed776c35de787e6d3c753820ef0"
+      },
+      {
+        "path": "scripts/city/validate_window_wall.gd",
+        "bytes": 5388,
+        "sha256": "c22fdf0e23035944bea4cf4a618d2eebee706f5fa71246e1a15c206aa4632c76"
+      },
+      {
+        "path": "scripts/core/game_clock.gd",
+        "bytes": 2812,
+        "sha256": "81cfcf8c010939f389489c1be5ed8f487cc27b39310e84d4fec77fe13ac40e27"
+      },
+      {
+        "path": "scripts/core/game_settings.gd",
+        "bytes": 7274,
+        "sha256": "1830136d56d5e96cf91e2f45963b62ba38691fad7cc0e814da10eff5da716e6a"
+      },
+      {
+        "path": "scripts/core/grammar_cs.gd",
+        "bytes": 2652,
+        "sha256": "efa539368e4a1afaf85772dbf5a1eedd60bc23d3bd52918473cb70ab654d1320"
+      },
+      {
+        "path": "scripts/net/net_protocol.gd",
+        "bytes": 4061,
+        "sha256": "15363192d912c7f41a8f2d46570d9f436825e236649537295654f3717adb2078"
+      },
+      {
+        "path": "scripts/net/net_session.gd",
+        "bytes": 54949,
+        "sha256": "6c0a13eae03f2da6cddb16b6ef3240bb3b8577c4e3c21aa23a06c8635c84ce97"
+      },
+      {
+        "path": "scripts/physics/anatomy_fem_atlas.gd",
+        "bytes": 5258,
+        "sha256": "191befce60af528f4ea3d94884373a2f7cb746d5ac2fb0ab64567298f51e196d"
+      },
+      {
+        "path": "scripts/physics/muscle_fat_fem_3d_reference.gd",
+        "bytes": 3039,
+        "sha256": "d4aac1aaddf36848574b0440a3eb7b2135bd5d7408b63be5f79ef67a971955fa"
+      },
+      {
+        "path": "scripts/physics/muscle_fat_thermal_reference.gd",
+        "bytes": 5442,
+        "sha256": "20875e7d4c14780617f9205984ad6918edfb80d8636a65b57b23cbfd5f27b58b"
+      },
+      {
+        "path": "scripts/psyche/psyche_model.gd",
+        "bytes": 24905,
+        "sha256": "3bbc3fd5e57954670c29241ddcd5664b1d140281265fb21374ff1b88d1675e57"
+      },
+      {
+        "path": "scripts/save/game_save.gd",
+        "bytes": 23114,
+        "sha256": "b8c956147087d8799a8e728348f8408f18ab90cca10cefb7ba536840b0ddb371"
+      },
+      {
+        "path": "scripts/sim/action_library.gd",
+        "bytes": 16775,
+        "sha256": "f2f86017415f8b2fc4d26947f501b00a3242171988d80be1c61032a3e96e27c3"
+      },
+      {
+        "path": "scripts/sim/adult_intimacy_action.gd",
+        "bytes": 3985,
+        "sha256": "30d0d32102e2cad44279979acc9bcff86688f1d363c6bf3ec4505a8ce2e50f84"
+      },
+      {
+        "path": "scripts/sim/depression.gd",
+        "bytes": 20565,
+        "sha256": "669f52ecd0212c73746a5ecdb1f2c0efe02904feae30aaad2a1e9aed9968c6f3"
+      },
+      {
+        "path": "scripts/sim/emotional_state.gd",
+        "bytes": 13487,
+        "sha256": "4191c0f2f81845845a1c342b2fc10861c363214c6218466ebb79fd0b365f5c75"
+      },
+      {
+        "path": "scripts/sim/fccs_oracle.gd",
+        "bytes": 10818,
+        "sha256": "122bb32fd7e7525c52b6295edcfe409ec0a57ea677a9e3811abfb0e0f9376f02"
+      },
+      {
+        "path": "scripts/sim/household_dynamics.gd",
+        "bytes": 17595,
+        "sha256": "da83bc4c317ca5d6bbf23c9caed28c386cfc3b3250ec0a3ad0dab457ac8734a8"
+      },
+      {
+        "path": "scripts/sim/intimacy_state.gd",
+        "bytes": 8794,
+        "sha256": "9142e37b44435684bde31f43f54940b23eeaabab4031c68a63a3d5293f560eb8"
+      },
+      {
+        "path": "scripts/sim/mental_state.gd",
+        "bytes": 38150,
+        "sha256": "59dd0c3ac3359a06ece6fb9903c8d94de881057eaae639a01c8e752e37c25b7a"
+      },
+      {
+        "path": "scripts/sim/mood.gd",
+        "bytes": 5833,
+        "sha256": "90e10f0e554fc3831778e70bf33a29bbd4adc6893d4a12c1c6798124baa56fbc"
+      },
+      {
+        "path": "scripts/sim/needs.gd",
+        "bytes": 2329,
+        "sha256": "d0208e64ee899f6bb7178823d969a4b89a4357993f04f3f15c9f3d649abef4bd"
+      },
+      {
+        "path": "scripts/sim/rejection_response.gd",
+        "bytes": 3768,
+        "sha256": "7e9fdf6418ee31dfa98f09a101ce52b300e8d4f3a050596d7a5f048ab985c2c5"
+      },
+      {
+        "path": "scripts/sim/rel_ledger.gd",
+        "bytes": 13118,
+        "sha256": "e1d444b2faf0ad7eb3a3776065e03a57cf2ba01a49980948e1c6cf02d240b415"
+      },
+      {
+        "path": "scripts/sim/sensitive_privacy_mask.gd",
+        "bytes": 2305,
+        "sha256": "04994f4725b6326ca8e91c0ce50a15d0984e379a94b05e49002da9027ff87d2d"
+      },
+      {
+        "path": "scripts/sim/sensory_profile.gd",
+        "bytes": 5750,
+        "sha256": "5fba5b70e6e1c8ec77ecd9365616e8230f4837d924f04487f7a97cb6fa5c568e"
+      },
+      {
+        "path": "scripts/sim/sim_agent.gd",
+        "bytes": 83032,
+        "sha256": "9837bc5e2b71583487d184630c21c1d08d2a027f8dcd258c41741e5eb35e4e7c"
+      },
+      {
+        "path": "scripts/sim/sim_puppet.gd",
+        "bytes": 4786,
+        "sha256": "3bb350a1baade3b5fcc44028b12ed56578fba0eaf51eb300a04b431d0ae38ed1"
+      },
+      {
+        "path": "scripts/sim/sim_visual.gd",
+        "bytes": 47226,
+        "sha256": "0a1f240afaf65fd91ed1faa07816b39a56ef6f24e9065fb03d022d6c32a11449"
+      },
+      {
+        "path": "scripts/sim/social_pressure.gd",
+        "bytes": 2295,
+        "sha256": "db44fdd7eac4dbaaa2f18389638334faab9efb5037efb16cd01cd1a34d5a65c5"
+      },
+      {
+        "path": "scripts/sim/traits.gd",
+        "bytes": 9176,
+        "sha256": "5dbdb60f5293a6441c846788051a21444ff7034b72db0ebff64d92508ed43b72"
+      },
+      {
+        "path": "scripts/sim/utility_planner.gd",
+        "bytes": 14023,
+        "sha256": "27b4202952598b1153f13d29e45eb440f65e96da8f9194812ec6d230fa119dd5"
+      },
+      {
+        "path": "scripts/sim/vigilance.gd",
+        "bytes": 3174,
+        "sha256": "d45bc32b8d645dc0c49c8c4c9b9e6a369133745cfe5f2c9ef79b82163ad43d88"
+      },
+      {
+        "path": "scripts/ui/appearance_slider_editor.gd",
+        "bytes": 8281,
+        "sha256": "d20533614d3a65f45295968294e54a1af1609e472b4212023baa3279824309ca"
+      },
+      {
+        "path": "scripts/ui/character_creator_panel.gd",
+        "bytes": 12179,
+        "sha256": "c8925ffb61914915a1e9c49b951747b14fc2e268357ad3fc62980e5f6f0945f6"
+      },
+      {
+        "path": "scripts/ui/character_editor_panel.gd",
+        "bytes": 29693,
+        "sha256": "0a3f9c6193f36e91ac03a73efe041ad897175bf4f7d2d8ff9b7ec6b4dfca41be"
+      },
+      {
+        "path": "scripts/ui/character_preview.gd",
+        "bytes": 12482,
+        "sha256": "e628d82a527831dc66060ca398f087d09d42e7bea703772dcd4cc40e364d320d"
+      },
+      {
+        "path": "scripts/ui/hud.gd",
+        "bytes": 29476,
+        "sha256": "c091c7b5f7dc5507126d400d5aa27e5b3f6cf20ef0f4f656c8862245b396cd2f"
+      },
+      {
+        "path": "scripts/ui/personality_slider_editor.gd",
+        "bytes": 5480,
+        "sha256": "7ee20fdfb4c18a498cfbde6168bf4445cdfe17eb20b991c6b520943507e40ecb"
+      },
+      {
+        "path": "scripts/ui/settings_menu.gd",
+        "bytes": 8381,
+        "sha256": "05e9d0e2115fd9ada832322230e92465f4ddaad15328c4adce4083b81e727c33"
+      },
+      {
+        "path": "scripts/world/camera_rig.gd",
+        "bytes": 2772,
+        "sha256": "717e569d58b01cd078f2fe0869e933cbd17e50e55fd0726430c8a69e966de0f2"
+      },
+      {
+        "path": "scripts/world/day_night.gd",
+        "bytes": 4223,
+        "sha256": "54e9e345bd4e9a168843f926a0fddd37c268efe44ec789957733773c19addf47"
+      },
+      {
+        "path": "scripts/world/psyche_fx.gd",
+        "bytes": 4137,
+        "sha256": "0a532e20a3a072721699b5e18f6100bc7382ac9d5a2758daf4fbceab32ddf9b8"
+      },
+      {
+        "path": "scripts/world/smart_object.gd",
+        "bytes": 1116,
+        "sha256": "2a922e9a52257c19e30b901dc0fae07b86d27bb628b0506902dc52e747ac50dd"
+      },
+      {
+        "path": "scripts/world/world_builder.gd",
+        "bytes": 12853,
+        "sha256": "537d5dcb2c5f39ba2edc4525c0801d9eaa2cffb86351c48213f2b134136c2425"
+      },
+      {
+        "path": "shaders/hair.gdshader",
+        "bytes": 4755,
+        "sha256": "56db9984be180707d4ed1beb54a2a4150c11394bbea3a256f2b04150fc4b9e4a"
+      },
+      {
+        "path": "shaders/skin.gdshader",
+        "bytes": 20967,
+        "sha256": "da060e1763e86cf3a0c4dbd39d46326073a505281efe1434af956fb4971357ea"
+      },
+      {
+        "path": "tests/data/extreme_profiles_fictional8.json",
+        "bytes": 10270,
+        "sha256": "d74ce86e860fa0e369b109e27e284c2e781a6a2ae368b56a1d247ffb28df04fc"
+      },
+      {
+        "path": "tests/data/household_extra.json",
+        "bytes": 449,
+        "sha256": "9811e8ffb3b0829f11e554d5e29fd2d866bb8465d7ad1db503bcad7731ca86d6"
+      },
+      {
+        "path": "tests/data/household_healthy7.json",
+        "bytes": 2674,
+        "sha256": "b013f23f2f2725f998f0e5b10647cfd083785a8ed5a627c3f8a13f115aeb8b9a"
+      },
+      {
+        "path": "tests/data/household_stress7.json",
+        "bytes": 3112,
+        "sha256": "742f9de7ce6eb8a5cfbdbfe5e0fa2ec9a73c8de18900ee829d3972fd7c72cf96"
+      },
+      {
+        "path": "tests/run-main-1792929654-164976/net_no_cooldown.gd",
+        "bytes": 48673,
+        "sha256": "05e27a6ffea19a7161fdb487a3a1340d9ee0ab3b254f63dfecc4ea224102bf73"
+      },
+      {
+        "path": "tests/run-main-1792929654-164976/test_no_cooldown.gd",
+        "bytes": 25306,
+        "sha256": "bd3c160b660044c3d44faebd7ef2f8892112cc30bde23bec2d27823264286115"
+      },
+      {
+        "path": "tests/test_adult_sexuality_editor.gd",
+        "bytes": 7392,
+        "sha256": "7f191418a5ef60cf7136632533a06a7e8d0e99502dba8f0dd42414a821d79f25"
+      },
+      {
+        "path": "tests/test_adult_sexuality_editor.tscn",
+        "bytes": 198,
+        "sha256": "603695497609867d8773c85d255d438a319b65b5b846e6efa5c7c5990c9943ec"
+      },
+      {
+        "path": "tests/test_adult_social_integration.gd",
+        "bytes": 13579,
+        "sha256": "7eeb9a7abb7fac38aca650d722efe91d30810c423b2bd823c52082aa3e1195dc"
+      },
+      {
+        "path": "tests/test_adult_social_integration.tscn",
+        "bytes": 202,
+        "sha256": "92e1386d58fa6866b9daf4bf221887b07830fa1374f05195a0aee5074b427777"
+      },
+      {
+        "path": "tests/test_anatomy_elmer_lookup.gd",
+        "bytes": 10696,
+        "sha256": "bdea972916728c11d281c5cdde9134992810a5cad01cc046ce46b121f826fb64"
+      },
+      {
+        "path": "tests/test_appearance_slider_ui.gd",
+        "bytes": 7906,
+        "sha256": "eb5709503f9b526df851c3c38d3e97d5ba044f59d4fdd4b59358b464a1b68832"
+      },
+      {
+        "path": "tests/test_appearance_slider_ui.tscn",
+        "bytes": 191,
+        "sha256": "ed9fb45ae88a6fedd2ebc3a4b6eff274d4381c9f1e085f8750c89e9d0b36f7fd"
+      },
+      {
+        "path": "tests/test_arousal_valence.gd",
+        "bytes": 9386,
+        "sha256": "3a35fb830d39be4bd1d5a4dd08de01dfec91d74e59550185b0ab632cb8e6d742"
+      },
+      {
+        "path": "tests/test_arousal_valence.tscn",
+        "bytes": 185,
+        "sha256": "32de2652e266fc76fdae84f3a4251f25573d4e558971d89960319f71320ba62d"
+      },
+      {
+        "path": "tests/test_assets.gd",
+        "bytes": 21759,
+        "sha256": "9a35552ab3e8dbc3418b9bdbc8c5123e8fede51f07967716d04632627a7f9df3"
+      },
+      {
+        "path": "tests/test_assets.tscn",
+        "bytes": 172,
+        "sha256": "d07bf22eb67da1df7664909cb5e14295b311b5cf7c952a9c78f0c1d9c97a1f37"
+      },
+      {
+        "path": "tests/test_attachment_sensitive_scene.gd",
+        "bytes": 6653,
+        "sha256": "ed6d1db60b44a3b616385eabce6e18d48638d623d5cef23b93f2491670441412"
+      },
+      {
+        "path": "tests/test_attachment_sensitive_scene.tscn",
+        "bytes": 206,
+        "sha256": "a4c978764553e111eca15d1539088d68f8300875fe24ab0fb2b6c86b65a9266c"
+      },
+      {
+        "path": "tests/test_audio_engine_sfx.gd",
+        "bytes": 7688,
+        "sha256": "b4919c35ac4f1c6f5091b292c8661c382cbeec464c29196c550b9a01e6a39b68"
+      },
+      {
+        "path": "tests/test_audio_engine_sfx.tscn",
+        "bytes": 190,
+        "sha256": "73d5034eda64aa1b74f326a71af5b366f7730048b1d687eedf5b52118fc59cd3"
+      },
+      {
+        "path": "tests/test_audio_tone.gd",
+        "bytes": 17173,
+        "sha256": "b64707cb56441569c187ce14576b263e2e08a093e3639ecf71ba48e68aeb5e9e"
+      },
+      {
+        "path": "tests/test_audio_tone.tscn",
+        "bytes": 179,
+        "sha256": "8a7d5366c52cfab08f7a957b720b039d58b289027508123747b5d24ed6706ec3"
+      },
+      {
+        "path": "tests/test_barefoot_geometry.gd",
+        "bytes": 7824,
+        "sha256": "409ba0017705c27f7933c2b0436b0a8faf3a0df621a73a6afd8a438148190603"
+      },
+      {
+        "path": "tests/test_base.gd",
+        "bytes": 2062,
+        "sha256": "95943268d6f5ec622c66062aec22c6999368e2efbda416585fddc82e4f5078e5"
+      },
+      {
+        "path": "tests/test_blender_anatomy_contract.gd",
+        "bytes": 4913,
+        "sha256": "a42eeb09b98a3b70ca6949e09b969546d1e5f8c3f548a55758349c66916a8b1b"
+      },
+      {
+        "path": "tests/test_body_morphs.gd",
+        "bytes": 21136,
+        "sha256": "9ca3fef4e478fdef8ab5478d5642eb7bd06eb4d980fd3f967f6fc885d04df678"
+      },
+      {
+        "path": "tests/test_body_morphs.tscn",
+        "bytes": 181,
+        "sha256": "eb13b5919e0c5e86b30f6c6789551dc595903451a0e48d56a1a427b9ec8a8cdd"
+      },
+      {
+        "path": "tests/test_cat_hoodie_preview.gd",
+        "bytes": 4640,
+        "sha256": "9bfc186b0e986e0b32e2815c8df90c1e1646b2700965a85960b3a03446eff879"
+      },
+      {
+        "path": "tests/test_cat_hoodie_sleeve_gap.gd",
+        "bytes": 3050,
+        "sha256": "94498b0254ca856fd0cd1d31c0508d257451b6340d6d6e923256ec9f453314dc"
+      },
+      {
+        "path": "tests/test_cat_sleeve_surface.gd",
+        "bytes": 7442,
+        "sha256": "0fb07cac82782f4caa1e6070fa5acb85201e13e273fab43efcc348bbe7c72a82"
+      },
+      {
+        "path": "tests/test_cat_sleeve_weights.gd",
+        "bytes": 4567,
+        "sha256": "ce8be80cc04c505ddfc3987bb60eae24f6f7e93e752231919f7eccb1859dd5ff"
+      },
+      {
+        "path": "tests/test_character.gd",
+        "bytes": 37380,
+        "sha256": "38312e6d61a25e44fb7478ad1aef71612fbf43977b99d6176ffeef5c2289441e"
+      },
+      {
+        "path": "tests/test_character.tscn",
+        "bytes": 178,
+        "sha256": "8c1426cff7341d439558747f88933972dc05d06d80efe70b8d52835296ae1030"
+      },
+      {
+        "path": "tests/test_character_edit_apply_enet.gd",
+        "bytes": 25281,
+        "sha256": "85d60a1b396a3266ed0f4022b43e36c829ae2f9ad8501a270e8caf5647f45516"
+      },
+      {
+        "path": "tests/test_character_edit_commit.gd",
+        "bytes": 5442,
+        "sha256": "f3937e429f6365e3ab7481b60e5004ce119bb7d368c16fd94e83fd73115a9903"
+      },
+      {
+        "path": "tests/test_character_edit_commit.tscn",
+        "bytes": 175,
+        "sha256": "30a6cfbd4d1bf183028f40d00df541c229fbe4f7da425cecf1281e3d8365c656"
+      },
+      {
+        "path": "tests/test_character_edit_ownership.gd",
+        "bytes": 11890,
+        "sha256": "cc9c6fa8a1511357154d0e69e926c8974f9b78a14dd0c12ce94a928d11c13467"
+      },
+      {
+        "path": "tests/test_character_edit_ownership.tscn",
+        "bytes": 200,
+        "sha256": "531dead7ea6cbfe33b98b5f47d989f6a37c2d37d599040f6c7f0e1da5c71b835"
+      },
+      {
+        "path": "tests/test_character_edit_read_enet.gd",
+        "bytes": 12087,
+        "sha256": "422e0b8c4aee11e76810274628e5e875887023a97d1e40d051bd722375a7e14d"
+      },
+      {
+        "path": "tests/test_character_edit_session.gd",
+        "bytes": 4104,
+        "sha256": "972618dec7eba08fe955c963676089cf0d2ef42e4e44f4c783a5a045b6bab7ac"
+      },
+      {
+        "path": "tests/test_character_edit_session.tscn",
+        "bytes": 198,
+        "sha256": "83eb531d655a339378b5f9714496ea777d66d233669e4cb318138272bf02ecdc"
+      },
+      {
+        "path": "tests/test_character_editor_ui.gd",
+        "bytes": 12841,
+        "sha256": "0dddfa96c25763f3209b1eafc075c817cd34889df64bd8b408b898cc9de4fe8a"
+      },
+      {
+        "path": "tests/test_character_editor_ui.tscn",
+        "bytes": 190,
+        "sha256": "64042a3d66b30e118bb36a78740d47059342ad66739983f820363898c5ad1e9f"
+      },
+      {
+        "path": "tests/test_character_garment_render.gd",
+        "bytes": 2622,
+        "sha256": "7f479e05c28de05437d28dafd6e348d048f4ae3a5d9d810b566c4003620bed93"
+      },
+      {
+        "path": "tests/test_character_history_timing.gd",
+        "bytes": 2050,
+        "sha256": "dab025142ebaab563ac92721f4233dac3bfea6418cdd13eedb34f705d8b9388c"
+      },
+      {
+        "path": "tests/test_character_net.gd",
+        "bytes": 20302,
+        "sha256": "ad0b55db92d9748bae34fd271f8b1c6b5cd820233c4b8c76f9906cc81b8e8865"
+      },
+      {
+        "path": "tests/test_character_net.tscn",
+        "bytes": 185,
+        "sha256": "368d3c84dcb1ce465fac9dcfb4a4c526bdee4f903c9ab8bdf17b9406113ddf93"
+      },
+      {
+        "path": "tests/test_character_network_panel.gd",
+        "bytes": 5765,
+        "sha256": "2ebe2b856f83af62c16de51ce932792acac26604de3089e4626f1967107f32cf"
+      },
+      {
+        "path": "tests/test_character_preview.gd",
+        "bytes": 3879,
+        "sha256": "14b764bbb389d8770da611258369109ea449a0eca3909ee03068e3d08dec7315"
+      },
+      {
+        "path": "tests/test_character_preview.tscn",
+        "bytes": 189,
+        "sha256": "0c7fb91290fee81ec4841fdf6dc30db9c742e3b41f90a3fe3352addb1094701f"
+      },
+      {
+        "path": "tests/test_character_resync_render.gd",
+        "bytes": 6339,
+        "sha256": "bb093e606f3d859880a6b8130721ea26b5b7799c36a9a752a1ff1b876e7a406f"
+      },
+      {
+        "path": "tests/test_character_v2.gd",
+        "bytes": 14088,
+        "sha256": "fcd95e360c480829fb67cbf7459ac59e66a24fc7a352a732ebb9bb1048ce2068"
+      },
+      {
+        "path": "tests/test_character_v2.tscn",
+        "bytes": 183,
+        "sha256": "a77cb28ff3426a9dbaefac5f91340aa9b9acbd5751e9e273b751a39f02f3ed21"
+      },
+      {
+        "path": "tests/test_clothing_authored.gd",
+        "bytes": 6518,
+        "sha256": "e511a947d4affa4ce30f69c566714db297c067cc71da96b83d67002e665a30ce"
+      },
+      {
+        "path": "tests/test_clothing_authored.tscn",
+        "bytes": 190,
+        "sha256": "c185dae6493174713d283958b162b87368ec71b942ebbb52b4eb1437c177d71f"
+      },
+      {
+        "path": "tests/test_clothing_c5.gd",
+        "bytes": 4414,
+        "sha256": "efd87a3be19a1b2c697bf657a4b43784c70080d3d8954f319ae711b8636c059d"
+      },
+      {
+        "path": "tests/test_clothing_c5.tscn",
+        "bytes": 178,
+        "sha256": "a7928ebec9c8866f9e070e14826f802f2f4f9e292744f4d43896ae9695668fe7"
+      },
+      {
+        "path": "tests/test_clothing_mesh_integrity.gd",
+        "bytes": 7345,
+        "sha256": "bc8e5bfd2fa0306ee819b2f0a4969accb2e650fb2559384ba09561604ec5ffda"
+      },
+      {
+        "path": "tests/test_crowded_household.gd",
+        "bytes": 10983,
+        "sha256": "f92f4b1247bec2a00e3e0515a7099105de39d7724dd25f2d0840e93c18608b25"
+      },
+      {
+        "path": "tests/test_crowded_household.tscn",
+        "bytes": 189,
+        "sha256": "17ecc57a2ac0d5138fc493c5225e0ad92d7e0033dfdfe4e3e303fae1f437397d"
+      },
+      {
+        "path": "tests/test_depression.gd",
+        "bytes": 31965,
+        "sha256": "cb0f6386bef5b96a25f168b189494a3fe8dd62a2e550e41d76db43e4ffd14025"
+      },
+      {
+        "path": "tests/test_depression.tscn",
+        "bytes": 180,
+        "sha256": "3ab0e6a0da99437eeab9d2fc199beeab77d9871013c2f84bb58fda5b58f719dc"
+      },
+      {
+        "path": "tests/test_emotional_hud.gd",
+        "bytes": 3345,
+        "sha256": "c25ade22dd26819adbfec998f457a88b90fa22b920ff78ec74402dde9ba40986"
+      },
+      {
+        "path": "tests/test_emotional_hud.tscn",
+        "bytes": 181,
+        "sha256": "d15f0f8d20ab3c96ef4c5bde881706999ae50a635a8f80741304acb261055e65"
+      },
+      {
+        "path": "tests/test_emotional_state.gd",
+        "bytes": 11243,
+        "sha256": "2cb1b25ae6ad36699c8bebad1e8d52ab06c18604b9f6911904a1fd9e6e27ab51"
+      },
+      {
+        "path": "tests/test_emotional_state.tscn",
+        "bytes": 185,
+        "sha256": "871ae2e7ad415560d94bd8f666ab7359509f93a199800b1da676e1998f58279b"
+      },
+      {
+        "path": "tests/test_extreme_fictional_household.gd",
+        "bytes": 16031,
+        "sha256": "687a4a03d6212a786d3b8f439b50364200291a478219df679261800c15ae5c02"
+      },
+      {
+        "path": "tests/test_extreme_fictional_household.tscn",
+        "bytes": 208,
+        "sha256": "63310f1145d0b9279576ce1eeb44b84a5a8f951be249bd9f395c11bb63870bd3"
+      },
+      {
+        "path": "tests/test_face_detail.gd",
+        "bytes": 31750,
+        "sha256": "dc082ac85aa9ff8f98a1fa69e6f890d226e58cf239461f4ede4a60a003a34c19"
+      },
+      {
+        "path": "tests/test_face_detail.tscn",
+        "bytes": 181,
+        "sha256": "d8dcbdabe6926b8d0b33532d290d116c79d4059821f7d2d07010260ba3f67a0f"
+      },
+      {
+        "path": "tests/test_finger_curl_pose.gd",
+        "bytes": 7782,
+        "sha256": "fa7103c84a8f6c6238402fade6598cea8577348c25718147f2d4966cede68458"
+      },
+      {
+        "path": "tests/test_full_playable_slice.gd",
+        "bytes": 10862,
+        "sha256": "419a98af67f25963f8a91a5bd4b5b9af07959d07de27b76fa5b127c29822567c"
+      },
+      {
+        "path": "tests/test_full_playable_slice.tscn",
+        "bytes": 189,
+        "sha256": "753f8605c30d0c57e89dc587763d7605fa56c66c151afa03a74b68c979bd1f37"
+      },
+      {
+        "path": "tests/test_hair.gd",
+        "bytes": 21991,
+        "sha256": "1554edd6af9dacc8a11e64ad1f7fe6c80517b45fccd9c61b762afd653b587a95"
+      },
+      {
+        "path": "tests/test_hair.tscn",
+        "bytes": 164,
+        "sha256": "c3e2f5c17423ba402963a14ab0f3c5de645cce1079c2d0ef7681dfac77ac6169"
+      },
+      {
+        "path": "tests/test_hand_detail_geometry.gd",
+        "bytes": 7920,
+        "sha256": "089b92c14553b94b5152e7e46debf62875a41f2a8d14f0543de5957c23fa9faa"
+      },
+      {
+        "path": "tests/test_head.gd",
+        "bytes": 19266,
+        "sha256": "04d7e6dc3ce4845ac203fb435271fd1c0282abb20fe8bef4f5f943663b71a71b"
+      },
+      {
+        "path": "tests/test_head.tscn",
+        "bytes": 168,
+        "sha256": "07246192fe99c3f65988042bdcb09ba2d26a65876c918b2fa9dd4932fb60817f"
+      },
+      {
+        "path": "tests/test_host_character_editor.gd",
+        "bytes": 3099,
+        "sha256": "e5756f3651f779e9a300239009211202c1a0cacdc22cedd473c356f2c785a74b"
+      },
+      {
+        "path": "tests/test_host_character_editor.tscn",
+        "bytes": 182,
+        "sha256": "55c96736385bb94635a5ccf3735c23cb67479fe139682ce498055874e520599a"
+      },
+      {
+        "path": "tests/test_household_determinism_split.gd",
+        "bytes": 2843,
+        "sha256": "f1476bee33508f12ce901d03b0ce59013fbfed8c13a10fdadf36cc47526f51bd"
+      },
+      {
+        "path": "tests/test_household_determinism_split.tscn",
+        "bytes": 208,
+        "sha256": "bab2985e2afbc70f82c162f1c24b12b43bf7c815be1851556075d73fa4c51a76"
+      },
+      {
+        "path": "tests/test_household_dynamics.gd",
+        "bytes": 24866,
+        "sha256": "c43b7bace3f2b010dc9fb21b958aa64f9f75bd12629a04c02f623dd052a03731"
+      },
+      {
+        "path": "tests/test_household_dynamics.tscn",
+        "bytes": 191,
+        "sha256": "aa94800b4a995f091183bbe901fb9d3da6ebc2540a5f1cb4acec293b5004889c"
+      },
+      {
+        "path": "tests/test_household_dynamics_slice.gd",
+        "bytes": 1725,
+        "sha256": "8b66050c82d34b5acc15ed98a6bf02a0585d6e82e311e41b35a0b077d0e12bbd"
+      },
+      {
+        "path": "tests/test_household_dynamics_slice.tscn",
+        "bytes": 202,
+        "sha256": "f2d958ea16558570ab545efda142d2121a8915b1ed56c2dbc16836b3c152f673"
+      },
+      {
+        "path": "tests/test_household_full_shard.gd",
+        "bytes": 3680,
+        "sha256": "8dbe23d13c3147ff535c5df1f4171fb9847f0f909f6f13070c99585c0bd7238f"
+      },
+      {
+        "path": "tests/test_household_full_shard.tscn",
+        "bytes": 194,
+        "sha256": "9be5bde05da572a2f3641a11aa79afe2fea7d73bae6e9813e9ab5cbc5dd0aa72"
+      },
+      {
+        "path": "tests/test_household_hygiene_preemption.gd",
+        "bytes": 8002,
+        "sha256": "4d1a85d2fd5429cab7a4b7b8893e612f3fcf1a1a2a9fe4a3ef3e81dc2ed05571"
+      },
+      {
+        "path": "tests/test_household_hygiene_preemption.tscn",
+        "bytes": 210,
+        "sha256": "f0719852d5dc4ffca26bb1df1d9009e73dae2f73a0418aa7fbd04fdef0cc018b"
+      },
+      {
+        "path": "tests/test_household_matrix.gd",
+        "bytes": 13138,
+        "sha256": "957d25e309e9c06733aa1e9327fc7b3c7f9a24346f0c9c82fbbf473c5e3938b0"
+      },
+      {
+        "path": "tests/test_household_matrix.tscn",
+        "bytes": 189,
+        "sha256": "b149fdeaa3ebdfa8da65a5332f16ebeed598aa5b7ae9442549811e6d180ca99a"
+      },
+      {
+        "path": "tests/test_household_resume.gd",
+        "bytes": 8082,
+        "sha256": "6a86c3808a5d149aeee42a264b35785979a7964250d263195daa72748be659e1"
+      },
+      {
+        "path": "tests/test_household_resume.tscn",
+        "bytes": 187,
+        "sha256": "55ddf5d1f2333d029ae11d89ddb91bed6f7cc0ef4b89d24af7fbff59f58563d0"
+      },
+      {
+        "path": "tests/test_independent_finger_joints_c14.gd",
+        "bytes": 6878,
+        "sha256": "5b52d19240f33f047b60d161b229e8da6a22dcd5a120b9ab8a309185828def67"
+      },
+      {
+        "path": "tests/test_independent_finger_joints_c14.tscn",
+        "bytes": 208,
+        "sha256": "a8828f540b8d700703135a27f2dc49efa050685f1bdbbac9e0fdb8fb72739da7"
+      },
+      {
+        "path": "tests/test_live_anatomy_overlay.gd",
+        "bytes": 8447,
+        "sha256": "37e25605530a56315775063a3387a41b407e04b9fa49c43be116ddf132fb30bf"
+      },
+      {
+        "path": "tests/test_live_anatomy_overlay.tscn",
+        "bytes": 210,
+        "sha256": "559348746ab70984e3034e90b76ef154fcd1f6ac9c1b846492d8a5f369db3cc4"
+      },
+      {
+        "path": "tests/test_live_character_edit.gd",
+        "bytes": 6553,
+        "sha256": "2a423352ed0637a29bd04bd63330710c0103497286931ee04bf2f4ad2a315bf9"
+      },
+      {
+        "path": "tests/test_live_character_edit.tscn",
+        "bytes": 190,
+        "sha256": "1cd9676ed23cae3b75f5430e11834174c0359faa24cfc797bd299acc789d1d18"
+      },
+      {
+        "path": "tests/test_mental_health.gd",
+        "bytes": 29936,
+        "sha256": "098913103ca534cb2212f2ac75c6de4e8181302a2c779749298dd39760c31785"
+      },
+      {
+        "path": "tests/test_mental_health.tscn",
+        "bytes": 185,
+        "sha256": "606f86b1f2bdc28e5948c9a11af13ecbd16610aced7e1c720b35f052d45d0e9f"
+      },
+      {
+        "path": "tests/test_multiplayer.gd",
+        "bytes": 15524,
+        "sha256": "d304b6c9fd3a9d9d4f35e30f3308964cfaad5c34d3b9fef6ad534bf218ed6577"
+      },
+      {
+        "path": "tests/test_multiplayer.tscn",
+        "bytes": 182,
+        "sha256": "0ebe6a10fcfb63f578724f6cbd4478f2093d538f03996ae5fff03804988739b2"
+      },
+      {
+        "path": "tests/test_muscle_fat_3d_fem.gd",
+        "bytes": 10519,
+        "sha256": "2a795d9aec05b6c91ae7a0bc1d8c1822432f8859c07b069cffb9309cbaf5fce9"
+      },
+      {
+        "path": "tests/test_muscle_fat_fem_thermal.gd",
+        "bytes": 8607,
+        "sha256": "1f8ddef00f409bacffb491413283d3391ada6a7032679f0d476d4118b498b0d0"
+      },
+      {
+        "path": "tests/test_neck_length.gd",
+        "bytes": 11200,
+        "sha256": "73cd3fdb0022681746f26a70cb6ca335abbff0039cc633278e44f33028ccdc3e"
+      },
+      {
+        "path": "tests/test_neck_length.tscn",
+        "bytes": 181,
+        "sha256": "4e68c110088faf6d1f649353904b6b7e2089da3b6ff196c8a04f2deb5cddb18f"
+      },
+      {
+        "path": "tests/test_neck_seam.gd",
+        "bytes": 37108,
+        "sha256": "2fc0cda761a5836015f98f37b239b77558d24602ac9b8e3b735eef15603ce6ab"
+      },
+      {
+        "path": "tests/test_neck_seam.tscn",
+        "bytes": 177,
+        "sha256": "d2fa08237e13435054db6d1762ea1754d3764cb17f9cb3924a19069500552ae5"
+      },
+      {
+        "path": "tests/test_net_protocol.gd",
+        "bytes": 3367,
+        "sha256": "ee93638d2024e900124e4ce0206dc73b6687e9a790c3366302248568d6ad7d3a"
+      },
+      {
+        "path": "tests/test_net_protocol.tscn",
+        "bytes": 183,
+        "sha256": "2c41aee4a5525f702eeb15440c03fcf79943d76d155b9f06203f3b484adf8923"
+      },
+      {
+        "path": "tests/test_network_editor_live_enet.gd",
+        "bytes": 15331,
+        "sha256": "c66b844779607faf0102967dd1abc080229f378598cc3249f1041c6d50c3ee33"
+      },
+      {
+        "path": "tests/test_personality_sliders.gd",
+        "bytes": 7021,
+        "sha256": "56e325e6582c4bfac5f72cc6e2b82e4a65c7ea6d23a11bc87378dd66ad04879d"
+      },
+      {
+        "path": "tests/test_personality_sliders.tscn",
+        "bytes": 194,
+        "sha256": "15f177d11fb358138eeaf7dd291c126a1ad27ef87babbbeedb5d1ee2ccfeb1de"
+      },
+      {
+        "path": "tests/test_player_commands.gd",
+        "bytes": 8326,
+        "sha256": "9e54b1e585ac06dbe212f1e26e25de44b811daf374d55c9871f2c0d5b008a47a"
+      },
+      {
+        "path": "tests/test_player_commands.tscn",
+        "bytes": 189,
+        "sha256": "738b6b0059e1d0ed408f5bf18d6e645e9fdc1493badafd215a3c67738363e778"
+      },
+      {
+        "path": "tests/test_psyche.gd",
+        "bytes": 38140,
+        "sha256": "04012b4231157fa50788cbe1e5e9b3de622be5a2cd2d68324b1b8d174f64fa59"
+      },
+      {
+        "path": "tests/test_psyche.tscn",
+        "bytes": 168,
+        "sha256": "a1f6158e51834e9fa7af33740158fcd30438e3e2e8f8ddc9e4c153db3518d421"
+      },
+      {
+        "path": "tests/test_psyche_presentation.gd",
+        "bytes": 4260,
+        "sha256": "4b1416263124d15df0a732b9d446634284e5ae5250a85c2d15b6509f26568926"
+      },
+      {
+        "path": "tests/test_psyche_presentation.tscn",
+        "bytes": 197,
+        "sha256": "a721936421ae443e39e1eaecf22b482c1f1b036d3d769667f631a7ed83a71d79"
+      },
+      {
+        "path": "tests/test_reconciliation.gd",
+        "bytes": 16006,
+        "sha256": "cd378b3ff273eb881f7b7be48a09e609987673e121cd7d40aa8163ae318c7e23"
+      },
+      {
+        "path": "tests/test_reconciliation.tscn",
+        "bytes": 188,
+        "sha256": "d30c7cdbf11b6f242843a1b473b4791d889e79fdadb64b8688d3c46733009fe4"
+      },
+      {
+        "path": "tests/test_rejection_hypersensitivity.gd",
+        "bytes": 10210,
+        "sha256": "095e50d05018da53b20917cb792f46a0fdf7c2710bd061485b69415f22559d2b"
+      },
+      {
+        "path": "tests/test_rejection_hypersensitivity.tscn",
+        "bytes": 207,
+        "sha256": "5a2e5f3efa8efe966bfb5c00cf0a978b22145c1e8d494007d2dc3e50fd856bcf"
+      },
+      {
+        "path": "tests/test_save_continuation.gd",
+        "bytes": 3618,
+        "sha256": "3ae14707bf7572be9a4c715df5ee05da457d959c39dbc82560079f4c0cda4f94"
+      },
+      {
+        "path": "tests/test_save_continuation.tscn",
+        "bytes": 189,
+        "sha256": "8df315604256a424bac0ceb24e4d9ae30180bceb52d326a448970f9e453d5615"
+      },
+      {
+        "path": "tests/test_save_game.gd",
+        "bytes": 11536,
+        "sha256": "73d6b6b0a3ef95fcf15ed2b2edee062ca1426c59491def53f8c2e085771f3663"
+      },
+      {
+        "path": "tests/test_save_game.tscn",
+        "bytes": 173,
+        "sha256": "dc79515b1b2efb8094be3d6a371f3474b4d2addaaa24a721089d530472ab22e4"
+      },
+      {
+        "path": "tests/test_skin.gd",
+        "bytes": 26578,
+        "sha256": "21669b4108e59ac4cd6860986248fe367a78fc33520f5708c653a3274ee158ca"
+      },
+      {
+        "path": "tests/test_skin.tscn",
+        "bytes": 168,
+        "sha256": "4e8133c45cbb8cee674a5e7467a4ab3439011f2405385617a8a44f8b47187e82"
+      },
+      {
+        "path": "tests/test_skin_micro.gd",
+        "bytes": 18172,
+        "sha256": "05803c1734af3df0e2935a76c6790958d494dab1ebed14d6c21844f424e9ac5b"
+      },
+      {
+        "path": "tests/test_skin_micro.tscn",
+        "bytes": 179,
+        "sha256": "cdad5ddd65b6f233471191277e1fb0c53022c24331e7127b5c4519ba7c0da662"
+      },
+      {
+        "path": "tests/test_sleeve_extreme_matrix.gd",
+        "bytes": 10008,
+        "sha256": "9e46d8e6a8448ff9174a95872e1d08251916c60136408be3dcbfb15ad3fcbcfe"
+      },
+      {
+        "path": "tests/test_social_nuance.gd",
+        "bytes": 8701,
+        "sha256": "2dbb43442e87ac07460b99ebb4e6e806ea3c3a4b30524961c738b75d433314cf"
+      },
+      {
+        "path": "tests/test_social_nuance.tscn",
+        "bytes": 181,
+        "sha256": "b7c33efd4fe70f458ec55af856c476c30d6e45839af9a9e0fe811832e784c46e"
+      },
+      {
+        "path": "tests/test_subculture_wardrobe.gd",
+        "bytes": 3062,
+        "sha256": "41d8a7ddd0a90cd8ecf7c44c99178ba76da8724ca039b876b011f6c513c48197"
+      },
+      {
+        "path": "tests/test_subculture_wardrobe.tscn",
+        "bytes": 194,
+        "sha256": "97dc350deb4bd2a357cad8db1928cab46fec01528f130246e04ad6bf25ea1b1e"
+      },
+      {
+        "path": "tests/test_torso_fingers_v1.gd",
+        "bytes": 9677,
+        "sha256": "656bafdeede47ba81043e96411aea0d64b0c03a390072db12e28f5d7309cc7ea"
+      },
+      {
+        "path": "tests/test_torso_fingers_v1.tscn",
+        "bytes": 198,
+        "sha256": "92b1a11ffd1820e3d7de861c1f6663c433516fcd26da15acbe35baa36c98e57f"
+      },
+      {
+        "path": "tests/test_torso_surface_c13.gd",
+        "bytes": 7416,
+        "sha256": "8dfe3fb8ef17af49340f73e23b0df21d1f3312be643cb8e8dd44d136f983c75f"
+      },
+      {
+        "path": "tests/test_torso_surface_c13.tscn",
+        "bytes": 189,
+        "sha256": "7695c96d278125ac04537b609978ccd454e329d92e7337ba59866870589dbc4a"
+      },
+      {
+        "path": "tests/test_trait_continuity.gd",
+        "bytes": 3412,
+        "sha256": "d25e77bd92f23646cd900a9817f83f34c071b4c2386601934bf86bcda0f997c9"
+      },
+      {
+        "path": "tests/test_trait_continuity.tscn",
+        "bytes": 183,
+        "sha256": "23d69422be57477463b504b3fe7e98e4cd60254eb960c9ec27685645d458bf48"
+      },
+      {
+        "path": "tests/test_vigilance.gd",
+        "bytes": 4732,
+        "sha256": "2fa18d8b4764bb1ef82e541c5e74e4db7e397f04418d120060640726cc1bf2c2"
+      },
+      {
+        "path": "tests/test_vigilance.tscn",
+        "bytes": 174,
+        "sha256": "f1ee39f07340726fb8a29b63b2f2c008b86f16880264b910279d3d22020d4aa5"
+      },
+      {
+        "path": "tests/test_withdrawal_avoidance.gd",
+        "bytes": 6687,
+        "sha256": "be30c632ece23ca85b51f79eb97d1379a8c529a2e1fe84ac1a998171576429d8"
+      },
+      {
+        "path": "tests/test_withdrawal_avoidance.tscn",
+        "bytes": 199,
+        "sha256": "4d4ce3a6e49972e6a31d25098f3f6fe11044e2a943169d7911d7b77f2f827a7d"
+      },
+      {
+        "path": "tools/automation_coordinator.py",
+        "bytes": 7232,
+        "sha256": "f0450bb1ad5ec81223d39330b39b85caf419502b2d1e8ab46db54f2cfd3c1851"
+      },
+      {
+        "path": "tools/automation_lock.gd",
+        "bytes": 2126,
+        "sha256": "6cc44dfd6b763b03e747dfed537a420b50814b2ef1f260e4fc6f237c1531f2c4"
+      },
+      {
+        "path": "tools/blender/README.md",
+        "bytes": 5007,
+        "sha256": "42c958a1d7acd8c052c75ece1b0b1f610b297b348492db14c7b24704b407794d"
+      },
+      {
+        "path": "tools/blender/anatomy_attach_elmer_v1.py",
+        "bytes": 4538,
+        "sha256": "8a38c6f1397e191910313eaa13d36252774665e10dab0b5b9423beffaa70d543"
+      },
+      {
+        "path": "tools/blender/anatomy_attach_musclefat_thermal_v1.py",
+        "bytes": 8940,
+        "sha256": "4fd2c214d82358664658b7fed097e1a999ebe8c7364041e917b5fbe0b56ed0e6"
+      },
+      {
+        "path": "tools/blender/anatomy_elmer_3d_field_visual_v1.py",
+        "bytes": 9860,
+        "sha256": "a04fbbae9e7afcf0f977130a37f49043c1787c704259dbcc42be4482f6f46acd"
+      },
+      {
+        "path": "tools/blender/anatomy_export_musculature_v1.py",
+        "bytes": 1913,
+        "sha256": "7a52665d5f3d83346fd30c23ead6c127820210e6b63e0864d1d73d5298161dee"
+      },
+      {
+        "path": "tools/blender/anatomy_finger_joint_animation_c14.py",
+        "bytes": 7147,
+        "sha256": "c8b68b216158c8c63edc26eca108aeabe5f97b9d1257120b0daefb979300d37b"
+      },
+      {
+        "path": "tools/blender/anatomy_skeleton_v1.py",
+        "bytes": 28346,
+        "sha256": "74a94193e6c41a4b943151acf47573595c6f047a1a9c05bd50e185988552b437"
+      },
+      {
+        "path": "tools/blender/anatomy_skin_and_digit_nails_v1.py",
+        "bytes": 8037,
+        "sha256": "06937dbe1373ad54b3b6c0fb2c40a00f4196e7fdb8c6eab2c582f0e43c23d208"
+      },
+      {
+        "path": "tools/blender/anatomy_torso_skin_c13.py",
+        "bytes": 9665,
+        "sha256": "611ffbc334ae5f4fb647e580feda427b824ed7858c9e941ffd76f4619261c5e2"
+      },
+      {
+        "path": "tools/blender/anatomy_visual_soft_tissue_v2.py",
+        "bytes": 14454,
+        "sha256": "cbb32f2c52ce0baeb1d57db10923d1a723cab030c70f398c79deda231f84ecd1"
+      },
+      {
+        "path": "tools/blender/char.py",
+        "bytes": 16102,
+        "sha256": "b5a24bf26f7b81f1bfcdc84ab2cbb93d2dd45183046b30644da7b3e83b833d91"
+      },
+      {
+        "path": "tools/blender/char_v3.py",
+        "bytes": 7466,
+        "sha256": "1ccc0ee70931902dd33ee33b183cd1866c3de1123f7ca1bdefc0ba650a5d3d25"
+      },
+      {
+        "path": "tools/blender/city/ceiling_tile.py",
+        "bytes": 5119,
+        "sha256": "e6a1cb460609d780a57f0e134942a1dc2ec40ef6c19126856879b732c58a3367"
+      },
+      {
+        "path": "tools/blender/city/corner_wall.py",
+        "bytes": 5526,
+        "sha256": "7353e0215eda67c59aa42383e61814d0bd7410f9ffad67089435420aed66aab4"
+      },
+      {
+        "path": "tools/blender/city/doorway.py",
+        "bytes": 4901,
+        "sha256": "56740913825daf6d6f5283655088d44683e6025efbfb9435ba5dd0ad8c921456"
+      },
+      {
+        "path": "tools/blender/city/floor_tile.py",
+        "bytes": 5076,
+        "sha256": "e1e844b27ac24cd8527d5b8f833d573ab159cd0f672d0de5818e0569c07f75fe"
+      },
+      {
+        "path": "tools/blender/city/gable_infill.py",
+        "bytes": 3052,
+        "sha256": "b4bd9ca01b93c4191a33c2791c02b710bda913a2bca49730550595825df2f6ab"
+      },
+      {
+        "path": "tools/blender/city/render_solid_assembly.py",
+        "bytes": 2493,
+        "sha256": "4e7781600ece46b788d34138be32df108a3a760da262eb9f42c96e36a7d9f1a8"
+      },
+      {
+        "path": "tools/blender/city/roof_gable.py",
+        "bytes": 4490,
+        "sha256": "664da793f826f867031919defc188e61079da45bc652de3bca3caf8504f68555"
+      },
+      {
+        "path": "tools/blender/city/solid_wall.py",
+        "bytes": 4414,
+        "sha256": "1b65d0177b912f305e2afbcc4cd0493699afcc8e90aa13900556e685046a9967"
+      },
+      {
+        "path": "tools/blender/city/staircase.py",
+        "bytes": 3913,
+        "sha256": "2313776a55d699f1dffd31040e5e00becc8c692c90f6296f0645c8d6e3578746"
+      },
+      {
+        "path": "tools/blender/city/window_wall.py",
+        "bytes": 5114,
+        "sha256": "8f9f6b269b47bcfe89185cd7e01be31146c6d41363ff74f43885aa532e20880b"
+      },
+      {
+        "path": "tools/blender/clothing_c5.py",
+        "bytes": 28364,
+        "sha256": "09e187829e123f1d53c0b8121ef06856ec29b1c344aa4f762e45d88b7e249332"
+      },
+      {
+        "path": "tools/blender/clothing_c5_lsx_export.py",
+        "bytes": 2593,
+        "sha256": "d93aafb3cbf571b48ee0f00dff27d2ac188dbf22ab88e4a9d450b0d74bb45ba1"
+      },
+      {
+        "path": "tools/blender/clothing_c5_render.py",
+        "bytes": 5090,
+        "sha256": "a65a6695046b89e33d8e2e35b088056c3064e5b13b443bb7944a88ede2709905"
+      },
+      {
+        "path": "tools/blender/export_live_anatomy_index_v1.py",
+        "bytes": 5483,
+        "sha256": "b59f1ac15a45cf29c2986029ce2316d8cf8fc442c3d1b313d16bb5dbc35a512a"
+      },
+      {
+        "path": "tools/blender/face_render.py",
+        "bytes": 7196,
+        "sha256": "a32bc4a0e5b325049174d37048846be4c487d533b523ff2c02635c14c4d30319"
+      },
+      {
+        "path": "tools/blender/furn.py",
+        "bytes": 5314,
+        "sha256": "367b1557b4ffed1ca0c7c4d2a5a96614e2e8e6d139bc283a89fed1761d5f0323"
+      },
+      {
+        "path": "tools/blender/lsx_common.py",
+        "bytes": 16856,
+        "sha256": "80cea157be788c10bb190151fa165dab6cfb25c90e411170a03f6e24f3d4285b"
+      },
+      {
+        "path": "tools/blender/skin_micro.py",
+        "bytes": 8530,
+        "sha256": "94c581f34473c0afdb107c45783ec74ea935fcc2ba2417672040932af9fb726e"
+      },
+      {
+        "path": "tools/build_audio.gd",
+        "bytes": 1146,
+        "sha256": "97f602d2615fc3d3e91591b1e88509ec25e9d0401b326b233beb740206704884"
+      },
+      {
+        "path": "tools/elmer/bone_cantilever_v1.sif",
+        "bytes": 1141,
+        "sha256": "a4cb42c8a1e0b318556397df4f2c56e7d0a700b2085ee8eb7d95940cbebcc02d"
+      },
+      {
+        "path": "tools/elmer/build_muscle_fat_3d_v1.py",
+        "bytes": 8605,
+        "sha256": "ca9d100126f2440fc30eb618a318e4bda6e5ff58b4774ae574dcba23595503f0"
+      },
+      {
+        "path": "tools/elmer/build_muscle_fat_v1.py",
+        "bytes": 7788,
+        "sha256": "15bd7098112a6111112079c5dc036bda512627199a81c221af89eb10069405ce"
+      },
+      {
+        "path": "tools/elmer/cartilage_compression_v1.sif",
+        "bytes": 1210,
+        "sha256": "4c95bbaf01efa8681276e1a369b3f80028395f14d5e5bac9c8c06c5011066ddb"
+      },
+      {
+        "path": "tools/elmer/muscle_fat_compression_v1.sif",
+        "bytes": 1363,
+        "sha256": "9bfa5b2ed3928904eac6eaf1fc6ea5720333af5c1831865c44e168ee20ef9a9a"
+      },
+      {
+        "path": "tools/elmer/muscle_fat_thermal_active_v1.sif",
+        "bytes": 1517,
+        "sha256": "87e70b5c53c041be97d3c3720b03b9a0e11c1c301401d0425b69f95a0d42c396"
+      },
+      {
+        "path": "tools/elmer/muscle_fat_thermal_rest_v1.sif",
+        "bytes": 1517,
+        "sha256": "b8110b8bf83f1a0178be9fbbfbbfa9859d4a1eafb3f60ea896cdcadff026f0b7"
+      },
+      {
+        "path": "tools/elmer/muscle_fat_thermal_thickfat_v1.sif",
+        "bytes": 1517,
+        "sha256": "b8110b8bf83f1a0178be9fbbfbbfa9859d4a1eafb3f60ea896cdcadff026f0b7"
+      },
+      {
+        "path": "tools/face_render_export.gd",
+        "bytes": 7158,
+        "sha256": "6df07a363d2cf84ca9e7edd1b2194d50f4d3ca38d3c91ac76495b341c6666a05"
+      },
+      {
+        "path": "tools/face_sheet.gd",
+        "bytes": 1295,
+        "sha256": "bfea6e4907d501bfb7839a4846a9908ca3436450fa4c7442009ee43c4f36ff3e"
+      },
+      {
+        "path": "tools/hair_export.gd",
+        "bytes": 6012,
+        "sha256": "392691bacd3e248b9846aa1aa950be13eb329ef7c7e4424bc0654e6a7ef676b5"
+      },
+      {
+        "path": "tools/import_lsx.gd",
+        "bytes": 8383,
+        "sha256": "613fe161d7bfc0dbe1f7600868f2f58e7aeeedf3353feddd5f1dd3afe65779c0"
+      },
+      {
+        "path": "tools/neck_sheet.gd",
+        "bytes": 2119,
+        "sha256": "9cd96afa489f5a9d0423a292d24d106ed67e2f741eb0cc6bcddcbff5cc0c4272"
+      },
+      {
+        "path": "tools/raster_preview.gd",
+        "bytes": 7955,
+        "sha256": "ab8dfd40079ee619436729d91200d78c2993243ba0d1ea328bb71b12c006fd57"
+      },
+      {
+        "path": "tools/repair_c5_sleeve_weights.gd",
+        "bytes": 3593,
+        "sha256": "5326f8e683607c3a61b7c8fdd73c3c24e979a4853b9b00e99105a9507881df27"
+      },
+      {
+        "path": "tools/text_patch.gd",
+        "bytes": 1401,
+        "sha256": "69861b3ed059086eeeba48be61f45d4c7299dddbe159d3b47d7288a668206d0d"
+      }
+    ]
+  },
+  "post_snapshot_patch": {
+    "name": "lifesim-C15-updates-20261027.zip",
+    "first_room_message": 238,
+    "last_room_message": 240,
+    "parts": 3,
+    "size_bytes": 210076,
+    "sha256": "2cee64ac330f77816be7e5db5dfe4ce6bdff1c47e41b6246a62b7d1b1524e5cd",
+    "files": [
+      {
+        "path": "scripts/assets/finger_phalange_subrig_c15.gd",
+        "bytes": 6473,
+        "sha256": "afdc3e1f09be5918be1cc529aed1bd54b9e4d5c5e8f2ae64cca696fb28baa789"
+      },
+      {
+        "path": "scripts/sim/sim_visual.gd",
+        "bytes": 49447,
+        "sha256": "102a3d065706bac2239b495a5adebefd01d33ed6ddd96dc772f2daba5d94f552"
+      },
+      {
+        "path": "scripts/ui/character_preview.gd",
+        "bytes": 13320,
+        "sha256": "bcb05145e69c9c22077890af10238a6c5b29c1c60a8b3ecc4d4c51ea346ddf01"
+      },
+      {
+        "path": "tests/test_finger_phalange_subrig_c15.gd",
+        "bytes": 7386,
+        "sha256": "d22b9d7b30bdd962bd07ce18de7953c8d350d575ce4a67ea9b6aae2ca449f78b"
+      },
+      {
+        "path": "tests/test_finger_phalange_subrig_c15.tscn",
+        "bytes": 209,
+        "sha256": "4ab79ef6c70aa2de86ab1e3525b31de5d54b4bb1dda33f95a58fe71db5e8fd16"
+      },
+      {
+        "path": "docs/anatomy/C15_REAL_GODOT_FINGER_SUBRIG.md",
+        "bytes": 4478,
+        "sha256": "068f07c829e394326b03deb3f9a1fff4691cd58b6b58849be274533c3de5ba78"
+      },
+      {
+        "path": "README.md",
+        "bytes": 37860,
+        "sha256": "ae028df222b3068704da77e304fc53cb514885d47ede8c40352cc204bd893e98"
+      },
+      {
+        "path": "CHECKPOINT.md",
+        "bytes": 170311,
+        "sha256": "dacbed0e29c090645563e5aa238964cad4f9b4c1b9456d46b115ef0e82b14e60"
+      },
+      {
+        "path": "DEVLOG.md",
+        "bytes": 220755,
+        "sha256": "c608ca65cc35b82d8abdba0f70223379cc6a71b0bf1c696fc7ac68a7b0908cac"
+      },
+      {
+        "path": "docs/implementation-sequence.md",
+        "bytes": 52798,
+        "sha256": "d1773d8f450e65070b3b7eab72d29bc1e02038141d44932df5c1bffcf7939edf"
+      }
+    ],
+    "overwrite_existing_on_extract": true
+  },
+  "reconstruct": {
+    "linux_macos": "cat lifesim-source-20261027.zip.part* > lifesim-source-20261027.zip; sha256sum lifesim-source-20261027.zip; unzip lifesim-source-20261027.zip -d lifesim; cat lifesim-C15-updates-20261027.zip.part* > lifesim-C15-updates-20261027.zip; sha256sum lifesim-C15-updates-20261027.zip; unzip -o lifesim-C15-updates-20261027.zip -d lifesim",
+    "windows_powershell": "Sort files by numeric .partNNN, binary-concatenate bytes (not text); verify SHA256 then unzip core followed by C15 patch."
+  },
+  "scope_notes": [
+    "Source archive is a point-in-time source tree before C15, patch C15 takes precedence",
+    "This file is not a complete project export: large Blender .blend/glb, Godot .glb models, music/sfx and historical previews remain in their respective connected asset libraries/servers",
+    "Do not upload private user saves or connected account credentials",
+    "No GitHub push performed",
+    "Elmer reference FEM is not human-body real-time gameplay physics"
+  ]
+}

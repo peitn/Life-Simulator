@@ -7,6 +7,7 @@ extends RefCounted
 ## The navel relief is an inset VISUAL (unmodified torso topology), not a
 ## physiological umbilical cavity. No gameplay sexuality or physics data.
 const Helper := preload("res://scripts/assets/hand_detail_builder.gd")
+const ActualSkin := preload("res://scripts/assets/anatomical_torso_surface.gd")
 static var _meshes: Dictionary = {}
 const RING := 16
 
@@ -27,9 +28,12 @@ static func build(shirt: MeshInstance3D) -> Dictionary:
     var source_blends: Array = src.surface_get_blend_shape_arrays(0)
     if source_positions.size() < 300 or source_blends.size() != 10:
         return {}
-    # The exact authored Blender shirt's mesh vertices + body morph shapes
-    # are the best currently available close-fitting torso proxy.
-    var surface: Mesh = src
+    # C13: reconstruct genuinely separate continuous ~2162-vertex bare skin.
+    # The shirt is ONLY a reference for the old ten body morph targets,
+    # never the visible surface or its shirt/sleeve triangles.
+    var surface: Mesh = ActualSkin.build_surface(src,source_positions,source_blends)
+    if surface == null:
+        return {}
     var areola := Helper._blank()
     var nipple := Helper._blank()
     var navel_rim := Helper._blank()
@@ -37,7 +41,7 @@ static func build(shirt: MeshInstance3D) -> Dictionary:
     for s in [-1.0,1.0]:
         var center_x: float = s * .103
         var center_y := 1.351
-        var center_z: float = _anterior_z(source_positions,center_x,center_y)
+        var center_z: float = ActualSkin.anterior_z(source_positions,center_x,center_y)
         if center_z < 0.02:
             return {}
         # Shallow areola surface at local anterior skin curvature.
@@ -47,14 +51,14 @@ static func build(shirt: MeshInstance3D) -> Dictionary:
         # no assumptions based on chromosomes, gender or hormonal treatment.
         _disc(nipple,Vector3(center_x,center_y,center_z+.0036),
             .0060,.0053,.0050,2)
-    var navel_z:float=_anterior_z(source_positions,0.0,1.088)
+    var navel_z:float=ActualSkin.anterior_z(source_positions,0.0,1.088)
     if navel_z < .02:
         return {}
-    # Oval navel rim with shallow negative relief. The dark base keeps the
-    # recess visually readable even when the original base torso mesh remains.
-    _disc(navel_rim,Vector3(0,1.088,navel_z+.0017),
+    # This rim/darker center now sit on a TRUE dent within the separately
+    # sculpted surface, rather than a flat unmodified shirt mesh.
+    _disc(navel_rim,Vector3(0,1.088,navel_z+.0020),
         .0110,.0150,.0018,1)
-    _disc(navel_dark,Vector3(0,1.087,navel_z+.00315),
+    _disc(navel_dark,Vector3(0,1.087,navel_z+.0038),
         .0040,.0070,.00065,1)
     var parts := {
         "surface":surface,

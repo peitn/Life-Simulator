@@ -393,3 +393,30 @@ The five LSX bundles have been rebuilt from Blender; the wardrobe now has 172 au
 ### Continuous trait effects (24 October 2026)
 
 Simulation consumes `Traits.flag_strength()` for jealousy and impulsivity; grumpiness scales relief and guilt continuously. `has_flag()` is retained for compatibility/presentation, not simulation scoring. Scalar overrides use a weighted mean with unused weight assigned to the fallback, independent of dictionary insertion order. Dictionary reductions use canonical key order. These changes preserve single-trait legacy endpoints. The main-game editor integration remains tracked by H2/H3 in the implementation sequence.
+
+
+## Voice (27 October 2026, scheduled run)
+
+`CharacterData.voice` (pitch −1..1, timbre −1..1, tempo −1..1, roughness 0..1, public, unchanged schema v13) is now
+editable and audible:
+
+- **`scripts/audio/voice_synth.gd`** – deterministic source–filter formant synthesis of wordless speech (Czech vowels
+  a e i o u, s/š/ch fricatives, plosives, nasals). Glottal source: Rosenberg pulse with jitter, shimmer and period
+  doubling for rough voices plus breath noise; spectral tilt by timbre and style; four parallel formant resonators whose
+  frequencies scale with a vocal-tract factor; prosody with declination, accents and phrase-final rise/fall. Five
+  delivery styles (calm, cheerful, angry, sad, whisper). Mapping: pitch → 160 Hz × 2^(±1.05) ≈ 77–331 Hz, timbre →
+  formants × 2^(±0.16), tempo → syllable rate × 2^(±0.6). Only the voice group is read – never sex, gender identity,
+  grammatical gender, body, age or name; the default is the neutral middle of the human range. Untrusted input is
+  sanitised (non-numbers/NaN/∞ → default, clamp, 0.001 canonical precision like the validator), duration is capped
+  (0.3–6 s) and the sample rate clamped.
+- **`scripts/ui/voice_editor.gd`** – "Hlas" (Voice) section in both the offline creator and the live/owner editor:
+  four sliders with word descriptions (deep … high, dark … bright, slow … fast, clear … hoarse), a summary (base tone in
+  Hz, syllables per second), style picker, Play / Another sentence buttons and "play after change" (debounced 0.35 s
+  for keyboard/gamepad, on drag end for the mouse). Preview synthesis runs in `WorkerThreadPool`; results go to a small
+  LRU cache keyed by values quantised to 0.02. Slider drags coalesce into one Undo step (`voice:<field>`). In the
+  network editor the section follows the same lock as appearance while an Apply is pending.
+- The server path is unchanged: voice edits go through the strict validator at join, offline Apply and the
+  authenticated owner Apply, and replicate only as part of the public appearance snapshot. Preview in the editor and
+  the voice heard in game are bit-identical because both use the canonical 0.001 values.
+
+Test: `tests/test_voice.tscn` (86 checks).

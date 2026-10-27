@@ -1556,3 +1556,36 @@ deliberate attempt by a client to forge a server RPC; Godot discarded it (the te
 - `net_detail` is recomputed on the server only on change or every 10 game minutes – moodlets in the HUD may be slightly
   delayed.
 - A leak of ~10–14 objects when a headless run exits (autoload tweens/streams) – harmless, to be cleaned up.
+
+
+## 27 October 2026 — Claude scheduled run `main-claude-sched-1793128956-362940`: character voice
+
+Scope: `scripts/audio/voice_synth.gd` (new), `scripts/ui/voice_editor.gd` (new), `scripts/ui/character_creator_panel.gd`,
+`scripts/ui/character_editor_panel.gd`, `scripts/audio/audio_manager.gd`, `tests/test_voice.gd/.tscn` (new). No schema
+change (voice fields existed since v1; schema stays v13), no network protocol change.
+
+a) Self-review: every changed file re-read after upload; Godot copies verified by SHA-256 against the local working
+copy. Fixed during review: preview vs in-game mismatch risk (draft has unrounded floats, the public snapshot is rounded
+to 0.001 by the validator) – VoiceSynth now canonicalises to 0.001, test proves preview == in-game voice bit for bit;
+a test that read a freed node (script error not counted as failure) was rewritten.
+
+b) Tests (server Godot 4.7.2): new `test_voice` **86/86** (clean stderr apart from the pre-existing ObjectDB exit
+warning). Regression: audio_tone 222/222, audio_engine_sfx 164/164, character_editor_ui 61/61,
+appearance_slider_ui 108/108, full_playable_slice 48/48, character_net 70/70, multiplayer 67/67 (expected anti-cheat
+RPC errors in stderr), character 156/157 (the known pre-existing 4 ms slider-latency timing check measured 4.07 ms;
+voice synthesis is not on that path), godot_check 60/60, main scene headless start without errors. Not run this
+run: household matrices (no simulation change). No rendered screenshot of the new UI section (headless only) –
+visual QA of the panel is open.
+
+c) Gemini (gemini-3.5-flash-lite) critical review, 8 findings: **accepted** #4 (90 ms synchronous preview synthesis on
+the main thread → moved to WorkerThreadPool, encoding also in the worker; test: click returns < 20 ms, preview plays
+after completion). **Rejected with reasons**: #1 "Array passed to the worker is unsafe" – the array is written once by
+the task and read by the main thread only after `is_task_completed` + `wait_for_task_completion` (happens-before),
+refcounts are atomic; #2/#3 "shared RNG / undefined `idx`" – the RNG is local per call and `idx` is a local variable
+(the prompt excerpt omitted the line); #5 "use cancel_task" – Godot 4 `WorkerThreadPool` has no cancel API and tasks are
+bounded (≤ ~40 ms); #6 cache key vs quantisation – both use the same 0.02 grid and the render uses the quantised
+values; #7 return type already present; #8 constants intentionally fixed (cosmetic tuning). Security/inclusivity:
+Gemini found no issue (numeric public data only, strict server validation, no coupling of voice to sex/identity).
+
+d) ChatGPT: files sent to the room for review (see DEVLOG). Open items from earlier runs (household_dynamics seed-13
+79/80, C15 finger root alignment #248/#249, psyche slices E–J from the main chat) were not touched by this run.

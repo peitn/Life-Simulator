@@ -186,8 +186,14 @@ static func validate_snapshot(d: Variant) -> bool:
 		if d.has(key) and (typeof(d[key]) not in [TYPE_FLOAT, TYPE_INT] or not is_finite(float(d[key])) or float(d[key]) < 0.0 or float(d[key]) > 1.0):
 			return false
 	for key in ["resisted", "rituals", "last_evening"]:
-		if d.has(key) and (typeof(d[key]) not in [TYPE_FLOAT, TYPE_INT] or float(d[key]) < -1.0 or float(d[key]) > 1.0e7):
-			return false
+		if d.has(key):
+			var value = d[key]
+			if typeof(value) not in [TYPE_FLOAT, TYPE_INT] or not is_finite(float(value)):
+				return false
+			var n := float(value)
+			var lower := -1.0 if key == "last_evening" else 0.0
+			if n < lower or n > 1.0e7 or n != floorf(n):
+				return false
 	var rt = d.get("ritual_times", [])
 	if typeof(rt) != TYPE_ARRAY or rt.size() > 16:
 		return false

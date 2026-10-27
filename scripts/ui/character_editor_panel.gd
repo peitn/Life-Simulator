@@ -6,6 +6,7 @@ const Session := preload("res://scripts/character/character_edit_session.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const SliderEditor := preload("res://scripts/ui/personality_slider_editor.gd")
 const AppearanceEditor := preload("res://scripts/ui/appearance_slider_editor.gd")
+const VoiceEditor := preload("res://scripts/ui/voice_editor.gd")
 const Preview := preload("res://scripts/ui/character_preview.gd")
 const Wardrobe := preload("res://scripts/assets/subculture_wardrobe.gd")
 const Schema := preload("res://scripts/character/character_schema.gd")
@@ -19,6 +20,7 @@ var _preview: Label
 var _visual_preview: VBoxContainer
 var _sliders: VBoxContainer
 var _appearance: VBoxContainer
+var _voice: VBoxContainer
 var _sexuality_section: VBoxContainer
 var _sexuality_controls: Dictionary = {}
 var _style: OptionButton
@@ -83,6 +85,10 @@ func _ready() -> void:
     _appearance.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     _appearance.appearance_changed.connect(_on_appearance_changed)
     body.add_child(_appearance)
+    body.add_child(HSeparator.new())
+    _voice = VoiceEditor.new()
+    _voice.voice_changed.connect(_on_voice_changed)
+    body.add_child(_voice)
     body.add_child(HSeparator.new())
     var row := VBoxContainer.new()
     body.add_child(row)
@@ -366,6 +372,8 @@ func _refresh() -> void:
     cd.set_from_dict(data)
     _sliders.load_character(cd)
     _appearance.load_data(data)
+    _voice.load_data(data)
+    _voice.set_editable(not (_network_read and (not _network_can_apply() or not _apply_token.is_empty() or _await_readback)))
     var sexual: Dictionary = data.get("identity", {})
     for key in ["asexual", "aromantic"]:
         (_sexuality_controls[key] as CheckBox).set_pressed_no_signal(bool(sexual.get(key, false)))
@@ -434,6 +442,20 @@ func _on_appearance_changed(group: String, key: String, value: Variant) -> void:
     draft[group][key] = value
     _session.replace_draft(draft, "Appearance "+group+"."+key, group+":"+key)
     _visual_preview.show_draft(draft)
+    _undo_button.disabled = not _session.can_undo()
+    _redo_button.disabled = not _session.can_redo()
+
+
+## Hlas je veřejná skupina: v multiplayeru ji server znovu celou validuje (strict) a
+## replikuje jen jako součást veřejného vzhledu. Stejné hradlo jako u vzhledu.
+func _on_voice_changed(key: String, value: float) -> void:
+    if not _session.is_open() or (_network_read and (not _network_can_apply() or not _apply_token.is_empty() or _await_readback)):
+        return
+    if not Schema.fields("voice").has(key) or not is_finite(value):
+        return
+    var draft: Dictionary = _session.draft()
+    draft["voice"][key] = value
+    _session.replace_draft(draft, "Voice " + key, "voice:" + key)
     _undo_button.disabled = not _session.can_undo()
     _redo_button.disabled = not _session.can_redo()
 

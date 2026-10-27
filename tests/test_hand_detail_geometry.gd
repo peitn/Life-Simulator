@@ -47,7 +47,7 @@ func run() -> void:
         check(normals.size()==verts.size() and bones.size()==verts.size()*4
             and weights.size()==bones.size() and indices.size()%3==0,
             name+" correct GPU skin arrays")
-        check(mesh.get_blend_shape_count()==20,name+" retains ten body morphs and ten independent finger curl targets")
+        check(mesh.get_blend_shape_count()==40,name+" retains ten body morphs, ten legacy curls and twenty independently controllable joint region targets")
         check(m.skin==v._skin_copy and m.skeleton==NodePath(".."),
             name+" shares actor-specific deformable Skin and skeleton")
         var left:=0

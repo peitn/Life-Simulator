@@ -169,6 +169,11 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
             return null
         for digit in DIGIT_COUNT:
             output.add_blend_shape(curl_key(digit))
+        # C14: additional independent proximal/distal bend morphs per
+        # finger, including matching nails, without changing the 17-bone rig.
+        for digit in DIGIT_COUNT:
+            for segment in ["proximal","distal"]:
+                output.add_blend_shape(joint_key(digit,segment))
     var arrays:Array=[]
     arrays.resize(Mesh.ARRAY_MAX)
     arrays[Mesh.ARRAY_VERTEX]=vertices
@@ -196,10 +201,16 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
                 if absf(ref.x)<.045 or absf(ref.x)>.17 or ref.y<.0 or ref.y>.145:
                     continue
             elif region == "torso":
-                # Anatomy torso surfacing is derived from the actual Blender
-                # shirt silhouette with 10 existing body shape keys. Restrict
-                # nearest-neighbour interpolation to the anterior chest/abdomen.
+                # The small nipple/areola/navel extras interpolate only the
+                # forward-facing surface so back-side geometry doesn't influence
+                # their authored protrusions and pigments.
                 if ref.z < .015 or absf(ref.x) > .20 or ref.y < .99 or ref.y > 1.52:
+                    continue
+            elif region == "torso_shell":
+                # The NEW full circumferential surface has an actual back
+                # as well. Morph it from real back shirt vertices, not by
+                # incorrectly projecting the forward breast morph onto the back.
+                if absf(ref.x) > .235 or ref.y < .97 or ref.y > 1.54:
                     continue
             else:
                 return null
@@ -256,8 +267,59 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
             shape[Mesh.ARRAY_VERTEX]=shape_vertices
             shape[Mesh.ARRAY_NORMAL]=shape_normals
             morphs.append(shape)
+        # Two separately weighted knuckle-like hinge regions per digit.
+        # These blend deltas are independent edit channels, not true
+        # collision-detecting phalange bones. Same topology for skin+nails.
+        for digit in DIGIT_COUNT:
+            for segment in ["proximal","distal"]:
+                var segment_vertices := PackedVector3Array()
+                segment_vertices.resize(n)
+                var segment_normals := PackedVector3Array()
+                segment_normals.resize(n)
+                var start:int=digit*chunk_size
+                for k in chunk_size:
+                    var idx:int=start+k
+                    var result:Dictionary=joint_geometry(
+                        vertices[idx],base_normals[idx],digit,segment)
+                    segment_vertices[idx]=(result["position"] as Vector3)-vertices[idx]
+                    segment_normals[idx]=(result["normal"] as Vector3)-base_normals[idx]
+                var segment_shape:Array=[]
+                segment_shape.resize(Mesh.ARRAY_MAX)
+                segment_shape[Mesh.ARRAY_VERTEX]=segment_vertices
+                segment_shape[Mesh.ARRAY_NORMAL]=segment_normals
+                morphs.append(segment_shape)
     output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays,morphs)
     return output
+
+## C14 paired independent visual hinges for real GPU skin and nail meshes.
+static func joint_key(digit:int, segment:String) -> StringName:
+    if digit<0 or digit>=DIGIT_COUNT or segment not in ["proximal","distal"]:
+        return &""
+    return StringName("finger_joint_"+str(digit)+"_"+segment)
+
+
+static func joint_geometry(point:Vector3,normal:Vector3,
+        digit:int,segment:String) -> Dictionary:
+    var endpoints:Dictionary=finger_endpoints(digit)
+    if endpoints.is_empty() or segment not in ["proximal","distal"]:
+        return {"position":point,"normal":normal}
+    var root:Vector3=endpoints["root"]
+    var tip:Vector3=endpoints["tip"]
+    var length:float=root.distance_to(tip)
+    var axis:Vector3=(tip-root).normalized()
+    var t:float=clampf((point-root).dot(axis)/length,0.0,1.0)
+    if segment=="proximal":
+        var angle:float=-.76*smoothstep(.24,.64,t)
+        var hinge:Vector3=root+axis*length*.29
+        var q:=Quaternion(Vector3.RIGHT,angle)
+        return {"position":hinge+q*(point-hinge),
+            "normal":(q*normal).normalized()}
+    var distal_angle:float=-.68*smoothstep(.62,.91,t)
+    var hinge2:Vector3=root+axis*length*.67
+    var q2:=Quaternion(Vector3.RIGHT,distal_angle)
+    return {"position":hinge2+q2*(point-hinge2),
+        "normal":(q2*normal).normalized()}
+
 ## Global digit order: right-hand fingers 0..4, left-hand 5..9; within
 ## each hand: index, middle, ring, little, thumb. No identity dependence.
 static func curl_key(digit:int) -> StringName:

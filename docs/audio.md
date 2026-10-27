@@ -99,6 +99,18 @@ The five existing music tracks are unchanged.
 - The MIDI source and the stereo master are also saved in the Audio Engine library project `lifesim`
   (`midi/creator_theme.mid`, `sounds/creator_theme.wav`).
 
+## Character voices in ordinary conversations (27 October 2026)
+
+Successful, non-argument conversations (`SimAgent.conversation` with `success` and not `argued`) now make both
+participants speak a short wordless line in **their own voice** (`VoiceSynth`, see
+[character-creator.md](character-creator.md#voice-27-october-2026-scheduled-run)): style cheerful when the average
+conversation mood is ≥ 25, sad when ≤ −25, otherwise calm. Lines are 1.3 s at 16 kHz, synthesised in
+`WorkerThreadPool` (main thread only polls finished tasks), cached in a 24-entry LRU (3 sentence variants per voice),
+played as `AudioStreamPlayer3D` at the head (unit size 3, max distance 28 m, attenuation filter). Limits: 9 s
+cooldown per character, only within 12 m of the selected character, no lines at the fastest speed, at most 4 pending
+syntheses and the shared limit of 3 voices. Argument voices keep their pre-rendered files. Everything is local
+cosmetics on each peer; nothing is sent over the network.
+
 ## Tests
 
 `tests/test_audio_tone.tscn` – 222 checks: song data (all five tracks, known instruments, ranges, no v2
@@ -108,6 +120,12 @@ brightness of the rendered morning track between night and day, v2 instruments (
 (seam jump compared with the file's own 99th percentile of sample-to-sample differences, minimum tolerance 0.035),
 rendered files (no clipping, not silent, loop flags), ambience by hour, argument voices (pitch from voice data,
 rough variant, cooldown, limit, fast time, cleanup), tension rise/duck/fade, door slam with freed parent.
+
+`tests/test_voice.tscn` – 86 checks: VoiceSynth parameter ranges, sanitising of NaN/inf/text/out-of-range input,
+duration cap, bit-exact determinism, 15 voice x style signal checks, measured f0 within 15 % of target, brightness by
+timbre, syllable rate by tempo, periodicity by roughness and whisper, independence from identity/body/name,
+performance, validator rejection of invalid voice values, randomizer distribution independent of gender identity,
+creator/editor UI (draft, Undo/Redo coalescing, async preview, Create, Apply) and conversation voices in AudioManager.
 
 `tests/test_audio_engine_sfx.tscn` – 164 checks: every Audio Engine file (mono/22 050/16-bit, peak 0.2–0.8, no
 clipping, not silent, `.import` keep), action mapping against the action library, no doubled object sounds,

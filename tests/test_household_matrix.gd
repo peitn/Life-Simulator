@@ -10,6 +10,8 @@ const Main := preload("res://main.gd")
 
 var SIZES: Array = [4, 6, 8]
 var SEEDS := 4
+var SEED_START := 0
+var OWNER_RUN_ID := ""
 var DAYS := 30
 const MID_DAY := 14
 const SAMPLE_EVERY := 30          # kroků po 2 min → vzorek každou herní hodinu
@@ -46,24 +48,55 @@ func _parse_args() -> void:
 	i = a.find("--seeds")
 	if i >= 0 and i + 1 < a.size() and a[i + 1].is_valid_int():
 		SEEDS = clampi(int(a[i + 1]), 1, 16)
+	i = a.find("--seed-start")
+	if i >= 0 and i + 1 < a.size() and a[i + 1].is_valid_int():
+		SEED_START = clampi(int(a[i + 1]), 0, 15)
+	i = a.find("--owner-run-id")
+	if i >= 0 and i + 1 < a.size():
+		var candidate: String = a[i + 1]
+		if candidate.begins_with("main-") and candidate.is_valid_filename() and candidate.length() <= 64:
+			OWNER_RUN_ID = candidate
+		else:
+			OWNER_RUN_ID = "INVALID"
 	i = a.find("--days")
 	if i >= 0 and i + 1 < a.size() and a[i + 1].is_valid_int():
 		DAYS = clampi(int(a[i + 1]), 1, 60)
 
 
 func _run() -> void:
+	if SEED_START + SEEDS > 16 or OWNER_RUN_ID == "INVALID":
+		check(false, "valid seed range and safe owner run ID")
+		finish("test_household_matrix")
+		return
 	check(pool.size() >= 8, "pool 8 testovacích postav (stress7 + extra)", "%d" % pool.size())
 	await _test_determinism()
 	for n in SIZES:
 		var runs: Array = []
-		for sd in SEEDS:
+		for sd in range(SEED_START, SEED_START + SEEDS):
 			runs.append(await _run_one(n, sd))
 		_aggregate(n, runs)
 	_tomas_summary()
-	var f := FileAccess.open("res://previews/testlogs/household_matrix.json", FileAccess.WRITE)
+	var output_path := "res://previews/testlogs/household_matrix.json"
+	if not OWNER_RUN_ID.is_empty():
+		var Guard = load("res://tools/automation_lock.gd")
+		if not Guard.owns(OWNER_RUN_ID):
+			check(false, "matrix report write requires current automation lock ownership")
+			Main.household_override = []
+			finish("test_household_matrix")
+			return
+		var size_labels := PackedStringArray()
+		for n in SIZES:
+			size_labels.append(str(n))
+		output_path = "res://previews/testlogs/household_matrix_%s_s%s_seed%d_n%d_d%d.json" % [OWNER_RUN_ID, "-".join(size_labels), SEED_START, SEEDS, DAYS]
+	report["provenance"] = {"sizes": SIZES.duplicate(), "seed_start": SEED_START, "seed_count": SEEDS, "days": DAYS, "test_sha256": FileAccess.get_sha256("res://tests/test_household_matrix.gd"), "ocd_sha256": FileAccess.get_sha256("res://scripts/sim/ocd_loop.gd")}
+	var encoded := JSON.stringify(report, " ")
+	var f := FileAccess.open(output_path, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify(report, " "))
+		f.store_string(encoded)
 		f.close()
+		check(FileAccess.get_file_as_string(output_path) == encoded, "matrix shard report saved and verified")
+	else:
+		check(false, "matrix shard report could not be opened for writing")
 	Main.household_override = []
 	finish("test_household_matrix")
 

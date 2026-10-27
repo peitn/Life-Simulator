@@ -118,6 +118,10 @@ func _test_loop() -> void:
 	check(c1.trigger_for_action("snack", ["food"]) > 0.0 and c2.trigger_for_action("snack", ["food"]) == 0.0,
 		"rozmanitost: stejná závažnost, jiné téma → jiné spouštěče")
 
+	section("Validace celočíselných čítačů OCD snapshotu")
+	for bad in [{"rituals": -1}, {"resisted": -1}, {"rituals": 0.5}, {"last_evening": 1.7}, {"rituals": NAN}, {"last_evening": NAN}, {"resisted": INF}]:
+		check(not OcdLoop.validate_snapshot(bad), "neplatný čítač odmítnut: " + str(bad.keys()[0]) + " = " + str(bad.values()[0]))
+	check(OcdLoop.validate_snapshot({"rituals": 0, "resisted": 0, "last_evening": -1}), "platné nulové čítače a sentinel -1")
 
 func _find(world: Node, first: String) -> Node:
 	for s in world.sims:
@@ -182,6 +186,11 @@ func _test_world() -> void:
 	var bad: Dictionary = snap["data"].duplicate(true)
 	bad["sims"][0]["state"]["psyche_ext"]["ocd"]["obsession"] = 2.0
 	check(not SaveGame.apply(world, bad)["ok"], "neplatný stav se odmítne")
+	var before_bad_count: Dictionary = SaveGame.capture(world)["data"]
+	var bad_count: Dictionary = snap["data"].duplicate(true)
+	bad_count["sims"][0]["state"]["psyche_ext"]["ocd"]["rituals"] = -1
+	check(not SaveGame.apply(world, bad_count)["ok"], "neplatný čítač OCD se odmítne při obnově uložené hry")
+	check(SaveGame.capture(world)["data"] == before_bad_count, "odmítnutý OCD snapshot nezměnil svět")
 	j2._update_net(100.0)
 	var det := JSON.stringify(j2._build_detail())
 	check(not det.contains("obsession") and not det.contains("habit"), "net_detail bez vnitřního stavu OCD")

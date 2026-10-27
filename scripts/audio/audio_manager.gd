@@ -17,9 +17,13 @@ extends Node
 ## - zvuky z konektoru Audio Engine (EngineSfx, res://audio/engine/): kroky podle povrchu,
 ##   listování/telefon/deník, lednice a lahev, peřina, noční hodiny, hudba editoru postavy;
 ##   bouchnutí dveří podle stresu a temperamentu (slam_chance).
+## - hlasy v běžném rozhovoru (VoiceSynth): každá postava mluví vlastním hlasem z
+##   CharacterData.voice (výška, barva, tempo, chraplavost), styl podle nálady rozhovoru;
+##   syntéza běží ve WorkerThreadPool (bez záseku snímku) a výsledky jsou v malé LRU cache.
 
 const WavLoader := preload("res://scripts/audio/wav_loader.gd")
 const EngineSfx := preload("res://scripts/audio/engine_sfx.gd")
+const VoiceSynth := preload("res://scripts/audio/voice_synth.gd")
 const MUSIC_DIR := "res://audio/music/"
 const SFX_DIR := "res://audio/sfx/"
 const CROSSFADE := 3.0
@@ -39,11 +43,21 @@ const SLAM_CHANCE := 0.3
 ## Rozsah šance na bouchnutí dveří (slam_chance): klidná postava skoro nikdy, vznětlivá ve stresu často.
 const SLAM_CHANCE_MIN := 0.05
 const SLAM_CHANCE_MAX := 0.75
+## Běžný rozhovor: odstup mezi replikami jedné postavy (s), doslech od vybrané postavy (m),
+## délka repliky (s), vzorkovací frekvence, počet variant vět na postavu a velikost cache.
+const CHAT_VOICE_COOLDOWN := 9.0
+const CHAT_HEAR_DIST := 12.0
+const CHAT_VOICE_SECONDS := 1.3
+const CHAT_VOICE_SR := 16000
+const CHAT_VARIANTS := 3
+const CHAT_CACHE_MAX := 24
+const CHAT_MAX_JOBS := 4
 
 var main: Node = null
 var current_track := ""
 var melancholy := false
-var stats := {"track_changes": 0, "object_starts": 0, "object_stops": 0, "ui": 0, "voices": 0, "slams": 0}
+var stats := {"track_changes": 0, "object_starts": 0, "object_stops": 0, "ui": 0, "voices": 0, "slams": 0,
+	"chat_voices": 0, "chat_renders": 0, "chat_cache_hits": 0}
 ## Úroveň napětí 0..1 (vyhlazená) a její složky – čte test a HUD/debug.
 var tension := 0.0
 var conflict_env := 0.0
@@ -78,6 +92,11 @@ var _arng := RandomNumberGenerator.new()
 var _music_bus := -1
 var _music_db_set := 1000.0
 var engine: Node = null
+var _chat_cache := {}       # klíč VoiceSynth.cache_key → AudioStreamWAV
+var _chat_order: Array = [] # LRU pořadí klíčů
+var _chat_last := {}        # Sim -> čas poslední repliky (s)
+var _chat_variant := {}     # Sim -> další varianta věty
+var _chat_jobs: Array = []  # [{"task": int, "key": String, "out": Array, "sim": Node, "delay": float}]
 
 
 func _ready() -> void:
@@ -184,6 +203,8 @@ func register_sim(sim: Node) -> void:
 		engine.register_sim(sim)
 	if sim.has_signal("social_event"):
 		sim.social_event.connect(_on_social_event)
+	if sim.has_signal("conversation") and not sim.conversation.is_connected(_on_conversation):
+		sim.conversation.connect(_on_conversation)
 
 
 # ---------------------------------------------------------------- hudba
@@ -286,6 +307,7 @@ func heartbeats() -> int:
 
 func _process(delta: float) -> void:
 	_now += delta
+	_poll_chat_jobs()
 	_update_heart(delta)
 	_update_tension(delta)
 	_track_time += delta
@@ -490,6 +512,165 @@ func _on_conflict(sim: Node3D) -> void:
 		var where := sim.global_position
 		var parent := sim.get_parent()
 		get_tree().create_timer(_arng.randf_range(3.5, 6.0)).timeout.connect(_play_slam.bind(parent, where))
+
+
+# ---------------------------------------------------------------- hlasy v rozhovoru
+
+## Běžný rozhovor (ne hádka – ta má vlastní hlasy v _on_conflict): obě postavy promluví
+## svým hlasem. Jen v doslechu vybrané postavy, ne při rychlém čase, s odstupem a limitem.
+func _on_conversation(sim: Node3D, partner: Node3D, info: Dictionary) -> void:
+	if not bool(info.get("success", false)) or bool(info.get("argued", false)):
+		return
+	if speed_index >= 3:
+		return
+	var style := chat_style(float(info.get("avg_mood", 0.0)))
+	var first := true
+	for who in [sim, partner]:
+		if who == null or not is_instance_valid(who) or not who.is_inside_tree():
+			continue
+		if not _within_hearing(who):
+			continue
+		if _now - float(_chat_last.get(who, -100.0)) < CHAT_VOICE_COOLDOWN:
+			continue
+		_chat_last[who] = _now
+		request_chat_voice(who, style, 0.0 if first else _arng.randf_range(0.6, 1.1))
+		first = false
+	if _chat_last.size() > 32:
+		for k in _chat_last.keys():
+			if not is_instance_valid(k):
+				_chat_last.erase(k)
+				_chat_variant.erase(k)
+
+
+## Styl repliky podle průměrné nálady rozhovoru (veřejně viditelné chování, ne soukromý stav).
+static func chat_style(avg_mood: float) -> String:
+	if not is_finite(avg_mood):
+		return "klidne"
+	if avg_mood >= 25.0:
+		return "vesele"
+	if avg_mood <= -25.0:
+		return "smutne"
+	return "klidne"
+
+
+func _within_hearing(who: Node3D) -> bool:
+	var sel = main.get_selected_sim() if main != null else null
+	if sel == null or not is_instance_valid(sel) or sel == who or not (sel is Node3D):
+		return true
+	return (sel as Node3D).global_position.distance_to(who.global_position) <= CHAT_HEAR_DIST
+
+
+## Hlas z veřejného snapshotu postavy (look.voice). Nic jiného (tělo, rod…) se nečte.
+static func chat_voice_of(sim: Object) -> Dictionary:
+	var look = sim.get("look") if sim != null else null
+	if look is Dictionary and look.get("voice") is Dictionary:
+		return VoiceSynth.quantized(look["voice"])
+	return VoiceSynth.quantized({})
+
+
+## Replika postavy: z cache hned, jinak syntéza na pozadí a přehrání po dokončení.
+func request_chat_voice(who: Node3D, style: String, delay := 0.0) -> void:
+	var voice := chat_voice_of(who)
+	var variant: int = int(_chat_variant.get(who, 0))
+	_chat_variant[who] = (variant + 1) % CHAT_VARIANTS
+	var key := VoiceSynth.cache_key(voice, style, variant, CHAT_VOICE_SECONDS)
+	if _chat_cache.has(key):
+		stats["chat_cache_hits"] += 1
+		_chat_order.erase(key)
+		_chat_order.append(key)
+		_play_chat_stream(who, _chat_cache[key], delay)
+		return
+	if _chat_jobs.size() >= CHAT_MAX_JOBS:
+		return
+	var out: Array = []
+	var task := WorkerThreadPool.add_task(_render_chat_job.bind(voice, style, variant, out), false, "voice")
+	_chat_jobs.append({"task": task, "key": key, "out": out, "sim": who, "delay": delay})
+
+
+## Běží ve vlákně: jen čistá statická syntéza + zakódování do vlastního pole, žádný přístup
+## ke scéně. Hlavní vlákno pole čte až po is_task_completed + wait_for_task_completion.
+static func _render_chat_job(voice: Dictionary, style: String, variant: int, out: Array) -> void:
+	out.append(VoiceSynth.to_stream(VoiceSynth.render(voice, style, variant, CHAT_VOICE_SECONDS, CHAT_VOICE_SR), CHAT_VOICE_SR))
+
+
+func _poll_chat_jobs() -> void:
+	if _chat_jobs.is_empty():
+		return
+	var still: Array = []
+	for job in _chat_jobs:
+		if not WorkerThreadPool.is_task_completed(int(job["task"])):
+			still.append(job)
+			continue
+		WorkerThreadPool.wait_for_task_completion(int(job["task"]))
+		var out: Array = job["out"]
+		if out.is_empty():
+			continue
+		var stream: AudioStreamWAV = out[0]
+		stats["chat_renders"] += 1
+		var key := String(job["key"])
+		_chat_cache[key] = stream
+		_chat_order.erase(key)
+		_chat_order.append(key)
+		while _chat_order.size() > CHAT_CACHE_MAX:
+			_chat_cache.erase(_chat_order.pop_front())
+		var who = job["sim"]
+		if is_instance_valid(who) and who.is_inside_tree():
+			_play_chat_stream(who, stream, float(job["delay"]))
+	_chat_jobs = still
+
+
+## Pro testy: počká na všechny rozpracované repliky a zpracuje je.
+func flush_chat_jobs_for_test() -> void:
+	for job in _chat_jobs:
+		WorkerThreadPool.wait_for_task_completion(int(job["task"]))
+	var tasks := _chat_jobs.duplicate()
+	_chat_jobs.clear()
+	for job in tasks:
+		var out: Array = job["out"]
+		if out.is_empty():
+			continue
+		var stream: AudioStreamWAV = out[0]
+		stats["chat_renders"] += 1
+		_chat_cache[String(job["key"])] = stream
+		_chat_order.append(String(job["key"]))
+		while _chat_order.size() > CHAT_CACHE_MAX:
+			_chat_cache.erase(_chat_order.pop_front())
+		var who = job["sim"]
+		if is_instance_valid(who) and who.is_inside_tree():
+			_play_chat_stream(who, stream, float(job["delay"]))
+
+
+func chat_cache_size() -> int:
+	return _chat_cache.size()
+
+
+func _play_chat_stream(who: Node3D, stream: AudioStreamWAV, delay: float) -> void:
+	if active_voices() >= MAX_VOICES:
+		return
+	var p := AudioStreamPlayer3D.new()
+	p.name = "ChatVoice"
+	p.stream = stream
+	p.bus = "SFX"
+	p.unit_size = 3.0
+	p.max_distance = 28.0
+	p.attenuation_filter_cutoff_hz = 2200.0
+	p.attenuation_filter_db = -12.0
+	p.position = Vector3(0, 1.6, 0)
+	p.volume_db = -7.0
+	who.add_child(p)
+	if delay > 0.0 and is_inside_tree():
+		get_tree().create_timer(delay).timeout.connect(_play_if_alive.bind(p))
+	else:
+		p.play()
+	p.finished.connect(p.queue_free)
+	_voices.append(p)
+	stats["chat_voices"] += 1
+
+
+func _exit_tree() -> void:
+	for job in _chat_jobs:
+		WorkerThreadPool.wait_for_task_completion(int(job["task"]))
+	_chat_jobs.clear()
 
 
 func _play_if_alive(p) -> void:

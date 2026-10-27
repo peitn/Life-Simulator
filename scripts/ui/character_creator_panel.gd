@@ -9,6 +9,7 @@ const Wardrobe := preload("res://scripts/assets/subculture_wardrobe.gd")
 const Preview := preload("res://scripts/ui/character_preview.gd")
 const SliderEditor := preload("res://scripts/ui/personality_slider_editor.gd")
 const AppearanceEditor := preload("res://scripts/ui/appearance_slider_editor.gd")
+const VoiceEditor := preload("res://scripts/ui/voice_editor.gd")
 
 var main: Node
 var _session := Session.new()
@@ -24,6 +25,7 @@ var _style: OptionButton
 var _visual_preview: VBoxContainer
 var _sliders: VBoxContainer
 var _appearance: VBoxContainer
+var _voice: VBoxContainer
 var _status: Label
 var _undo: Button
 var _redo: Button
@@ -129,6 +131,10 @@ func _ready() -> void:
     _appearance.appearance_changed.connect(_on_appearance_changed)
     body.add_child(_appearance)
     body.add_child(HSeparator.new())
+    _voice = VoiceEditor.new()
+    _voice.voice_changed.connect(_on_voice_changed)
+    body.add_child(_voice)
+    body.add_child(HSeparator.new())
     _sliders = SliderEditor.new()
     _sliders.custom_minimum_size = Vector2(0, 370)
     _sliders.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -198,11 +204,12 @@ func _refresh() -> void:
     cd.set_from_dict(data)
     _sliders.load_character(cd)
     _appearance.load_data(data)
+    _voice.load_data(data)
     _undo.disabled = not _session.can_undo()
     _redo.disabled = not _session.can_redo()
 
-func _push(data: Dictionary, description: String, redraw_sliders := true) -> void:
-    if not _session.replace_draft(data, description):
+func _push(data: Dictionary, description: String, redraw_sliders := true, coalesce := "") -> void:
+    if not _session.replace_draft(data, description, coalesce):
         return
     if redraw_sliders:
         _refresh()
@@ -268,6 +275,15 @@ func _on_appearance_changed(group: String, key: String, value: Variant) -> void:
     var data: Dictionary = _session.draft()
     data[group][key] = value
     _push(data, "Appearance: " + group + "." + key, false)
+
+
+## Hlas: jen známá číselná pole skupiny voice; rozsahy ještě jednou ověří validátor při Vytvořit.
+func _on_voice_changed(key: String, value: float) -> void:
+    if not _session.is_open() or not Schema.fields("voice").has(key) or not is_finite(value):
+        return
+    var data: Dictionary = _session.draft()
+    data["voice"][key] = value
+    _push(data, "Voice: " + key, false, "voice:" + key)
 
 
 func _on_sliders_changed(group: String, _key: String, _value: float) -> void:

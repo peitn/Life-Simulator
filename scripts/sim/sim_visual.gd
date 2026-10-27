@@ -16,6 +16,7 @@ const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
 const SkinLayers := preload("res://scripts/character/skin_layers.gd")
 const HairRig := preload("res://scripts/assets/hair_rig.gd")
 const HandDetailBuilder := preload("res://scripts/assets/hand_detail_builder.gd")
+const FingerSubrigC15 := preload("res://scripts/assets/finger_phalange_subrig_c15.gd")
 const FootDetailBuilder := preload("res://scripts/assets/foot_detail_builder.gd")
 const TorsoDetailBuilder := preload("res://scripts/assets/torso_detail_builder.gd")
 const AnatomyOverlay := preload("res://scripts/assets/anatomy_overlay.gd")
@@ -94,6 +95,12 @@ var _hand_skin_material: StandardMaterial3D
 var _hand_nail_material: StandardMaterial3D
 ## Private render-only hand pose; no CharacterData or multiplayer field.
 var _hand_pose_name := "open"
+## Per-digit mode keeps legacy one-slider gestures mutually exclusive with
+## C14 two-joint proximal/distal pose morphs, avoiding duplicate deformation.
+var _finger_joint_modes: Dictionary = {}
+var _finger_skeletal_view := false
+var _finger_skeletal_anchors: Dictionary = {}
+var _finger_skin_before_skeleton: Array = []
 ## Barefoot anatomy shares original foot bones and ten clothing/body morphs.
 var _foot_detail_nodes: Array = []
 var _foot_skin_material: StandardMaterial3D
@@ -155,16 +162,86 @@ func set_finger_curl(side: String, finger: int, strength: float) -> bool:
 		return false
 	var digit: int = finger + (5 if side == "l" else 0)
 	var key: StringName = HandDetailBuilder.curl_key(digit)
+	var joint_a: StringName = HandDetailBuilder.joint_key(digit,"proximal")
+	var joint_b: StringName = HandDetailBuilder.joint_key(digit,"distal")
+	# Validate ALL target shapes before mutation, fail atomically if absent.
 	for instance in _hand_detail_nodes:
 		var mesh_instance: MeshInstance3D = instance
-		var idx: int = mesh_instance.find_blend_shape_by_name(key)
-		if idx < 0:
-			return false
+		for shape in [key,joint_a,joint_b]:
+			if mesh_instance.find_blend_shape_by_name(shape) < 0:
+				return false
 	for instance in _hand_detail_nodes:
 		var mesh_instance: MeshInstance3D = instance
-		var idx: int = mesh_instance.find_blend_shape_by_name(key)
-		mesh_instance.set_blend_shape_value(idx, strength)
+		mesh_instance.set_blend_shape_value(
+			mesh_instance.find_blend_shape_by_name(joint_a),0.0)
+		mesh_instance.set_blend_shape_value(
+			mesh_instance.find_blend_shape_by_name(joint_b),0.0)
+		mesh_instance.set_blend_shape_value(
+			mesh_instance.find_blend_shape_by_name(key),strength)
+	_finger_joint_modes[str(digit)] = "legacy"
+	if _finger_skeletal_view and _finger_skeletal_anchors.has(side):
+		var anchor:BoneAttachment3D=_finger_skeletal_anchors[side]
+		FingerSubrigC15.bend(anchor,finger,"proximal",strength)
+		FingerSubrigC15.bend(anchor,finger,"distal",strength)
 	return true
+
+
+## C14 two independent GPU bending regions per digit. Unlike the original
+## combined curl, proximal and distal strengths may be different. Both target
+## the exact same digit on the skinned hand mesh AND its corresponding nail.
+## Visual morphs only; they do not create physical finger joint constraints.
+func set_finger_joint_bend(side: String, finger: int,
+		joint: String, strength: float) -> bool:
+	if side not in ["l","r"] or finger < 0 or finger >= 5:
+		return false
+	if joint not in ["proximal","distal"] or not is_finite(strength):
+		return false
+	if strength < 0.0 or strength > 1.0 or _hand_detail_nodes.size() != 2:
+		return false
+	var digit: int = finger + (5 if side=="l" else 0)
+	var legacy: StringName = HandDetailBuilder.curl_key(digit)
+	var first: StringName = HandDetailBuilder.joint_key(digit,"proximal")
+	var second: StringName = HandDetailBuilder.joint_key(digit,"distal")
+	var chosen: StringName = first if joint=="proximal" else second
+	for instance in _hand_detail_nodes:
+		var mi:MeshInstance3D=instance
+		for name in [legacy,first,second]:
+			if mi.find_blend_shape_by_name(name)<0:
+				return false
+	for instance in _hand_detail_nodes:
+		var mi:MeshInstance3D=instance
+		if _finger_joint_modes.get(str(digit),"legacy")!="joint":
+			mi.set_blend_shape_value(mi.find_blend_shape_by_name(legacy),0.0)
+		mi.set_blend_shape_value(mi.find_blend_shape_by_name(chosen),strength)
+	_finger_joint_modes[str(digit)]="joint"
+	if _finger_skeletal_view and _finger_skeletal_anchors.has(side):
+		# Resynchronize both real bones: switching from combined curl to joint
+		# mode clears the other GPU joint, which otherwise retains a stale pose.
+		var current:Dictionary=finger_joint_values(side,finger)
+		var anchor:BoneAttachment3D=_finger_skeletal_anchors[side]
+		FingerSubrigC15.bend(anchor,finger,"proximal",float(current.get("proximal",0.0)))
+		FingerSubrigC15.bend(anchor,finger,"distal",float(current.get("distal",0.0)))
+	return true
+
+
+func finger_joint_values(side:String,finger:int) -> Dictionary:
+	if side not in ["l","r"] or finger<0 or finger>=5 or _hand_detail_nodes.size()!=2:
+		return {}
+	var digit:int=finger+(5 if side=="l" else 0)
+	var mi:MeshInstance3D=_hand_detail_nodes[0]
+	var keys:Array=[
+		HandDetailBuilder.curl_key(digit),
+		HandDetailBuilder.joint_key(digit,"proximal"),
+		HandDetailBuilder.joint_key(digit,"distal")]
+	var values:Array=[]
+	for shape in keys:
+		var index:int=mi.find_blend_shape_by_name(shape)
+		if index<0:return {}
+		values.append(mi.get_blend_shape_value(index))
+	return {
+		"mode":_finger_joint_modes.get(str(digit),"legacy"),
+		"combined":values[0],"proximal":values[1],"distal":values[2]
+	}
 
 
 ## Reusable genuine gestures for both hands. This is an appearance animation
@@ -186,6 +263,52 @@ func set_hand_pose(pose: String) -> bool:
 				return false
 	_hand_pose_name = pose
 	return true
+
+
+## Opt-in 28-phalange genuine Skeleton3D demonstration on the actual 17-bone
+## animated game character. Never sent to server or serialized.
+func set_finger_skeletal_view(enabled:bool) -> bool:
+	if not enabled:
+		for anchor in _finger_skeletal_anchors.values():
+			if is_instance_valid(anchor):
+				(anchor as BoneAttachment3D).visible=false
+		for item in _finger_skin_before_skeleton:
+			if is_instance_valid(item[0]):
+				(item[0] as MeshInstance3D).visible=bool(item[1])
+		_finger_skin_before_skeleton.clear()
+		_finger_skeletal_view=false
+		return true
+	if _hand_detail_nodes.size()!=2 or _skeleton()==null:
+		return false
+	for side in ["l","r"]:
+		if not _finger_skeletal_anchors.has(side):
+			var anchor=FingerSubrigC15.create_hand(_skeleton(),side)
+			if anchor==null:
+				return false
+			_finger_skeletal_anchors[side]=anchor
+	if not _finger_skeletal_view:
+		for item in _hand_detail_nodes:
+			var mi:MeshInstance3D=item
+			_finger_skin_before_skeleton.append([mi,mi.visible])
+			mi.visible=false
+	for side in ["l","r"]:
+		var anchor:BoneAttachment3D=_finger_skeletal_anchors[side]
+		anchor.visible=true
+		for finger in 5:
+			var state:Dictionary=finger_joint_values(side,finger)
+			var proximal:float=float(state.get("proximal",0))
+			var distal:float=float(state.get("distal",0))
+			if state.get("mode","legacy")=="legacy":
+				proximal=float(state.get("combined",0))
+				distal=proximal
+			FingerSubrigC15.bend(anchor,finger,"proximal",proximal)
+			FingerSubrigC15.bend(anchor,finger,"distal",distal)
+	_finger_skeletal_view=true
+	return true
+
+
+func finger_skeletal_view() -> bool:
+	return _finger_skeletal_view
 
 
 func hand_pose_name() -> String:
@@ -493,7 +616,9 @@ func _build_model() -> void:
 	_build_hair_parts()
 	_build_hand_details()
 	_build_foot_details()
-	_build_torso_details()
+	# A 2162-vertex / ten-morph bare torso takes substantial CPU to assemble.
+	# Do not allocate it for any clothed character; build once on first explicit
+	# bare-top selection, then share the ArrayMesh between actors.
 	_anim = AnimationPlayer.new()
 	_anim.name = "Anim"
 	_model.add_child(_anim)
@@ -609,6 +734,10 @@ func _apply_model_variant() -> void:
 			continue
 		var grp := String(mi.name).get_slice("__", 0)
 		mi.visible = bool(show.get(grp, true))
+	# Ensure the first skinned torso exists BEFORE morphs and material updates.
+	# Ordinary dressed characters pay ZERO procedural torso construction cost.
+	if String(lp.get("outfit_top","tricko")) == "zadne" and 			_torso_detail_nodes.is_empty():
+		_build_torso_details()
 	_apply_outfit(lp)
 	apply_body_shape(lp)
 	apply_face_shape(lp)

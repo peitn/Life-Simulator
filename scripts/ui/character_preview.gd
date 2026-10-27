@@ -18,6 +18,8 @@ var _hand_detail_button: Button
 var _anatomy_picker: OptionButton
 var _finger_controls: VBoxContainer
 var _finger_sliders: Dictionary = {}
+var _finger_joint_container: VBoxContainer
+var _finger_joint_sliders: Dictionary = {}
 
 func _ready() -> void:
     name = "CharacterPreview"
@@ -120,6 +122,41 @@ func _ready() -> void:
             slider.value_changed.connect(_on_individual_finger_changed.bind(side,digit))
             row.add_child(slider)
             _finger_sliders[side+"_"+str(digit)] = slider
+    var joint_button := Button.new()
+    joint_button.name = "FingerJointDetailsButton"
+    joint_button.text = "Klouby prstů: základní / střední"
+    joint_button.tooltip_text = "Samostatné vizuální ohyby dvou oblastí každého prstu. Není to fyzikální kostra."
+    joint_button.pressed.connect(_toggle_finger_joint_controls)
+    _finger_controls.add_child(joint_button)
+    _finger_joint_container = VBoxContainer.new()
+    _finger_joint_container.name = "IndividualFingerJointControls"
+    _finger_joint_container.visible = false
+    _finger_controls.add_child(_finger_joint_container)
+    var skeletal_button := Button.new()
+    skeletal_button.name = "ActualFingerSkeletonButton"
+    skeletal_button.text = "Kostra článků prstů: vypnuto"
+    skeletal_button.tooltip_text = "Skutečná samostatně otáčená 28kostní 3D podkostra, pouze v náhledu."
+    skeletal_button.pressed.connect(_toggle_real_finger_skeleton)
+    _finger_controls.add_child(skeletal_button)
+    for side in ["l","r"]:
+        for digit in 5:
+            for joint in ["proximal","distal"]:
+                var row := HBoxContainer.new()
+                _finger_joint_container.add_child(row)
+                var label := Label.new()
+                label.custom_minimum_size = Vector2(160,0)
+                label.text = (("L " if side=="l" else "P ") +
+                    String(names[digit]) + (": základ" if joint=="proximal" else ": střed"))
+                row.add_child(label)
+                var slider := HSlider.new()
+                slider.name = "Joint_"+side+"_"+str(digit)+"_"+joint
+                slider.min_value = 0.0
+                slider.max_value = 1.0
+                slider.step = 0.01
+                slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+                slider.value_changed.connect(_on_finger_joint_changed.bind(side,digit,joint))
+                row.add_child(slider)
+                _finger_joint_sliders[side+"_"+str(digit)+"_"+joint] = slider
     var anatomy_row := HBoxContainer.new()
     anatomy_row.name = "AnatomyLayerRow"
     add_child(anatomy_row)
@@ -191,6 +228,28 @@ func _set_hand_pose_preview(index: int) -> void:
                 var widget: HSlider = _finger_sliders.get(side+"_"+str(digit))
                 if widget != null:
                     widget.set_value_no_signal(float(positions[pose][digit]))
+                for joint in ["proximal","distal"]:
+                    var jc:HSlider=_finger_joint_sliders.get(side+"_"+str(digit)+"_"+joint)
+                    if jc!=null:
+                        jc.set_value_no_signal(0.0)
+
+
+func _toggle_real_finger_skeleton() -> void:
+    if visual == null:
+        return
+    var enabled:bool=not visual.finger_skeletal_view()
+    if visual.set_finger_skeletal_view(enabled):
+        var button:Button=get_node_or_null(
+            "IndividualFingerControls/ActualFingerSkeletonButton")
+        if button!=null:
+            button.text=("Kostra článků prstů: zapnuto" if enabled
+                else "Kostra článků prstů: vypnuto")
+
+
+func _toggle_finger_joint_controls() -> void:
+    if _finger_joint_container==null:
+        return
+    _finger_joint_container.visible=not _finger_joint_container.visible
 
 
 func _toggle_finger_controls() -> void:
@@ -204,7 +263,21 @@ func _toggle_finger_controls() -> void:
 func _on_individual_finger_changed(value: float, side: String, digit: int) -> void:
     if visual == null or not is_finite(value):
         return
-    visual.set_finger_curl(side,digit,clampf(value,0.0,1.0))
+    if visual.set_finger_curl(side,digit,clampf(value,0.0,1.0)):
+        # Legacy whole-digit gesture and paired joint morphs are exclusive.
+        for joint in ["proximal","distal"]:
+            var slider:HSlider=_finger_joint_sliders.get(side+"_"+str(digit)+"_"+joint)
+            if slider!=null:
+                slider.set_value_no_signal(0.0)
+
+
+func _on_finger_joint_changed(value:float,side:String,digit:int,joint:String) -> void:
+    if visual==null or not is_finite(value):
+        return
+    if visual.set_finger_joint_bend(side,digit,joint,clampf(value,0.0,1.0)):
+        # Same digit's combined channel was zeroed. Other fingers untouched.
+        var slider:HSlider=_finger_sliders.get(side+"_"+str(digit))
+        if slider!=null:slider.set_value_no_signal(0.0)
 
 
 ## A client-local educational cutaway: changing this selector never updates

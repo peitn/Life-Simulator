@@ -22,15 +22,20 @@ func _ready() -> void:
 func _run() -> void:
     await get_tree().process_frame
     section("Torso source and safety")
-    check(visual.uses_model() and visual.torso_details_available(),
-        "actual character.glb contains all five anatomically enriched torso meshes")
+    check(visual.uses_model() and not visual.torso_details_available(),
+        "normal dressed actor does not allocate full procedural bare torso")
+    var first_bare := CD.create()
+    first_bare.clothing["bezne"]["top"]="zadne"
+    visual.apply_look(first_bare.public_snapshot())
+    check(visual.torso_details_available(),
+        "first explicit no-top choice builds all five proper skinned anatomy meshes")
     check(Schema.TOPS.has("zadne"),"validated optional no-top wardrobe choice exists")
     var sk:Skeleton3D=visual.get_node("Body/Model/Skeleton3D")
     check(sk.get_bone_count()==17,"real gameplay skeleton remains 17 functional animation bones")
     var nodes:Dictionary=visual.get("_torso_detail_nodes")
     check(nodes.size()==5,"surface, areola, nipple, umbilical rim and darker umbilical center")
     var expected_vertices:Dictionary={
-        "surface":830,"areola":66,"nipple":66,"navel_rim":33,"navel_dark":33}
+        "surface":2162,"areola":66,"nipple":66,"navel_rim":33,"navel_dark":33}
     for label in expected_vertices:
         var instance:MeshInstance3D=nodes[label]
         check(instance.mesh != null and instance.mesh.get_blend_shape_count()==10,
@@ -39,7 +44,7 @@ func _run() -> void:
             ==int(expected_vertices[label]),"real nonempty 3D anatomy mesh vertex count "+label)
         check(instance.skin.get_bind_count()==17 and instance.skeleton==NodePath(".."),
             "torso anatomy shares original skinned player model "+label)
-        check(not instance.visible,"clothing defaults to covering anatomical details "+label)
+        check(instance.visible,"explicit bare-top mode reveals skinned anatomical detail "+label)
     check(visual._hand_detail_nodes.size()==2,"existing 10 fingers and 10 nail plates preserved")
     check(visual._foot_detail_nodes.size()==2,"existing 10 toes and toenails preserved")
     section("Bare torso and materials")
