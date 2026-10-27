@@ -1,0 +1,1 @@
+| `test_withdrawal_avoidance` | Withdrawal by episode severity, the joy cap of severe episodes, conflict avoidance from stress and depression (topics off: stress only), the planner avoiding a person the character is sore at, apologies unaffected, swallowed complaints with their rumination cost | 22 ✅ |
