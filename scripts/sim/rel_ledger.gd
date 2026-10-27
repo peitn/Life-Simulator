@@ -40,6 +40,10 @@ func trust_in(who: String) -> float:
 	return clampf(float(trust.get(who, TRUST_BASE)), 0.0, 100.0)
 
 
+## Rychlost růstu důvěry z osobnostních akcentů (psychika D; podezíravost pomaleji). 1,0 = beze změny.
+var trust_gain_mult := 1.0
+
+
 func record_trust(who: String, kind: String, change: float) -> void:
 	if who.is_empty() or who.length() > 160 or not is_finite(change):
 		return
@@ -48,6 +52,8 @@ func record_trust(who: String, kind: String, change: float) -> void:
 	var h: Dictionary = relational_history.get(who, {})
 	h[kind] = mini(int(h.get(kind, 0)) + 1, 255)
 	relational_history[who] = h
+	if change > 0.0 and trust_gain_mult != 1.0:
+		change *= clampf(trust_gain_mult, 0.3, 1.5)
 	trust[who] = clampf(trust_in(who) + clampf(change, -20.0, 20.0), 0.0, 100.0)
 
 

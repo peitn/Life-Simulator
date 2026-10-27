@@ -498,3 +498,33 @@ owning player sees, in the offline HUD only, a notice and the crisis lines from 
 Modes: full; muted = weaker loops and no hopelessness; off = nothing.
 
 Tests: `tests/test_inner_voice.gd` (46 checks).
+
+### D. Personality accents (schema v13)
+
+Personality difficulties are a configurable personality with accentuated traits, not a "disorder
+switch". `mind.accents` holds eight 0..1 sliders: sensitivity to abandonment and emotional swings,
+suspiciousness, need for attention, perfectionism and rigidity, avoidance and inhibition (fear of
+criticism), dependency, grandiosity and need for admiration, detachment and emotional coolness.
+
+They act through the existing systems, so interpersonal patterns emerge instead of a script:
+- each accent is an entry in `Traits.ACCENTS` with the same parameters as traits (chemistry, argument
+  bias, grudge and guilt time, forgiveness, pride, stigma, jealousy, social need decay, appetite for
+  social or solitary actions, irritability, novelty, mood bias, joy from social contact) and is added to
+  the simulation trait profile as a weight `acc_<id>` (scaled by the content mode, rebuilt when the mode
+  changes at runtime). Accents are not legacy traits: they cannot be chosen as presets, are not in the
+  random generator, are never sent over the network and never appear in the public trait list;
+- hooks (`scripts/sim/personality_accents.gd`): the strength of reactions to rejection (abandonment,
+  attention, avoidance up; detachment down), appraisal of ambiguous intent (suspiciousness reads more
+  "on purpose"), perceived rejection after a good chat, how fast trust grows (`RelLedger.trust_gain_mult`),
+  the amplitude of emotional impulses (`EmotionalState.amplitude`: swings vs. blunting), learning of
+  emotional dependency on a person, the cost of social actions (avoidance, `MentalState.accent_social_cost`),
+  rumination loops (perfectionism ruminates failures, suspiciousness grievances), the pull to confide
+  (dependency) or to apologise (grandiosity less), a rejection turning into anger (grandiosity), and mood
+  entries when attention-seeking or dependent characters are alone.
+
+An interpretive label ("rysy emoční nestability (hraniční styl)", "paranoidní rysy" …) is an optional,
+private layer only: it appears in the owner's offline description only when `mind.accent_labels` is
+switched on in the editor, and it never changes behaviour. Without accents the trait profile and all
+hooks are exactly unchanged. Muted halves the accents, off removes them.
+
+Tests: `tests/test_personality_accents.gd` (36 checks).

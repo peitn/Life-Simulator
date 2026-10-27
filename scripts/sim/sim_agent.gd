@@ -139,6 +139,8 @@ var self_defectiveness_belief := 0.0
 var psy = PsycheExt.new()
 ## Stabilní interní uid postavy (z CharacterData; klíč sociální paměti, nikdy jméno). Soukromé.
 var char_uid := ""
+## Profil rysů bez osobnostních akcentů (akcenty se přidávají jako váhy acc_* podle režimu obsahu).
+var _base_trait_profile: Variant = []
 ## Private sexuality and consent. Never part of replicated net_detail.
 var intimacy = IntimacyState.new()
 var _intimacy_resolved := false
@@ -220,6 +222,7 @@ func setup(p_name: String, p_grammar: Variant, p_traits: Array, p_color: Color, 
 	grammar = Grammar.norm(p_grammar) if typeof(p_grammar) == TYPE_STRING else ("f" if bool(p_grammar) else "m")
 	trait_ids = p_traits
 	trait_profile = p_traits
+	_base_trait_profile = p_traits
 	body_color = p_color
 	world = p_world
 	rng.seed = p_seed
@@ -305,8 +308,10 @@ func apply_character_private(cd: Dictionary, initialize_sensitivity: bool = true
 	sensory.configure(dispositions)
 	char_uid = String(cd.get("uid", "")) if typeof(cd.get("uid", "")) == TYPE_STRING else ""
 	# Živá úprava v editoru (initialize_sensitivity = false) zachová naučený stav rozšíření psychiky.
+	_base_trait_profile = trait_profile
 	psy.configure(m, dispositions, _seed, not initialize_sensitivity)
 	sensory.channel_gain = psy.neuro.channel_gains(psy.k())
+	_apply_accents()
 
 
 ## Individuální vzorce průběhu (ne univerzální příznaky): {"morning_worse": true}.
@@ -471,6 +476,8 @@ func _extra_moodlets() -> Array:
 		out.append_array(psy.mood.mood_entries(psy.k(), mental.stress))
 	if psy != null and not psy.voice.loops.is_empty():
 		out.append_array(psy.voice.mood_entries(psy.k()))
+	if psy != null and not psy.accents.is_empty():
+		out.append_array(psy.accents.mood_entries(float(needs.values["social"])))
 	var gname := ""
 	var gmax := 0.0
 	for n in ledger.guilt:
@@ -1718,7 +1725,7 @@ func remember_social(other: Node3D, kind: String, severity: float, source := "se
 func interpret_intent(ambiguity: float) -> String:
 	if vigilance == null:
 		return "unclear"
-	var a: float = vigilance.appraisal("unclear_reply", ambiguity)
+	var a: float = vigilance.appraisal("unclear_reply", ambiguity) + psy.accents.appraisal_shift()
 	if a >= 0.55:
 		return "intended"
 	if a <= 0.3:
@@ -1771,6 +1778,7 @@ func _psyche_tick(dm: float) -> void:
 	if m != psy.mode:
 		psy.set_mode(m)
 		sensory.channel_gain = psy.neuro.channel_gains(psy.k())
+		_apply_accents()
 	# Sociální paměť vyhasíná u každého (hodinově); popisky vztahů s hysterezí jednou za herní hodinu.
 	var hour_before := int((now() - dm) / 60.0)
 	psy.memory.tick(dm)
@@ -1814,8 +1822,8 @@ func inner_trigger(topic: String, other: Node3D, amount: float) -> void:
 	if psy == null or _clock == null:
 		return
 	var nm := String(other.sim_name) if other != null else ""
-	var txt: String = psy.voice.trigger(topic, memory_key(other) if other != null else "", nm, amount, now(), psy.k(),
-		self_defectiveness_belief)
+	var txt: String = psy.voice.trigger(topic, memory_key(other) if other != null else "", nm,
+		amount * psy.accents.rumination_mult(topic), now(), psy.k(), self_defectiveness_belief)
 	_push_thought(txt, "inner_" + topic, String(other.grammar) if other != null else "m")
 
 
@@ -1873,6 +1881,37 @@ func _inner_tick(dm: float) -> void:
 				+ "Linka první psychické pomoci 116 123 (nonstop, zdarma), findahelpline.com.")
 	if was_hopeless < v.HOPELESS_SHOW and v.hopelessness >= v.HOPELESS_SHOW:
 		remember("Bylo mi hodně těžko")
+
+
+## Osobnostní akcenty: váhy acc_* do profilu rysů (existující parametry chemie, zášti, pýchy …) a háčky
+## do emocí, důvěry a náročnosti sociálních akcí. Bez akcentů zůstává profil přesně původní.
+func _apply_accents() -> void:
+	var acc: Dictionary = psy.accents.profile_weights()
+	if acc.is_empty():
+		if typeof(trait_profile) == typeof(_base_trait_profile) and trait_profile == _base_trait_profile:
+			emotions.amplitude = 1.0
+			ledger.trust_gain_mult = 1.0
+			mental.accent_social_cost = 0.0
+			return
+		trait_profile = _base_trait_profile
+	else:
+		var prof := {}
+		if typeof(_base_trait_profile) == TYPE_DICTIONARY:
+			prof = (_base_trait_profile as Dictionary).duplicate()
+		else:
+			for t in _base_trait_profile:
+				prof[String(t)] = 1.0
+		for key in acc:
+			prof[key] = acc[key]
+		trait_profile = prof
+	mental.trait_vuln = Traits.sum_param(trait_profile, "vulnerability")
+	mental.trait_dep = Traits.sum_param(trait_profile, "dep_vuln")
+	for kk in needs.decay_mult:
+		needs.decay_mult[kk] = 1.0
+	Traits.apply_decay(trait_profile, needs)
+	emotions.amplitude = psy.accents.emotion_amplitude()
+	ledger.trust_gain_mult = psy.accents.trust_gain_mult()
+	mental.accent_social_cost = psy.accents.social_cost()
 
 
 ## Průběh nálady: epizody, spánkový dluh, vazba depresivní fáze na existující depresivní zátěž.
@@ -1963,6 +2002,7 @@ func psyche_private_lines() -> PackedStringArray:
 	out.append_array(psy.mood.private_lines(psy.k()))
 	var gs := get_node_or_null("/root/GameSettings") if is_inside_tree() else null
 	out.append_array(psy.voice.private_lines(psy.k(), gs.CRISIS_LINES if gs != null else []))
+	out.append_array(psy.accents.private_lines())
 	return out
 
 
@@ -1977,7 +2017,8 @@ func restore_psyche(d: Variant) -> void:
 ## forced misinterpretation, deterministic under the character RNG seed.
 func perceived_rejection_chance() -> float:
 	var appraisal := vigilance.appraisal("unclear_reply", 0.7)
-	return clampf((appraisal - 0.34) * 0.30 + maxf(mental.aversive_arousal() - 50.0, 0.0) / 900.0, 0.0, 0.22)
+	var base := clampf((appraisal - 0.34) * 0.30 + maxf(mental.aversive_arousal() - 50.0, 0.0) / 900.0, 0.0, 0.22)
+	return clampf(base + psy.accents.perceived_rejection_add(), 0.0, 0.3)
 
 
 ## Risk theme is opt-in and full mental-health presentation only.
@@ -2003,7 +2044,8 @@ func _on_rejection_cue(kind: String, other: Node3D, ambiguity := 0.0) -> Diction
 		mental.threat = clampf(mental.threat + vigilance.observe("unclear_reply", 0.5, ambiguity), 0.0, 1.0)
 	var regulation: float = mental.regulation(float(needs.values["energy"]), float(needs.values["hunger"]))
 	var response := rejection.on_cue(kind, importance, appraisal, mental.support, regulation)
-	var gain: float = float(response.get("stress", 0.0)) * mental.stress_gain_factor()
+	var rm: float = psy.accents.rejection_mult()
+	var gain: float = float(response.get("stress", 0.0)) * mental.stress_gain_factor() * rm
 	mental.stress = clampf(mental.stress + gain, 0.0, 100.0)
 	mental.arousal = clampf(mental.arousal + float(response.get("arousal", 0.0)), 0.0, 100.0)
 	if gain > 0.0:
@@ -2011,7 +2053,10 @@ func _on_rejection_cue(kind: String, other: Node3D, ambiguity := 0.0) -> Diction
 	# Perceived rejection describes an interpretation, not what the other intended.
 	emotions.impulse("rejection_perceived" if kind == "perceived" else (
 		"dismissed" if kind == "dismissed" else "rejection_real"), other.sim_name,
-		0.35 + clampf(float(response.get("distress_added", 0.0)) * 3.0, 0.0, 1.0))
+		(0.35 + clampf(float(response.get("distress_added", 0.0)) * 3.0, 0.0, 1.0)) * rm)
+	# Grandiozita: odmítnutí se mění spíš ve vztek než ve smutek (jen posun emocí, žádná akce).
+	if psy.accents.a("grandiosity") > 0.0:
+		emotions.shift("anger", 10.0 * psy.accents.a("grandiosity"), other.sim_name)
 	var added := float(response.get("distress_added", 0.0))
 	if added > 0.01:
 		var label := "Obavy z odmítnutí" if kind == "perceived" else "Zasáhlo ji odmítnutí"
@@ -2051,7 +2096,7 @@ func _learn_connection(other: Node3D) -> void:
 	ledger.learn_attachment(other.sim_name,
 		float(relationships.get(other.sim_name, 0.0)),
 		Traits.weight(trait_profile, "spolecensky"),
-		rejection.reactivity, reliable_alternatives)
+		clampf(float(rejection.reactivity) * psy.accents.attachment_mult(), 0.0, 1.0), reliable_alternatives)
 
 
 func set_attachment_to(who: String, importance: float, dependency: float) -> bool:

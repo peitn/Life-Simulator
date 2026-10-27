@@ -105,10 +105,16 @@ func configure(d: Dictionary) -> void:
 
 ## Explicit impulses represent an event, NOT probabilities or clinical scores.
 ## A named target is allowed only if it is a stable and valid NPC node name.
+## Amplituda emočních impulzů z osobnostních akcentů (psychika D): 1,0 = beze změny.
+var amplitude := 1.0
+
+
 func impulse(event_name: String, who: String = "", intensity: float = 1.0) -> void:
 	if not EVENTS.has(event_name) or not is_finite(intensity) or intensity <= 0.0:
 		return
 	var scale := clampf(intensity, 0.0, 3.0)
+	if amplitude != 1.0:
+		scale *= clampf(amplitude, 0.5, 1.6)
 	var rejection_weight := 0.7 + 0.6 * float(dispositions.get("rejection_reactivity", 0.5))
 	var reward_weight := 0.7 + 0.6 * float(dispositions.get("reward_sensitivity", 0.5))
 	if event_name in ["rejection_perceived", "rejection_real", "dismissed"]:

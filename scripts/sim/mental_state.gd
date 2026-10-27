@@ -200,6 +200,8 @@ var _hour := 12
 ## Háčky PsycheModel pro režimy obsahu {"full"|"muted"|"off": {...}} – jen reziduum individuality (viz
 ## psyche_model.gd); bez CharacterData neutrální (staré chování beze změny).
 var psy_hooks := {}
+## Přídavek k náročnosti sociálních akcí z osobnostních akcentů (vyhýbavost), 0 = beze změny.
+var accent_social_cost := 0.0
 var _couple_acc := 0.0
 
 
@@ -711,7 +713,7 @@ func avoidance(cfg: Dictionary = {}) -> float:
 
 func social_difficulty(cfg: Dictionary = {}) -> float:
 	var social := _cond_param("social", cfg) + trait_vuln * 0.5
-	return clampf((aversive_arousal() / 100.0) * (0.3 + social) + threat * social + float(_hk("social_cost", cfg, 0.0)), 0.0, 1.0)
+	return clampf((aversive_arousal() / 100.0) * (0.3 + social) + threat * social + float(_hk("social_cost", cfg, 0.0)) + accent_social_cost, 0.0, 1.0)
 
 
 ## Chuť na coping (pro utility AI). Nezdravé copingy lákají víc, když je postava vyčerpaná

@@ -76,6 +76,12 @@ func _build() -> void:
 	var mem: Dictionary = mind.get("memory", {})
 	for id in Schema.MEMORY_SLIDERS:
 		_row("memory", String(id), String(Schema.MEMORY_SLIDERS[id]), float(mem.get(id, 0.5)), 0.0, 1.0)
+	_section("Osobnostní akcenty (0 = bez akcentu, 1 = výrazně)")
+	_note("Zvýrazněné rysy, které mohou ve vztazích dělat potíže. Nejde o diagnózu ani o „záporáka“ – každý akcent má i lidský důvod.")
+	var acc: Dictionary = mind.get("accents", {})
+	for id in Schema.ACCENT_SLIDERS:
+		_row("accents", String(id), String(Schema.ACCENT_SLIDERS[id]), float(acc.get(id, 0.0)), 0.0, 1.0)
+	_bool_row("accent_labels", "Ukazovat soukromě i výkladový název (např. „rysy emoční nestability“)", bool(mind.get("accent_labels", false)))
 	_section("Vnitřní hlas (0,5 = průměr)")
 	_note("Myšlenky vznikají z toho, co se postavě děje; posuvníky jen mění, jak silně se k ní vracejí.")
 	var th: Dictionary = mind.get("thoughts", {})
@@ -105,6 +111,19 @@ func _neuro_section(mind: Dictionary) -> void:
 	for id in Schema.NEURO_SLIDERS:
 		_row("neuro", String(id), String(Schema.NEURO_SLIDERS[id]), float(nd.get(id, 0.0)), 0.0, 1.0)
 	_enum_row("interest_focus", "Kam směřuje hluboký zájem", Schema.INTEREST_FOCUS, String(mind.get("interest_focus", "reading")))
+
+
+## Zaškrtávací pole v `mind` (např. accent_labels).
+func _bool_row(field: String, title: String, current: bool) -> void:
+	var cb := CheckBox.new()
+	cb.name = "Bool_" + field
+	cb.text = title
+	cb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cb.button_pressed = current
+	cb.toggled.connect(func(on: bool):
+		character.mind[field] = on
+		character_changed.emit("mind_enum", field, 1.0 if on else 0.0))
+	_list.add_child(cb)
 
 
 func _note(text: String) -> void:

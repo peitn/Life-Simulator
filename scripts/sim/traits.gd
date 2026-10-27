@@ -103,6 +103,32 @@ const DEFS := {
 	},
 }
 
+## Osobnostní akcenty (psychika D, mind.accents): zvýrazněné rysy, které mohou dělat potíže ve vztazích.
+## Nejsou to legacy rysy (nedají se vybrat jako předvolba, neposílají se po síti, nejsou v náhodném
+## generátoru) – jen další váhy v trait_profile se stejnými parametry jako rysy. Id mají předponu acc_.
+## Klinické názvy (porucha osobnosti) jsou jen volitelný soukromý výklad (PersonalityAccents.labels).
+const ACCENTS := {
+	"acc_abandonment": {"label": "Citlivost na opuštění a emoční výkyvy",
+		"stress_gain": 1.3, "negative_scale": 1.25, "jealous": true, "grudge_tau": 0.8, "guilt_tau": 1.3,
+		"decay": {"social": 1.2}},
+	"acc_suspicious": {"label": "Podezíravost",
+		"chemistry": -0.08, "forgiveness": -0.12, "grudge_tau": 1.5, "support_accept": 0.75},
+	"acc_attention": {"label": "Potřeba pozornosti",
+		"decay": {"social": 1.35}, "tags": {"social": 1.4, "solo": 0.85}, "chemistry": 0.04, "argue_bias": 0.03},
+	"acc_perfectionism": {"label": "Perfekcionismus a rigidita",
+		"tags": {"hygiene": 1.3, "cooking": 1.15}, "irritability": 1.35, "guilt_tau": 1.4, "stress_gain": 1.1,
+		"novelty": 1.25},
+	"acc_avoidance": {"label": "Vyhýbavost a zábrany",
+		"tags": {"social": 0.65, "solo": 1.2, "quiet": 1.15}, "negative_scale": 1.15, "pride": 1.2},
+	"acc_dependency": {"label": "Závislost na druhých",
+		"decay": {"social": 1.35}, "tags": {"social": 1.2}, "support_accept": 1.3, "forgiveness": 0.08},
+	"acc_grandiosity": {"label": "Grandiozita a potřeba obdivu",
+		"pride": 0.4, "argue_bias": 0.05, "forgiveness": -0.06, "stigma": 0.15, "mood_bias": 2.0},
+	"acc_detachment": {"label": "Odstup a citový chlad",
+		"decay": {"social": 0.55}, "tags": {"social": 0.6, "solo": 1.15}, "chemistry": -0.1,
+		"moodlet_bonus": {"social": 0.7}},
+}
+
 const CONFLICTS := [["spolecensky", "samotar"], ["lenoch", "aktivni"], ["optimista", "brucoun"],
 	["optimista", "cynik"], ["brucoun", "cynik"]]
 
@@ -131,8 +157,12 @@ static func _ids(profile: Variant) -> Array:
 	return []
 
 
+static func _def(id: Variant) -> Dictionary:
+	return DEFS.get(id, ACCENTS.get(id, {}))
+
+
 static func label(id: String) -> String:
-	return String(DEFS.get(id, {}).get("label", id))
+	return String(_def(id).get("label", id))
 
 
 static func labels(ids: Array) -> String:
@@ -145,7 +175,7 @@ static func labels(ids: Array) -> String:
 static func apply_decay(profile: Variant, needs) -> void:
 	for id in _ids(profile):
 		var w := weight(profile, String(id))
-		var decay: Dictionary = DEFS.get(id, {}).get("decay", {})
+		var decay: Dictionary = _def(id).get("decay", {})
 		for k in decay:
 			needs.decay_mult[k] = float(needs.decay_mult.get(k, 1.0)) * lerpf(1.0, float(decay[k]), w)
 
@@ -153,7 +183,7 @@ static func apply_decay(profile: Variant, needs) -> void:
 static func tag_multiplier(profile: Variant, tag: String) -> float:
 	var m := 1.0
 	for id in _ids(profile):
-		var tags: Dictionary = DEFS.get(id, {}).get("tags", {})
+		var tags: Dictionary = _def(id).get("tags", {})
 		m *= lerpf(1.0, float(tags.get(tag, 1.0)), weight(profile, String(id)))
 	return m
 
@@ -161,7 +191,7 @@ static func tag_multiplier(profile: Variant, tag: String) -> float:
 static func moodlet_multiplier(profile: Variant, action_tags: Array) -> float:
 	var m := 1.0
 	for id in _ids(profile):
-		var bonus: Dictionary = DEFS.get(id, {}).get("moodlet_bonus", {})
+		var bonus: Dictionary = _def(id).get("moodlet_bonus", {})
 		var w := weight(profile, String(id))
 		for t in action_tags:
 			m *= lerpf(1.0, float(bonus.get(t, 1.0)), w)
@@ -171,21 +201,21 @@ static func moodlet_multiplier(profile: Variant, action_tags: Array) -> float:
 static func mood_bias(profile: Variant) -> float:
 	var b := 0.0
 	for id in _ids(profile):
-		b += float(DEFS.get(id, {}).get("mood_bias", 0.0)) * weight(profile, String(id))
+		b += float(_def(id).get("mood_bias", 0.0)) * weight(profile, String(id))
 	return b
 
 
 static func negative_scale(profile: Variant) -> float:
 	var s := 1.0
 	for id in _ids(profile):
-		s *= lerpf(1.0, float(DEFS.get(id, {}).get("negative_scale", 1.0)), weight(profile, String(id)))
+		s *= lerpf(1.0, float(_def(id).get("negative_scale", 1.0)), weight(profile, String(id)))
 	return s
 
 
 static func chemistry(profile: Variant) -> float:
 	var c := 0.0
 	for id in _ids(profile):
-		c += float(DEFS.get(id, {}).get("chemistry", 0.0)) * weight(profile, String(id))
+		c += float(_def(id).get("chemistry", 0.0)) * weight(profile, String(id))
 	return c
 
 
@@ -193,7 +223,7 @@ static func cravings(profile: Variant) -> Array:
 	var out: Array = []
 	for id in _ids(profile):
 		var w := weight(profile, String(id))
-		var c: Array = DEFS.get(id, {}).get("craving", [])
+		var c: Array = _def(id).get("craving", [])
 		if c.size() == 5 and w > 0.0:
 			out.append([c[0], float(c[1]) / maxf(w, 0.05), c[2], c[3], float(c[4]) * w])
 	return out
@@ -202,14 +232,14 @@ static func cravings(profile: Variant) -> Array:
 static func sum_param(profile: Variant, key: String) -> float:
 	var s := 0.0
 	for id in _ids(profile):
-		s += float(DEFS.get(id, {}).get(key, 0.0)) * weight(profile, String(id))
+		s += float(_def(id).get(key, 0.0)) * weight(profile, String(id))
 	return s
 
 
 static func mult_param(profile: Variant, key: String) -> float:
 	var m := 1.0
 	for id in _ids(profile):
-		m *= lerpf(1.0, float(DEFS.get(id, {}).get(key, 1.0)), weight(profile, String(id)))
+		m *= lerpf(1.0, float(_def(id).get(key, 1.0)), weight(profile, String(id)))
 	return m
 
 
@@ -217,7 +247,7 @@ static func mult_param(profile: Variant, key: String) -> float:
 static func flag_strength(profile: Variant, key: String) -> float:
 	var strength := 0.0
 	for id in _ids(profile):
-		if bool(DEFS.get(id, {}).get(key, false)):
+		if bool(_def(id).get(key, false)):
 			strength = maxf(strength, weight(profile, String(id)))
 	return strength
 
@@ -233,7 +263,7 @@ static func get_param(profile: Variant, key: String, fallback: float) -> float:
 	var total := 0.0
 	var weighted := 0.0
 	for id in _ids(profile):
-		var d: Dictionary = DEFS.get(id, {})
+		var d: Dictionary = _def(id)
 		if d.has(key):
 			var w := weight(profile, String(id))
 			total += w

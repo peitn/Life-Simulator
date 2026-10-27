@@ -54,7 +54,9 @@ extends RefCounted
 ##     spojité posuvníky 0..1 (chybějící = 0 = bez sklonu). Soukromé. Migrace v10 → v11 doplní {}.
 ## v12 (psychika I): mind.thoughts – styl vnitřního hlasu (sklon k ruminaci, ke starostem, k nadějným
 ##     myšlenkám), 0..1, chybějící = 0,5 = průměr. Soukromé. Migrace v11 → v12 doplní {}.
-const VERSION := 12
+## v13 (psychika D): mind.accents – zvýrazněné osobnostní rysy (0..1, 0 = bez akcentu) a mind.accent_labels
+##     (volitelný soukromý výklad názvem). Soukromé. Migrace v12 → v13 doplní {} a false.
+const VERSION := 13
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -221,6 +223,17 @@ const THOUGHT_SLIDERS := {
 	"worry": "Sklon k starostem o budoucnost",
 	"hope": "Nadějné a vlídné myšlenky",
 }
+## Osobnostní akcenty (v13): konfigurovatelná osobnost se zvýrazněnými rysy, ne „přepínač poruchy“.
+const ACCENT_SLIDERS := {
+	"abandonment": "Citlivost na opuštění a emoční výkyvy",
+	"suspicious": "Podezíravost a nedůvěra",
+	"attention": "Potřeba pozornosti",
+	"perfectionism": "Perfekcionismus a rigidita",
+	"avoidance": "Vyhýbavost a zábrany (strach z kritiky)",
+	"dependency": "Závislost na druhých",
+	"grandiosity": "Grandiozita a potřeba obdivu",
+	"detachment": "Odstup a citový chlad",
+}
 ## Oblast hlubokého zájmu (hloubka zájmu je posuvník; tady jen kam směřuje).
 const INTEREST_FOCUS := {
 	"reading": "Knihy a texty", "cooking": "Vaření", "exercise": "Pohyb a sport",
@@ -385,6 +398,8 @@ const GROUPS := {
 		"memory": ["axes", MEMORY_SLIDERS, 0.0, 1.0],      # v10: schopnosti paměti (0,5 = průměr)
 		"mood": ["axes", MOOD_SLIDERS, 0.0, 1.0],          # v11: průběh nálady (0 = bez sklonu)
 		"thoughts": ["axes", THOUGHT_SLIDERS, 0.0, 1.0],   # v12: styl vnitřního hlasu (0,5 = průměr)
+		"accents": ["axes", ACCENT_SLIDERS, 0.0, 1.0],     # v13: osobnostní akcenty (0 = bez akcentu)
+		"accent_labels": ["b", false],                     # v13: ukazovat soukromě i výkladový název
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},

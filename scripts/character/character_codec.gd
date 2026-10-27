@@ -170,6 +170,8 @@ static func migrate(d) -> Dictionary:
 		data = _v10_to_v11(data)
 	if v <= 11:
 		data = _v11_to_v12(data)
+	if v <= 12:
+		data = _v12_to_v13(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -317,6 +319,19 @@ static func _v11_to_v12(src: Dictionary) -> Dictionary:
 	var mind = d.get("mind", null)
 	if typeof(mind) == TYPE_DICTIONARY and not mind.has("thoughts"):
 		mind["thoughts"] = {}
+	return d
+
+
+## v12 → v13 (psychika D): osobnostní akcenty. {} = žádný akcent, výkladové názvy vypnuté.
+static func _v12_to_v13(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 13
+	var mind = d.get("mind", null)
+	if typeof(mind) == TYPE_DICTIONARY:
+		if not mind.has("accents"):
+			mind["accents"] = {}
+		if not mind.has("accent_labels"):
+			mind["accent_labels"] = false
 	return d
 
 

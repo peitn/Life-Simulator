@@ -6,6 +6,7 @@ extends RefCounted
 ##   memory – sociální a afektivní paměť se schopnostmi paměti (psychika B)
 ##   mood   – průběh nálady v čase: epizody nahoru/dolů, dlouhodobě nízká nálada (psychika C)
 ##   voice  – vnitřní hlas: smyčky ruminace a naděje z dat (psychika I); běží u každého s tématy zapnutými
+##   accents – osobnostní akcenty se zvýrazněnými rysy (psychika D), volitelný soukromý výklad
 ##
 ## Společné zásady (konvence projektu):
 ##   - diagnóza = predispozice nad dimenzemi, žádné nálepky ani šablony; dvě stejné nálepky ≠ stejné chování;
@@ -19,6 +20,7 @@ const NeuroProfile := preload("res://scripts/sim/neuro_profile.gd")
 const SocialMemory := preload("res://scripts/sim/social_memory.gd")
 const MoodCycle := preload("res://scripts/sim/mood_cycle.gd")
 const InnerVoice := preload("res://scripts/sim/inner_voice.gd")
+const PersonalityAccents := preload("res://scripts/sim/personality_accents.gd")
 const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "rng_state", "mode"]
 
 var neuro = NeuroProfile.new()
@@ -30,6 +32,10 @@ var _memory_cfg := {}
 var mood = MoodCycle.new()
 ## Vnitřní hlas (psychika I): ruminace, starosti, sebekritika, naděje; opt-in pasivní beznaděj.
 var voice = InnerVoice.new()
+## Osobnostní akcenty (psychika D): váhy rysů acc_* a háčky do vztahových systémů.
+var accents = PersonalityAccents.new()
+var _accent_cfg := {}
+var _accent_labels := false
 var rng := RandomNumberGenerator.new()
 ## Poslední známý režim obsahu ("full" / "muted" / "off").
 var mode := "full"
@@ -63,6 +69,10 @@ func configure(mind: Dictionary, _d: Dictionary, seed: int, keep_state: bool) ->
 	if not keep_state:
 		voice = InnerVoice.new()
 	voice.configure(mind.get("thoughts", {}))
+	var ac = mind.get("accents", {})
+	_accent_cfg = (ac as Dictionary).duplicate() if typeof(ac) == TYPE_DICTIONARY else {}
+	_accent_labels = bool(mind.get("accent_labels", false)) if typeof(mind.get("accent_labels", false)) == TYPE_BOOL else false
+	accents.configure(_accent_cfg, _accent_labels, k())
 	var explicit = mind.get("dispositions", {})
 	neuro.configure(mind.get("neuro", {}), mind.get("interest_focus", "reading"),
 		explicit if typeof(explicit) == TYPE_DICTIONARY else {}, keep_state)
@@ -72,19 +82,20 @@ func configure(mind: Dictionary, _d: Dictionary, seed: int, keep_state: bool) ->
 func set_mode(m: String) -> void:
 	mode = m
 	memory.configure(_memory_cfg, k())
+	accents.configure(_accent_cfg, _accent_labels, k())
 
 
 ## Je NEURO část pro tuto postavu neutrální (žádný posuvník)? Pak SimAgent nemusí nic počítat.
 ## (Sociální paměť běží vždy a má vlastní, omezené účinky.)
 func is_neutral() -> bool:
-	return neuro.is_empty() and mood.is_empty()
+	return neuro.is_empty() and mood.is_empty() and accents.is_empty()
 
 
 func action_weight(act: Dictionary, hour: int) -> float:
 	var kk := k()
 	if kk <= 0.0:
 		return 1.0
-	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk) * voice.action_weight(act, kk), 0.3, 2.5)
+	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk) * voice.action_weight(act, kk) * accents.action_weight(act), 0.3, 2.5)
 
 
 ## Výběr partnera: neuro (maskování) × sociální paměť (jen chat a svěření).
