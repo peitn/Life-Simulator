@@ -464,10 +464,12 @@ func _on_slider_changed(group: String, _key: String, _value: float) -> void:
     if not _session.is_open():
         return
     var draft: Dictionary = _session.draft()
-    var section := "personality" if group in ["trait_levels", "hexaco"] else "mind"
+    var section := "personality" if group in ["trait_levels", "hexaco", "worldview", "values", "pers_scalar"] else "mind"
     var source: Dictionary = _sliders.character.get(section)
     if group == "mind_belief" and _key == "self_defectiveness":
         draft["mind"][_key] = float(source.get(_key, 0.0))
+    elif group == "pers_scalar" and Schema.fields("personality").has(_key):
+        draft["personality"][_key] = source.get(_key, Schema.default_value(Schema.fields("personality")[_key]))
     elif group == "mind_enum" and Schema.fields("mind").has(_key):
         draft["mind"][_key] = source.get(_key, Schema.default_value(Schema.fields("mind")[_key]))
     else:

@@ -178,6 +178,8 @@ static func migrate(d) -> Dictionary:
 		data = _v14_to_v15(data)
 	if v <= 15:
 		data = _v15_to_v16(data)
+	if v <= 16:
+		data = _v16_to_v17(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -368,6 +370,18 @@ static func _v15_to_v16(src: Dictionary) -> Dictionary:
 	var mind = d.get("mind", null)
 	if typeof(mind) == TYPE_DICTIONARY and not mind.has("psychosis"):
 		mind["psychosis"] = {}
+	return d
+
+
+## v16 → v17 (psychika J): světonázor a hodnoty. Bez vyhraněných názorů, hodnoty průměrné, názory nahlas ne.
+static func _v16_to_v17(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 17
+	var pers = d.get("personality", null)
+	if typeof(pers) == TYPE_DICTIONARY:
+		for pair in [["worldview", {}], ["values", {}], ["opinion_certainty", 0.5], ["voice_opinions", false]]:
+			if not pers.has(pair[0]):
+				pers[pair[0]] = pair[1]
 	return d
 
 

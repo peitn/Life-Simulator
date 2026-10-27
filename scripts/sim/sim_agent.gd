@@ -310,6 +310,7 @@ func apply_character_private(cd: Dictionary, initialize_sensitivity: bool = true
 	# Živá úprava v editoru (initialize_sensitivity = false) zachová naučený stav rozšíření psychiky.
 	_base_trait_profile = trait_profile
 	psy.configure(m, dispositions, _seed, not initialize_sensitivity)
+	psy.configure_worldview(pers if typeof(pers) == TYPE_DICTIONARY else {}, not initialize_sensitivity)
 	sensory.channel_gain = psy.neuro.channel_gains(psy.k())
 	_apply_accents()
 
@@ -670,6 +671,8 @@ func receive_support_from(helper: Node3D) -> void:
 	ledger.record_trust(helper.sim_name, "support", 9.0)
 	remember_social(helper, "support", 0.8)
 	inner_positive("warm", helper)
+	psy.worldview.experience("community", 0.02)
+	psy.worldview.experience("optimism", 0.02)
 	emotions.impulse("helped", helper.sim_name)
 	helper.emotions.impulse("comforted_other", sim_name)
 	remember("%s mi pomohl%s při panické atace" % [helper.sim_name, Grammar.past(helper.grammar)])
@@ -1337,6 +1340,11 @@ func _start_social(partner: Node3D) -> void:
 		if success:
 			act["label"] = "Povídá si s: " + partner.first_name()
 			_social_outcome(partner, rng.randf_range(2.0, 6.0), "chat")
+			# Veřejné vyjádření názoru jen s mind volbou „říkat názory nahlas“ (vlastní RNG rozšíření).
+			if complaint == "" and psy.worldview.voice_opinions and psy.rng.randf() < 0.25:
+				var line: String = psy.worldview.opinion_line(psy.worldview.top_topic())
+				if line != "":
+					say(line)
 			if complaint != "":
 				# A complaint can be heard and resolved without an argument.
 				ledger.soften(partner.sim_name, COMPLAINT_SOFTEN)
@@ -1398,6 +1406,9 @@ func talk_success_chance(partner: Node3D, complaint := "") -> float:
 	if not psy.is_neutral():
 		p += psy.mood.talk_bias(mental.stress, psy.k())
 		p -= 0.1 * psy.subs.irritability(psy.sub_withdrawal, psy.sub_withdrawal_id)
+	# Světonázor: shoda na tom, na čem jim záleží, je jen jeden z mnoha faktorů (±0,03).
+	if pp != null and psy.worldview.active():
+		p += psy.worldview.talk_bias(pp.worldview)
 	# Sociální paměť obou: dobré zkušenosti spolu trochu pomáhají, křivdy trochu brzdí (±0,04 každý).
 	p += psy.memory.talk_bias(memory_key(partner))
 	if pp != null:
@@ -1488,6 +1499,7 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		ledger.on_hurt_by(partner.sim_name, 8.0, now())
 		ledger.record_trust(partner.sim_name, "dismissed", -9.0)
 		remember_social(partner, "trust_breach", 0.6, "self", interpret_intent(0.5))
+		psy.worldview.experience("optimism", -0.02)
 		inner_trigger("grievance", partner, 0.35)
 		remember("Svěřil(a) jsem se a %s to odbyl%s" % [partner.sim_name, Grammar.past(partner.grammar)])
 		_social_positive = false
@@ -1656,6 +1668,8 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 			d *= clampf(1.0 - cur / 110.0, 0.1, 1.0)
 			# Nevyřešená křivda brzdí oteplování; příjemný hovor ji pomalu obrušuje.
 			d *= a.ledger.warmth_mult(b.sim_name)
+			if a.psy.worldview.active():
+				d *= a.psy.worldview.warmth_mult(b.psy.worldview)
 			a.ledger.soften(b.sim_name, 3.0)
 		var since: float = now - float(a.last_talk.get(b.sim_name, -10000.0))
 		if kind == "argue":
@@ -1704,6 +1718,11 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 		match kind:
 			"chat":
 				a.remember_social(b, "pleasant_talk", 0.15)
+				# Názor: v dobrém rozhovoru se posluchač pomalu posune k tomu, komu věří (téma mluvčího).
+				if a.psy.worldview.active() and b.psy.worldview.active():
+					var tp: String = b.psy.worldview.top_topic()
+					if tp != "":
+						a.psy.worldview.hear(b.psy.worldview, tp, a.ledger.trust_in(b.sim_name), true)
 			"argue":
 				a.remember_social(b, "grievance", 0.4, "self", a.interpret_intent(0.5))
 				a.inner_trigger("grievance", b, 0.3)
@@ -1833,6 +1852,8 @@ func _psyche_tick(dm: float) -> void:
 	# Sociální paměť vyhasíná u každého (hodinově); popisky vztahů s hysterezí jednou za herní hodinu.
 	var hour_before := int((now() - dm) / 60.0)
 	psy.memory.tick(dm)
+	if psy.worldview.active():
+		psy.worldview.tick(dm)
 	if int(now() / 60.0) != hour_before:
 		_update_memory_views()
 	mental.dep.chronic_floor = psy.mood.chronic_floor(psy.k())
@@ -2214,6 +2235,7 @@ func psyche_private_lines() -> PackedStringArray:
 	if psy.eating.active():
 		out.append_array(psy.eating.private_lines(gs.CRISIS_LINES if gs != null else []))
 	out.append_array(psy.psychosis.private_lines(psy.k()))
+	out.append_array(psy.worldview.private_lines())
 	if _clock != null:
 		out.append_array(psy.subs.private_lines(now(), _subs_k()))
 	return out

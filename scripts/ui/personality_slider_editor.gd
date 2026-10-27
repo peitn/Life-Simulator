@@ -62,6 +62,16 @@ func _build() -> void:
 		var hx: Dictionary = prof.get("hexaco", {})
 		var initial := float(hx.get(id, result.get("P", {}).get(id, 0.0)))
 		_row("hexaco", String(id), String(Schema.HEXACO[id]), initial, -1.0, 1.0)
+	_section("Světonázor a hodnoty (soukromé; −1 ↔ +1 u postojů)")
+	_note("Obecná herní témata bez skutečných stran. Názory se pomalu mění rozhovory s lidmi, kterým postava věří, a zkušenostmi; shoda je jen jeden z faktorů vztahu.")
+	var wv: Dictionary = prof.get("worldview", {})
+	for id in Schema.WORLDVIEW_TOPICS:
+		_row("worldview", String(id), String(Schema.WORLDVIEW_TOPICS[id]), float(wv.get(id, 0.0)), -1.0, 1.0)
+	var vv: Dictionary = prof.get("values", {})
+	for id in Schema.VALUE_SLIDERS:
+		_row("values", String(id), String(Schema.VALUE_SLIDERS[id]), float(vv.get(id, 0.5)), 0.0, 1.0)
+	_row("pers_scalar", "opinion_certainty", "Jak pevně se drží svých názorů", float(prof.get("opinion_certainty", 0.5)), 0.0, 1.0)
+	_bool_row("voice_opinions", "Říká své názory nahlas (ostatní je uslyší)", bool(prof.get("voice_opinions", false)), true)
 	_section("Psychologické dispozice (0 až 1)")
 	for id in Schema.PSYCHE_SLIDERS:
 		var ds: Dictionary = mind.get("dispositions", {})
@@ -125,15 +135,19 @@ func _neuro_section(mind: Dictionary) -> void:
 
 
 ## Zaškrtávací pole v `mind` (např. accent_labels).
-func _bool_row(field: String, title: String, current: bool) -> void:
+func _bool_row(field: String, title: String, current: bool, in_personality := false) -> void:
 	var cb := CheckBox.new()
 	cb.name = "Bool_" + field
 	cb.text = title
 	cb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	cb.button_pressed = current
 	cb.toggled.connect(func(on: bool):
-		character.mind[field] = on
-		character_changed.emit("mind_enum", field, 1.0 if on else 0.0))
+		if in_personality:
+			character.personality[field] = on
+			character_changed.emit("pers_scalar", field, 1.0 if on else 0.0)
+		else:
+			character.mind[field] = on
+			character_changed.emit("mind_enum", field, 1.0 if on else 0.0))
 	_list.add_child(cb)
 
 
@@ -218,7 +232,11 @@ func _on_slider(value: float, group: String, id: String, value_label: Label) -> 
 		return
 	var container: Dictionary
 	var field := group
-	if group == "trait_levels" or group == "hexaco":
+	if group == "pers_scalar":
+		character.personality[id] = clampf(value, 0.0, 1.0)
+		character_changed.emit(group, id, value)
+		return
+	if group in ["trait_levels", "hexaco", "worldview", "values"]:
 		container = character.personality
 	else:
 		container = character.mind

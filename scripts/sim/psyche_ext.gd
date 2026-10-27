@@ -25,7 +25,8 @@ const OcdLoop := preload("res://scripts/sim/ocd_loop.gd")
 const Substances := preload("res://scripts/sim/substances.gd")
 const EatingDistress := preload("res://scripts/sim/eating_distress.gd")
 const PsychosisState := preload("res://scripts/sim/psychosis_state.gd")
-const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "subs", "eating", "psychosis", "rng_state", "mode"]
+const Worldview := preload("res://scripts/sim/worldview.gd")
+const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "subs", "eating", "psychosis", "worldview", "rng_state", "mode"]
 
 var neuro = NeuroProfile.new()
 ## Sociální a afektivní paměť (psychika B) – běží u každé postavy (je to běžné poznávání, ne téma
@@ -51,6 +52,13 @@ var sub_withdrawal_id := ""
 var eating = EatingDistress.new()
 ## Psychotické prožívání (psychika H).
 var psychosis = PsychosisState.new()
+## Světonázor a hodnoty (psychika J) – z personality, ne z mind (nejde o téma duševního zdraví).
+var worldview = Worldview.new()
+
+
+func configure_worldview(pers: Dictionary, keep_state: bool) -> void:
+	worldview.configure(pers.get("worldview", {}), pers.get("values", {}), pers.get("opinion_certainty", 0.5),
+		pers.get("voice_opinions", false), keep_state)
 var rng := RandomNumberGenerator.new()
 ## Poslední známý režim obsahu ("full" / "muted" / "off").
 var mode := "full"
@@ -144,7 +152,7 @@ func target_weight(rel: float, act: Dictionary, who_uid: String = "") -> float:
 
 
 func to_dict() -> Dictionary:
-	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "subs": subs.to_dict(), "eating": eating.to_dict(), "psychosis": psychosis.to_dict(), "rng_state": rng.state, "mode": mode}
+	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "subs": subs.to_dict(), "eating": eating.to_dict(), "psychosis": psychosis.to_dict(), "worldview": worldview.to_dict(), "rng_state": rng.state, "mode": mode}
 
 
 static func validate_snapshot(d: Variant) -> bool:
@@ -168,6 +176,8 @@ static func validate_snapshot(d: Variant) -> bool:
 	if d.has("eating") and not EatingDistress.validate_snapshot(d["eating"]):
 		return false
 	if d.has("psychosis") and not PsychosisState.validate_snapshot(d["psychosis"]):
+		return false
+	if d.has("worldview") and not Worldview.validate_snapshot(d["worldview"]):
 		return false
 	if d.has("rng_state") and typeof(d["rng_state"]) != TYPE_INT:
 		return false
@@ -195,6 +205,8 @@ func from_dict(d: Variant) -> bool:
 		eating.from_dict(d["eating"])
 	if d.has("psychosis"):
 		psychosis.from_dict(d["psychosis"])
+	if d.has("worldview"):
+		worldview.from_dict(d["worldview"])
 	if d.has("rng_state"):
 		rng.state = int(d["rng_state"])
 	if d.has("mode"):

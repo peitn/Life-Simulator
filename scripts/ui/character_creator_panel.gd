@@ -291,9 +291,11 @@ func _on_sliders_changed(group: String, _key: String, _value: float) -> void:
         return
     var data: Dictionary = _session.draft()
     var edited: Dictionary = _sliders.character.to_dict()
-    var section: String = "personality" if group == "trait_levels" or group == "hexaco" else "mind"
+    var section: String = "personality" if group in ["trait_levels", "hexaco", "worldview", "values", "pers_scalar"] else "mind"
     if group == "mind_belief" and _key == "self_defectiveness":
         data["mind"][_key] = float(edited["mind"].get(_key, 0.0))
+    elif group == "pers_scalar" and Schema.fields("personality").has(_key):
+        data["personality"][_key] = edited["personality"].get(_key, Schema.default_value(Schema.fields("personality")[_key]))
     elif group == "mind_enum" and Schema.fields("mind").has(_key):
         data["mind"][_key] = edited["mind"].get(_key, Schema.default_value(Schema.fields("mind")[_key]))
     else:

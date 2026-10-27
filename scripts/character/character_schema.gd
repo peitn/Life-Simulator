@@ -62,7 +62,10 @@ extends RefCounted
 ##     nezačne). Herní obecné kategorie, žádné dávky. Soukromé. Migrace v14 → v15 doplní {}.
 ## v16 (psychika H): predispozice psychosis a mind.psychosis – sklony k neobvyklým vjemům a druhům
 ##     přesvědčení a výchozí náhled (0..1; náhled chybějící = 0,5). Soukromé. Migrace v15 → v16 doplní {}.
-const VERSION := 16
+## v17 (psychika J): personality.worldview (postoje k obecným tématům −1..1), personality.values (hodnoty 0..1),
+##     personality.opinion_certainty (jistota názorů) a personality.voice_opinions (říkat názory nahlas).
+##     Soukromé (kromě toho, co postava sama řekne). Migrace v16 → v17 doplní výchozí hodnoty.
+const VERSION := 17
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -163,6 +166,23 @@ const SHOES := {
 const HEXACO := {
 	"honesty": "Poctivost", "emotionality": "Emocionalita", "extraversion": "Extraverze",
 	"agreeableness": "Přívětivost", "conscientiousness": "Svědomitost", "openness": "Otevřenost",
+}
+
+## Světonázor (v17): obecná herní témata, žádné skutečné strany, politici ani náboženství. −1 = první pól, +1 = druhý.
+const WORLDVIEW_TOPICS := {
+	"tradition": "Změna (−) ↔ tradice (+)",
+	"institutions": "Nedůvěra (−) ↔ důvěra v instituce a pravidla (+)",
+	"community": "Každý sám za sebe (−) ↔ komunita (+)",
+	"materialism": "Prožitky (−) ↔ hmotné jistoty (+)",
+	"meaning": "Smysl si dělám sám (−) ↔ hlubší duchovní smysl (+)",
+	"optimism": "Svět jde z kopce (−) ↔ svět se zlepšuje (+)",
+	"work": "Práce není všechno (−) ↔ práce jako povinnost a čest (+)",
+	"family": "Rodina nemusí být základ (−) ↔ rodina je základ (+)",
+	"risk": "Opatrnost (−) ↔ odvaha riskovat (+)",
+}
+const VALUE_SLIDERS := {
+	"honesty": "Hodnota: poctivost", "loyalty": "Hodnota: loajalita", "fairness": "Hodnota: férovost",
+	"freedom": "Hodnota: svoboda", "security": "Hodnota: bezpečí", "achievement": "Hodnota: úspěch", "care": "Hodnota: péče o druhé",
 }
 
 ## Each traditional trait is an independent 0..1 slider. The old trait budget applies to legacy presets only.
@@ -411,6 +431,10 @@ const GROUPS := {
 		"aspirations": ["set", ASPIRATIONS, MAX_ASPIRATIONS],
 		"hexaco": ["axes", HEXACO, -1.0, 1.0],          # soukromé; {} = vše z rysů
 		"psyche_seed": ["i", 0, 65535, 0],             # soukromé; individualita psychiky (PsycheModel)
+		"worldview": ["axes", WORLDVIEW_TOPICS, -1.0, 1.0], # v17: postoje (chybějící = bez vyhraněného názoru)
+		"values": ["axes", VALUE_SLIDERS, 0.0, 1.0],       # v17: hodnoty (chybějící = 0,5)
+		"opinion_certainty": ["f", 0.0, 1.0, 0.5],         # v17: jak pevně se drží svých názorů
+		"voice_opinions": ["b", false],                    # v17: říká své názory nahlas (veřejná replika)
 	}},
 	"story": {"fields": {
 		"family": ["e", FAMILY, "neuvedeno"],

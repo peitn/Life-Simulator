@@ -641,3 +641,31 @@ beliefs, and baseline insight (0.5 = average). Respectful and non-stereotyped; n
 - Modes: muted = only mild strange feelings (no perceptions, no beliefs), off = nothing.
 
 Tests: `tests/test_psychosis.gd` (28 checks).
+
+### J. Worldview, opinions and values (schema v17)
+
+`scripts/sim/worldview.gd` (`SimAgent.psy.worldview`). Stances (−1..1) on nine generic in-game topics —
+change ↔ tradition, distrust ↔ trust in institutions and rules, everyone for themselves ↔ community,
+experiences ↔ material security, self-made meaning ↔ deeper spiritual meaning, the world is getting worse
+↔ better, work is not everything ↔ work as duty, family need not be the basis ↔ family is the basis,
+caution ↔ risk — and seven core values (0..1): honesty, loyalty, fairness, freedom, security,
+achievement, care. No real parties, politicians or religions are named (tested). They live in the
+private `personality` group (`worldview`, `values`, `opinion_certainty`, `voice_opinions`), not in
+`mind`, so the mental-health setting does not remove them; they are edited in the section "Světonázor a
+hodnoty".
+
+- An opinion has strength (|stance|) and certainty (per topic, starting from `opinion_certainty`).
+- Slow drift: after a good conversation the listener moves a small step towards the speaker's most
+  salient topic, more with trust, less with certainty; very distant views move much less (confirmation
+  bias, no backfire); agreement with a trusted person raises certainty, strong disagreement lowers it a
+  little. Experiences move stances too (being helped: community and optimism up; a breach of trust:
+  optimism down). Bounds: at most ±0.4 from the character's own stance, with a slow return towards it
+  (about 20 game days), so a household does not polarise (tested: average extremity does not grow).
+- Relationships: agreement on the most salient topic, weighted by the related value, shifts the chance of
+  a good conversation by at most ±0.03 and the warmth gained from it ×0.93–1.07, plus a little for shared
+  values — one factor among many; opposite views coexist with a close relationship (tested).
+- Private by default: nothing in snapshots or `net_detail`; the owner sees a short private line. With
+  `voice_opinions` the character sometimes says its opinion aloud during a good conversation (a public
+  speech line), which is the only way others learn it.
+
+Tests: `tests/test_worldview.gd` (27 checks).
