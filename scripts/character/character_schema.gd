@@ -48,7 +48,9 @@ extends RefCounted
 ## v9 (27. 10. 2026, psychika A): mind.neuro – volitelný neurodivergentní profil (ADHD, autistické osy, tiky,
 ##     náročnost čtení) jako nezávislé spojité posuvníky 0..1 (chybějící osa = 0 = bez výrazné odlišnosti)
 ##     a mind.interest_focus (oblast hlubokého zájmu). Soukromé. Migrace v8 → v9 doplní {} a výchozí zájem.
-const VERSION := 9
+## v10 (psychika B): mind.memory – schopnosti sociální a afektivní paměti (retention / precision /
+##     emotional_weight, 0..1, chybějící = 0,5 = průměr). Soukromé. Migrace v9 → v10 doplní {}.
+const VERSION := 10
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -194,6 +196,12 @@ const NEURO_SLIDERS := {
 	"masking_cost": "Maskování – cena za přizpůsobování se",
 	"tic_tendency": "Sklon k tikům",
 	"reading_effort": "Čtení a psaní stojí víc úsilí",
+}
+## Schopnosti paměti (v10): 0,5 = průměr; chybějící osa = 0,5. Mění vyhasínání a jistotu vzpomínek o lidech.
+const MEMORY_SLIDERS := {
+	"retention": "Paměť: jak dlouho si věci pamatuje",
+	"precision": "Paměť: jak přesně si vybaví, co se stalo",
+	"emotional_weight": "Paměť: jak silně si nese emoce z minulých událostí",
 }
 ## Oblast hlubokého zájmu (hloubka zájmu je posuvník; tady jen kam směřuje).
 const INTEREST_FOCUS := {
@@ -356,6 +364,7 @@ const GROUPS := {
 		"dispositions": ["axes", PSYCHE_SLIDERS, 0.0, 1.0],
 		"neuro": ["axes", NEURO_SLIDERS, 0.0, 1.0],        # v9: neurodivergentní profil (0 = bez odlišnosti)
 		"interest_focus": ["e", INTEREST_FOCUS, "reading"], # v9: kam směřuje hluboký zájem
+		"memory": ["axes", MEMORY_SLIDERS, 0.0, 1.0],      # v10: schopnosti paměti (0,5 = průměr)
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},

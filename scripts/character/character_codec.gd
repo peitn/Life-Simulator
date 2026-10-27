@@ -164,6 +164,8 @@ static func migrate(d) -> Dictionary:
 		data = _v7_to_v8(data)
 	if v <= 8:
 		data = _v8_to_v9(data)
+	if v <= 9:
+		data = _v9_to_v10(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -281,6 +283,16 @@ static func _v8_to_v9(src: Dictionary) -> Dictionary:
 			mind["neuro"] = {}
 		if not mind.has("interest_focus"):
 			mind["interest_focus"] = "reading"
+	return d
+
+
+## v9 → v10 (psychika B): schopnosti paměti. {} = průměrná paměť (0,5 ve všech osách).
+static func _v9_to_v10(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 10
+	var mind = d.get("mind", null)
+	if typeof(mind) == TYPE_DICTIONARY and not mind.has("memory"):
+		mind["memory"] = {}
 	return d
 
 

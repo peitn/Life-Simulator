@@ -71,6 +71,11 @@ func _build() -> void:
 	_row("mind_belief", "self_defectiveness", "Jsem nedostatečná/nedostatečný — pocit vlastní defektnosti",
 		float(mind.get("self_defectiveness", 0.0)), 0.0, 1.0)
 	_neuro_section(mind)
+	_section("Paměť na lidi a události (0,5 = průměr)")
+	_note("Jak dlouho a jak přesně si postava pamatuje, co se mezi lidmi stalo, a jak silně si nese emoce z minulosti.")
+	var mem: Dictionary = mind.get("memory", {})
+	for id in Schema.MEMORY_SLIDERS:
+		_row("memory", String(id), String(Schema.MEMORY_SLIDERS[id]), float(mem.get(id, 0.5)), 0.0, 1.0)
 	_section("Náchylnost k psychickým obtížím (0 = žádná, 1 = výrazná)")
 	for id in Schema.PREDISPOSITIONS:
 		var preds: Dictionary = mind.get("predispositions", {})

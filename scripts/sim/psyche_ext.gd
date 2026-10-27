@@ -2,7 +2,8 @@ extends RefCounted
 ## PsycheExt – rozšíření psychiky (27. 10. 2026 a dál) nad existujícím MentalState / Depression / emocemi.
 ## Jeden koordinátor, který SimAgent volá na pár pevných místech (krok, výběr akce, výběr partnera,
 ## konec akce, sociální výsledek, uložení). Jednotlivé osy jsou samostatné čisté moduly:
-##   neuro – neurodivergentní profil (psychika A)
+##   neuro  – neurodivergentní profil (psychika A)
+##   memory – sociální a afektivní paměť se schopnostmi paměti (psychika B)
 ##
 ## Společné zásady (konvence projektu):
 ##   - diagnóza = predispozice nad dimenzemi, žádné nálepky ani šablony; dvě stejné nálepky ≠ stejné chování;
@@ -13,9 +14,14 @@ extends RefCounted
 ##   - soukromé: nic z toho nejde do veřejného snapshotu, spawnu ani net_detail (jen offline hud_info).
 
 const NeuroProfile := preload("res://scripts/sim/neuro_profile.gd")
-const SAVE_KEYS := ["neuro", "rng_state", "mode"]
+const SocialMemory := preload("res://scripts/sim/social_memory.gd")
+const SAVE_KEYS := ["neuro", "memory", "rng_state", "mode"]
 
 var neuro = NeuroProfile.new()
+## Sociální a afektivní paměť (psychika B) – běží u každé postavy (je to běžné poznávání, ne téma
+## duševního zdraví); režim obsahu tlumí jen individuální odchylku schopností paměti.
+var memory = SocialMemory.new()
+var _memory_cfg := {}
 var rng := RandomNumberGenerator.new()
 ## Poslední známý režim obsahu ("full" / "muted" / "off").
 var mode := "full"
@@ -39,12 +45,25 @@ func k() -> float:
 func configure(mind: Dictionary, _d: Dictionary, seed: int, keep_state: bool) -> void:
 	if not keep_state:
 		rng.seed = (int(seed) * 0x2545F491 + 0x1F3D5B79) & 0x7FFFFFFFFFFFFFFF
+	var mc = mind.get("memory", {})
+	_memory_cfg = (mc as Dictionary).duplicate() if typeof(mc) == TYPE_DICTIONARY else {}
+	memory.configure(_memory_cfg, k())
+	if not keep_state:
+		memory = SocialMemory.new()
+		memory.configure(_memory_cfg, k())
 	var explicit = mind.get("dispositions", {})
 	neuro.configure(mind.get("neuro", {}), mind.get("interest_focus", "reading"),
 		explicit if typeof(explicit) == TYPE_DICTIONARY else {}, keep_state)
 
 
-## Je rozšíření pro tuto postavu úplně neutrální (žádný posuvník)? Pak SimAgent nemusí nic počítat.
+## Režim obsahu se změnil (přepnutí za běhu): přepočítá, co na něm závisí.
+func set_mode(m: String) -> void:
+	mode = m
+	memory.configure(_memory_cfg, k())
+
+
+## Je NEURO část pro tuto postavu neutrální (žádný posuvník)? Pak SimAgent nemusí nic počítat.
+## (Sociální paměť běží vždy a má vlastní, omezené účinky.)
 func is_neutral() -> bool:
 	return neuro.is_empty()
 
@@ -56,15 +75,20 @@ func action_weight(act: Dictionary, hour: int) -> float:
 	return neuro.action_weight(act, hour, kk)
 
 
-func target_weight(rel: float, act: Dictionary) -> float:
+## Výběr partnera: neuro (maskování) × sociální paměť (jen chat a svěření).
+func target_weight(rel: float, act: Dictionary, who_uid: String = "") -> float:
+	var w := 1.0
 	var kk := k()
-	if kk <= 0.0:
-		return 1.0
-	return neuro.target_weight(rel, act, kk)
+	if kk > 0.0 and not neuro.is_empty():
+		w *= neuro.target_weight(rel, act, kk)
+	var id := String(act.get("id", ""))
+	if who_uid != "" and (id == "chat" or id == "confide"):
+		w *= memory.target_weight(who_uid, id)
+	return w
 
 
 func to_dict() -> Dictionary:
-	return {"neuro": neuro.to_dict(), "rng_state": rng.state, "mode": mode}
+	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "rng_state": rng.state, "mode": mode}
 
 
 static func validate_snapshot(d: Variant) -> bool:
@@ -74,6 +98,8 @@ static func validate_snapshot(d: Variant) -> bool:
 		if typeof(key) != TYPE_STRING or not SAVE_KEYS.has(key):
 			return false
 	if d.has("neuro") and not NeuroProfile.validate_snapshot(d["neuro"]):
+		return false
+	if d.has("memory") and not SocialMemory.validate_snapshot(d["memory"]):
 		return false
 	if d.has("rng_state") and typeof(d["rng_state"]) != TYPE_INT:
 		return false
@@ -87,8 +113,10 @@ func from_dict(d: Variant) -> bool:
 		return false
 	if d.has("neuro"):
 		neuro.from_dict(d["neuro"])
+	if d.has("memory"):
+		memory.from_dict(d["memory"])
 	if d.has("rng_state"):
 		rng.state = int(d["rng_state"])
 	if d.has("mode"):
-		mode = String(d["mode"])
+		set_mode(String(d["mode"]))
 	return true

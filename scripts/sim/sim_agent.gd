@@ -620,6 +620,7 @@ func _alert_witnesses() -> void:
 			mental.dep.on_event(0.015, cfg)
 			ledger.on_hurt_by(o.sim_name, 10.0, now())
 			o.ledger.on_hurt_other(sim_name, 3.0)  # často si ani neuvědomí, jak moc ublížil/a
+			remember_social(o, "humiliation", 0.6, "self", interpret_intent(0.3))
 			remember("%s mi řekl%s, ať nedělám scény" % [o.sim_name, Grammar.past(o.grammar)])
 		elif not helper_found and rng.randf() < help_p and o.state != State.WALKING:
 			if o.state == State.ACTING:
@@ -642,6 +643,7 @@ func receive_support_from(helper: Node3D) -> void:
 	mental.receive_support(rel, Traits.mult_param(trait_profile, "support_accept"), now())
 	add_joy_moodlet("pomoc_" + String(helper.name), "Někdo při mně stál", "spokojeny", 8.0, 600.0)
 	ledger.record_trust(helper.sim_name, "support", 9.0)
+	remember_social(helper, "support", 0.8)
 	emotions.impulse("helped", helper.sim_name)
 	helper.emotions.impulse("comforted_other", sim_name)
 	remember("%s mi pomohl%s při panické atace" % [helper.sim_name, Grammar.past(helper.grammar)])
@@ -866,6 +868,8 @@ func _begin_acting() -> void:
 	for t in current_action.get("tags", []):
 		last_tag_time[t] = _clock.total_minutes
 		mood.remove_moodlet("craving_" + t)
+	if target != null and is_instance_valid(target) and target.get("object_tag") != null:
+		psy.memory.cue("", now(), String(target.object_tag))
 	if target != null and is_instance_valid(target):
 		if target.has_method("get_pose_position") and current_action.get("posture", "stand") != "stand":
 			global_position = target.get_pose_position(self)
@@ -1147,6 +1151,10 @@ func say(text: String) -> void:
 
 func _start_social(partner: Node3D) -> void:
 	var social_id: String = String(current_action.get("id", ""))
+	# Setkání je podnět: oživí (omezeně) vzpomínky na toho člověka u obou.
+	psy.memory.cue(memory_key(partner), now())
+	if partner.get("psy") != null:
+		partner.psy.memory.cue(memory_key(self), now())
 	# A sexual encounter is possible ONLY with two independent, current, freely
 	# given offers. The check also binds adult age to server CharacterData.
 	if social_id == "adult_consensual_sex":
@@ -1176,6 +1184,8 @@ func _start_social(partner: Node3D) -> void:
 		if not SocialPressure.apply(pressure_kind, self, partner, now()):
 			_abort()
 			return
+		partner.remember_social(self, "pressure", clampf(float(SocialPressure.SEVERITY[pressure_kind]) / 15.0, 0.2, 1.0),
+			"self", "intended")
 		say(ActionLibrary.random_line(pressure_kind, rng))
 		act["label"] = "V konfliktním rozhovoru s: " + partner.first_name()
 		var other_act: Dictionary = act.duplicate(true)
@@ -1314,6 +1324,10 @@ func talk_success_chance(partner: Node3D, complaint := "") -> float:
 	var pp = partner.get("psy")
 	if pp != null and not pp.is_neutral():
 		p += pp.neuro.talk_bias(float(partner.relationships.get(sim_name, 0.0)), pp.k())
+	# Sociální paměť obou: dobré zkušenosti spolu trochu pomáhají, křivdy trochu brzdí (±0,04 každý).
+	p += psy.memory.talk_bias(memory_key(partner))
+	if pp != null:
+		p += pp.memory.talk_bias(memory_key(self))
 	return clampf(p, 0.08, 0.92)
 
 
@@ -1399,6 +1413,7 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		note_relationship_change(partner, rc, float(relationships[partner.sim_name]))
 		ledger.on_hurt_by(partner.sim_name, 8.0, now())
 		ledger.record_trust(partner.sim_name, "dismissed", -9.0)
+		remember_social(partner, "trust_breach", 0.6, "self", interpret_intent(0.5))
 		remember("Svěřil(a) jsem se a %s to odbyl%s" % [partner.sim_name, Grammar.past(partner.grammar)])
 		_social_positive = false
 		_on_rejection_cue("dismissed", partner)
@@ -1413,6 +1428,8 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 			a.relationships[b.sim_name] = clampf(c0 + 3.0, -100.0, 100.0)
 			a.note_relationship_change(b, c0, float(a.relationships[b.sim_name]))
 		ledger.record_trust(partner.sim_name, "support", 8.0)
+		remember_social(partner, "support", 0.5)
+		_share_memory_with(partner)
 		emotions.impulse("confided", partner.sim_name)
 		partner.emotions.impulse("comforted_other", sim_name, 0.7)
 		_learn_connection(partner)
@@ -1434,8 +1451,10 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 	var t := now()
 	var cfg := mental_cfg()
 	var rel_p: float = float(partner.relationships.get(sim_name, 0.0))
+	# Sociální paměť oběti: dobré zkušenosti s omlouvajícím se odpuštění trochu usnadní, křivdy ztíží (±0,08).
+	var mem_forgive: float = 0.08 * partner.psy.memory.bias(memory_key(self)) if partner.get("psy") != null else 0.0
 	var ev: Dictionary = partner.ledger.evaluate_apology(sim_name, t, rel_p,
-		Traits.sum_param(partner.trait_profile, "forgiveness"), partner.mental.stress, partner.rng.randf())
+		Traits.sum_param(partner.trait_profile, "forgiveness") + mem_forgive, partner.mental.stress, partner.rng.randf())
 	var outcome: String = ev["outcome"]
 	if outcome in ["accepted", "partial", "rejected"]:
 		emotions.impulse("apology_" + outcome, partner.sim_name)
@@ -1445,6 +1464,13 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 	last_apology["target"] = partner.sim_name
 	partner.ledger.receive_apology(sim_name, outcome, t)
 	ledger.apology_given(partner.sim_name, outcome, t)
+	match outcome:
+		"accepted":
+			partner.remember_social(self, "apology", 0.6)
+		"partial":
+			partner.remember_social(self, "apology", 0.3)
+		"rejected":
+			remember_social(partner, "rejection", 0.5, "self", "none")
 	var g := Grammar.past(grammar)
 	var reply := ActionLibrary.random_line("apology_" + outcome, partner.rng).replace("(a)", g)
 	say(ActionLibrary.random_line("apology", rng))
@@ -1524,7 +1550,7 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 		vigilance.observe("safe_social")
 		partner.vigilance.observe("safe_social")
 	if kind in ["argue", "insult"]:
-		_witness_conflict(partner, cfg)
+		_witness_conflict(partner, cfg, kind)
 	elif positive:
 		_check_jealousy(partner, cfg)
 	# Křivdy a vina: hádka zraní oba, urážka hlavně oběť (útočník cítí vinu, pokud se zrovna „neulevil“).
@@ -1591,6 +1617,19 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 		if kind == "insult":
 			emotional_event = "insulted_other" if a == self else "insulted"
 		a.emotions.impulse(emotional_event, b.sim_name)
+		# Sociální paměť: fakt (druh události) + výklad úmyslu u záporných.
+		match kind:
+			"chat":
+				a.remember_social(b, "pleasant_talk", 0.15)
+			"argue":
+				a.remember_social(b, "grievance", 0.4, "self", a.interpret_intent(0.5))
+			"awkward":
+				a.remember_social(b, "misunderstanding", 0.15, "self", "unclear")
+			"misunderstanding":
+				a.remember_social(b, "misunderstanding", 0.3, "self", a.interpret_intent(0.7))
+			"insult":
+				if a != self:
+					a.remember_social(b, "insult", 0.8, "self", "intended")
 		# Social comparison is distinct from jealousy over losing a relationship.
 		# Only a noticeably happier conversation partner while the observer is
 		# already distressed may evoke a *small*, person-directed envy response.
@@ -1613,9 +1652,72 @@ func psyche_action_weight(a: Dictionary) -> float:
 
 ## Násobič výběru partnera pro sociální akci (maskování, později paměť a osobnostní akcenty).
 func psyche_target_weight(other: Node3D, a: Dictionary) -> float:
-	if psy == null or psy.is_neutral() or other == null:
+	if psy == null or other == null:
 		return 1.0
-	return psy.target_weight(float(relationships.get(other.sim_name, 0.0)), a)
+	return psy.target_weight(float(relationships.get(other.sim_name, 0.0)), a, memory_key(other))
+
+
+## Klíč sociální paměti pro druhou postavu: stabilní uid z CharacterData (záložně jméno s předponou).
+static func memory_key(other: Node3D) -> String:
+	if other == null:
+		return ""
+	var u = other.get("char_uid")
+	if typeof(u) == TYPE_STRING and String(u) != "":
+		return String(u)
+	return "n:" + String(other.get("sim_name"))
+
+
+## Zapíše do sociální paměti událost od `other` (fakt + výklad). Nikdy nic neodesílá po síti.
+func remember_social(other: Node3D, kind: String, severity: float, source := "self", interp := "none",
+		place := "", whom: Node3D = null) -> void:
+	if psy == null or other == null or _clock == null:
+		return
+	psy.memory.record(memory_key(other), String(other.sim_name), kind, severity, now(), source, interp, place,
+		memory_key(whom) if whom != null else "")
+
+
+## Výklad záporné události: jak jednoznačně postava čte úmysl (vigilance a citlivost na hrozbu).
+func interpret_intent(ambiguity: float) -> String:
+	if vigilance == null:
+		return "unclear"
+	var a: float = vigilance.appraisal("unclear_reply", ambiguity)
+	if a >= 0.55:
+		return "intended"
+	if a <= 0.3:
+		return "accidental"
+	return "unclear"
+
+
+## Svěření: posluchač se dozví jen to, co mu postava sama řekne (nejsilnější křivdu na někoho třetího).
+func _share_memory_with(listener: Node3D) -> void:
+	if psy == null or listener == null or listener.get("psy") == null:
+		return
+	var tr: Dictionary = psy.memory.strongest_negative(memory_key(listener))
+	if tr.is_empty() or float(tr["strength"]) < 0.15:
+		return
+	var who := String(tr["who"])
+	listener.psy.memory.record(who, String(psy.memory.names.get(who, "?")), String(tr["kind"]),
+		float(tr["severity"]) * 0.7, now(), "told", String(tr["interp"]), "", memory_key(self))
+
+
+func _sim_by_name(n: String) -> Node3D:
+	if world == null:
+		return null
+	for o in world.get_sims():
+		if o != self and String(o.get("sim_name")) == n:
+			return o
+	return null
+
+
+## Hodinová obnova popisků vztahu s hysterezí (soukromý HUD) – deterministicky, nezávisle na HUD.
+func _update_memory_views() -> void:
+	if world == null:
+		return
+	var vals := {}
+	for o in world.get_sims():
+		if o != self and relationships.has(o.sim_name):
+			vals[memory_key(o)] = float(relationships[o.sim_name])
+	psy.memory.update_views(vals)
 
 
 ## Smyslová zátěž (hluk z domácnosti, tlačenice): jen pro přetížení v neuro profilu.
@@ -1629,8 +1731,13 @@ func on_sensory_exposure(channel_name: String, amount: float) -> void:
 func _psyche_tick(dm: float) -> void:
 	var m := MentalState.cfg_mode(mental_cfg())
 	if m != psy.mode:
-		psy.mode = m
+		psy.set_mode(m)
 		sensory.channel_gain = psy.neuro.channel_gains(psy.k())
+	# Sociální paměť vyhasíná u každého (hodinově); popisky vztahů s hysterezí jednou za herní hodinu.
+	var hour_before := int((now() - dm) / 60.0)
+	psy.memory.tick(dm)
+	if int(now() / 60.0) != hour_before:
+		_update_memory_views()
 	if psy.is_neutral():
 		return
 	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
@@ -1809,6 +1916,14 @@ func private_attachment_labels() -> Dictionary:
 	var out := {}
 	for n in relationships:
 		var note: String = String(ledger.attachment_label(String(n), float(relationships[n])))
+		var other: Node3D = _sim_by_name(String(n))
+		if other != null:
+			var view: String = psy.memory.current_view(memory_key(other))
+			if view != "":
+				note += " · " + view
+			var lines: PackedStringArray = psy.memory.describe(memory_key(other), Callable(self, "gendered"), 1)
+			if not lines.is_empty():
+				note += " · pamatuje si: " + lines[0]
 		var trusted: float = ledger.trust_in(String(n))
 		if trusted >= 75.0:
 			note += " · důvěra"
@@ -1856,7 +1971,7 @@ func _after_sensitive_incident() -> void:
 
 
 ## Kdo stojí poblíž hádky, toho to taky rozhodí (úzkostné víc).
-func _witness_conflict(partner: Node3D, cfg: Dictionary) -> void:
+func _witness_conflict(partner: Node3D, cfg: Dictionary, kind := "argue") -> void:
 	if world == null:
 		return
 	for o in world.get_sims():
@@ -1864,6 +1979,12 @@ func _witness_conflict(partner: Node3D, cfg: Dictionary) -> void:
 			continue
 		if o.global_position.distance_to(global_position) < WITNESS_DIST * 0.7:
 			o.mental.on_stressor("witness_conflict", 3.0, cfg)
+			# Svědek ví jen to, co viděl: hádku obou, nebo kdo koho urazil.
+			if kind == "insult":
+				o.remember_social(self, "conflict_seen", 0.5, "witnessed", "none", "", partner)
+			else:
+				o.remember_social(self, "conflict_seen", 0.3, "witnessed", "none", "", partner)
+				o.remember_social(partner, "conflict_seen", 0.3, "witnessed", "none", "", self)
 
 
 ## Žárliví nesou těžce, když se jejich blízký (vztah ≥ 40) baví s někým jiným.

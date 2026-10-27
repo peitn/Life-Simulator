@@ -373,3 +373,54 @@ Tests: `tests/test_neuro_profile.gd` (57 checks: schema/migration/validation, ne
 monotonic continuous effects, full > muted > off, channels and overload, social battery and masking,
 direct communication, tics, agency with a real `cook` command, diversity of two "ADHD-like" profiles over
 three game days, determinism, save/load round trip, network privacy, editor sliders).
+
+### B. Social and affective memory (schema v10)
+
+`scripts/sim/social_memory.gd` (`SimAgent.psy.memory`) keeps structured traces of what happened between
+people. It is not free text and not an autobiography: every trace comes from a fixed catalogue
+(grievance, insult, complaint, misunderstanding, breach of trust, rejection, humiliation, pressure,
+apology, support, shared moment, pleasant talk, conflict seen) and stores:
+
+- `who` (the stable uid of the person who acted, never the name) and `whom` (empty = me; for something
+  seen or heard, the uid of the person it happened to);
+- game time, emotional charge, severity, **certainty** and the source: experienced (`self`), seen
+  (`witnessed`, lower certainty) or told by someone (`told`, lowest);
+- the **interpretation** separately from the fact: "on purpose", "unclear", "by accident" (derived from
+  the existing vigilance appraisal); "on purpose" weighs more, "by accident" less;
+- the current strength and an optional place (the object the event is tied to).
+
+Dynamics:
+- traces fade with a time constant by kind × severity × the memory slider, so strong traces fade more
+  slowly; after a long time without new events everything is forgotten (no permanent labels);
+- the same kind from the same person reinforces one trace instead of adding duplicates, capped by
+  severity (a hundred small things never become one big one);
+- an opposite event overwrites: an apology weakens insults and grievances, support weakens a breach of
+  trust, an insult weakens pleasant memories;
+- cue reactivation: meeting the person or using the same object revives traces a little, at most once
+  per six hours and more only when the trace has not been recalled for days, so everyday living together
+  without new harm lets things heal (tested: grievance + apology + time moves monotonically back towards
+  zero, without oscillation, even with regular meetings);
+- relationship labels with hysteresis for the private HUD ("blízký / přátelský / neutrální / napjatý /
+  nepřátelský vztah"): a label changes only after crossing a boundary by four points; updated once per
+  game hour, independent of the HUD.
+
+Influence is bounded and probabilistic only: choosing a partner for a chat or confiding ×0.85–1.15,
+the chance of a good conversation ±0.04 per side, forgiveness when evaluating an apology ±0.08. Memory
+never selects or blocks an action.
+
+Private versus shared: a witness of an argument or insult gets a `witnessed` trace about what they saw;
+someone who is confided in gets a `told` version of the confider's strongest grievance about a third
+person; nobody else knows. Traces never leave the authority (no `net_detail`, no snapshot); the owner sees
+a short word summary in the offline relationship list ("pamatuje si: urazil mě jistě, živě, myslím, že
+schválně"). The aggressor does not record the victim as a grievance.
+
+Memory abilities (`mind.memory`, 0..1, 0.5 = average, section "Paměť na lidi a události" in the creator
+and editor): `retention` (how long; time constant ×0.45–×1.8), `precision` (certainty of recall) and
+`emotional_weight` (how strongly the emotional charge is encoded). Muted halves the deviation from
+average, off uses average abilities; the memory itself always runs because it is ordinary cognition,
+not a mental-health topic.
+
+Because memory runs for every character, the default household is no longer bit-identical after slice B;
+the household suites stay within their unchanged bounds (see testing.md).
+
+Tests: `tests/test_social_memory.gd` (41 checks).

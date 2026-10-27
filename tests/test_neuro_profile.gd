@@ -274,10 +274,18 @@ func _sim_world(hh: Array, minutes: float) -> Dictionary:
 	var world := U.make_world(hh, clock)
 	add_child(world)
 	await get_tree().process_frame
-	U.run_minutes(clock, minutes)
+	var spent := {}
+	var left := minutes
+	var s0 = world.sims[0]
+	while left > 0.0:
+		clock.advance(2.0)
+		left -= 2.0
+		if s0.state == s0.State.ACTING:
+			var id := String(s0.current_action.get("id", ""))
+			spent[id] = int(spent.get(id, 0)) + 2
 	var fp := U.action_fingerprint(world)
 	var psy: Dictionary = world.sims[0].psy.to_dict()
-	var stats := {"fp": fp, "psy": psy, "stress": world.sims[0].mental.stress}
+	var stats := {"fp": fp, "psy": psy, "stress": world.sims[0].mental.stress, "minutes": spent}
 	world.free()
 	await get_tree().process_frame
 	return stats
@@ -297,8 +305,14 @@ func _test_diversity_and_determinism() -> void:
 		diff += absi(int(fa.get(k, 0)) - int(fb.get(k, 0)))
 	check(diff >= 6, "stejná nálepka (roztěkanost + obtížné zahájení), jiný profil → měřitelně jiné chování",
 		"rozdíl %d: %s | %s" % [diff, str(fa), str(fb)])
-	check(int(fa.get("read", 0)) > int(fb.get("read", 0)), "hyperfokus + zájem o knihy: víc čtení",
-		"%d vs %d" % [int(fa.get("read", 0)), int(fb.get("read", 0))])
+	var ma: Dictionary = a["minutes"]
+	var mb: Dictionary = b["minutes"]
+	print("    čtení A %d min, B %d min" % [int(ma.get("read", 0)), int(mb.get("read", 0))])
+	check(int(ma.get("read", 0)) > int(mb.get("read", 0)), "hyperfokus + zájem o knihy: víc času čtením",
+		"%d vs %d min" % [int(ma.get("read", 0)), int(mb.get("read", 0))])
+	var fun_b := int(mb.get("watch_tv", 0)) + int(mb.get("doomscroll", 0)) + int(mb.get("daydream", 0))
+	var fun_a := int(ma.get("watch_tv", 0)) + int(ma.get("doomscroll", 0)) + int(ma.get("daydream", 0))
+	check(fun_b > fun_a, "impulzivní profil: víc času rychlou zábavou", "%d vs %d min" % [fun_b, fun_a])
 	var base: Dictionary = await _sim_world(U.household({}), 3 * 1440.0)
 	check(not (base["fp"] as Dictionary).is_empty(), "výchozí domácnost běží")
 

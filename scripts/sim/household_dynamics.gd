@@ -56,6 +56,8 @@ const MORNING_FROM := 6
 const MORNING_TO := 10
 const MORNING_LIGHT_MOOD := 4.0
 const MORNING_LIGHT_MINUTES := 120.0
+## Místo, ke kterému se váže vzpomínka na třenici (oživí ji příští použití stejného objektu).
+const FRICTION_PLACE := {"noise": "bed", "bathroom": "shower", "dishes": "stove"}
 const COMPLAINT_LABEL := {"noise": "hluk v noci", "bathroom": "obsazená koupelna", "dishes": "nádobí po vaření"}
 
 # ---------------------------------------------------------------- společné chvíle
@@ -260,6 +262,8 @@ func apply_friction(s, o, topic: String, now: float) -> void:
 	s.mood.add_moodlet("trenice_%s_%s" % [topic, o.name], "Štve mě %s (%s)" % [o.first_name(), COMPLAINT_LABEL[topic]],
 		"nastvany", FRICTION_MOOD, FRICTION_MOOD_MINUTES)
 	s.pending_complaints[o.sim_name] = {"topic": topic, "t": now}
+	if s.has_method("remember_social"):
+		s.remember_social(o, "complaint", 0.25, "self", "none", String(FRICTION_PLACE.get(topic, "")))
 	s._detail_dirty = true
 	_last_friction[_fkey(s, o, topic)] = now
 	if topic == "noise":
@@ -318,6 +322,8 @@ func _shared_moments(sims: Array, now: float) -> void:
 				x.ledger.record_trust(y.sim_name, "warm", 0.45)
 				x._learn_connection(y)
 				x.emotions.impulse("shared", y.sim_name)
+				if x.has_method("remember_social"):
+					x.remember_social(y, "shared_moment", 0.4)
 				x.add_joy_moodlet("spolu_%s_%s" % [kind, y.name], "Chvíle spolu: %s (%s)" % [y.first_name(), kind],
 					"stastny", SHARED_MOOD, SHARED_MOOD_MINUTES)
 				x.note_relationship_change(y, cur, nv)
