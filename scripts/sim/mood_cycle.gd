@@ -153,6 +153,10 @@ func tick(dm: float, ctx: Dictionary, k: float, rng: RandomNumberGenerator) -> v
 	var t := target
 	if t > 0.0:
 		t = minf(t + 0.2 * debt * a("sleep_sensitivity"), ceiling(k))
+	# Povzbuzující látka během účinku táhne náladu nahoru (psychika F), nanejvýš ke stropu.
+	var push := float(ctx.get("push", 0.0))
+	if push > 0.0:
+		t = minf(maxf(t, 0.0) + push * maxf(a("bipolar_tendency"), 0.3), ceiling(k))
 	var tau := 360.0 if absf(t) > absf(pole) else 600.0 / (1.0 + support)
 	pole += (t - pole) * (1.0 - exp(-dm / tau))
 	pole = clampf(pole, -1.0, 1.0)

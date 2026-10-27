@@ -1,0 +1,16 @@
+{
+	"id": "addiction",
+	"label_cs": "Sklon k závislosti",
+	"desc_cs": "Rychlá úleva a odměna táhnou víc a návyk se vytváří snáz; neznamená to slabou vůli.",
+	"effects_cs": "Návyk na látky nebo činnosti vzniká rychleji a chuť se vrací se stresem; pomáhá opora, omezení a odborná pomoc.",
+	"content_tag": "mental_health",
+	"severity": [0.0, 1.0],
+	"modulations": [
+		{"target": "D.impulsivity", "op": "add", "amount": 0.12, "scale": "severity",
+			"why": "Chuť se snáz mění v čin, hlavně když je zle."},
+		{"target": "D.reward_sensitivity", "op": "add", "amount": 0.08, "scale": "severity",
+			"why": "Rychlá odměna je výraznější než ta pozdější."},
+		{"target": "D.regulation_capacity", "op": "add", "amount": -0.05, "scale": "severity",
+			"why": "Napětí se hůř zvládá bez rychlé úlevy."}
+	]
+}

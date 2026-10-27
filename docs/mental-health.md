@@ -560,3 +560,39 @@ Modes: muted halves the loop, off removes everything (the validator also drops t
 `Grammar.form` now also replaces `{a}` (older thought templates displayed it literally).
 
 Tests: `tests/test_ocd_social_anxiety.gd` (35 checks).
+
+### F. Psychoactive substances and addiction (schema v15)
+
+`scripts/sim/substances.gd` (`SimAgent.psy.subs`) models generic, game-abstract categories: coffee,
+cigarettes, alcohol (the existing "beer for the nerves" drink, now also tracked for dependence),
+three invented substances — **Mlha** (sedative, cannabis-like), **Jiskra** (stimulant), **Útlum**
+(opioid-like painkiller) — and two behavioural ones, gaming and online betting. There is no real-world
+dosing, preparation, administration route or combination advice: an action is only "has / uses X", and
+the model works with states, not amounts. No glamorisation: the pleasure is modest and falls with
+tolerance, while consequences are always modelled.
+
+Per category: craving (wanting, rises with time since use in proportion to dependence and with cues —
+stress, morning coffee time, people nearby using; support lowers it), liking (falls with tolerance),
+tolerance, slow dependence (rate × susceptibility: the new predisposition `addiction` plus the habit),
+withdrawal discomfort after a category-specific onset (mood entry with words such as "Všechno bolí a
+nemůžu spát", stress, irritability that lowers the chance of a good conversation), and a recovery scar
+that makes relapse faster. Occasional use without dependence creates no craving, so ordinary characters
+who sometimes drink do not slide into a loop.
+
+Consequences: worse sleep after coffee, Jiskra or late gaming; a crash after Jiskra/Útlum/betting
+(tiredness, low mood); "money worries" (abstract, there is no budget in the game) from expensive
+substances and betting, which add stress; close people who repeatedly see use feel worry ("Bojím se o …",
+no judgement, no extra action); Jiskra pushes the mood course up during its effect (slice C) and some
+substances raise a pressure on psychotic experiences used by slice H. The game has no separate health
+statistic; energy and comfort carry the bodily effects.
+
+Recovery: `cut_down` ("Rozhodne se to omezit", player always, AI with dependence) lowers the pull for
+three game days while withdrawal is briefly more noticeable; confiding and support lower craving;
+`seek_help` opens with strong dependence; dependence fades over weeks without use.
+
+Habits (`mind.substances`, 0..1) say how much the character usually does something; 0 means the AI
+never starts it. All actions carry `content: addiction` (the existing setting); off = no actions and no
+dynamics; mental-health muted halves the dynamics. Substance actions appear in the command list only for
+characters with a habit or craving.
+
+Tests: `tests/test_substances.gd` (40 checks).

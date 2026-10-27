@@ -22,7 +22,8 @@ const MoodCycle := preload("res://scripts/sim/mood_cycle.gd")
 const InnerVoice := preload("res://scripts/sim/inner_voice.gd")
 const PersonalityAccents := preload("res://scripts/sim/personality_accents.gd")
 const OcdLoop := preload("res://scripts/sim/ocd_loop.gd")
-const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "rng_state", "mode"]
+const Substances := preload("res://scripts/sim/substances.gd")
+const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "subs", "rng_state", "mode"]
 
 var neuro = NeuroProfile.new()
 ## Sociální a afektivní paměť (psychika B) – běží u každé postavy (je to běžné poznávání, ne téma
@@ -40,6 +41,10 @@ var _accent_labels := false
 ## OCD smyčka (psychika E) a závažnost sociální úzkosti (predispozice).
 var ocd = OcdLoop.new()
 var social_anxiety := 0.0
+## Návykové látky a činnosti (psychika F) a poslední abstinenční stav (pro podrážděnost a HUD).
+var subs = Substances.new()
+var sub_withdrawal := 0.0
+var sub_withdrawal_id := ""
 var rng := RandomNumberGenerator.new()
 ## Poslední známý režim obsahu ("full" / "muted" / "off").
 var mode := "full"
@@ -81,6 +86,7 @@ func configure(mind: Dictionary, _d: Dictionary, seed: int, keep_state: bool) ->
 	if typeof(preds) != TYPE_DICTIONARY:
 		preds = {}
 	ocd.configure(preds.get("ocd", 0.0), mind.get("ocd_theme", "checking"), keep_state)
+	subs.configure(mind.get("substances", {}), preds.get("addiction", 0.0), keep_state)
 	var sa = preds.get("social_anxiety", 0.0)
 	social_anxiety = clampf(float(sa), 0.0, 1.0) if typeof(sa) in [TYPE_FLOAT, TYPE_INT] and is_finite(float(sa)) else 0.0
 	var explicit = mind.get("dispositions", {})
@@ -98,7 +104,7 @@ func set_mode(m: String) -> void:
 ## Je NEURO část pro tuto postavu neutrální (žádný posuvník)? Pak SimAgent nemusí nic počítat.
 ## (Sociální paměť běží vždy a má vlastní, omezené účinky.)
 func is_neutral() -> bool:
-	return neuro.is_empty() and mood.is_empty() and accents.is_empty() and ocd.is_empty() and social_anxiety <= 0.0
+	return neuro.is_empty() and mood.is_empty() and accents.is_empty() and ocd.is_empty() and social_anxiety <= 0.0 and subs.is_empty()
 
 
 ## Pro OCD váhy (pocit zvládání a opora z MentalState) – nastavuje SimAgent před dotazem.
@@ -129,7 +135,7 @@ func target_weight(rel: float, act: Dictionary, who_uid: String = "") -> float:
 
 
 func to_dict() -> Dictionary:
-	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "rng_state": rng.state, "mode": mode}
+	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "subs": subs.to_dict(), "rng_state": rng.state, "mode": mode}
 
 
 static func validate_snapshot(d: Variant) -> bool:
@@ -147,6 +153,8 @@ static func validate_snapshot(d: Variant) -> bool:
 	if d.has("voice") and not InnerVoice.validate_snapshot(d["voice"]):
 		return false
 	if d.has("ocd") and not OcdLoop.validate_snapshot(d["ocd"]):
+		return false
+	if d.has("subs") and not Substances.validate_snapshot(d["subs"]):
 		return false
 	if d.has("rng_state") and typeof(d["rng_state"]) != TYPE_INT:
 		return false
@@ -168,6 +176,8 @@ func from_dict(d: Variant) -> bool:
 		voice.from_dict(d["voice"])
 	if d.has("ocd"):
 		ocd.from_dict(d["ocd"])
+	if d.has("subs"):
+		subs.from_dict(d["subs"])
 	if d.has("rng_state"):
 		rng.state = int(d["rng_state"])
 	if d.has("mode"):

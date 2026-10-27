@@ -480,6 +480,8 @@ func _extra_moodlets() -> Array:
 		out.append_array(psy.accents.mood_entries(float(needs.values["social"])))
 	if psy != null and not psy.ocd.is_empty() and _clock != null:
 		out.append_array(psy.ocd.mood_entries(psy.k(), now()))
+	if psy != null and not psy.subs.is_empty() and _clock != null:
+		out.append_array(psy.subs.mood_entries(now(), psy.sub_withdrawal, psy.sub_withdrawal_id, _subs_k()))
 	var gname := ""
 	var gmax := 0.0
 	for n in ledger.guilt:
@@ -945,6 +947,8 @@ func _act(dm: float) -> void:
 	var sq: float = mental.sleep_quality() if current_action.get("tags", []).has("sleep") else 1.0
 	if sq != 1.0 and not psy.mood.is_empty():
 		sq *= psy.mood.sleep_rate_mult(psy.k())  # zvýšená fáze: méně spánku stačí
+	if sq != 1.0 and not psy.subs.is_empty():
+		sq *= psy.subs.sleep_quality_mult(now(), _clock.get_hour())  # káva, Jiskra a hraní před spaním spánek zhorší
 	if sq != 1.0 and (not psy.voice.loops.is_empty() or psy.voice.hopelessness > 0.0):
 		sq *= psy.voice.sleep_quality_mult()  # přemítání a beznaděj zhoršují spánek
 	for k in rate:
@@ -1073,6 +1077,8 @@ func _finish(interrupted: bool) -> void:
 	_psyche_after_finish(id, interrupted, cop)
 	if not psy.ocd.is_empty():
 		_ocd_after_finish(id, interrupted)
+	if id == "drink" or id == "cut_down" or String(current_action.get("substance", "")) != "":
+		_substance_after_finish(id, interrupted)
 	_leave_target()
 	var partner := social_partner
 	social_partner = null
@@ -1370,6 +1376,7 @@ func talk_success_chance(partner: Node3D, complaint := "") -> float:
 		p += pp.mood.talk_bias(float(partner.mental.stress), pp.k())
 	if not psy.is_neutral():
 		p += psy.mood.talk_bias(mental.stress, psy.k())
+		p -= 0.1 * psy.subs.irritability(psy.sub_withdrawal, psy.sub_withdrawal_id)
 	# Sociální paměť obou: dobré zkušenosti spolu trochu pomáhají, křivdy trochu brzdí (±0,04 každý).
 	p += psy.memory.talk_bias(memory_key(partner))
 	if pp != null:
@@ -1706,6 +1713,12 @@ func psyche_action_weight(a: Dictionary) -> float:
 		return 1.0
 	psy._mastery = mental.mastery
 	psy._support = mental.support
+	var sid := "alcohol" if String(a.get("id", "")) == "drink" else String(a.get("substance", ""))
+	if sid != "" and not psy.subs.is_empty():
+		var kk := _subs_k()
+		if sid == "alcohol":
+			return psy.action_weight(a, _clock.get_hour() if _clock != null else 12) * (1.0 + 3.0 * psy.subs.craving("alcohol") * kk)
+		return psy.action_weight(a, _clock.get_hour() if _clock != null else 12) * psy.subs.use_weight(sid, now(), kk)
 	return psy.action_weight(a, _clock.get_hour() if _clock != null else 12)
 
 
@@ -1806,6 +1819,8 @@ func _psyche_tick(dm: float) -> void:
 		_mood_cycle_tick(dm)
 	if not psy.ocd.is_empty():
 		_ocd_tick(dm)
+	if not psy.subs.is_empty():
+		_substance_tick(dm)
 	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
 	var res: Dictionary = psy.neuro.tick(dm, {"sleeping": _is_sleeping(), "social": social_partner != null,
 		"quiet": tags.has("quiet") or tags.has("rest"), "stress": mental.stress}, psy.k(), psy.rng)
@@ -1858,11 +1873,15 @@ func psyche_gate(kind: String) -> float:
 		return 0.0
 	match kind:
 		"help":
-			return psy.voice.help_need()
+			return maxf(psy.voice.help_need(), clampf(psy.subs.max_dependence() - 0.5, 0.0, 1.0) * _subs_k())
 		"ocd_ritual":
 			return psy.ocd.gate("ritual") * psy.k()
 		"ocd_resist":
 			return psy.ocd.gate("resist") * psy.k()
+		"cut_down":
+			return clampf(psy.subs.max_dependence() - 0.35, 0.0, 1.0) * _subs_k()
+	if kind.begins_with("substance:"):
+		return psy.subs.gate(kind.substr(10)) * _subs_k()
 	return 0.0
 
 
@@ -1901,6 +1920,58 @@ func _inner_tick(dm: float) -> void:
 				+ "Linka první psychické pomoci 116 123 (nonstop, zdarma), findahelpline.com.")
 	if was_hopeless < v.HOPELESS_SHOW and v.hopelessness >= v.HOPELESS_SHOW:
 		remember("Bylo mi hodně těžko")
+
+
+## Návykové látky a činnosti: k = režim obsahu × povolená témata závislostí.
+func _subs_k() -> float:
+	return psy.k() if content_allowed("addiction") else 0.0
+
+
+func _substance_tick(dm: float) -> void:
+	var kk := _subs_k()
+	var others := 0
+	if world != null:
+		for o in world.get_sims():
+			if o != self and o.state == State.ACTING and String(o.current_action.get("substance", "")) != "" \
+					and o.global_position.distance_to(global_position) < 6.0:
+				others += 1
+	var res: Dictionary = psy.subs.tick(dm, now(), {"stress": mental.stress, "sleeping": _is_sleeping(),
+		"hour": _clock.get_hour() if _clock != null else 12, "others_using": others, "support": mental.support}, kk)
+	_psyche_stress("withdrawal", float(res.get("stress", 0.0)))
+	psy.sub_withdrawal = float(res.get("withdrawal", 0.0))
+	psy.sub_withdrawal_id = String(res.get("withdrawal_id", ""))
+	if float(res.get("crash", 0.0)) > 0.0:
+		mood.add_moodlet("sub_dojezd", "Dojezd – prázdno a únava", "unaveny", -float(res["crash"]), 240.0)
+		needs.add("energy", -float(res["crash"]))
+
+
+## Užití látky / behaviorální epizoda (konec akce): prožitek s tolerancí, sledování návyku, obava blízkých.
+func _substance_after_finish(id: String, interrupted: bool) -> void:
+	var kk := _subs_k()
+	var sid := String(current_action.get("substance", ""))
+	if id == "drink":
+		sid = "alcohol"
+	if id == "cut_down" and not interrupted:
+		psy.subs.cut_until = now() + 3.0 * 1440.0
+		mental.mastery = clampf(mental.mastery + 0.01, 0.0, 1.0)
+		remember("Rozhodl(a) jsem se to omezit")
+		inner_positive("hope", null)
+		return
+	if sid == "" or interrupted or kk <= 0.0:
+		return
+	var res: Dictionary = psy.subs.on_use(sid, now(), kk)
+	_psyche_stress("substance_relief", float(res.get("stress", 0.0)))
+	var liking := float(res.get("liking", 0.0))
+	if liking >= 1.0:
+		mood.add_moodlet("sub_" + sid, "Na chvíli úleva", "spokojeny", liking, 90.0)
+	# Blízcí, kteří to vidí opakovaně, mají obavu (žádné odsuzování, žádná akce navíc).
+	var concern := float(psy.subs.DEFS[sid]["concern"])
+	if concern > 0.0 and world != null and (psy.subs.uses_today(sid, now()) >= 2 or psy.subs.dependence(sid) > 0.4):
+		for o in world.get_sims():
+			if o == self or not o.has_method("command") or o._is_sleeping() or o.global_position.distance_to(global_position) > 8.0:
+				continue
+			if float(o.relationships.get(sim_name, 0.0)) >= 25.0:
+				o.mood.add_moodlet("sub_obava_" + String(name), "Bojím se o: " + first_name(), "uzkostny", -4.0 * concern, 240.0)
 
 
 ## OCD smyčka: spouštěče z dat (dokončená akce, večer), nevyřešená obsese stojí stres.
@@ -1991,7 +2062,7 @@ func _mood_cycle_tick(dm: float) -> void:
 	var kk: float = psy.k()
 	var was: String = psy.mood.phase
 	psy.mood.tick(dm, {"sleeping": _is_sleeping(), "night": _clock.is_night() if _clock != null else false,
-		"stress": mental.stress, "support": mental.support}, kk, psy.rng)
+		"stress": mental.stress, "support": mental.support, "push": psy.subs.elevation_push()}, kk, psy.rng)
 	var d: float = psy.mood.depressive()
 	if d > 0.0 and kk > 0.0:
 		# Depresivní fáze tlačí zátěž k (nebo přes) práh epizody – stávající deprese pak nese stažení i zotavení.
@@ -2076,6 +2147,8 @@ func psyche_private_lines() -> PackedStringArray:
 	out.append_array(psy.voice.private_lines(psy.k(), gs.CRISIS_LINES if gs != null else []))
 	out.append_array(psy.accents.private_lines())
 	out.append_array(psy.ocd.private_lines(psy.k()))
+	if _clock != null:
+		out.append_array(psy.subs.private_lines(now(), _subs_k()))
 	return out
 
 

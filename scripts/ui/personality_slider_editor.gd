@@ -82,6 +82,11 @@ func _build() -> void:
 	for id in Schema.ACCENT_SLIDERS:
 		_row("accents", String(id), String(Schema.ACCENT_SLIDERS[id]), float(acc.get(id, 0.0)), 0.0, 1.0)
 	_bool_row("accent_labels", "Ukazovat soukromě i výkladový název (např. „rysy emoční nestability“)", bool(mind.get("accent_labels", false)))
+	_section("Návykové látky a činnosti – zvyk (0 = žádný)")
+	_note("Herní kategorie bez dávek. Zvyk znamená, jak moc to postava běžně dělá; následky (spánek, nálada, peníze, vztahy) i cesta ven jsou součástí hry. Platí jen se zapnutým tématem závislostí.")
+	var sub: Dictionary = mind.get("substances", {})
+	for id in Schema.SUBSTANCE_SLIDERS:
+		_row("substances", String(id), String(Schema.SUBSTANCE_SLIDERS[id]), float(sub.get(id, 0.0)), 0.0, 1.0)
 	_section("Vnitřní hlas (0,5 = průměr)")
 	_note("Myšlenky vznikají z toho, co se postavě děje; posuvníky jen mění, jak silně se k ní vracejí.")
 	var th: Dictionary = mind.get("thoughts", {})

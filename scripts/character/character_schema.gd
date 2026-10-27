@@ -58,7 +58,9 @@ extends RefCounted
 ##     (volitelný soukromý výklad názvem). Soukromé. Migrace v12 → v13 doplní {} a false.
 ## v14 (psychika E): predispozice ocd a social_anxiety (katalog) a mind.ocd_theme (čeho se pochybnost
 ##     týká). Soukromé. Migrace v13 → v14 doplní výchozí téma.
-const VERSION := 14
+## v15 (psychika F): predispozice addiction a mind.substances – zvyk na látky a činnosti (0..1, 0 = AI je sama
+##     nezačne). Herní obecné kategorie, žádné dávky. Soukromé. Migrace v14 → v15 doplní {}.
+const VERSION := 15
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -282,8 +284,16 @@ const PREDISPOSITIONS := {
 		"effects": "Sklon k obdobím skleslosti: méně radosti a energie začít; pomáhá aktivita, kontakt, spánek a čas."},
 	"ocd": {"label": "Obsedantně-kompulzivní porucha", "content": "mental_health",
 		"effects": "Vtíravá pochybnost a nutkavá činnost s krátkou úlevou; smyčku zmírňuje postupné odolávání nutkání a opora."},
+	"addiction": {"label": "Sklon k závislosti", "content": "mental_health",
+		"effects": "Návyk na látky nebo činnosti vzniká rychleji a chuť se vrací se stresem; pomáhá opora, omezení a odborná pomoc."},
 	"social_anxiety": {"label": "Sociální úzkostná porucha", "content": "mental_health",
 		"effects": "Strach z posuzování a odmítnutí, napětí před setkáním a přehrávání rozhovorů; pomáhá zkušenost, že to šlo, a blízcí lidé."},
+}
+## Zvyk na návykové látky a činnosti (v15) – herní kategorie s obecnými jmény (Mlha, Jiskra, Útlum).
+const SUBSTANCE_SLIDERS := {
+	"caffeine": "Zvyk: káva", "nicotine": "Zvyk: cigarety", "alcohol": "Zvyk: alkohol",
+	"sedative": "Zvyk: Mlha (tlumivá látka)", "stimulant": "Zvyk: Jiskra (povzbuzující látka)",
+	"painkiller": "Zvyk: Útlum (tlumivý lék proti bolesti)", "gaming": "Zvyk: hraní her", "gambling": "Zvyk: sázení",
 }
 ## Téma obsedantní pochybnosti (v14).
 const OCD_THEMES := {"checking": "Kontrolování (sporák, dveře)", "contamination": "Čistota a znečištění",
@@ -410,6 +420,7 @@ const GROUPS := {
 		"accents": ["axes", ACCENT_SLIDERS, 0.0, 1.0],     # v13: osobnostní akcenty (0 = bez akcentu)
 		"accent_labels": ["b", false],                     # v13: ukazovat soukromě i výkladový název
 		"ocd_theme": ["e", OCD_THEMES, "checking"],         # v14: čeho se obsedantní pochybnost týká
+		"substances": ["axes", SUBSTANCE_SLIDERS, 0.0, 1.0], # v15: zvyk na látky a činnosti (0 = žádný)
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},

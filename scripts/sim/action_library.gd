@@ -179,6 +179,32 @@ const ACTIONS: Array = [
 		"effects": {"comfort": -2.0}, "tags": ["coping", "quiet", "solo"], "posture": "stand",
 		"base_appeal": 1.0, "effort": 0.4, "content": "mental_health", "psyche_gate": "ocd_resist",
 	},
+	# Návykové látky a činnosti (psychika F): obecné herní kategorie, žádné dávky ani způsob užití. AI je volí
+	# jen se zvykem nebo chutí (psyche_gate); hráč je může zadat, je-li povolen obsah „závislosti“.
+	{"id": "use_caffeine", "label": "Dá si kávu", "object": "", "duration": 10.0, "effects": {"energy": 6.0, "fun": 2.0},
+		"tags": ["substance", "solo"], "posture": "stand", "base_appeal": 3.0, "effort": 0.1, "content": "addiction",
+		"substance": "caffeine", "psyche_gate": "substance:caffeine"},
+	{"id": "use_nicotine", "label": "Dá si cigaretu", "object": "", "duration": 8.0, "effects": {"comfort": 2.0},
+		"tags": ["substance", "solo"], "posture": "stand", "base_appeal": 3.0, "effort": 0.0, "content": "addiction",
+		"substance": "nicotine", "psyche_gate": "substance:nicotine"},
+	{"id": "use_sedative", "label": "Užije Mlhu", "object": "", "duration": 20.0, "effects": {"comfort": 8.0, "fun": 4.0, "energy": -4.0},
+		"tags": ["substance", "solo"], "posture": "stand", "base_appeal": 3.0, "effort": 0.0, "content": "addiction",
+		"substance": "sedative", "psyche_gate": "substance:sedative"},
+	{"id": "use_stimulant", "label": "Užije Jiskru", "object": "", "duration": 10.0, "effects": {"energy": 12.0, "fun": 6.0},
+		"tags": ["substance", "solo"], "posture": "stand", "base_appeal": 3.0, "effort": 0.0, "content": "addiction",
+		"substance": "stimulant", "psyche_gate": "substance:stimulant"},
+	{"id": "use_painkiller", "label": "Užije Útlum", "object": "", "duration": 10.0, "effects": {"comfort": 12.0},
+		"tags": ["substance", "solo"], "posture": "stand", "base_appeal": 3.0, "effort": 0.0, "content": "addiction",
+		"substance": "painkiller", "psyche_gate": "substance:painkiller"},
+	{"id": "play_games", "label": "Hraje hry", "object": "", "duration": 60.0, "effects": {"fun": 26.0, "energy": -3.0},
+		"tags": ["fun", "screen", "solo"], "posture": "sit", "base_appeal": 1.0, "effort": 0.1, "content": "addiction",
+		"substance": "gaming", "psyche_gate": "substance:gaming"},
+	{"id": "gamble", "label": "Sází online", "object": "", "duration": 30.0, "effects": {"fun": 10.0},
+		"tags": ["fun", "solo"], "posture": "stand", "base_appeal": 1.0, "effort": 0.0, "content": "addiction",
+		"substance": "gambling", "psyche_gate": "substance:gambling"},
+	{"id": "cut_down", "label": "Rozhodne se to omezit", "object": "", "duration": 10.0, "effects": {"comfort": -1.0},
+		"tags": ["coping", "quiet", "solo"], "posture": "stand", "base_appeal": 2.0, "effort": 0.4, "content": "addiction",
+		"psyche_gate": "cut_down"},
 	# Vyhledat odbornou pomoc (linka, poradna, terapie – mimo záběr). Hráč ji může zadat vždy; AI jen
 	# s důvodem (psyche_gate: ruminace, beznaděj, později závislost či psychotické prožívání).
 	{
