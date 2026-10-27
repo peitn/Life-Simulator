@@ -23,6 +23,7 @@ const IntimacyState := preload("res://scripts/sim/intimacy_state.gd")
 const AdultIntimacy := preload("res://scripts/sim/adult_intimacy_action.gd")
 const SocialPressure := preload("res://scripts/sim/social_pressure.gd")
 const SensitivePrivacyMask := preload("res://scripts/sim/sensitive_privacy_mask.gd")
+const PsycheExt := preload("res://scripts/sim/psyche_ext.gd")
 ## Volitelné externí rozhodování sociálních interakcí (experiment FCCS, jen headless test).
 static var social_oracle = null
 
@@ -134,6 +135,10 @@ var rejection = RejectionResponse.new()
 var emotions = EmotionalState.new()
 ## Stable self-belief (0..1), privately sourced from CharacterData.mind; NOT an emotion meter.
 var self_defectiveness_belief := 0.0
+## Rozšíření psychiky (neuro profil a další osy, scripts/sim/psyche_ext.gd). Soukromé, vlastní RNG.
+var psy = PsycheExt.new()
+## Stabilní interní uid postavy (z CharacterData; klíč sociální paměti, nikdy jméno). Soukromé.
+var char_uid := ""
 ## Private sexuality and consent. Never part of replicated net_detail.
 var intimacy = IntimacyState.new()
 var _intimacy_resolved := false
@@ -233,6 +238,8 @@ func setup(p_name: String, p_grammar: Variant, p_traits: Array, p_color: Color, 
 	sensory.setup(trait_profile, {}, p_seed)
 	vigilance.configure({}, true)
 	rejection.configure({}, true)
+	psy = PsycheExt.new()
+	psy.configure({}, {}, p_seed, false)
 	name = node_name_for(p_name)
 
 
@@ -296,6 +303,10 @@ func apply_character_private(cd: Dictionary, initialize_sensitivity: bool = true
 		"libido": identity.get("libido", 0.5),
 		"drive_dysregulation": identity.get("drive_dysregulation", 0.0)})
 	sensory.configure(dispositions)
+	char_uid = String(cd.get("uid", "")) if typeof(cd.get("uid", "")) == TYPE_STRING else ""
+	# Živá úprava v editoru (initialize_sensitivity = false) zachová naučený stav rozšíření psychiky.
+	psy.configure(m, dispositions, _seed, not initialize_sensitivity)
+	sensory.channel_gain = psy.neuro.channel_gains(psy.k())
 
 
 ## Individuální vzorce průběhu (ne univerzální příznaky): {"morning_worse": true}.
@@ -382,6 +393,7 @@ func sim_tick(dm: float) -> void:
 	sensory.tick(dm)
 	_check_cravings()
 	_mental_tick(dm)
+	_psyche_tick(dm)
 	ledger.decay(dm, Traits.mult_param(trait_profile, "grudge_tau"), Traits.mult_param(trait_profile, "guilt_tau"))
 	_heal_relationships(dm)
 	mood.evaluate(needs, trait_profile, _extra_moodlets())
@@ -450,6 +462,8 @@ func _heal_relationships(dm: float) -> void:
 ## Moodlety z jiných systémů: duševní stav + nejsilnější výčitky a křivda (přepočítávají se každý krok).
 func _extra_moodlets() -> Array:
 	var out: Array = mental.mood_entries()
+	if psy != null and not psy.is_neutral() and _clock != null:
+		out.append_array(psy.neuro.mood_entries(now(), psy.k()))
 	var gname := ""
 	var gmax := 0.0
 	for n in ledger.guilt:
@@ -532,6 +546,7 @@ func _mental_tick(dm: float) -> void:
 			# Tlačenice nevyčerpává každého stejně (samotář vs. společenský) a člověk si zvyká.
 			var amt := CROWD_STRESS * maxf(near - 1.0, 0.0) * sensory.crowd_factor()
 			sensory.expose_crowd(CROWD_INTERVAL)
+			on_sensory_exposure("crowd", maxf(near - 1.0, 0.0))
 			if amt > 0.2:
 				mental.on_stressor("crowd", amt, cfg)
 	if mental.panic_active and not _in_panic_action() and not _grounding_now():
@@ -660,6 +675,13 @@ func _decide() -> void:
 
 
 func start_plan(action: Dictionary, tgt: Node3D) -> void:
+	# Hyperfokus / časová slepota / pracovní paměť natáhnou jen AUTONOMNÍ akci (hráčův příkaz se nemění).
+	if not by_player and not psy.is_neutral():
+		var dmul: float = psy.neuro.duration_mult(action, false, psy.k())
+		if dmul > 1.0 + 1e-6:
+			action = action.duplicate(true)
+			action["duration"] = float(action.get("duration", 30.0)) * dmul
+			action["psy_extended"] = true
 	current_action = action
 	target = tgt
 	walk_elapsed = 0.0
@@ -743,6 +765,7 @@ func _run_queued() -> void:
 			continue
 		if tgt != null and tgt.has_method("is_available") and not tgt.is_available(self):
 			mood.add_moodlet("obsazeno", "Obsazeno! Někdo mě předběhl", "nesvuj", -4.0, 60.0)
+			_routine_disrupted()
 			continue
 		if tgt != null and _is_sim(tgt):
 			if bool(cmd["action"].get("approach_only", false)):
@@ -765,6 +788,9 @@ func _maybe_hesitate(cmd: Dictionary) -> bool:
 	if not bool(mental_cfg().get("episodes", true)):
 		return false
 	var b: float = mental.dep.barrier(ActionLibrary.effort(cmd["action"]))
+	# Obtížné zahájení (neuro profil): stejná zrušitelná bariéra jako u deprese, jen u povinností.
+	if not psy.is_neutral():
+		b = maxf(b, psy.neuro.initiation_barrier(cmd["action"], psy.k()))
 	if b < 0.3 or rng.randf() > b * 1.4:
 		return false
 	cmd["hesitated"] = true
@@ -919,6 +945,13 @@ func _act(dm: float) -> void:
 	if action_elapsed >= dur:
 		_finish(false)
 		return
+	# Roztěkanost: autonomní soustředěná činnost může „vyšumět“ (nikdy hráčův příkaz, nikdy rozhovor).
+	if not by_player and social_partner == null and not psy.is_neutral():
+		var lam: float = psy.neuro.drift_hazard(current_action, by_player, action_elapsed, psy.k())
+		if lam > 0.0 and psy.rng.randf() < 1.0 - exp(-lam * dm):
+			mood.add_moodlet("nd_odbihani", "Myšlenky mi utekly jinam", "nesvuj", -2.0, 60.0)
+			_finish(true)
+			return
 	if social_partner != null:
 		if not is_instance_valid(social_partner) or social_partner.social_partner != self:
 			_finish(false)
@@ -997,6 +1030,7 @@ func _finish(interrupted: bool) -> void:
 			var mem = current_action.get("memory", null)
 			if mem != null and float(ml[3]) * scale >= MEMORABLE_STRENGTH:
 				remember(String(mem))
+	_psyche_after_finish(id, interrupted, cop)
 	_leave_target()
 	var partner := social_partner
 	social_partner = null
@@ -1090,6 +1124,8 @@ func join_social(partner: Node3D, action: Dictionary) -> void:
 	if state == State.ACTING and current_action.has("id"):
 		# Přerušená akce musí skončit i pro posluchače (zvuky objektů, statistiky).
 		action_finished.emit(self, String(current_action["id"]), true)
+		if not (current_action.get("tags", []) as Array).has("social"):
+			_routine_disrupted()
 	by_player = false
 	current_action = action
 	target = partner
@@ -1272,6 +1308,12 @@ func talk_success_chance(partner: Node3D, complaint := "") -> float:
 		p -= float(TALK_EMOTION_PENALTY.get(e, 0.0))
 	if complaint != "":
 		p -= COMPLAINT_PENALTY
+	# Přímá a doslovná komunikace (neuro profil): obou stran, podle toho, jak blízcí si jsou.
+	if not psy.is_neutral():
+		p += psy.neuro.talk_bias(friendship, psy.k())
+	var pp = partner.get("psy")
+	if pp != null and not pp.is_neutral():
+		p += pp.neuro.talk_bias(float(partner.relationships.get(sim_name, 0.0)), pp.k())
 	return clampf(p, 0.08, 0.92)
 
 
@@ -1286,6 +1328,8 @@ func maybe_swallow(complaint: String, partner: Node3D) -> String:
 	if complaint == "" or mental == null:
 		return complaint
 	var av: float = mental.avoidance(mental_cfg())
+	if not psy.is_neutral():
+		av *= psy.neuro.swallow_mult(psy.k())
 	if av <= 0.0 or rng.randf() >= av * 0.6:
 		return complaint
 	swallowed_complaints += 1
@@ -1556,6 +1600,119 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 			if joy_gap > 25.0 and b.emotions.level("joy") > 55.0:
 				a.emotions.impulse("envy", b.sim_name, clampf(joy_gap / 90.0, 0.2, 0.7))
 		a.note_relationship_change(b, cur, nv)
+
+
+# ---------------------------------------------------------------- rozšíření psychiky (psyche_ext)
+
+## Násobič chuti na akci z rozšíření psychiky (utility AI). Neutrální postava → přesně 1,0.
+func psyche_action_weight(a: Dictionary) -> float:
+	if psy == null or psy.is_neutral():
+		return 1.0
+	return psy.action_weight(a, _clock.get_hour() if _clock != null else 12)
+
+
+## Násobič výběru partnera pro sociální akci (maskování, později paměť a osobnostní akcenty).
+func psyche_target_weight(other: Node3D, a: Dictionary) -> float:
+	if psy == null or psy.is_neutral() or other == null:
+		return 1.0
+	return psy.target_weight(float(relationships.get(other.sim_name, 0.0)), a)
+
+
+## Smyslová zátěž (hluk z domácnosti, tlačenice): jen pro přetížení v neuro profilu.
+func on_sensory_exposure(channel_name: String, amount: float) -> void:
+	if psy == null or psy.is_neutral():
+		return
+	psy.neuro.on_sensory(channel_name, amount, psy.k())
+
+
+## Krok rozšíření: režim obsahu (přepnutí za běhu), přetížení, sociální baterka, tiky.
+func _psyche_tick(dm: float) -> void:
+	var m := MentalState.cfg_mode(mental_cfg())
+	if m != psy.mode:
+		psy.mode = m
+		sensory.channel_gain = psy.neuro.channel_gains(psy.k())
+	if psy.is_neutral():
+		return
+	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
+	var res: Dictionary = psy.neuro.tick(dm, {"sleeping": _is_sleeping(), "social": social_partner != null,
+		"quiet": tags.has("quiet") or tags.has("rest"), "stress": mental.stress}, psy.k(), psy.rng)
+	var add := float(res.get("stress", 0.0))
+	if add > 0.0:
+		_psyche_stress("overload", add)
+	if bool(res.get("tic", false)):
+		_on_tic()
+
+
+## Stres z rozšíření psychiky (s měkkým stropem MentalState a zápisem zdroje). Záporné = úleva.
+func _psyche_stress(kind: String, amount: float) -> void:
+	if amount == 0.0 or not is_finite(amount):
+		return
+	var before: float = mental.stress
+	mental.stress = clampf(mental.stress + amount * (mental.stress_gain_factor() if amount > 0.0 else 1.0), 0.0, 100.0)
+	if mental.stress > before:
+		mental.stress_sources[kind] = float(mental.stress_sources.get(kind, 0.0)) + mental.stress - before
+
+
+## Tik: neškodný a mimovolný. Postava ho nijak „nepoužívá“; před lidmi ji může krátce zahanbit.
+func _on_tic() -> void:
+	if world == null:
+		return
+	for o in world.get_sims():
+		if o != self and o.has_method("command") and not o._is_sleeping() \
+				and o.global_position.distance_to(global_position) < 4.0:
+			mood.add_moodlet("nd_tik", "Tik zrovna před ostatními", "nesvuj", -3.0 * psy.k(), 90.0)
+			return
+
+
+## Narušený plán (obsazeno, vyrušení) – víc vadí tomu, kdo silně potřebuje předvídatelnost.
+func _routine_disrupted() -> void:
+	if psy == null or psy.is_neutral():
+		return
+	var r: float = psy.neuro.routine_need()
+	if r <= 0.0:
+		return
+	_psyche_stress("routine", 3.0 * psy.k() * r)
+	if r > 0.4:
+		mood.add_moodlet("nd_rutina", "Narušený plán mě rozhodil", "napjaty", -4.0 * r * psy.k(), 90.0)
+
+
+## Po dokončení / přerušení akce: sociální baterka a maskování, zájem, pracovní paměť, čas.
+func _psyche_after_finish(_id: String, interrupted: bool, cop: String) -> void:
+	if psy == null or psy.is_neutral():
+		return
+	var kk: float = psy.k()
+	if kk <= 0.0:
+		return
+	var tags: Array = current_action.get("tags", [])
+	var n = psy.neuro
+	if not interrupted and social_partner != null and is_instance_valid(social_partner) and tags.has("social"):
+		var res: Dictionary = n.on_social_finished(float(relationships.get(social_partner.sim_name, 0.0)), kk)
+		if float(res["energy"]) < 0.0:
+			needs.add("energy", float(res["energy"]))
+		_psyche_stress("masking", float(res["stress"]))
+	if not interrupted and n.is_interest(current_action):
+		_psyche_stress("interest", n.on_interest_finished(now(), kk))
+	if not interrupted and cop == "journal" and n.a("working_memory") > 0.0:
+		# Silná stránka vnějších pomůcek: sepsat si věci uleví přetížené pracovní paměti víc.
+		_psyche_stress("journal", -3.0 * kk * n.a("working_memory"))
+	if not interrupted and tags.has("cooking") and n.a("working_memory") > 0.0 \
+			and psy.rng.randf() < 0.15 * kk * n.a("working_memory"):
+		mood.add_moodlet("nd_zapomnel", gendered("Zase jsem na něco zapomněl(a)"), "nesvuj", -4.0 * kk, 120.0)
+	if bool(current_action.get("psy_extended", false)) and float(needs.values[needs.lowest()]) < 30.0:
+		mood.add_moodlet("nd_cas", gendered("Zase jsem se zapomněl(a) v čase"), "nesvuj", -3.0 * kk, 120.0)
+
+
+## Soukromé slovní řádky pro vlastníka (offline HUD). Žádná čísla ani diagnózy.
+func psyche_private_lines() -> PackedStringArray:
+	if psy == null or psy.is_neutral():
+		return PackedStringArray()
+	return psy.neuro.private_lines(psy.k())
+
+
+## Obnova z uložené hry (GameSave). Nevalidní data se ignorují (validace proběhla předem).
+func restore_psyche(d: Variant) -> void:
+	if psy.from_dict(d):
+		sensory.channel_gain = psy.neuro.channel_gains(psy.k())
 
 
 ## Chance of a perceived rejection after an objectively good conversation.
@@ -1835,6 +1992,7 @@ func hud_info() -> Dictionary:
 	# An opt-in concern is never a SH action, graphic event or prediction.
 	if world != null and is_instance_valid(world) and world.net != null and not world.net.is_networked():
 		d["care"] = private_rejection_status()
+		d["psyche_lines"] = psyche_private_lines()
 		d["emotion_levels"] = emotions.levels.duplicate(true)
 		d["crying"] = emotions.crying
 		d["emotion_toward"] = emotions.top_people()

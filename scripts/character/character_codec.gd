@@ -162,6 +162,8 @@ static func migrate(d) -> Dictionary:
 		data = _v6_to_v7(data)
 	if v <= 7:
 		data = _v7_to_v8(data)
+	if v <= 8:
+		data = _v8_to_v9(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -266,6 +268,19 @@ static func _v7_to_v8(src: Dictionary) -> Dictionary:
 	var mind = d.get("mind", null)
 	if typeof(mind) == TYPE_DICTIONARY and not mind.has("dispositions"):
 		mind["dispositions"] = {}
+	return d
+
+
+## v8 → v9 (psychika A): neurodivergentní profil. {} = žádná osa (chování beze změny), zájem výchozí.
+static func _v8_to_v9(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 9
+	var mind = d.get("mind", null)
+	if typeof(mind) == TYPE_DICTIONARY:
+		if not mind.has("neuro"):
+			mind["neuro"] = {}
+		if not mind.has("interest_focus"):
+			mind["interest_focus"] = "reading"
 	return d
 
 

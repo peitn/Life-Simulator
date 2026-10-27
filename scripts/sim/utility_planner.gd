@@ -204,6 +204,9 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 	# their own independent effects; no emotion ever forces an action.
 	if sim.has_method("emotional_action_weight"):
 		mult *= sim.emotional_action_weight(String(a["id"]), tags)
+	# Rozšíření psychiky (neuro profil a další osy): omezený spojitý násobič, neutrální postava = 1,0.
+	if sim.has_method("psyche_action_weight"):
+		mult *= sim.psyche_action_weight(a)
 	return gain * mult
 
 
@@ -277,6 +280,8 @@ static func choose(sim, objects: Array, sims: Array, rng: RandomNumberGenerator,
 				s *= avoidance_weight(sim, other, a)
 				if sim.has_method("emotional_target_weight"):
 					s *= sim.emotional_target_weight(other.sim_name, String(a["id"]))
+				if sim.has_method("psyche_target_weight"):
+					s *= sim.psyche_target_weight(other, a)
 				if String(a.get("coping", "")) == "confide":
 					# Liking alone is insufficient to feel safe sharing vulnerabilities.
 					var trust_value: float = sim.ledger.trust_in(other.sim_name)

@@ -5,6 +5,8 @@ const CharacterValidator := preload("res://scripts/character/character_validator
 const HouseholdDynamics := preload("res://scripts/sim/household_dynamics.gd")
 const EmotionalState := preload("res://scripts/sim/emotional_state.gd")
 const IntimacyState := preload("res://scripts/sim/intimacy_state.gd")
+const PsycheExt := preload("res://scripts/sim/psyche_ext.gd")
+const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const VERSION := 1
 const MAGIC := "LS-HOUSEHOLD"
 const MAX_BYTES := 8 * 1024 * 1024
@@ -85,6 +87,7 @@ static func capture(world: Node) -> Dictionary:
 			"intimacy": sim.intimacy.to_dict(),
 			"sensory": sim.sensory.to_dict(), "vigilance": sim.vigilance.to_dict(),
 			"rejection": sim.rejection.to_dict(),
+			"psyche_ext": sim.psy.to_dict(),
 			"state": sim.state, "action": sim.current_action.duplicate(true),
 			"target": _ref(world, sim.target), "social_partner": _ref(world, sim.social_partner),
 			"target_point": sim.target_point, "action_elapsed": sim.action_elapsed,
@@ -180,7 +183,11 @@ static func validate_data(data: Variant, world: Node = null) -> Dictionary:
 		if name == "" or name.length() > 64 or name != name.validate_node_name() or nodes.has(name):
 			return {"ok": false, "reason": "invalid_name"}
 		nodes[name] = true
-		var char_result: Dictionary = CharacterValidator.validate(item["character"], {"mode": "strict"})
+		# Uložená postava ze starší verze schématu se nejdřív zmigruje (v8 → v9 …), pak striktně ověří.
+		var migrated: Dictionary = CharacterCodec.migrate(item["character"])
+		if not bool(migrated.get("ok", false)):
+			return {"ok": false, "reason": "invalid_character"}
+		var char_result: Dictionary = CharacterValidator.validate(migrated["data"], {"mode": "strict"})
 		if not bool(char_result.get("ok", false)):
 			return {"ok": false, "reason": "invalid_character"}
 		var state: Dictionary = item["state"]
@@ -225,6 +232,9 @@ static func validate_data(data: Variant, world: Node = null) -> Dictionary:
 		# Old H4 saves lack this field; new saves must match authoritative age.
 		if state.has("intimacy") and not IntimacyState.validate_snapshot(state["intimacy"]):
 			return {"ok": false, "reason": "bad_intimacy"}
+		# Starší uložené hry rozšíření psychiky nemají (postava pak začne s čistým stavem).
+		if state.has("psyche_ext") and not PsycheExt.validate_snapshot(state["psyche_ext"]):
+			return {"ok": false, "reason": "bad_psyche_ext"}
 		if state.has("intimacy") and int(state["intimacy"]["age"]) != int(item["character"]["body"]["age"]):
 			return {"ok": false, "reason": "intimacy_age_mismatch"}
 		if typeof(state["mood"].get("moodlets")) != TYPE_ARRAY or state["mood"]["moodlets"].size() > 512:
@@ -279,6 +289,8 @@ static func _restore_state(world: Node, sim: Node, data: Dictionary) -> void:
 	if data.has("intimacy"):
 		sim.intimacy.from_dict(data["intimacy"])
 	sim.ledger.from_dict(data["ledger"])
+	if data.has("psyche_ext"):
+		sim.restore_psyche(data["psyche_ext"])
 	for k in data["sensory"]:
 		if k in ["hypersensitivity", "noise_sens", "crowd_sens", "joy_sens", "light_sens", "anticip_thr", "noise_habit", "crowd_habit"]:
 			sim.sensory.set(k, float(data["sensory"][k]))
@@ -343,7 +355,7 @@ static func apply(world: Node, data: Variant) -> Dictionary:
 	world.dynamics = HouseholdDynamics.new()
 	for item in data["sims"]:
 		var st: Dictionary = item["state"]
-		var created = world.spawn_character(item["character"], st["position"], int(st.get("seed", 1)), String(item["node"]))
+		var created = world.spawn_character(CharacterCodec.migrate(item["character"])["data"], st["position"], int(st.get("seed", 1)), String(item["node"]))
 		if created == null:
 			world.clock.running = previous_running
 			return {"ok": false, "reason": "spawn_failed"}

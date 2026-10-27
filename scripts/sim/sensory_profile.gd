@@ -35,6 +35,9 @@ var light_sens := 1.0
 var anticip_thr := 1.0
 var noise_habit := 0.0
 var crowd_habit := 0.0
+## Citlivost po kanálech z neurodivergentního profilu (mind.neuro.sens_*): kanál → zisk ≥ 0, násobí
+## sensory_factor (1 + zisk). Prázdné = beze změny. Odvozené z CharacterData, neukládá se.
+var channel_gain := {}
 
 
 static func _sum(table: Dictionary, traits: Variant) -> float:
@@ -92,7 +95,16 @@ func sensory_factor(channel: String) -> float:
 		"bright_light": w = 0.55
 		"touch": w = 0.45
 		_: return 1.0
-	return clampf(1.0 + (hypersensitivity - 0.5) * 2.0 * w, 0.45, 1.55)
+	var f := clampf(1.0 + (hypersensitivity - 0.5) * 2.0 * w, 0.45, 1.55)
+	if not channel_gain.is_empty():
+		f *= 1.0 + clampf(float(channel_gain.get(channel, 0.0)), 0.0, 1.0)
+	return f
+
+
+## Kolik potěší ranní světlo: u citlivosti na světlo méně (ostré světlo spíš unavuje), nikdy záporně.
+func morning_light_factor() -> float:
+	var g := clampf(float(channel_gain.get("bright_light", 0.0)), 0.0, 1.0)
+	return light_sens * (1.0 - 0.85 * g)
 
 
 ## Hluk je jedna dílčí složka hypersenzitivity, stále s vlastním návykem.

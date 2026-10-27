@@ -18,7 +18,7 @@ func _ready() -> void:
 	d["uid"] = CharacterData.new_uid()
 	d["identity"]["first_name"] = "Alex"
 	d["personality"]["traits"] = ["optimista"]
-	check(Schema.VERSION == 8, "schema v8")
+	check(Schema.VERSION >= 8, "schema v8+ (current v%d)" % Schema.VERSION)
 	check((d["personality"]["trait_levels"] as Dictionary).is_empty(), "legacy stays unchanged before editing")
 	check((d["mind"]["dispositions"] as Dictionary).is_empty(), "unspecified dispositions are derived")
 	check(is_equal_approx(float(d["mind"]["self_defectiveness"]), 0.0),
@@ -28,7 +28,7 @@ func _ready() -> void:
 	older["personality"].erase("trait_levels")
 	older["mind"].erase("dispositions")
 	var migrated := Codec.migrate(older)
-	check(migrated["ok"] and migrated["data"]["v"] == 8, "migration v7 to v8")
+	check(migrated["ok"] and migrated["data"]["v"] == Schema.VERSION, "migration v7 to current (v8+)")
 	check(migrated["data"]["personality"]["trait_levels"] == {}, "legacy traits preserved when migrating")
 	check(absf(Traits.mood_bias(["optimista"]) - 8.0) < 0.0001, "legacy categorical personality same effect")
 	section("Independent intensities affect simulation smoothly")

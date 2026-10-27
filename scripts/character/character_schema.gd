@@ -45,7 +45,10 @@ extends RefCounted
 ##     Nezávislé na rodu, identitě, tónu kůže i jménu. Migrace v6 → v7 doplní výchozí „normální“ pleť
 ##     (CharacterCodec._v6_to_v7); drsnost T-zóny zůstane blízko dřívější (−0,065 proti −0,08).
 ## v8: continuous personality sliders and optional psyche dispositions. Legacy traits remain for migration/presets.
-const VERSION := 8
+## v9 (27. 10. 2026, psychika A): mind.neuro – volitelný neurodivergentní profil (ADHD, autistické osy, tiky,
+##     náročnost čtení) jako nezávislé spojité posuvníky 0..1 (chybějící osa = 0 = bez výrazné odlišnosti)
+##     a mind.interest_focus (oblast hlubokého zájmu). Soukromé. Migrace v8 → v9 doplní {} a výchozí zájem.
+const VERSION := 9
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -169,6 +172,33 @@ const PSYCHE_SLIDERS := {
 	"energy_baseline": "Obvyklá energie",
 	"reward_sensitivity": "Citlivost na odměnu a radost",
 	"cognitive_flexibility": "Kognitivní flexibilita",
+}
+
+## Neurodivergentní profil (v9): každá osa je samostatný posuvník 0..1, 0 = bez výrazné odlišnosti. Nejde o
+## diagnózu ani šablonu – dvě postavy se stejnou „nálepkou“ mají jiný profil. Silné stránky (hyperfokus,
+## hloubka zájmů, přímost) jsou osy stejně jako obtíže. Potřeba předvídatelnosti a rutiny je už
+## v dispositions.predictability_need (nezdvojuje se).
+const NEURO_SLIDERS := {
+	"attention_drift": "Těkavá pozornost",
+	"working_memory": "Přetížení pracovní paměti",
+	"task_initiation": "Obtížné zahájení úkolů",
+	"action_impulsivity": "Impulzivní jednání (nejdřív udělat)",
+	"hyperfocus": "Hyperfokus (silná stránka)",
+	"time_blindness": "Časová slepota (vnímání času)",
+	"sens_sound": "Citlivost na zvuky",
+	"sens_light": "Citlivost na světlo",
+	"sens_touch": "Citlivost na dotek a blízkost lidí",
+	"social_energy": "Sociální vyčerpání (energie na lidi)",
+	"interest_depth": "Hloubka zájmu (monotropní zájem, silná stránka)",
+	"direct_communication": "Přímá a doslovná komunikace",
+	"masking_cost": "Maskování – cena za přizpůsobování se",
+	"tic_tendency": "Sklon k tikům",
+	"reading_effort": "Čtení a psaní stojí víc úsilí",
+}
+## Oblast hlubokého zájmu (hloubka zájmu je posuvník; tady jen kam směřuje).
+const INTEREST_FOCUS := {
+	"reading": "Knihy a texty", "cooking": "Vaření", "exercise": "Pohyb a sport",
+	"screens": "Filmy, seriály a hry", "nature": "Procházky a příroda",
 }
 
 const TRAIT_COST := {
@@ -324,6 +354,8 @@ const GROUPS := {
 		"self_defectiveness": ["f", 0.0, 1.0, 0.0],
 		"predispositions": ["predisp"], # 0..1 per condition; already continuous
 		"dispositions": ["axes", PSYCHE_SLIDERS, 0.0, 1.0],
+		"neuro": ["axes", NEURO_SLIDERS, 0.0, 1.0],        # v9: neurodivergentní profil (0 = bez odlišnosti)
+		"interest_focus": ["e", INTEREST_FOCUS, "reading"], # v9: kam směřuje hluboký zájem
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},

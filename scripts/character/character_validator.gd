@@ -653,12 +653,15 @@ class _V:
 			idn["gender_custom"] = ""
 		# Nastavení obsahu: vypnutá témata duševního zdraví → citlivé údaje se nepřijímají (ne chyba).
 		if not public_only and out.has("mind") and mh == "off":
+			# Vypnutá témata: celé soukromé „mind“ se nepřijímá – každé pole se vrátí na výchozí hodnotu
+			# (i nové osy přidané později, bez výjimek). Varování jen, když něco opravdu zahazujeme.
 			var m: Dictionary = out["mind"]
-			if not (m.get("predispositions", {}) as Dictionary).is_empty() or not (m.get("dispositions", {}) as Dictionary).is_empty() \
-				or not (m.get("traumas", []) as Array).is_empty() \
-					or bool(m.get("morning_worse", false)):
+			var fs: Dictionary = Schema.fields("mind")
+			var dropped := false
+			for k in fs:
+				var def = Schema.default_value(fs[k])
+				if m.has(k) and m[k] != def:
+					dropped = true
+				m[k] = def.duplicate(true) if typeof(def) == TYPE_DICTIONARY or typeof(def) == TYPE_ARRAY else def
+			if dropped:
 				warn("mind", "témata duševního zdraví jsou vypnutá – predispozice a traumata se nepoužijí")
-			m["predispositions"] = {}
-			m["dispositions"] = {}
-			m["traumas"] = []
-			m["morning_worse"] = false

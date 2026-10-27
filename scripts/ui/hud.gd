@@ -674,6 +674,9 @@ func _process(delta: float) -> void:
 		_mind_label.text += "\nZvýšená zátěž – může potřebovat bezpečí a podporu."
 	elif bool(care.get("support_needed", false)):
 		_mind_label.text += "\nMůže potřebovat oporu."
+	# Rozšíření psychiky: jen slova, jen offline vlastník (hud_info je nepřenáší po síti).
+	for line in info.get("psyche_lines", PackedStringArray()):
+		_mind_label.text += "\n" + String(line)
 	_render_thoughts(mind)
 	if _emotion_button.visible:
 		_render_emotion_details(info)

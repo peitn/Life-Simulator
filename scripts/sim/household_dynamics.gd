@@ -230,6 +230,8 @@ static func expose_noise(s, amount: float) -> void:
 	var sp = s.get("sensory")
 	if sp != null and amount > 0.0:
 		sp.expose_noise(amount)
+	if amount > 0.0 and s.has_method("on_sensory_exposure"):
+		s.on_sensory_exposure("noise", amount * 2.0)
 
 
 ## Ranní světlo – jednou za den pro toho, kdo je ráno vzhůru a nespí.
@@ -242,7 +244,9 @@ func _morning_light(sims: Array, hour: int, now: float) -> void:
 			continue
 		_morning[x.sim_name] = day
 		var sp = x.get("sensory")
-		var ls: float = 1.0 if sp == null else float(sp.light_sens)
+		var ls: float = 1.0 if sp == null else (float(sp.morning_light_factor()) if sp.has_method("morning_light_factor") else float(sp.light_sens))
+		if x.has_method("on_sensory_exposure"):
+			x.on_sensory_exposure("bright_light", 1.0)
 		if x.has_method("add_joy_moodlet"):
 			x.add_joy_moodlet("ranni_svetlo", "Ranní světlo", "spokojeny", MORNING_LIGHT_MOOD * ls, MORNING_LIGHT_MINUTES)
 

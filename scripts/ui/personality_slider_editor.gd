@@ -70,6 +70,7 @@ func _build() -> void:
 	_section("Vnitřní přesvědčení o sobě (0 = vůbec, 1 = velmi silné)")
 	_row("mind_belief", "self_defectiveness", "Jsem nedostatečná/nedostatečný — pocit vlastní defektnosti",
 		float(mind.get("self_defectiveness", 0.0)), 0.0, 1.0)
+	_neuro_section(mind)
 	_section("Náchylnost k psychickým obtížím (0 = žádná, 1 = výrazná)")
 	for id in Schema.PREDISPOSITIONS:
 		var preds: Dictionary = mind.get("predispositions", {})
@@ -79,6 +80,53 @@ func _build() -> void:
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_readout.text = "Intenzita vyjadřuje predispozici v simulaci, ne diagnózu ani předpověď chování."
 	add_child(_readout)
+
+
+## Neurodivergentní profil (v9): nezávislé osy, silné stránky i obtíže. Není to diagnóza ani přepínač.
+func _neuro_section(mind: Dictionary) -> void:
+	_section("Neurodivergentní profil (0 = bez výrazné odlišnosti, 1 = výrazně)")
+	_note("Každá osa zvlášť – žádná nálepka ani šablona. Silné stránky (hyperfokus, hloubka zájmu, přímost) i obtíže. Potřebu rutiny nastavuje „Potřeba předvídatelnosti“ výše.")
+	var nd: Dictionary = mind.get("neuro", {})
+	for id in Schema.NEURO_SLIDERS:
+		_row("neuro", String(id), String(Schema.NEURO_SLIDERS[id]), float(nd.get(id, 0.0)), 0.0, 1.0)
+	_enum_row("interest_focus", "Kam směřuje hluboký zájem", Schema.INTEREST_FOCUS, String(mind.get("interest_focus", "reading")))
+
+
+func _note(text: String) -> void:
+	var l := Label.new()
+	l.text = text
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.modulate = Color(1, 1, 1, 0.75)
+	_list.add_child(l)
+
+
+## Výběr z katalogu v `mind` (např. interest_focus). Signál nese index; data čte volající z `character`.
+func _enum_row(field: String, title: String, catalog: Dictionary, current: String) -> void:
+	var row := VBoxContainer.new()
+	_list.add_child(row)
+	var caption := Label.new()
+	caption.text = title
+	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(caption)
+	var ob := OptionButton.new()
+	ob.name = "Enum_" + field
+	ob.fit_to_longest_item = false
+	ob.clip_text = true
+	ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var ids: Array = catalog.keys()
+	for i in ids.size():
+		ob.add_item(String(catalog[ids[i]]), i)
+		ob.set_item_metadata(i, String(ids[i]))
+		if String(ids[i]) == current:
+			ob.select(i)
+	ob.item_selected.connect(_on_enum.bind(field, ob))
+	row.add_child(ob)
+
+
+func _on_enum(index: int, field: String, ob: OptionButton) -> void:
+	var id := String(ob.get_item_metadata(index))
+	character.mind[field] = id
+	character_changed.emit("mind_enum", field, float(index))
 
 
 func _section(title: String) -> void:
@@ -101,6 +149,8 @@ func _row(group: String, id: String, title: String, initial: float, lo: float, h
 	var slider := HSlider.new()
 	if group == "mind_belief" and id == "self_defectiveness":
 		slider.name = "BeliefDefectiveness"
+	else:
+		slider.name = "Slider_%s_%s" % [group, id]
 	slider.min_value = lo
 	slider.max_value = hi
 	slider.step = 0.01

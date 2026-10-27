@@ -318,3 +318,58 @@ The default healthy 3-person household is unaffected (identical argument rates i
 `test_household_dynamics`); the effects show only under stress or depression.
 
 Tests: `tests/test_withdrawal_avoidance.gd` (22 checks).
+
+## Psyche expansion (27 October 2026 onwards)
+
+The owner asked to finish the psyche system with sliders for neurodivergent profiles, a better social
+memory, mood disorders, personality difficulties, OCD, substances and addiction, eating difficulties
+and psychotic states. The work is split into vertical slices A–H, each finished (code, UI, tests,
+documentation) before the next one starts. All slices share one coordinator,
+`scripts/sim/psyche_ext.gd` (`SimAgent.psy`), and the same rules:
+
+- a diagnosis is a predisposition over dimensions, never a switch or a template; two characters with the
+  same label must behave measurably differently (diversity test);
+- symptoms may be involuntary, but a player command is never refused (agency test);
+- content modes: full = 1, muted = 0.5, off = 0 (every multiplier is exactly 1.0, no state change);
+  with mental-health topics off the validator does not accept any `mind` field (each falls back to its
+  default, including `self_defectiveness`);
+- the extension has its **own RNG** seeded from the character, so a character without sliders consumes
+  no random numbers from the main stream: the default household is bit-identical to before
+  (`test_household_dynamics` output identical in all 16 seeds);
+- private: nothing goes into the public snapshot, spawn data or `net_detail`; the owner sees short
+  word descriptions only in the offline HUD (`hud_info().psyche_lines`), never numbers;
+- the state is saved in the household save (`state.psyche_ext`, strictly validated; older saves load with
+  a clean state) and old characters are migrated (`CharacterCodec`).
+
+### A. Neurodivergent profile (schema v9)
+
+`CharacterData.mind.neuro` holds 15 independent 0..1 sliders (0 = no notable difference) plus
+`mind.interest_focus` (where a deep interest points: books, cooking, exercise, screens, nature). They are
+edited in the creator and the editor in the section "Neurodivergentní profil". Strengths are axes just
+like difficulties. The need for routine is the existing `dispositions.predictability_need` slider; it
+now has a live consumer, but only when set explicitly (the derived value had no consumer before and
+default characters must not change).
+
+| Axis | Effect (continuous, bounded) |
+|---|---|
+| `attention_drift` | Long quiet/focus tasks are a little less appealing; an autonomous one may "fizzle out" early (hazard per minute, never a player command, never the interest activity). Fun gets a small pull. |
+| `working_memory` | Cooking takes longer, an occasional "I forgot something again" moodlet; journaling relieves more stress (external memory aid as a strength). |
+| `task_initiation` | Effortful chores (cooking, hygiene, exercise, repairs) are less appealing in proportion to effort; a player command may start with the existing cancellable hesitation, then runs. Fun and the interest are exempt. |
+| `action_impulsivity` | More pull to fun and quick-relief coping. Separate from the emotional `impulsivity` disposition. |
+| `hyperfocus` | The interest activity (and, less, other fun) lasts longer when chosen autonomously; protects against attention drift. |
+| `time_blindness` | A weaker evening pull to bed and fun running over time; "I lost track of time again" when a need got low meanwhile. |
+| `sens_sound`, `sens_light`, `sens_touch` | Per-channel gains on top of the broad hypersensitivity (`SensoryProfile.channel_gain`): noise, bright/morning light, crowding and touch. Exposure accumulates **sensory overload**, which adds stress, pulls to quiet/rest/hiding, lowers the appeal of socialising and TV, and fades in quiet and sleep. |
+| `social_energy` | Each conversation drains a "social battery" and some energy; solitude and quiet recharge it. A flat battery lowers social appeal and raises the pull to quiet. |
+| `interest_depth` | The interest activity is much more appealing and, when finished, regulates: less stress and overload, some battery. A long absence of it shows as "I miss my interest". |
+| `direct_communication` | With close people a small bonus to a good conversation (valued honesty), with strangers a small extra risk of misunderstanding; complaints are swallowed less often (they get said and can be resolved). |
+| `masking_cost` | Conversations with people who are not close cost stress and build "tiredness from adapting"; with close people no cost; the planner slightly prefers close people. |
+| `tic_tendency` | Harmless involuntary tics, more frequent under stress and overload; near others a brief self-conscious moodlet. Nothing public. |
+| `reading_effort` | Reading and journaling are less appealing (more effort). |
+
+Interrupted plans (an occupied object, being pulled into a conversation) add a little stress to a
+character with a high explicit `predictability_need`.
+
+Tests: `tests/test_neuro_profile.gd` (57 checks: schema/migration/validation, neutral = exactly 1.0,
+monotonic continuous effects, full > muted > off, channels and overload, social battery and masking,
+direct communication, tics, agency with a real `cook` command, diversity of two "ADHD-like" profiles over
+three game days, determinism, save/load round trip, network privacy, editor sliders).

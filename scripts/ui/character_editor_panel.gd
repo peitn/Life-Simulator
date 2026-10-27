@@ -446,6 +446,8 @@ func _on_slider_changed(group: String, _key: String, _value: float) -> void:
     var source: Dictionary = _sliders.character.get(section)
     if group == "mind_belief" and _key == "self_defectiveness":
         draft["mind"][_key] = float(source.get(_key, 0.0))
+    elif group == "mind_enum" and Schema.fields("mind").has(_key):
+        draft["mind"][_key] = source.get(_key, Schema.default_value(Schema.fields("mind")[_key]))
     else:
         draft[section][group] = source.get(group, {}).duplicate(true)
     _session.replace_draft(draft, "Slider " + group, group + ":" + _key)

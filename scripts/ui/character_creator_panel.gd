@@ -278,6 +278,8 @@ func _on_sliders_changed(group: String, _key: String, _value: float) -> void:
     var section: String = "personality" if group == "trait_levels" or group == "hexaco" else "mind"
     if group == "mind_belief" and _key == "self_defectiveness":
         data["mind"][_key] = float(edited["mind"].get(_key, 0.0))
+    elif group == "mind_enum" and Schema.fields("mind").has(_key):
+        data["mind"][_key] = edited["mind"].get(_key, Schema.default_value(Schema.fields("mind")[_key]))
     else:
         data[section][group] = edited[section][group].duplicate(true)
     _push(data, "Slider", false)
