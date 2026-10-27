@@ -220,11 +220,11 @@ func help_need() -> float:
 
 
 func sleep_quality_mult() -> float:
-	return 1.0 - 0.15 * minf(strength_total(), 1.0) - 0.1 * hopelessness
+	return 1.0 - 0.08 * minf(strength_total(), 1.0) - 0.1 * hopelessness
 
 
 func energy_drain_mult() -> float:
-	return 1.0 + 0.1 * minf(strength_total(), 1.0)
+	return 1.0 + 0.05 * minf(strength_total(), 1.0)
 
 
 ## Kolik ruminace přidat do Depression.rumination za herní minutu.
@@ -237,7 +237,7 @@ func mood_entries(k: float) -> Array:
 	if k <= 0.0:
 		return out
 	var s := strongest()
-	if not s.is_empty() and float(s["strength"]) > 0.35:
+	if not s.is_empty() and float(s["strength"]) > 0.45:
 		var label := "Pořád na to myslím"
 		match String(s["topic"]):
 			"worry":
@@ -245,7 +245,7 @@ func mood_entries(k: float) -> Array:
 			"self_critical":
 				label = "Vnitřní kritik nedá pokoj"
 		out.append({"id": "iv_ruminace", "label": label, "emotion": "napjaty",
-			"strength": -lerpf(3.0, 10.0, clampf((float(s["strength"]) - 0.35) / 0.65, 0.0, 1.0)) * k, "remaining": -1.0})
+			"strength": -lerpf(2.0, 6.0, clampf((float(s["strength"]) - 0.45) / 0.55, 0.0, 1.0)) * k, "remaining": -1.0})
 	return out
 
 
