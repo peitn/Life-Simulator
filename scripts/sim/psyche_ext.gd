@@ -24,7 +24,8 @@ const PersonalityAccents := preload("res://scripts/sim/personality_accents.gd")
 const OcdLoop := preload("res://scripts/sim/ocd_loop.gd")
 const Substances := preload("res://scripts/sim/substances.gd")
 const EatingDistress := preload("res://scripts/sim/eating_distress.gd")
-const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "subs", "eating", "rng_state", "mode"]
+const PsychosisState := preload("res://scripts/sim/psychosis_state.gd")
+const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "subs", "eating", "psychosis", "rng_state", "mode"]
 
 var neuro = NeuroProfile.new()
 ## Sociální a afektivní paměť (psychika B) – běží u každé postavy (je to běžné poznávání, ne téma
@@ -48,6 +49,8 @@ var sub_withdrawal := 0.0
 var sub_withdrawal_id := ""
 ## Potíže s jídlem a tělem (psychika G): jen vzniklý stav, jen s opt-in citlivým obsahem.
 var eating = EatingDistress.new()
+## Psychotické prožívání (psychika H).
+var psychosis = PsychosisState.new()
 var rng := RandomNumberGenerator.new()
 ## Poslední známý režim obsahu ("full" / "muted" / "off").
 var mode := "full"
@@ -92,6 +95,7 @@ func configure(mind: Dictionary, _d: Dictionary, seed: int, keep_state: bool) ->
 	subs.configure(mind.get("substances", {}), preds.get("addiction", 0.0), keep_state)
 	if not keep_state:
 		eating = EatingDistress.new()
+	psychosis.configure(preds.get("psychosis", 0.0), mind.get("psychosis", {}), keep_state)
 	var sa = preds.get("social_anxiety", 0.0)
 	social_anxiety = clampf(float(sa), 0.0, 1.0) if typeof(sa) in [TYPE_FLOAT, TYPE_INT] and is_finite(float(sa)) else 0.0
 	var explicit = mind.get("dispositions", {})
@@ -109,7 +113,7 @@ func set_mode(m: String) -> void:
 ## Je NEURO část pro tuto postavu neutrální (žádný posuvník)? Pak SimAgent nemusí nic počítat.
 ## (Sociální paměť běží vždy a má vlastní, omezené účinky.)
 func is_neutral() -> bool:
-	return neuro.is_empty() and mood.is_empty() and accents.is_empty() and ocd.is_empty() and social_anxiety <= 0.0 and subs.is_empty()
+	return neuro.is_empty() and mood.is_empty() and accents.is_empty() and ocd.is_empty() and social_anxiety <= 0.0 and subs.is_empty() and psychosis.is_empty()
 
 
 ## Pro OCD váhy (pocit zvládání a opora z MentalState) – nastavuje SimAgent před dotazem.
@@ -121,7 +125,7 @@ func action_weight(act: Dictionary, hour: int) -> float:
 	var kk := k()
 	if kk <= 0.0:
 		return 1.0
-	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk) * voice.action_weight(act, kk) * accents.action_weight(act) * ocd.action_weight(act, kk, float(_mastery), float(_support)), 0.2, 8.0)
+	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk) * voice.action_weight(act, kk) * accents.action_weight(act) * ocd.action_weight(act, kk, float(_mastery), float(_support)) * psychosis.action_weight(act, kk), 0.2, 8.0)
 
 
 ## Výběr partnera: neuro (maskování) × sociální paměť (jen chat a svěření).
@@ -140,7 +144,7 @@ func target_weight(rel: float, act: Dictionary, who_uid: String = "") -> float:
 
 
 func to_dict() -> Dictionary:
-	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "subs": subs.to_dict(), "eating": eating.to_dict(), "rng_state": rng.state, "mode": mode}
+	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "subs": subs.to_dict(), "eating": eating.to_dict(), "psychosis": psychosis.to_dict(), "rng_state": rng.state, "mode": mode}
 
 
 static func validate_snapshot(d: Variant) -> bool:
@@ -162,6 +166,8 @@ static func validate_snapshot(d: Variant) -> bool:
 	if d.has("subs") and not Substances.validate_snapshot(d["subs"]):
 		return false
 	if d.has("eating") and not EatingDistress.validate_snapshot(d["eating"]):
+		return false
+	if d.has("psychosis") and not PsychosisState.validate_snapshot(d["psychosis"]):
 		return false
 	if d.has("rng_state") and typeof(d["rng_state"]) != TYPE_INT:
 		return false
@@ -187,6 +193,8 @@ func from_dict(d: Variant) -> bool:
 		subs.from_dict(d["subs"])
 	if d.has("eating"):
 		eating.from_dict(d["eating"])
+	if d.has("psychosis"):
+		psychosis.from_dict(d["psychosis"])
 	if d.has("rng_state"):
 		rng.state = int(d["rng_state"])
 	if d.has("mode"):

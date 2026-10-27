@@ -484,6 +484,8 @@ func _extra_moodlets() -> Array:
 		out.append_array(psy.ocd.mood_entries(psy.k(), now()))
 	if psy != null and psy.eating.active():
 		out.append_array(psy.eating.mood_entries())
+	if psy != null and psy.psychosis.activity > 0.0:
+		out.append_array(psy.psychosis.mood_entries(psy.k()))
 	if psy != null and not psy.subs.is_empty() and _clock != null:
 		out.append_array(psy.subs.mood_entries(now(), psy.sub_withdrawal, psy.sub_withdrawal_id, _subs_k()))
 	var gname := ""
@@ -951,6 +953,8 @@ func _act(dm: float) -> void:
 	var sq: float = mental.sleep_quality() if current_action.get("tags", []).has("sleep") else 1.0
 	if sq != 1.0 and not psy.mood.is_empty():
 		sq *= psy.mood.sleep_rate_mult(psy.k())  # zvýšená fáze: méně spánku stačí
+	if sq != 1.0 and psy.psychosis.activity > 0.0:
+		sq *= psy.psychosis.sleep_quality_mult()
 	if sq != 1.0 and not psy.subs.is_empty():
 		sq *= psy.subs.sleep_quality_mult(now(), _clock.get_hour())  # káva, Jiskra a hraní před spaním spánek zhorší
 	if sq != 1.0 and (not psy.voice.loops.is_empty() or psy.voice.hopelessness > 0.0):
@@ -1039,6 +1043,8 @@ func _finish(interrupted: bool) -> void:
 		if cop == "journal" and frac > 0.5:
 			psy.voice.resolve("", 0.3)
 		elif cop == "seek_help" and frac > 0.5:
+			if not psy.psychosis.is_empty():
+				psy.psychosis.on_help(now())
 			psy.voice.resolve("", 0.3)
 			psy.voice.hopelessness *= 0.6
 			inner_positive("hope", null)
@@ -1840,6 +1846,8 @@ func _psyche_tick(dm: float) -> void:
 		_ocd_tick(dm)
 	if not psy.subs.is_empty():
 		_substance_tick(dm)
+	if not psy.psychosis.is_empty():
+		_psychosis_tick(dm)
 	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
 	var res: Dictionary = psy.neuro.tick(dm, {"sleeping": _is_sleeping(), "social": social_partner != null,
 		"quiet": tags.has("quiet") or tags.has("rest"), "stress": mental.stress}, psy.k(), psy.rng)
@@ -1892,8 +1900,8 @@ func psyche_gate(kind: String) -> float:
 		return 0.0
 	match kind:
 		"help":
-			return maxf(maxf(psy.voice.help_need(), clampf(psy.subs.max_dependence() - 0.5, 0.0, 1.0) * _subs_k()),
-				psy.eating.help_need())
+			return maxf(maxf(maxf(psy.voice.help_need(), clampf(psy.subs.max_dependence() - 0.5, 0.0, 1.0) * _subs_k()),
+				psy.eating.help_need()), psy.psychosis.help_need() * psy.k())
 		"ocd_ritual":
 			return psy.ocd.gate("ritual") * psy.k()
 		"ocd_resist":
@@ -1940,6 +1948,22 @@ func _inner_tick(dm: float) -> void:
 				+ "Linka první psychické pomoci 116 123 (nonstop, zdarma), findahelpline.com.")
 	if was_hopeless < v.HOPELESS_SHOW and v.hopelessness >= v.HOPELESS_SHOW:
 		remember("Bylo mi hodně těžko")
+
+
+## Psychotické prožívání: spouštěče (spánek, extrémní stres, látky), průběh a zotavení; jen omezené
+## násobiče a soukromé popisy, žádná vazba na násilí.
+func _psychosis_tick(dm: float) -> void:
+	var p = psy.psychosis
+	var was: float = p.activity
+	p.tick(dm, now(), {"sleeping": _is_sleeping(), "night": _clock.is_night() if _clock != null else false,
+		"stress": mental.stress, "support": mental.support, "push": psy.subs.psychosis_push}, psy.k(), psy.rng)
+	var th: float = p.threat_add()
+	if th > 0.0:
+		mental.threat = clampf(maxf(mental.threat, th), 0.0, 1.0)
+		vigilance.alertness = clampf(maxf(float(vigilance.alertness), th), 0.0, 1.0)
+	if was < 0.4 and p.activity >= 0.4:
+		_detail_dirty = true
+		remember("Svět mi připadal hodně zvláštní")
 
 
 ## Potíže s jídlem a tělem: vzniká jen z dat a jen při opt-in citlivém obsahu (sh_ed) + plných tématech.
@@ -2189,6 +2213,7 @@ func psyche_private_lines() -> PackedStringArray:
 	out.append_array(psy.ocd.private_lines(psy.k()))
 	if psy.eating.active():
 		out.append_array(psy.eating.private_lines(gs.CRISIS_LINES if gs != null else []))
+	out.append_array(psy.psychosis.private_lines(psy.k()))
 	if _clock != null:
 		out.append_array(psy.subs.private_lines(now(), _subs_k()))
 	return out

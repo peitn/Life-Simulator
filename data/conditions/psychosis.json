@@ -1,0 +1,16 @@
+{
+	"id": "psychosis",
+	"label_cs": "Sklon k psychotickému prožívání",
+	"desc_cs": "Ve velké zátěži, bez spánku nebo po některých látkách se může změnit vnímání a přesvědčení o světě. Není to slabost ani nebezpečnost.",
+	"effects_cs": "Ve zátěži neobvyklé vjemy a přesvědčení s proměnlivým náhledem; pomáhá spánek, klid, blízcí lidé a odborná pomoc.",
+	"content_tag": "mental_health",
+	"severity": [0.0, 1.0],
+	"modulations": [
+		{"target": "D.threat_sensitivity", "op": "add", "amount": 0.08, "scale": "severity",
+			"why": "Nejasné podněty se snáz čtou jako významné nebo ohrožující."},
+		{"target": "D.hypervigilance", "op": "add", "amount": 0.08, "scale": "severity",
+			"why": "Pozornost víc sleduje okolí a drobné změny."},
+		{"target": "D.sensory_sensitivity", "op": "add", "amount": 0.05, "scale": "severity",
+			"why": "Smyslové podněty bývají intenzivnější."}
+	]
+}

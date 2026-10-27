@@ -176,6 +176,8 @@ static func migrate(d) -> Dictionary:
 		data = _v13_to_v14(data)
 	if v <= 14:
 		data = _v14_to_v15(data)
+	if v <= 15:
+		data = _v15_to_v16(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -356,6 +358,16 @@ static func _v14_to_v15(src: Dictionary) -> Dictionary:
 	var mind = d.get("mind", null)
 	if typeof(mind) == TYPE_DICTIONARY and not mind.has("substances"):
 		mind["substances"] = {}
+	return d
+
+
+## v15 → v16 (psychika H): sklony psychotického prožívání. {} = žádné (náhled průměrný).
+static func _v15_to_v16(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 16
+	var mind = d.get("mind", null)
+	if typeof(mind) == TYPE_DICTIONARY and not mind.has("psychosis"):
+		mind["psychosis"] = {}
 	return d
 
 

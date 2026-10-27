@@ -60,7 +60,9 @@ extends RefCounted
 ##     týká). Soukromé. Migrace v13 → v14 doplní výchozí téma.
 ## v15 (psychika F): predispozice addiction a mind.substances – zvyk na látky a činnosti (0..1, 0 = AI je sama
 ##     nezačne). Herní obecné kategorie, žádné dávky. Soukromé. Migrace v14 → v15 doplní {}.
-const VERSION := 15
+## v16 (psychika H): predispozice psychosis a mind.psychosis – sklony k neobvyklým vjemům a druhům
+##     přesvědčení a výchozí náhled (0..1; náhled chybějící = 0,5). Soukromé. Migrace v15 → v16 doplní {}.
+const VERSION := 16
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -286,6 +288,8 @@ const PREDISPOSITIONS := {
 		"effects": "Vtíravá pochybnost a nutkavá činnost s krátkou úlevou; smyčku zmírňuje postupné odolávání nutkání a opora."},
 	"addiction": {"label": "Sklon k závislosti", "content": "mental_health",
 		"effects": "Návyk na látky nebo činnosti vzniká rychleji a chuť se vrací se stresem; pomáhá opora, omezení a odborná pomoc."},
+	"psychosis": {"label": "Sklon k psychotickému prožívání", "content": "mental_health",
+		"effects": "Ve velké zátěži, bez spánku nebo po některých látkách neobvyklé vjemy a přesvědčení; pomáhá spánek, klid, blízcí a odborná pomoc."},
 	"social_anxiety": {"label": "Sociální úzkostná porucha", "content": "mental_health",
 		"effects": "Strach z posuzování a odmítnutí, napětí před setkáním a přehrávání rozhovorů; pomáhá zkušenost, že to šlo, a blízcí lidé."},
 }
@@ -294,6 +298,14 @@ const SUBSTANCE_SLIDERS := {
 	"caffeine": "Zvyk: káva", "nicotine": "Zvyk: cigarety", "alcohol": "Zvyk: alkohol",
 	"sedative": "Zvyk: Mlha (tlumivá látka)", "stimulant": "Zvyk: Jiskra (povzbuzující látka)",
 	"painkiller": "Zvyk: Útlum (tlumivý lék proti bolesti)", "gaming": "Zvyk: hraní her", "gambling": "Zvyk: sázení",
+}
+## Psychotické prožívání (v16): sklony, ne diagnóza; náhled 0,5 = průměr.
+const PSYCHOSIS_SLIDERS := {
+	"hallucination": "Sklon k neobvyklým vjemům (hlasy, stíny)",
+	"persecutory": "Sklon k přesvědčení, že mi někdo chce ublížit",
+	"grandiose": "Sklon k přesvědčení o výjimečném poslání",
+	"reference": "Sklon vztahovat si dění kolem k sobě",
+	"insight": "Náhled – schopnost tušit, že jde o nemoc",
 }
 ## Téma obsedantní pochybnosti (v14).
 const OCD_THEMES := {"checking": "Kontrolování (sporák, dveře)", "contamination": "Čistota a znečištění",
@@ -421,6 +433,7 @@ const GROUPS := {
 		"accent_labels": ["b", false],                     # v13: ukazovat soukromě i výkladový název
 		"ocd_theme": ["e", OCD_THEMES, "checking"],         # v14: čeho se obsedantní pochybnost týká
 		"substances": ["axes", SUBSTANCE_SLIDERS, 0.0, 1.0], # v15: zvyk na látky a činnosti (0 = žádný)
+		"psychosis": ["axes", PSYCHOSIS_SLIDERS, 0.0, 1.0], # v16: sklony psychotického prožívání
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},

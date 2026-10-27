@@ -102,6 +102,11 @@ func _build() -> void:
 		var preds: Dictionary = mind.get("predispositions", {})
 		var label_text := String(Schema.PREDISPOSITIONS[id]["label"])
 		_row("predispositions", String(id), label_text, float(preds.get(id, 0.0)), 0.0, 1.0)
+	_section("Psychotické prožívání – sklony (projeví se jen při náchylnosti a zátěži)")
+	_note("Bez stereotypů a bez vazby na násilí. Náhled 0,5 = průměr.")
+	var ps: Dictionary = mind.get("psychosis", {})
+	for id in Schema.PSYCHOSIS_SLIDERS:
+		_row("psychosis", String(id), String(Schema.PSYCHOSIS_SLIDERS[id]), float(ps.get(id, 0.5 if id == "insight" else 0.0)), 0.0, 1.0)
 	_enum_row("ocd_theme", "Čeho se týká obsedantní pochybnost (jen při náchylnosti k OCD)", Schema.OCD_THEMES, String(mind.get("ocd_theme", "checking")))
 	_readout = Label.new()
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

@@ -616,3 +616,28 @@ recovery, and `seek_help` opens when it is strong. The owner sees only a gentle 
 (with the crisis lines when it is strong); nothing enters the thought stream, `net_detail` or snapshots.
 
 Tests: `tests/test_eating_distress.gd` (21 checks).
+
+### H. Psychotic states (schema v16)
+
+`scripts/sim/psychosis_state.gd` (`SimAgent.psy.psychosis`), predisposition `psychosis` (profile
+`data/conditions/psychosis.json`: more threat reading, hypervigilance and sensory intensity) and the
+private sliders `mind.psychosis`: proneness to unusual perceptions, persecutory / grandiose / reference
+beliefs, and baseline insight (0.5 = average). Respectful and non-stereotyped; never linked to violence.
+
+- Triggers: sleep loss (awake at night), extreme stress (above 75) and the pressure of some substances
+  from slice F (Jiskra, Mlha) raise the episode hazard `1 − e^(−λ·dm)` (own RNG). An episode starts
+  gradually (prodrome: "Svět je nějak zvláštní"), lasts a few game days and fades; support, sleep, a
+  recent `seek_help` and low stress shorten it, sleep debt lengthens it.
+- Unusual perceptions are private events ("Slyší hlas, který komentuje, co dělá … (vjem, který ostatní
+  nevnímají)"), shown only to the owner offline, never in the thought stream or network detail; the
+  catalogue is fixed (no free text).
+- A belief of the strongest kind has a conviction that grows with activity and falls with insight and
+  support; insight falls with activity and returns with support, sleep and help.
+- Effects are bounded multipliers: persecutory beliefs mean more withdrawal (social appeal down) and
+  vigilance, reference beliefs make the TV unpleasant and raise perceived threat, grandiose beliefs a
+  little more social and fun appeal and "Mám důležité poslání"; quiet and rest are more appealing; with
+  insight, confiding and seeking help become more appealing. Insults, pressure tactics and argument
+  appeal are **never** increased (tested over all actions). The player is never locked out.
+- Modes: muted = only mild strange feelings (no perceptions, no beliefs), off = nothing.
+
+Tests: `tests/test_psychosis.gd` (28 checks).
