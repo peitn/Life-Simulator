@@ -1,0 +1,123 @@
+{
+  "assembly_previews": [
+    "docs/city/assembly-city-1792996214-204204-front.jpg",
+    "docs/city/assembly-city-1792996214-204204-rear.jpg"
+  ],
+  "assembly_scene": "scenes/city/roof_assembly_demo.tscn",
+  "assembly_scene_sha256": "f96c0a9f377e73bc362dff3f69a9b6773e5594acbc5c43b5b14a4ae4f1748a3b",
+  "assembly_validator": "scripts/city/validate_gable_assembly.gd",
+  "assembly_validator_sha256": "8f3219b7a45d5804121f93ef624f1cc0972f91cfadf1de218e0044352dc2d882",
+  "assembly_visual_run": "city-1792996214-204204",
+  "asset": "gable_infill_2m",
+  "blender_generator": "lifesim-city-gable-infill-generator",
+  "blender_kit": "lifesim-city-gable-infill-prototype",
+  "blender_kit_persistent": true,
+  "blender_temp_blend": "/tmp/city-fallback-1792946854-181335-gable/gable_infill.blend",
+  "blender_temp_previews": [
+    "/tmp/city-fallback-1792946854-181335-gable/front.jpg",
+    "/tmp/city-fallback-1792946854-181335-gable/back.jpg",
+    "/tmp/city-fallback-1792946854-181335-gable/top.jpg"
+  ],
+  "collision": "Single StaticBody3D layer/mask1; ConvexPolygonShape3D six exact prism corners",
+  "collision_validation": "saved physics35/35 + GLB16/16 exit0; disabled collision10fail exit1 expected; Gemini2reviews actual, initial allegations retracted",
+  "dimensions_godot": {
+    "max": [
+      2.0,
+      0.6,
+      0.0
+    ],
+    "min": [
+      0.0,
+      0.0,
+      -0.12
+    ]
+  },
+  "faces_blender": 5.0,
+  "glb": "assets/city/gable_infill_2m.glb",
+  "grid_m": 0.5,
+  "license": "Original Life Simulator asset; all rights reserved",
+  "manifest_validation": {
+    "checks": 16,
+    "gemini": "reviewed; root field exists, nested ID consistency improvement implemented",
+    "harness_exit": 0,
+    "negative_markdown_failures": 1,
+    "negative_run_id_failures": 1,
+    "pass": true,
+    "run_id": "city-fallback-1793001929-207518",
+    "timed_out": false
+  },
+  "manifest_validator": "scripts/city/validate_gable_manifest.gd",
+  "manifest_validator_sha256": "10944b23cb76bc2be295f4a00382790a7093e016e2c6b2bab7534effd6f1e230",
+  "manifold": true,
+  "materials": [
+    {
+      "blender_linear": [
+        0.64,
+        0.6,
+        0.52,
+        1.0
+      ],
+      "godot_import_srgb": [
+        0.821,
+        0.7977,
+        0.7484,
+        1.0
+      ],
+      "name": "Warm plaster",
+      "roughness": 0.85
+    }
+  ],
+  "mesh_count": 1.0,
+  "next_step": "Inventory staircase work; first compatible M1 staircase if absent.",
+  "outward_normals": true,
+  "persistence_run": "city-1792949230-185029",
+  "placements_for_roof_assembly_z": [
+    0.0,
+    -3.88
+  ],
+  "previews_inspected": true,
+  "previews_persistent": true,
+  "run_id": "city-fallback-1792946854-181335",
+  "saved_scene": "scenes/city/gable_infill_2m.scn",
+  "scene_sha256": "054b131b4774910dbeb3cfd89080901a5d6958cf67af8beb850d65d9d069b166",
+  "sha256": {
+    "blend": "f5f0f485aa904ea8af8d3838fc2f200d8deab758a7962c465f5d822425de33df",
+    "glb": "9fc3a6ceefebc9a54831e0aab50dd47dc3b6c4d950da5df867c3afc701fcf0fe",
+    "source": "b4bd9ca01b93c4191a33c2791c02b710bda913a2bca49730550595825df2f6ab",
+    "validator": "c59d2dbc8e3cc279416f06bf9cec50942de88bd8d6258f86745a15ad51c510a1"
+  },
+  "source": "tools/blender/city/gable_infill.py",
+  "tests": {
+    "assembly": "Recorded city-fallback-1792964692-194482: gable saved-scene 92/92 exit0, negative 22 failures exit1 intended; roof saved regression historical 55/55. Fresh city-1792996214-204204: gable92/92 and roof54/54 exit0 no timeout.",
+    "assembly_visual": {
+      "gable_checks": 92.0,
+      "geometry_changed": false,
+      "inspected": true,
+      "limitations": "Closed seams at 640x480 only; no texture continuity, dynamic traversal, or FPS certification.",
+      "render_count": 2.0,
+      "render_exit": 0.0,
+      "resolution": [
+        640.0,
+        480.0
+      ],
+      "roof_checks": 54.0,
+      "run_id": "city-1792996214-204204",
+      "timed_out": false,
+      "views": [
+        "front",
+        "rear"
+      ]
+    },
+    "blender": "exit0, 8 triangles, all edges manifold, five outward normals verified, .blend+3 JPEG generated in temporary Blender directory",
+    "gemini": "Two actual reviews. Initial winding/manifold/axis objections rejected by executed Blender/Godot tests; Gemini retracted. UV/texture seam and Godot scene/collision remain unverified.",
+    "gemini_assembly": "Two actual Gemini responses. Initial rear-z misalignment and static coplanarity blocker claims withdrawn after verified geometry; added near-edge and normal checks. No reproduced blocker; dynamic movement and assembled visual QA pending.",
+    "gemini_persistence": "Actual full generator/test review. Renderer color concern not reproduced in Compatibility; altered-pitch UV hypothetical out of fixed prototype scope; assembly seam/collision pending acknowledged.",
+    "godot": "GLTFDocument 16/16 PASS exit0 timeout false; in-memory shift negative14pass2fail exit1 expected; prior import attempt via ResourceLoader before editor import failed; saved scene pending",
+    "persistence": "5 library file hashes match originals; 3 original256px renders inspected; default16/16 + Compatibility16/16 exit0 no timeout;5 UV areas match geometric face areas."
+  },
+  "triangles": 8.0,
+  "uv": "meter-based planar and slope UV, texture maps not yet authored",
+  "validator": "scripts/city/validate_gable_infill.gd",
+  "version": "0.1-prototype",
+  "vertices_blender": 6.0
+}

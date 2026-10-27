@@ -1,0 +1,41 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/city/roof_gable_2m.scn" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/city/ceiling_tile_2m.scn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/city/wall_solid_2m.scn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/city/gable_infill_2m.scn" id="4"]
+[sub_resource type="Environment" id="Environment_demo"]
+background_mode = 1
+background_color = Color(0.12, 0.15, 0.2, 1)
+ambient_light_source = 3
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.8
+
+[node name="RoofAssemblyDemo" type="Node3D"]
+
+[node name="Roof0" parent="." instance=ExtResource("1")]
+position = Vector3(0, 3, 0)
+[node name="Ceiling0" parent="." instance=ExtResource("2")]
+position = Vector3(0, 2.8, 0)
+[node name="Wall0" parent="." instance=ExtResource("3")]
+[node name="Roof1" parent="." instance=ExtResource("1")]
+position = Vector3(0, 3, -2)
+[node name="Ceiling1" parent="." instance=ExtResource("2")]
+position = Vector3(0, 2.8, -2)
+[node name="Wall1" parent="." instance=ExtResource("3")]
+position = Vector3(0, 0, -2)
+[node name="GableFront" parent="." instance=ExtResource("4")]
+position = Vector3(0, 3, 0)
+[node name="GableRear" parent="." instance=ExtResource("4")]
+position = Vector3(0, 3, -3.88)
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_demo")
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-40, -35, 0)
+light_energy = 1.4
+[node name="Camera" type="Camera3D" parent="."]
+position = Vector3(6, 5, 7)
+rotation = Vector3(-0.283535, 0.507098, 0)
+current = true
+projection = 1
+size = 7.0

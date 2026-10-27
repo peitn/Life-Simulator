@@ -1,0 +1,261 @@
+{
+  "version": "0.1.0",
+  "blender_library_asset": "lifesim-anatomy-skeleton-v1",
+  "source": "tools/blender/anatomy_skeleton_v1.py",
+  "coordinate_system": "Blender Z-up meters; GLB Godot Y-up meters",
+  "legacy_rig_names": [
+    "hips",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "upper_arm_l",
+    "forearm_l",
+    "hand_l",
+    "thigh_l",
+    "shin_l",
+    "foot_l",
+    "upper_arm_r",
+    "forearm_r",
+    "hand_r",
+    "thigh_r",
+    "shin_r",
+    "foot_r"
+  ],
+  "rig_bones": 194,
+  "reference_bone_meshes": 201,
+  "vertebrae": 24,
+  "ribs": 24,
+  "finger_phalanges": 28,
+  "toe_phalanges": 28,
+  "cartilage_meshes": 60,
+  "muscle_bundles": 60,
+  "tendon_and_ligament_objects": 136,
+  "rigid_bodies": 17,
+  "rigid_body_mass_kg": {
+    "hips": 10,
+    "spine": 5,
+    "chest": 12,
+    "neck": 1.1,
+    "head": 4.5,
+    "upper_arm_l": 2.1,
+    "forearm_l": 1.25,
+    "hand_l": 0.45,
+    "thigh_l": 7,
+    "shin_l": 3.4,
+    "foot_l": 1,
+    "upper_arm_r": 2.1,
+    "forearm_r": 1.25,
+    "hand_r": 0.45,
+    "thigh_r": 7,
+    "shin_r": 3.4,
+    "foot_r": 1
+  },
+  "joints": {
+    "spine": [
+      "hips",
+      "spine",
+      [
+        -0.34,
+        0.34
+      ],
+      [
+        -0.22,
+        0.22
+      ]
+    ],
+    "chest": [
+      "spine",
+      "chest",
+      [
+        -0.3,
+        0.3
+      ],
+      [
+        -0.23,
+        0.23
+      ]
+    ],
+    "neck": [
+      "chest",
+      "neck",
+      [
+        -0.32,
+        0.38
+      ],
+      [
+        -0.24,
+        0.24
+      ]
+    ],
+    "head": [
+      "neck",
+      "head",
+      [
+        -0.45,
+        0.45
+      ],
+      [
+        -0.35,
+        0.35
+      ]
+    ],
+    "shoulder_l": [
+      "chest",
+      "upper_arm_l",
+      [
+        -1.6,
+        1.6
+      ],
+      [
+        -1.6,
+        1.6
+      ]
+    ],
+    "elbow_l": [
+      "upper_arm_l",
+      "forearm_l",
+      [
+        0,
+        2.45
+      ],
+      [
+        -0.03,
+        0.03
+      ]
+    ],
+    "wrist_l": [
+      "forearm_l",
+      "hand_l",
+      [
+        -1.05,
+        1.05
+      ],
+      [
+        -0.5,
+        0.5
+      ]
+    ],
+    "hip_l": [
+      "hips",
+      "thigh_l",
+      [
+        -1.4,
+        1.55
+      ],
+      [
+        -0.9,
+        0.9
+      ]
+    ],
+    "knee_l": [
+      "thigh_l",
+      "shin_l",
+      [
+        0,
+        2.2
+      ],
+      [
+        -0.04,
+        0.04
+      ]
+    ],
+    "ankle_l": [
+      "shin_l",
+      "foot_l",
+      [
+        -0.45,
+        0.65
+      ],
+      [
+        -0.3,
+        0.3
+      ]
+    ],
+    "shoulder_r": [
+      "chest",
+      "upper_arm_r",
+      [
+        -1.6,
+        1.6
+      ],
+      [
+        -1.6,
+        1.6
+      ]
+    ],
+    "elbow_r": [
+      "upper_arm_r",
+      "forearm_r",
+      [
+        0,
+        2.45
+      ],
+      [
+        -0.03,
+        0.03
+      ]
+    ],
+    "wrist_r": [
+      "forearm_r",
+      "hand_r",
+      [
+        -1.05,
+        1.05
+      ],
+      [
+        -0.5,
+        0.5
+      ]
+    ],
+    "hip_r": [
+      "hips",
+      "thigh_r",
+      [
+        -1.4,
+        1.55
+      ],
+      [
+        -0.9,
+        0.9
+      ]
+    ],
+    "knee_r": [
+      "thigh_r",
+      "shin_r",
+      [
+        0,
+        2.2
+      ],
+      [
+        -0.04,
+        0.04
+      ]
+    ],
+    "ankle_r": [
+      "shin_r",
+      "foot_r",
+      [
+        -0.45,
+        0.65
+      ],
+      [
+        -0.3,
+        0.3
+      ]
+    ]
+  },
+  "rigid_body_total_mass_kg": 63,
+  "physics_implementation": "Blender Bullet rigid proxies + Generic angular/locked linear constraints",
+  "physics_in_live_gameplay": false,
+  "muscle_contraction_solver": false,
+  "medically_calibrated": false,
+  "articulated_render_bones_not_all_physically_driven": true,
+  "files": {
+    "editable": "anatomy_skeleton_v1.blend",
+    "osteology": "anatomy_skeleton_v1.glb",
+    "muscle_glb": "anatomy_musculature_v1.glb",
+    "render_bones": "anatomy_osteology_overview.png",
+    "render_muscles": "anatomy_musculature_overview.png"
+  }
+}

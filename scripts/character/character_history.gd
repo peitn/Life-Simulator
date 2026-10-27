@@ -29,7 +29,7 @@ func push(state: Dictionary, label := "", coalesce_key := "", now_ms := -1) -> v
 	if state == _current:
 		return
 	var t := Time.get_ticks_msec() if now_ms < 0 else now_ms
-	var merge := coalesce_key != "" and coalesce_key == _last_key and t - _last_ms <= COALESCE_MS and not _undo.is_empty()
+	var merge := coalesce_key != "" and coalesce_key == _last_key and t >= _last_ms and t - _last_ms <= COALESCE_MS and not _undo.is_empty()
 	if not merge:
 		_undo.append({"data": _current, "label": label})
 		while _undo.size() > MAX_STEPS:

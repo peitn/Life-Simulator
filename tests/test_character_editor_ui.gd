@@ -163,9 +163,29 @@ func run() -> void:
         if idx>0:
             styles.select(idx)
             styles.item_selected.emit(idx)
+        var belief_slider: HSlider = editor.get("_sliders").find_child(
+            "BeliefDefectiveness", true, false)
+        check(belief_slider != null,
+            "dedicated inner-belief slider appears in the real character editor")
+        if belief_slider != null:
+            belief_slider.value = 0.81
+            check(absf(float(session.draft()["mind"]["self_defectiveness"]) - 0.81) < 0.001,
+                "real belief slider writes a private draft, not an emotion meter")
+            check(is_zero_approx(sim.self_defectiveness_belief),
+                "editing private belief does not mutate live NPC before Apply")
+            editor.call("_on_undo")
+            check(is_zero_approx(float(session.draft()["mind"]["self_defectiveness"])),
+                "Undo restores the previous inner belief")
+            editor.call("_on_redo")
+            check(absf(float(session.draft()["mind"]["self_defectiveness"]) - 0.81) < 0.001,
+                "Redo restores the belief slider value")
         editor.call("_on_apply")
         var applied: Dictionary = world.read_character_edit(key)
         check(applied["revision"]==1, "Apply increments authoritative revision")
+        check(absf(float(applied["data"]["mind"]["self_defectiveness"]) - 0.81) < 0.001
+            and absf(sim.self_defectiveness_belief - 0.81) < 0.001
+            and not sim.look.has("self_defectiveness"),
+            "Apply persists belief in private character mind and runtime, not public appearance")
         check(applied["data"]["clothing"]["bezne"]["top"]=="kawaii_kocici_mikina", "Apply reaches live authority")
         check(sim.visual.look_params["outfit_top"]=="kawaii_kocici_mikina", "Apply refreshes visual appearance")
         check(not session.is_dirty(), "successful Apply resets draft baseline")

@@ -30,6 +30,7 @@ const Validator := preload("res://scripts/character/character_validator.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const HouseholdDynamics := preload("res://scripts/sim/household_dynamics.gd")
+const SaveGame := preload("res://scripts/save/game_save.gd")
 
 ## Startovní domácnost jako CharacterData (v2; jen pole odlišná od výchozích hodnot schématu;
 ## zbytek doplní validátor). Vzhled je explicitní – žádné odvozování ze jména ani z rodu.
@@ -118,6 +119,16 @@ var _test_days := 3
 static var household_override: Array = []
 var _seed_offset := 0
 var _daily_stats := false
+## Save slots live only on the local device. Multiplayer clients and hosts do NOT
+## serialize server-owned private minds in this first offline save slice.
+var _save_manager
+var _save_enabled := false
+var _save_elapsed := 0.0
+var _save_day_due := false
+var _save_loading := false
+var _save_notice := ""
+
+const AUTOSAVE_REAL_SECONDS := 300.0
 
 
 func _ready() -> void:
@@ -163,6 +174,13 @@ func _ready() -> void:
 			_audio.attach(self)
 
 	var mode: String = cfg.get("mode", "offline")
+	# Native ENet editor is available to the authenticated owner only. Server and
+	# clients must agree on enabling staged RPCs; explicit test configs stay OFF
+	# unless they opt in. Browser exports remain offline (no ENet transport).
+	var edit_network: bool = mode != "offline" and ClassDB.class_exists("ENetMultiplayerPeer") \
+		and bool(cfg.get("network_character_editor", net_config.is_empty()))
+	net.character_edit_apply_rpc_enabled = edit_network
+	net.character_edit_read_ui_enabled = edit_network and mode == "client"
 	var port: int = int(cfg.get("port", Protocol.DEFAULT_PORT))
 	var pname: String = String(cfg.get("name", ""))
 	var code: String = String(cfg.get("character", ""))
@@ -198,6 +216,26 @@ func _ready() -> void:
 				if own != null:
 					selected = sims.find(own)
 
+	# Restore after default spawn, before HUD and camera observe the household.
+	# In injected tests autoload/autosave are explicitly opt-in; never load test
+	# fixtures or overwrite the player's real user://saves.
+	_save_manager = SaveGame.new(String(cfg.get("save_directory", "user://saves")))
+	_save_enabled = not net.is_networked() and bool(cfg.get("autosave", net_config.is_empty() and not _test_mode and DisplayServer.get_name() != "headless"))
+	if not net.is_networked() and bool(cfg.get("autoload", net_config.is_empty() and not _test_mode and DisplayServer.get_name() != "headless")):
+		var pending: Dictionary = _save_manager.load_slot("autosave")
+		if bool(pending.get("ok", false)):
+			_save_loading = true
+			var restored: Dictionary = SaveGame.apply(self, pending["data"])
+			_save_loading = false
+			if restored.get("ok", false):
+				_save_notice = "Hra obnovena z " + ("záložní kopie." if pending["source"] == "backup" else "automatického uložení.")
+			else:
+				push_warning("Uloženou domácnost se nepodařilo obnovit: " + String(restored.get("reason", "unknown")))
+		elif String(pending.get("reason", "missing")) != "missing":
+			push_warning("Automatické uložení nelze načíst: " + String(pending.get("reason", "unknown")))
+	if _save_enabled:
+		clock.day_changed.connect(_mark_autosave_day)
+
 	if bool(cfg.get("camera", true)):
 		camera_rig = Node3D.new()
 		camera_rig.set_script(CameraRig)
@@ -215,6 +253,8 @@ func _ready() -> void:
 		settings_menu = CanvasLayer.new()
 		settings_menu.set_script(SettingsMenu)
 		add_child(settings_menu)
+		if _save_notice != "":
+			hud.show_notice(_save_notice)
 		# Obsahové varování při prvním spuštění (ne v headless režimu a testech).
 		if not _test_mode and DisplayServer.get_name() != "headless":
 			settings_menu.show_first_run_warning()
@@ -299,6 +339,44 @@ func _spawn_household() -> void:
 		if idx >= HOUSEHOLD_POS.size():
 			pos += Vector3(0.6 * float(idx / HOUSEHOLD_POS.size()), 0, 0.5)
 		spawn_character(chars[idx], pos, 1000 + idx * 77 + _seed_offset * 7919)
+
+
+## Commit a new offline character from a private creator draft. The authority
+## chooses the UID and node name, validates the entire draft, and only then
+## spawns the sim. Cancel/invalid requests cannot mutate the live household.
+## No remotely callable entry point; multiplayer remains blocked.
+func create_offline_character(candidate: Dictionary) -> Dictionary:
+	if net == null or net.mode != net.Mode.OFFLINE or not net.is_authority():
+		return {"ok": false, "reason": "offline_only"}
+	if sims.size() >= SaveGame.MAX_SIMS:
+		return {"ok": false, "reason": "household_full"}
+	if typeof(candidate.get("v")) != TYPE_INT or int(candidate["v"]) != Schema.VERSION:
+		return {"ok": false, "reason": "invalid_version"}
+	var proposed: Dictionary = candidate.duplicate(true)
+	proposed["uid"] = CharacterData.new_uid()
+	for item in _character_records.values():
+		if item.uid == proposed["uid"]:
+			return {"ok": false, "reason": "uid_collision"}
+	var gs := get_node_or_null("/root/GameSettings")
+	var mh: String = gs.mental_health_mode() if gs != null else "full"
+	var validated: Dictionary = Validator.validate(proposed, {"mode": "strict", "mental_health": mh})
+	if not validated.get("ok", false):
+		return {"ok": false, "reason": "invalid", "errors": validated.get("errors", [])}
+	var new_uid: String = String(validated["data"]["uid"])
+	var ident: Dictionary = validated["data"]["identity"]
+	var display: String = ("%s %s" % [ident["first_name"], ident["last_name"]]).strip_edges()
+	for member in sims:
+		if is_instance_valid(member) and String(member.sim_name) == display:
+			return {"ok": false, "reason": "duplicate_name"}
+	var new_node := "Player_" + new_uid
+	if find_sim(new_node) != null:
+		return {"ok": false, "reason": "node_collision"}
+	var agent = spawn_character(validated["data"], ARRIVAL_POS, int(Time.get_ticks_usec() % 2147483647) + 1, new_node)
+	if agent == null:
+		return {"ok": false, "reason": "spawn_failed"}
+	selected = sims.find(agent)
+	return {"ok": true, "node": String(agent.name), "uid": new_uid,
+		"warnings": validated.get("warnings", [])}
 
 
 ## Server/offline: vytvoří postavu z KANONICKÝCH (validovaných) dat CharacterData.
@@ -387,6 +465,68 @@ func find_sim(node_name: String) -> Node3D:
 	return null
 
 
+## Automatic real-time interval + game-day rollover (the next frame after all
+## listeners finish). Neither clock pause nor closing the HUD can disable saves.
+func _mark_autosave_day(_day: int) -> void:
+	_save_day_due = true
+
+
+func _process(delta: float) -> void:
+	if not _save_enabled or _save_loading or _save_manager == null or net == null or net.is_networked():
+		return
+	_save_elapsed += maxf(delta, 0.0)
+	if _save_elapsed >= AUTOSAVE_REAL_SECONDS or _save_day_due:
+		_save_elapsed = 0.0
+		_save_day_due = false
+		var result: Dictionary = save_game("autosave")
+		if not bool(result.get("ok", false)):
+			push_warning("Automatické ukládání selhalo: " + String(result.get("reason", "")))
+
+
+## User-visible manual save, and verified auto-save. No RPC entry point.
+func save_game(slot: String = "manual") -> Dictionary:
+	if _save_manager == null or net == null or not is_instance_valid(net) or net.is_networked() or _save_loading:
+		return {"ok": false, "reason": "offline_only"}
+	var captured: Dictionary = SaveGame.capture(self)
+	if not captured.get("ok", false):
+		return captured
+	return _save_manager.save_slot(slot, captured["data"])
+
+
+## Restore only in local/offline authority; reads backup if primary is invalid.
+func load_game(slot: String = "autosave") -> Dictionary:
+	if _save_manager == null or net == null or not is_instance_valid(net) or net.is_networked() or _save_loading:
+		return {"ok": false, "reason": "offline_only"}
+	var read: Dictionary = _save_manager.load_slot(slot)
+	if not read.get("ok", false):
+		return read
+	var preflight: Dictionary = SaveGame.validate_data(read["data"], self)
+	if not preflight.get("ok", false):
+		return preflight
+	_save_loading = true
+	var result: Dictionary = SaveGame.apply(self, read["data"])
+	_save_loading = false
+	if result.get("ok", false):
+		_save_elapsed = 0.0
+		_save_day_due = false
+		result["source"] = read["source"]
+		# A stale offline editor draft must never outlive a restored household.
+		if hud != null and is_instance_valid(hud):
+			if hud._character_editor != null and is_instance_valid(hud._character_editor):
+				hud._character_editor._on_cancel()
+				hud._character_editor = null
+			hud._cmd_for = ""
+			hud._cmd_refresh = 0.0
+	return result
+
+
+## A window-close request is earlier than child teardown. Frequent interval/day
+## autosaves remain the primary protection against crashes or forced process exit.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and _save_enabled:
+		save_game("autosave")
+
+
 ## Dynamika domácnosti běží jen tam, kde je autorita (offline / server); klient vidí výsledky.
 func _on_time_advanced(dm: float) -> void:
 	if dynamics == null:
@@ -439,6 +579,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				net.request_speed(4)
 			KEY_P:
 				net.request_emergency_pause()
+			KEY_F5:
+				var saved: Dictionary = save_game("manual")
+				if hud != null:
+					hud.show_notice("Hra uložena." if saved.get("ok", false) else "Uložení selhalo: " + String(saved.get("reason", "")))
+			KEY_F9:
+				var slot := "manual" if event.shift_pressed else "autosave"
+				var loaded: Dictionary = load_game(slot)
+				if hud != null:
+					hud.show_notice("Hra načtena." if loaded.get("ok", false) else "Načtení selhalo: " + String(loaded.get("reason", "")))
 			KEY_TAB:
 				if not sims.is_empty():
 					selected = (selected + 1) % sims.size()
@@ -654,12 +803,23 @@ func _audio_report() -> bool:
 ## Local controller entry points. No RPC is exposed until edit replication and
 ## authenticated ownership are implemented. A supplied peer ID is not authentication.
 func read_character_edit(sim_node: String, peer_id: int = 1) -> Dictionary:
-	if net == null or net.is_networked() or not net.is_authority() or peer_id != 1:
+	if net == null or not net.is_authority() or peer_id != 1:
+		return {"ok": false, "reason": "editing_unavailable"}
+	# Listen-host may only edit their own authenticated player-created character.
+	if net.is_networked() and (net.mode != net.Mode.HOST
+			or not net.character_edit_apply_rpc_enabled
+			or not net.server_can_edit_character(1, sim_node)):
 		return {"ok": false, "reason": "editing_unavailable"}
 	if find_sim(sim_node) == null or not _character_records.has(sim_node):
 		return {"ok": false, "reason": "missing_character"}
 	return {"ok": true, "data": _character_records[sim_node].to_dict(),
 		"revision": _character_revisions[sim_node]}
+
+
+## Only these sexuality preferences may change inside the locked identity
+## group via the OFFLINE editor. Name/gender/grammar edits still need migration.
+const OFFLINE_PRIVATE_SEXUAL_FIELDS := ["asexual", "aromantic",
+	"sexual_attracted_to", "libido", "drive_dysregulation"]
 
 
 func apply_character_edit(sim_node: String, candidate: Dictionary, expected_revision: int, peer_id: int = 1) -> Dictionary:
@@ -671,16 +831,28 @@ func apply_character_edit(sim_node: String, candidate: Dictionary, expected_revi
 	var before: Dictionary = current["data"]
 	if candidate.get("uid") != before["uid"] or candidate.get("v") != before["v"]:
 		return {"ok": false, "reason": "identity_changed"}
-	# Relationships are currently keyed by display name. Rename/identity editing
-	# needs its own migration; do not silently orphan relations in this first slice.
-	if candidate.get("identity") != before["identity"]:
+	# Name, gender and grammar edits need relationship/index migration. Only
+	# specific *private* sexuality fields may be changed offline: never allow
+	# replacing the identity group with arbitrary data or unknown keys.
+	var identity: Variant = candidate.get("identity")
+	if typeof(identity) != TYPE_DICTIONARY:
 		return {"ok": false, "reason": "identity_edit_pending"}
+	var existing: Dictionary = before["identity"]
+	for key in existing:
+		if key not in OFFLINE_PRIVATE_SEXUAL_FIELDS and identity.get(key) != existing[key]:
+			return {"ok": false, "reason": "identity_edit_pending"}
+	for key in identity:
+		if not existing.has(key) and key not in OFFLINE_PRIVATE_SEXUAL_FIELDS:
+			return {"ok": false, "reason": "identity_edit_pending"}
 	var gs := get_node_or_null("/root/GameSettings")
 	var mh: String = gs.mental_health_mode() if gs != null else "full"
 	var result := Validator.validate(candidate, {"mode": "strict", "mental_health": mh})
 	if not result["ok"]:
 		return {"ok": false, "reason": "invalid", "errors": result["errors"]}
-	return _commit_validated_character_edit(sim_node, result["data"], expected_revision, result["warnings"])
+	var committed: Dictionary = _commit_validated_character_edit(sim_node, result["data"], expected_revision, result["warnings"], true)
+	if net.mode == net.Mode.HOST and committed.get("ok", false) and committed.get("changed", false):
+		net._server_broadcast_character_public_look(sim_node, int(committed["revision"]))
+	return committed
 
 
 # Server-INTERNAL entry point. Future RPC MUST derive sender from multiplayer,
@@ -696,14 +868,29 @@ func server_apply_character_edit(sender_peer_id: int, sim_node: Variant, expecte
 	return _commit_validated_character_edit(String(sim_node), prepared["data"], int(expected_revision), prepared["warnings"])
 
 
+# Server-only public snapshot for staged appearance replication. No identity-private,
+# personality, mind, or owner-only data can be returned by public_snapshot().
+func read_public_character_look(sim_node: String) -> Dictionary:
+	if net == null or not net.is_authority() or not _character_records.has(sim_node):
+		return {"ok":false}
+	if not _character_revisions.has(sim_node) or find_sim(sim_node) == null:
+		return {"ok":false}
+	return {"ok":true, "revision":int(_character_revisions[sim_node]),
+		"look":_character_records[sim_node].public_snapshot()}
+
+
 # Trusted internal sink for strictly validated data, shared with offline Apply.
 # Not RPC. Re-read canonical revision immediately before any live mutation.
-func _commit_validated_character_edit(sim_node: String, after: Dictionary, expected_revision: int, warnings: Array) -> Dictionary:
+func _commit_validated_character_edit(sim_node: String, after: Dictionary, expected_revision: int, warnings: Array, allow_private_sexuality: bool = false) -> Dictionary:
 	if not _character_records.has(sim_node) or not _character_revisions.has(sim_node) or find_sim(sim_node) == null:
 		return {"ok":false,"reason":"missing_character"}
 	if _character_revisions[sim_node] != expected_revision:
 		return {"ok":false,"reason":"conflict"}
 	var before: Dictionary = _character_records[sim_node].to_dict()
+	# Even a server-internal caller must not bypass network identity locking.
+	if before["identity"] != after["identity"] and (not allow_private_sexuality
+			or net == null or net.is_networked()):
+		return {"ok": false, "reason": "identity_edit_pending"}
 	if after == before:
 		return {"ok": true, "revision": expected_revision, "changed": false}
 	var sim = find_sim(sim_node)
@@ -714,6 +901,21 @@ func _commit_validated_character_edit(sim_node: String, after: Dictionary, expec
 		sim.look = snapshot
 		if is_instance_valid(sim.visual):
 			sim.visual.apply_look(snapshot)
+	# Update current, private sexuality without resetting learned emotional/mental
+	# history. Existing live consent becomes invalid whenever age or preferences
+	# are edited; no consent is silently inherited from a draft.
+	if before["identity"] != after["identity"] or before["body"].get("age") != after["body"].get("age"):
+		var ident: Dictionary = after["identity"]
+		var body: Dictionary = after["body"]
+		sim.intimacy.revoke_consent("")
+		sim.intimacy.interest.clear()
+		sim.intimacy.configure({"age": body["age"],
+			"asexual": ident["asexual"], "aromantic": ident["aromantic"],
+			"sexual_attraction": ident["sexual_attracted_to"],
+			"romantic_attraction": ident["attracted_to"],
+			"libido": ident["libido"],
+			"drive_dysregulation": ident["drive_dysregulation"]})
+		sim._detail_dirty = true
 	# Wardrobe/body edits must not reset adaptive sensory state or mental history.
 	if before["personality"] != after["personality"] or before["mind"] != after["mind"]:
 		sim.apply_character_private(after, false)

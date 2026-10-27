@@ -118,7 +118,7 @@ const OUTFIT_CATEGORIES := {
 }
 ## Oblečení není vázané na tělo ani identitu – každý kus jde na kohokoli.
 const TOPS := {
-	"tricko": "Tričko", "tilko": "Tílko", "kosile": "Košile", "halenka": "Halenka", "svetr": "Svetr", "rolak": "Rolák",
+	"zadne": "Bez vrchního dílu (anatomie)", "tricko": "Tričko", "tilko": "Tílko", "kosile": "Košile", "halenka": "Halenka", "svetr": "Svetr", "rolak": "Rolák",
 	"mikina": "Mikina", "sako": "Sako s košilí", "saty": "Šaty", "pyzamo": "Pyžamo", "sportovni": "Sportovní tričko",
 	"punk_vesta": "Punková vesta", "metal_tricko": "Metalové tričko", "emo_mikina": "Emo mikina",
 	"goth_korset": "Goth korzet", "kawaii_svetr": "Kawaii svetr", "harajuku_bunda": "Harajuku bunda",
@@ -235,6 +235,9 @@ const GROUPS := {
 		"attracted_to": ["set", ATTRACTION, 3],
 		"aromantic": ["b", false],
 		"asexual": ["b", false],
+		"sexual_attracted_to": ["set", ATTRACTION, 3],  # independent of romantic attraction
+		"libido": ["f", 0.0, 1.0, 0.5],  # independent of asexuality
+		"drive_dysregulation": ["f", 0.0, 1.0, 0.0], # non-diagnostic preoccupation
 	}},
 	"body": {"public": true, "fields": {
 		"height_cm": ["f", 145.0, 205.0, 172.0],
@@ -317,6 +320,8 @@ const GROUPS := {
 		"backstory": ["text", 600, true],
 	}},
 	"mind": {"content": "mental_health", "fields": {
+		## Stable private belief, not a transient emotion, diagnosis or visible mood meter.
+		"self_defectiveness": ["f", 0.0, 1.0, 0.0],
 		"predispositions": ["predisp"], # 0..1 per condition; already continuous
 		"dispositions": ["axes", PSYCHE_SLIDERS, 0.0, 1.0],
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],

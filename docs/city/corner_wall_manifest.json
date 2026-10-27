@@ -91,7 +91,30 @@
       "No texture maps; bevel-strip density not certified",
       "No navmesh or actual locomotion/sliding test",
       "No large-scene FPS benchmark"
-    ]
+    ],
+    "source_scene_regression": {
+      "run_id": "city-fallback-1792882030-134300",
+      "script": "scripts/city/validate_corner_source.gd",
+      "passed": 37,
+      "failed": 0,
+      "exit_code": 0,
+      "timed_out": false,
+      "negative_in_memory": {
+        "expected_exit": 1,
+        "observed_exit": 1,
+        "detected_failures": 5
+      },
+      "other_regressions": {
+        "corner": 36,
+        "solid": 37,
+        "doorway": 31
+      },
+      "syntax": "60/60",
+      "gemini_review": "docs/city/review-corner-source-20261025.md",
+      "new_render": false,
+      "authored_glb_unchanged": true,
+      "authored_scene_unchanged": true
+    }
   },
   "hashes": {
     "glb": "cb6b94811cdfe67f2c2baba4f355f07836dd30390a8db87e4b13912df976baea",

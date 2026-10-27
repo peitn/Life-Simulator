@@ -1,9 +1,9 @@
 {
-  "version": 1,
+  "version": 1.0,
   "status": "idle",
   "run_id": null,
   "lease_expires_at": null,
-  "last_completed_unit": "Godot source snapshot reconciled for owner-requested GitHub synchronization",
+  "last_completed_unit": "Withdrawal/avoidance, H5-aware matrix criteria, English docs, GitHub sync (27 Oct 2026, owner-approved)",
   "next_milestone": "H2",
   "plan": "docs/implementation-sequence.md",
   "publication": "owner_authorized_github_sync",

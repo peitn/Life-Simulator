@@ -1,0 +1,100 @@
+{
+  "asset": "ceiling_tile_2m",
+  "version": "0.1",
+  "run_id": "city-1792909801-152206",
+  "license": "Original Life Simulator asset; all rights reserved",
+  "source": "tools/blender/city/ceiling_tile.py",
+  "units": "meters",
+  "axes": "Blender Z-up to Godot Y-up",
+  "pivot": [
+    0,
+    0,
+    0
+  ],
+  "placement_y": 2.8,
+  "grid_m": 0.5,
+  "bounds": {
+    "min": [
+      0,
+      0,
+      -2
+    ],
+    "max": [
+      2,
+      0.2,
+      0
+    ]
+  },
+  "sockets": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      -2
+    ],
+    [
+      2,
+      0,
+      -2
+    ]
+  ],
+  "meshes": 2,
+  "triangles": 216,
+  "materials": [
+    "Foundation concrete",
+    "Warm ceiling plastering"
+  ],
+  "uv": "1unit/m world planar before2mm bevel; bevel density unverified",
+  "normals": "unit normals Blender; source/saved arrays exact",
+  "textures": [],
+  "interaction_points": [],
+  "collision": {
+    "center": [
+      1,
+      0.1,
+      -1
+    ],
+    "size": [
+      2,
+      0.2,
+      2
+    ],
+    "layer": 1
+  },
+  "sha256": {
+    "glb": "2c9884601b3d59fb20f9b6b52e17cd9372f61d61fb116b9b2becface30fc5500",
+    "blend": "3e24551c770a310f1edf4bd3a63c4725f8180a05c42cfbaa2ce1e8a93eb8e78c",
+    "scene": "c651594acbc1620b0a5836dd293062a0ee492e195d908d5a346696e16cc4dc8b"
+  },
+  "blender": {
+    "kit": "lifesim-city-ceiling-kit",
+    "generator": "lifesim-city-ceiling-generator",
+    "persistent": true,
+    "reopened": true,
+    "files": 6,
+    "bytes": 145481
+  },
+  "validation": {
+    "ceiling": "55/55 exit0",
+    "negative": "50pass5fail exit1 intended",
+    "floor": "51/51 exit0",
+    "timeout": false,
+    "renders": [
+      "top",
+      "edge",
+      "underside"
+    ],
+    "gemini": "Two actual responses; see review-ceiling-tile-20261025.md",
+    "performance": "216triangle budget only, no FPS measured"
+  },
+  "status": "Verified standalone construction module; no texture maps/navmesh/main integration"
+}

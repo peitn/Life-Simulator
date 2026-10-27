@@ -1,0 +1,457 @@
+[
+  {
+    "uid": "000000000000a100",
+    "identity": {
+      "first_name": "Raven",
+      "last_name": "Vale",
+      "grammar": "f",
+      "gender_identity": "zena"
+    },
+    "body": {
+      "age": 25.0
+    },
+    "personality": {
+      "traits": [
+        "uzkostlivy"
+      ],
+      "trait_levels": {
+        "spolecensky": 0.82,
+        "samotar": 0.42,
+        "hravy": 0.75,
+        "uzkostlivy": 0.85,
+        "knihomol": 0.1,
+        "impulzivni": 0.35,
+        "cynik": 0.18
+      },
+      "aspirations": [
+        "tvorba",
+        "pratele"
+      ],
+      "hexaco": {
+        "emotionality": 0.75,
+        "openness": 0.88,
+        "agreeableness": 0.62,
+        "extraversion": -0.25,
+        "conscientiousness": 0.2,
+        "honesty": 0.65
+      },
+      "psyche_seed": 2000.0
+    },
+    "mind": {
+      "predispositions": {
+        "anxiety": 0.75,
+        "depression": 0.65
+      },
+      "dispositions": {
+        "threat_sensitivity": 0.74,
+        "hypervigilance": 0.65,
+        "social_threat": 0.91,
+        "rejection_reactivity": 0.95,
+        "impulsivity": 0.43,
+        "regulation_capacity": 0.46,
+        "predictability_need": 0.71,
+        "sensory_sensitivity": 0.75,
+        "energy_baseline": 0.25,
+        "reward_sensitivity": 0.63,
+        "cognitive_flexibility": 0.75
+      },
+      "traumas": [],
+      "morning_worse": false
+    },
+    "hair": {
+      "style": "dlouhe_vlnite",
+      "dyed": true,
+      "dye_color": "#75409a",
+      "melanin": 0.92
+    },
+    "clothing": {
+      "bezne": {
+        "top": "kawaii_kocici_mikina",
+        "bottom": "goth_sukne",
+        "shoes": "goth_platformy",
+        "top_color": "#d978b2",
+        "bottom_color": "#242132"
+      }
+    },
+    "makeup": {
+      "eyeliner": 0.8,
+      "eyeshadow": 0.65,
+      "eyeshadow_color": "#402753",
+      "mascara": 0.6
+    }
+  },
+  {
+    "uid": "000000000000a101",
+    "identity": {
+      "first_name": "Sable",
+      "last_name": "Wraith",
+      "grammar": "f",
+      "gender_identity": "zena"
+    },
+    "body": {
+      "age": 30.0
+    },
+    "personality": {
+      "traits": [
+        "uzkostlivy"
+      ],
+      "trait_levels": {
+        "uzkostlivy": 1.0,
+        "samotar": 0.88,
+        "cynik": 0.48,
+        "brucoun": 0.36
+      },
+      "aspirations": [
+        "klid"
+      ],
+      "hexaco": {
+        "emotionality": 0.95,
+        "extraversion": -0.86,
+        "agreeableness": -0.25
+      },
+      "psyche_seed": 2019.0
+    },
+    "mind": {
+      "predispositions": {
+        "anxiety": 0.99,
+        "depression": 0.9
+      },
+      "dispositions": {
+        "threat_sensitivity": 0.98,
+        "hypervigilance": 0.96,
+        "social_threat": 0.98,
+        "rejection_reactivity": 0.9,
+        "impulsivity": 0.21,
+        "regulation_capacity": 0.12,
+        "predictability_need": 0.98,
+        "sensory_sensitivity": 0.98,
+        "energy_baseline": 0.18,
+        "reward_sensitivity": 0.22,
+        "cognitive_flexibility": 0.2
+      },
+      "traumas": [],
+      "morning_worse": true
+    }
+  },
+  {
+    "uid": "000000000000a102",
+    "identity": {
+      "first_name": "Dorian",
+      "last_name": "Flint",
+      "grammar": "m",
+      "gender_identity": "muz"
+    },
+    "body": {
+      "age": 35.0
+    },
+    "personality": {
+      "traits": [
+        "samotar"
+      ],
+      "trait_levels": {
+        "lenoch": 0.87,
+        "samotar": 0.91,
+        "cynik": 0.72,
+        "brucoun": 0.37,
+        "uzkostlivy": 0.28
+      },
+      "aspirations": [
+        "klid"
+      ],
+      "hexaco": {
+        "emotionality": 0.62,
+        "extraversion": -0.86,
+        "openness": -0.25
+      },
+      "psyche_seed": 2038.0
+    },
+    "mind": {
+      "predispositions": {
+        "depression": 1.0,
+        "anxiety": 0.55
+      },
+      "dispositions": {
+        "threat_sensitivity": 0.6,
+        "hypervigilance": 0.5,
+        "social_threat": 0.61,
+        "rejection_reactivity": 0.47,
+        "impulsivity": 0.17,
+        "regulation_capacity": 0.19,
+        "predictability_need": 0.8,
+        "sensory_sensitivity": 0.65,
+        "energy_baseline": 0.05,
+        "reward_sensitivity": 0.06,
+        "cognitive_flexibility": 0.22
+      },
+      "traumas": [],
+      "morning_worse": true
+    }
+  },
+  {
+    "uid": "000000000000a103",
+    "identity": {
+      "first_name": "Juno",
+      "last_name": "Vex",
+      "grammar": "f",
+      "gender_identity": "zena"
+    },
+    "body": {
+      "age": 27.0
+    },
+    "personality": {
+      "traits": [
+        "impulzivni"
+      ],
+      "trait_levels": {
+        "impulzivni": 1.0,
+        "vznetlivy": 0.94,
+        "spolecensky": 0.88,
+        "hravy": 0.88,
+        "zarlivy": 0.7
+      },
+      "aspirations": [
+        "uznani",
+        "pratele"
+      ],
+      "hexaco": {
+        "emotionality": 0.9,
+        "extraversion": 0.85,
+        "agreeableness": -0.65
+      },
+      "psyche_seed": 2057.0
+    },
+    "mind": {
+      "predispositions": {
+        "anxiety": 0.86,
+        "depression": 0.5
+      },
+      "dispositions": {
+        "threat_sensitivity": 0.72,
+        "hypervigilance": 0.7,
+        "social_threat": 0.62,
+        "rejection_reactivity": 0.92,
+        "impulsivity": 1.0,
+        "regulation_capacity": 0.08,
+        "predictability_need": 0.16,
+        "sensory_sensitivity": 0.65,
+        "energy_baseline": 0.8,
+        "reward_sensitivity": 0.97,
+        "cognitive_flexibility": 0.41
+      },
+      "traumas": [],
+      "morning_worse": false
+    }
+  },
+  {
+    "uid": "000000000000a104",
+    "identity": {
+      "first_name": "Orion",
+      "last_name": "Voss",
+      "grammar": "m",
+      "gender_identity": "muz"
+    },
+    "body": {
+      "age": 42.0
+    },
+    "personality": {
+      "traits": [
+        "uzkostlivy"
+      ],
+      "trait_levels": {
+        "uzkostlivy": 0.95,
+        "pedant": 0.9,
+        "samotar": 0.88,
+        "cynik": 0.46
+      },
+      "aspirations": [
+        "klid"
+      ],
+      "hexaco": {
+        "emotionality": 0.7,
+        "conscientiousness": 0.82,
+        "extraversion": -0.8
+      },
+      "psyche_seed": 2076.0
+    },
+    "mind": {
+      "predispositions": {
+        "anxiety": 0.97,
+        "depression": 0.45
+      },
+      "dispositions": {
+        "threat_sensitivity": 1.0,
+        "hypervigilance": 1.0,
+        "social_threat": 0.75,
+        "rejection_reactivity": 0.63,
+        "impulsivity": 0.11,
+        "regulation_capacity": 0.26,
+        "predictability_need": 1.0,
+        "sensory_sensitivity": 0.88,
+        "energy_baseline": 0.4,
+        "reward_sensitivity": 0.36,
+        "cognitive_flexibility": 0.07
+      },
+      "traumas": [],
+      "morning_worse": false
+    }
+  },
+  {
+    "uid": "000000000000a105",
+    "identity": {
+      "first_name": "Iris",
+      "last_name": "North",
+      "grammar": "f",
+      "gender_identity": "zena"
+    },
+    "body": {
+      "age": 29.0
+    },
+    "personality": {
+      "traits": [
+        "spolecensky"
+      ],
+      "trait_levels": {
+        "spolecensky": 0.93,
+        "optimista": 0.78,
+        "hravy": 0.5,
+        "uzkostlivy": 0.24
+      },
+      "aspirations": [
+        "pratele",
+        "rodina"
+      ],
+      "hexaco": {
+        "agreeableness": 0.94,
+        "emotionality": 0.23,
+        "extraversion": 0.67,
+        "openness": 0.54
+      },
+      "psyche_seed": 2095.0
+    },
+    "mind": {
+      "predispositions": {},
+      "dispositions": {
+        "threat_sensitivity": 0.3,
+        "hypervigilance": 0.28,
+        "social_threat": 0.22,
+        "rejection_reactivity": 0.34,
+        "impulsivity": 0.28,
+        "regulation_capacity": 0.9,
+        "predictability_need": 0.26,
+        "sensory_sensitivity": 0.32,
+        "energy_baseline": 0.76,
+        "reward_sensitivity": 0.85,
+        "cognitive_flexibility": 0.88
+      },
+      "traumas": [],
+      "morning_worse": false
+    }
+  },
+  {
+    "uid": "000000000000a106",
+    "identity": {
+      "first_name": "Ash",
+      "last_name": "Solace",
+      "grammar": "n",
+      "gender_identity": "nebinarni"
+    },
+    "body": {
+      "age": 26.0
+    },
+    "personality": {
+      "traits": [
+        "optimista"
+      ],
+      "trait_levels": {
+        "optimista": 0.86,
+        "spolecensky": 0.68,
+        "knihomol": 0.64,
+        "hravy": 0.39
+      },
+      "aspirations": [
+        "pratele",
+        "klid"
+      ],
+      "hexaco": {
+        "agreeableness": 0.96,
+        "honesty": 0.89,
+        "openness": 0.71,
+        "emotionality": 0.18
+      },
+      "psyche_seed": 2114.0
+    },
+    "mind": {
+      "predispositions": {},
+      "dispositions": {
+        "threat_sensitivity": 0.15,
+        "hypervigilance": 0.17,
+        "social_threat": 0.15,
+        "rejection_reactivity": 0.18,
+        "impulsivity": 0.17,
+        "regulation_capacity": 0.97,
+        "predictability_need": 0.25,
+        "sensory_sensitivity": 0.26,
+        "energy_baseline": 0.66,
+        "reward_sensitivity": 0.82,
+        "cognitive_flexibility": 0.94
+      },
+      "traumas": [],
+      "morning_worse": false
+    }
+  },
+  {
+    "uid": "000000000000a107",
+    "identity": {
+      "first_name": "Lucian",
+      "last_name": "Rook",
+      "grammar": "m",
+      "gender_identity": "muz"
+    },
+    "body": {
+      "age": 38.0
+    },
+    "personality": {
+      "traits": [
+        "brucoun"
+      ],
+      "trait_levels": {
+        "brucoun": 0.97,
+        "vznetlivy": 0.98,
+        "cynik": 0.85,
+        "zarlivy": 0.91,
+        "impulzivni": 0.83
+      },
+      "aspirations": [
+        "uznani"
+      ],
+      "hexaco": {
+        "agreeableness": -0.96,
+        "emotionality": 0.65,
+        "extraversion": 0.23,
+        "honesty": -0.48
+      },
+      "psyche_seed": 2133.0
+    },
+    "mind": {
+      "predispositions": {
+        "anxiety": 0.56,
+        "depression": 0.4
+      },
+      "dispositions": {
+        "threat_sensitivity": 0.6,
+        "hypervigilance": 0.66,
+        "social_threat": 0.42,
+        "rejection_reactivity": 0.87,
+        "impulsivity": 0.93,
+        "regulation_capacity": 0.09,
+        "predictability_need": 0.47,
+        "sensory_sensitivity": 0.51,
+        "energy_baseline": 0.71,
+        "reward_sensitivity": 0.32,
+        "cognitive_flexibility": 0.16
+      },
+      "traumas": [],
+      "morning_worse": false
+    }
+  }
+]

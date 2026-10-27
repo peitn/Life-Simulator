@@ -42,12 +42,13 @@ func section(title: String) -> void:
 
 ## Čeká (reálný čas), dokud `cond` nevrátí true nebo nevyprší `timeout`. Vrací výsledek.
 func wait_until(cond: Callable, timeout := 5.0) -> bool:
-	var t := 0.0
-	while t < timeout:
+	# This Node does not run _process, so get_process_delta_time() may stay
+	# zero indefinitely. A monotonic real-time deadline guarantees termination.
+	var deadline_usec := Time.get_ticks_usec() + int(maxf(0.0, timeout) * 1000000.0)
+	while Time.get_ticks_usec() < deadline_usec:
 		if cond.call():
 			return true
 		await get_tree().process_frame
-		t += get_process_delta_time()
 	return bool(cond.call())
 
 

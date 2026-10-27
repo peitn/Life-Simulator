@@ -1,0 +1,185 @@
+{
+  "schema": "life-simulator.anatomy.elmer-fem.v1",
+  "solver": "ElmerSolver 26.2",
+  "date_utc": "2026-10-26",
+  "si_units": {
+    "length": "m",
+    "stress": "Pa",
+    "force": "N",
+    "mass": "kg",
+    "displacement": "m"
+  },
+  "source_model": "lifesim-anatomy-skeleton-v1",
+  "source_osteo": "tools/blender/anatomy_skeleton_v1.py",
+  "implementation": {
+    "solver_role": "offline_static_reference_only",
+    "live_gameplay_enabled": false,
+    "live_ragdoll_enabled": false,
+    "muscle_activation_implemented": false,
+    "medical_validation": false
+  },
+  "bone_cantilever": {
+    "kind": "rectangular_2D_plane_stress_cortical_proxy",
+    "elastic_modulus_pa": 15000000000,
+    "poisson": 0.3,
+    "density_kg_m3": 1900,
+    "length_m": 0.15,
+    "height_m": 0.015,
+    "thickness_assumption_m": 1,
+    "boundary": {
+      "fixed_edge": "left x=0, ux=uy=0",
+      "load_edge": "right x=0.15, uniform Force 2=-100 Pa",
+      "traction_downward_pa": 100,
+      "total_force_per_m_extrusion_n": 1.5
+    },
+    "analytic_euler_bernoulli": {
+      "moment_inertia_per_unit_thickness_m4": 2.8125e-7,
+      "tip_abs_displacement_m": 4e-7
+    },
+    "cases": [
+      {
+        "name": "lifesim_bone_bend_coarse_c9",
+        "nx": 14,
+        "ny": 4,
+        "points": 75,
+        "max_displacement_m": 3.34422e-7,
+        "max_von_mises_pa": 4994.23
+      },
+      {
+        "name": "lifesim_bone_bend_c9",
+        "nx": 30,
+        "ny": 8,
+        "points": 279,
+        "max_displacement_m": 3.85813e-7,
+        "max_von_mises_pa": 5806.9
+      },
+      {
+        "name": "lifesim_bone_bend_fine_c9",
+        "nx": 60,
+        "ny": 16,
+        "points": 1037,
+        "max_displacement_m": 3.98879e-7,
+        "max_displacement_vector_m": [
+          -2.9661981e-8,
+          -3.9777472e-7,
+          0
+        ],
+        "max_von_mises_pa": 6407.57
+      }
+    ],
+    "notes": "Template 2D plane stress and Force2=-100 Pa traction (NOT total -100 N). Analytic beam deflection uses total 1.5 N per metre model thickness. Displacement magnitude differs slightly from vertical tip deflection."
+  },
+  "cartilage_compression": {
+    "kind": "rectangular_2D_plane_stress_hyaline_proxy",
+    "elastic_modulus_pa": 5000000,
+    "poisson": 0.35,
+    "density_kg_m3": 1100,
+    "width_m": 0.04,
+    "depth_m": 0.003,
+    "thickness_assumption_m": 1,
+    "boundary": {
+      "substrate": "bottom y=0, ux=uy=0",
+      "load": "top y=0.003, uniform Force 2 negative Pa",
+      "side_edges": "free"
+    },
+    "cases": [
+      {
+        "name": "lifesim_cartilage_20k_c9",
+        "pressure_pa": 20000,
+        "nx": 40,
+        "ny": 8,
+        "points": 369,
+        "max_displacement_m": 0.0000148176,
+        "max_displacement_vector_m": [
+          -0.0000067262079,
+          -0.000013202993,
+          0
+        ],
+        "max_von_mises_pa": 34409.3,
+        "stress_yy_min_pa": -34000
+      },
+      {
+        "name": "lifesim_cartilage_40k_c9",
+        "pressure_pa": 40000,
+        "nx": 40,
+        "ny": 8,
+        "points": 369,
+        "max_displacement_m": 0.0000296352,
+        "max_displacement_vector_m": [
+          -0.000013452416,
+          -0.000026405986,
+          0
+        ],
+        "max_von_mises_pa": 68818.6,
+        "stress_yy_min_pa": -68000
+      },
+      {
+        "name": "lifesim_cartilage_fine_c9",
+        "pressure_pa": 20000,
+        "nx": 80,
+        "ny": 16,
+        "points": 1377,
+        "max_displacement_m": 0.0000149233,
+        "max_displacement_vector_m": [
+          -0.0000068312326,
+          -0.000013267994,
+          0
+        ],
+        "max_von_mises_pa": 41418.9,
+        "stress_yy_min_pa": -40734.1
+      },
+      {
+        "name": "lifesim_cartilage_ultrafine_c9",
+        "pressure_pa": 20000,
+        "nx": 120,
+        "ny": 24,
+        "points": 3025,
+        "max_displacement_m": 0.0000149443,
+        "max_displacement_vector_m": [
+          -0.0000068526875,
+          -0.000013280531,
+          0
+        ],
+        "max_von_mises_pa": 46142.5,
+        "stress_yy_min_pa": -45337.8
+      }
+    ],
+    "supported_lookup_pressure_pa": [
+      0,
+      40000
+    ],
+    "notes": "Uncoupled, homogeneous isotropic linear elastic surrogate, not cartilage biphasic flow, impact mechanics or 3D contact. Maximum |u| includes lateral x motion and should NOT be called vertical compression. Peak von Mises grows under corner refinement (34.4k->41.4k Pa) so NOT converged, do not use as failure criteria. Bulk compliance near-converged (~0.71% max magnitude change). Ultrafine 120x24 confirms max-displacement convergence: 14.9233 um (80x16) to 14.9443 um (120x24), ~0.14% difference; the peak von Mises continues to grow 34.409->41.419->46.143 kPa as fixed-corner singularities become sharper, so still unfit for pathology/damage decisions. Independent E=2.5 MPa Elmer 40x8 test under identical 20 kPa pressure yielded 29.6352 µm, exactly 2x the E=5 MPa/20 kPa 40x8 deflection; this only validates inverse-E proportionality in this idealized linear model.",
+    "elastic_modulus_range_pa": [
+      2500000,
+      5000000
+    ],
+    "soft_material_case": {
+      "name": "lifesim_cartilage_soft_c9",
+      "pressure_pa": 20000,
+      "elastic_modulus_pa": 2500000,
+      "poisson": 0.35,
+      "nx": 40,
+      "ny": 8,
+      "points": 369,
+      "max_displacement_m": 0.0000296352,
+      "max_displacement_vector_m": [
+        -0.000013452416,
+        -0.000026405986,
+        0
+      ],
+      "max_von_mises_pa": 34409.3
+    }
+  },
+  "review": {
+    "independent_model": "Gemini 3.5 Flash Lite",
+    "summary": "Consulted before and after Elmer runs; recommended dimensional checks, EB cantilever convergence, low-frequency/offline lookup rather than 60 Hz solve. Warned corner stress concentrations require local refinement.",
+    "key_limitations": [
+      "2D plane stress, homogeneous linear elastic material",
+      "no calibrated model of real cartilage, bone anisotropy or viscoelasticity",
+      "mesh singularities stress concentration at fixed boundary",
+      "FEM solver not realtime actor physics",
+      "Elmer runs not linked to live Godot scene or Blender Bullet joints",
+      "No well-posed 3D bonded/contact/articular biphasic formulation or joint cartilage geometry yet"
+    ]
+  }
+}

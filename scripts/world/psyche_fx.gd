@@ -62,7 +62,7 @@ func _ready() -> void:
 static func target_level(mind: Dictionary, strength: float) -> float:
 	if mind.is_empty() or strength <= 0.0:
 		return 0.0
-	var ar: float = float(mind.get("arousal", 0))
+	var ar: float = float(mind.get("aversive_arousal", mind.get("arousal", 0)))
 	var t := clampf((ar - 40.0) / 55.0, 0.0, 1.0)
 	if bool(mind.get("panic", false)):
 		t = maxf(t, 0.9)

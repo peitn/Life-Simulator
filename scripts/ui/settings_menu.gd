@@ -16,6 +16,7 @@ var _fx_strength: HSlider
 var _addiction: CheckBox
 var _profanity: CheckBox
 var _sh_ed: CheckBox
+var _adult_intimacy: CheckBox
 var _syncing := false
 
 
@@ -164,6 +165,8 @@ func _build_menu() -> void:
 	_profanity.toggled.connect(func(on: bool): _apply("profanity", on))
 	_sh_ed = _check(v, "Sebepoškozování a poruchy příjmu potravy (jen přes emoce a vztahy; zatím ve hře nejsou)")
 	_sh_ed.toggled.connect(func(on: bool): _apply("sh_ed_topics", on))
+	_adult_intimacy = _check(v, "Dobrovolná intimita dospělých (neexplicitní; výchozí vypnuto)")
+	_adult_intimacy.toggled.connect(func(on: bool): _apply("adult_intimacy", on))
 	v.add_child(HSeparator.new())
 	v.add_child(_crisis_box())
 	v.add_child(HSeparator.new())
@@ -225,6 +228,7 @@ func _sync_from_settings() -> void:
 	_addiction.button_pressed = bool(_settings.get_value("addiction"))
 	_profanity.button_pressed = bool(_settings.get_value("profanity"))
 	_sh_ed.button_pressed = bool(_settings.get_value("sh_ed_topics"))
+	_adult_intimacy.button_pressed = bool(_settings.get_value("adult_intimacy"))
 	_syncing = false
 
 

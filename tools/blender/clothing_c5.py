@@ -325,8 +325,10 @@ def long_sleeves(style,kind):
     for side in (-1,1):
         verts=[];faces=[];S=14
         rings=[
-            (side*0.25,0.0,1.164,0.049),
-            (side*0.266,0.0,1.096,0.048),
+            # Extend the shoulder join under the shirt shell; old 1.164m rim
+            # left a measured 21mm median surface gap (rest pose).
+            (side*0.25,0.0,1.209,0.049),
+            (side*0.266,0.0,1.108,0.048),
             (side*0.283,0.0,1.008,0.043),
             (side*0.297,-0.004,0.909,0.034),
             (side*0.30,-0.005,0.875,0.032)
@@ -339,7 +341,21 @@ def long_sleeves(style,kind):
             for i in range(S):
                 a=j*S+i;b=j*S+(i+1)%S
                 faces.append((a,b,b+S,a+S))
-        make_mesh("sleeve_%s"%side,verts,faces,src["cloth_shirt"],MAT[kind],"top",style)
+        # Sleeve vertices extend far beyond cloth_shirt: nearest shirt transfer can select hips/legs.
+        # Keep morph transfer, but constrain weights to the corresponding arm chain.
+        suffix="l" if side>0 else "r"
+        elbow_z=ARM.data.bones["forearm_"+suffix].head_local.z
+        wrist_z=ARM.data.bones["hand_"+suffix].head_local.z
+        def sleeve_bones(v):
+            # Keep the upper rim attached to upper arm through elbow flexion.
+            # Original nearest fit wrongly assigned ~73% forearm at the
+            # shoulder seam, producing 30mm+ pose gaps. Blend after the
+            # second ring, reaching forearm near the elbow ring.
+            forearm=max(0.0,min(1.0,(elbow_z-0.027-v.z)/0.157))
+            hand=max(0.0,min(1.0,(wrist_z+0.04-v.z)/0.08))
+            return {"upper_arm_"+suffix:1-forearm,
+                    "forearm_"+suffix:forearm*(1-hand),"hand_"+suffix:forearm*hand}
+        make_mesh("sleeve_%s"%side,verts,faces,src["cloth_shirt"],MAT[kind],"top",style,sleeve_bones)
 for style,kind in [("mikina","fleece"),("svetr","knit"),("rolak","knit"),("sako","suiting"),("kosile","suiting")]:
     long_sleeves(style,kind)
 
@@ -482,6 +498,7 @@ for style in ["punk_kostka","metal_dziny","visualkei_kalhoty"]:
         x=0.12+0.025*math.sin(math.pi*t)
         y=-0.115-0.018*math.sin(math.pi*t)
         z=0.98-0.19*math.sin(math.pi*t)
+        if i==6: z+=0.006  # avoid coincident midpoint rings of the curved chain
         if i==0: coords=[]
         coords.append((x,y,z))
     tube("waist_chain",coords,[0.004]*len(coords),

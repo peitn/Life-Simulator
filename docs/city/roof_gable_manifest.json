@@ -1,0 +1,124 @@
+{
+	"assembly_previews": [
+		"docs/city/assembly-city-1792931666-165374-exterior.jpg",
+		"docs/city/assembly-city-1792931666-165374-underside.jpg"
+	],
+	"assembly_renderer": "scripts/city/render_roof_assembly.gd",
+	"assembly_scene": "scenes/city/roof_assembly_demo.tscn",
+	"assembly_validator": "scripts/city/validate_roof_assembly.gd",
+	"asset": "roof_gable_2m",
+	"axes": "Blender Z-up -> Godot Y-up",
+	"blender": {
+		"blend_persistent_path": "lifesim-city-roof-gable-prototype/roof_gable.blend",
+		"blend_sha256": "3ac097f5505d790792821fbb579bc8494f66c3f1ed460de79f098dc26aac46fe",
+		"blend_temp_path": "/tmp/city-fallback-1792917818-153020-roof/roof_gable.blend",
+		"blend_temp_sha256": "3ac097f5505d790792821fbb579bc8494f66c3f1ed460de79f098dc26aac46fe",
+		"editable_blend_persistent": true,
+		"generator": "lifesim-city-roof-gable-generator",
+		"persistent_files": 6.0,
+		"persistent_total_bytes": 131178.0,
+		"prototype_kit": "lifesim-city-roof-gable-prototype"
+	},
+	"bounds_godot": {
+		"max": [
+			2.0,
+			0.72,
+			0.0
+		],
+		"min": [
+			0.0,
+			0.0,
+			-2.0
+		]
+	},
+	"builder": "scripts/city/build_roof_gable.gd",
+	"eave_sockets_godot": [
+		[
+			0.0,
+			0.0,
+			0.0
+		],
+		[
+			2.0,
+			0.0,
+			0.0
+		],
+		[
+			0.0,
+			0.0,
+			-2.0
+		],
+		[
+			2.0,
+			0.0,
+			-2.0
+		]
+	],
+	"gable_envelope_validator": "scripts/city/validate_gable_envelope.gd",
+	"gable_envelope_validator_sha256": "a35be52bb899fe8516e5980fbbf1665284f91944fd667027c876ed0b08f0f677",
+	"glb": "assets/city/roof_gable_2m.glb",
+	"grid_m": 0.5,
+	"license": "Original Life Simulator asset; all rights reserved",
+	"materials": [
+		"Muted slate roofing"
+	],
+	"meshes": 2.0,
+	"next_step": "Compatible triangular gable infill, rendered and snap/collision tested.",
+	"pivot_godot": [
+		0.0,
+		0.0,
+		0.0
+	],
+	"placement_y": 3.0,
+	"preview_qa_note": "All 3 original 320px renders visually inspected via 256px downsampled copies; no obvious missing surfaces or clipping at this resolution; full-resolution pixel-level QA not claimed.",
+	"previews": [
+		"docs/city/roof_front.jpg",
+		"docs/city/roof_ridge.jpg",
+		"docs/city/roof_underside.jpg"
+	],
+	"previews_visually_inspected": true,
+	"ridge_sockets_godot": [
+		[
+			1.0,
+			0.6,
+			0.0
+		],
+		[
+			1.0,
+			0.6,
+			-2.0
+		]
+	],
+	"rise_m": 0.6,
+	"run_id": "city-fallback-1792925089-162410",
+	"scene": "scenes/city/roof_gable_2m.scn",
+	"sha256": {
+		"builder": "7783918609b89f0f4cfb6dd203d8857c7780856f4f29217306903f71ed355782",
+		"glb": "915d4ea84a2c353b29ed96ee400a575968151b2e850f1d38890358304b60775d",
+		"scene": "6b5a6747589bcdb167c99466a08f75bcf310861567fd0c8c8881305d4a8fba19",
+		"source": "664da793f826f867031919defc188e61079da45bc652de3bca3caf8504f68555",
+		"validator": "669f8865e6d37988715e70f2a5d50283247540cae63f98d3ccc534962bc889b4"
+	},
+	"source": "tools/blender/city/roof_gable.py",
+	"status": "Roof and open assembly verified; gable infill/textures/navigation/build UI pending.",
+	"textures": [],
+	"triangles": 24.0,
+	"units": "meters",
+	"uv": "1 UV unit per physical roof-slope meter and span; no texture maps",
+	"validation": {
+		"assembly": "dynamic54/54,saved55/55 exit0; saved gap11fail exit1 expected; actual Godot640x480 two views inspected",
+		"blender_generator": "exit0, reproduced source once; two watertight slope meshes",
+		"blender_persistent": "6/6 original file SHA256 verified; saved .blend reopened in Blender 4.0.2 exit0",
+		"collision": "51/51 source/saved/physics checks exit0, negative left-disabled 49/51 exit1 expected",
+		"gable_envelope": "28/28 saved assembly end-envelope physics+collider identity PASS exit0; memory-only roof lift 23pass/5fail exit1 expected; no timeout; syntax60/60",
+		"gable_envelope_gemini": "two actual skeptical reviews, accepted collider-identity improvement; scope limits documented in review-gable-envelope-20261025.md",
+		"gemini": "two new responses; useful source-hull check added; mistaken negative-test blocker rejected; see review",
+		"gemini_latest": "Actual saved scene/render/validator source audit, no concrete findings. Review-roof-demo-20261025.md",
+		"godot": "11/11 exit0 no timeout; 2 meshes 24 triangles, exact AABB, UVs, unit normals, roughness .83",
+		"godot_latest": "51/51 PASS, exit0, no timeout, existing 18 ObjectDB warning",
+		"saved_scene": "IMPLEMENTED: two 8-vertex convex slope colliders, layer1"
+	},
+	"validator": "scripts/city/validate_roof_gable.gd",
+	"version": "0.3-editable-kit",
+	"vertical_thickness_m": 0.12
+}

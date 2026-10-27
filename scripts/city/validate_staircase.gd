@@ -1,0 +1,69 @@
+extends SceneTree
+var passed=0
+var failed=0
+func check(ok,label):
+    if ok: passed+=1
+    else: failed+=1;print("FAIL ",label)
+func _init(): call_deferred("run")
+func run():
+    var started=Time.get_ticks_usec()
+    var scene=load("res://scenes/city/staircase_straight_3m.scn")
+    if not scene is PackedScene: check(false,"scene load");quit(1);return
+    var node=scene.instantiate();root.add_child(node)
+    check(node.transform.is_equal_approx(Transform3D.IDENTITY),"pivot")
+    check(node.get_node("Bottom").position.is_equal_approx(Vector3.ZERO),"bottom socket")
+    check(node.get_node("Top").position.is_equal_approx(Vector3(0,3,-4.5)),"top socket")
+    var meshes=node.find_children("*","MeshInstance3D",true,false)
+    check(meshes.size()==1,"single mesh")
+    var triangles=0
+    for m in meshes:
+        var box=m.global_transform*m.get_aabb()
+        check(box.position.is_equal_approx(Vector3(0,0,-4.5)),"min bounds")
+        check(box.end.is_equal_approx(Vector3(1,3,0)),"max bounds")
+        for s in range(m.mesh.get_surface_count()):
+            var a=m.mesh.surface_get_arrays(s)
+            triangles+=a[Mesh.ARRAY_INDEX].size()/3
+            check(a[Mesh.ARRAY_TEX_UV].size()==a[Mesh.ARRAY_VERTEX].size(),"UV count")
+            var good=true
+            for n in a[Mesh.ARRAY_NORMAL]: good=good and abs(n.length()-1)<.001
+            check(good,"unit normals")
+    check(triangles==124,"triangle budget")
+    var body=node.get_node("SolidSteps")
+    check(body.collision_layer==1 and body.collision_mask==1,"collision layers")
+    check(body.get_child_count()==15,"collider count")
+    var nonoverlap=true
+    for i in range(15):
+        var c=body.get_child(i)
+        check(c.shape.size.is_equal_approx(Vector3(1,(i+1)*.2,.3)),"box size %d"%i)
+        check(c.position.is_equal_approx(Vector3(.5,(i+1)*.1,-(i+.5)*.3)),"box center %d"%i)
+        var a=AABB(c.position-c.shape.size/2,c.shape.size)
+        for j in range(i):
+            var d=body.get_child(j)
+            var overlap=a.intersection(AABB(d.position-d.shape.size/2,d.shape.size))
+            nonoverlap=nonoverlap and min(overlap.size.x,min(overlap.size.y,overlap.size.z))<.00001
+    check(nonoverlap,"no positive-volume collider overlap")
+    var floor_scene=load("res://scenes/city/floor_tile_2m.scn")
+    var landing=floor_scene.instantiate();landing.position=Vector3(0,3,-4.5);root.add_child(landing)
+    var bottom=floor_scene.instantiate();bottom.position=Vector3(0,0,2);root.add_child(bottom)
+    check(node.get_node("Top").global_position.is_equal_approx(landing.position),"upper landing snap")
+    check(node.get_node("Bottom").global_position.is_equal_approx(bottom.position+Vector3(0,0,-2)),"lower landing snap")
+    if "--disable" in OS.get_cmdline_user_args(): body.get_child(7).disabled=true
+    await physics_frame
+    await physics_frame
+    var space=root.world_3d.direct_space_state
+    for i in range(15):
+        var z=-(i+.5)*.3
+        var q=PhysicsRayQueryParameters3D.create(Vector3(.5,4,z),Vector3(.5,-.1,z),1)
+        var hit=space.intersect_ray(q)
+        check(not hit.is_empty() and hit.collider==body,"tread body %d"%i)
+        check(not hit.is_empty() and abs(hit.position.y-(i+1)*.2)<.001,"tread height %d"%i)
+        check(not hit.is_empty() and hit.normal.dot(Vector3.UP)>.999,"tread normal %d"%i)
+    for x in [-.05,1.05]:
+        var q=PhysicsRayQueryParameters3D.create(Vector3(x,4,-2),Vector3(x,-.1,-2),1)
+        check(space.intersect_ray(q).is_empty(),"outside clear")
+    for pair in [[.05,0.0],[-4.55,3.0]]:
+        var h=space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(.5,4,pair[0]),Vector3(.5,-1,pair[0]),1))
+        check(not h.is_empty() and abs(h.position.y-pair[1])<.001,"landing surface height")
+    landing.free();bottom.free()
+    print("STAIRS ",passed,"/",passed+failed," failed=",failed," elapsed_ms=",(Time.get_ticks_usec()-started)/1000.0)
+    node.free();quit(0 if failed==0 else 1)

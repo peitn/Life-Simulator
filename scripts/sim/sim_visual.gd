@@ -15,6 +15,10 @@ const ClothingVariants := preload("res://scripts/assets/clothing_variants.gd")
 const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
 const SkinLayers := preload("res://scripts/character/skin_layers.gd")
 const HairRig := preload("res://scripts/assets/hair_rig.gd")
+const HandDetailBuilder := preload("res://scripts/assets/hand_detail_builder.gd")
+const FootDetailBuilder := preload("res://scripts/assets/foot_detail_builder.gd")
+const TorsoDetailBuilder := preload("res://scripts/assets/torso_detail_builder.gd")
+const AnatomyOverlay := preload("res://scripts/assets/anatomy_overlay.gd")
 ## Části vlasů z karet (C4b): vlasy na hlavě, obočí, vousy.
 const HAIR_PARTS := ["scalp", "brows", "beard"]
 const FaceMorphs := preload("res://scripts/character/face_morphs.gd")
@@ -70,6 +74,11 @@ var _built := false
 
 var _model: Node3D = null
 var _anim: AnimationPlayer = null
+## Local, purely client-side debug depiction of Blender anatomical landmarks,
+## not a new hitbox, save/network field, or actual Elmer ragdoll.
+var _anatomy_overlay: Node3D = null
+var _anatomy_view := "off"
+var _anatomy_restore: Array = []
 var _mats := {}                  # jméno materiálu -> vlastní kopie pro tuto postavu
 var _posture := "stand"
 var _speed := 0.0                # vyhlazená rychlost (m/s)
@@ -79,10 +88,193 @@ var _body_mesh_cache: Array = []
 var _outfit_mats: Dictionary = {}
 var _c5_nodes: Array = []
 var _c5_infos: Array = []
+## Procedural ten finger/nail meshes, shared geometry and per-actor materials.
+var _hand_detail_nodes: Array = []
+var _hand_skin_material: StandardMaterial3D
+var _hand_nail_material: StandardMaterial3D
+## Private render-only hand pose; no CharacterData or multiplayer field.
+var _hand_pose_name := "open"
+## Barefoot anatomy shares original foot bones and ten clothing/body morphs.
+var _foot_detail_nodes: Array = []
+var _foot_skin_material: StandardMaterial3D
+var _foot_nail_material: StandardMaterial3D
+## Neutral, gender-independent anterior torso skin, paired areola/papillae
+## and umbilical relief. Rendered only with explicit no-top clothing.
+var _torso_detail_nodes: Dictionary = {}
+var _torso_detail_materials: Dictionary = {}
 var _c5_signature := ""
 var _face_mesh_cache: Array = []
 var _rest0: Array = []            # původní lokální klidové polohy kostí
 var _skin_copy: Skin = null       # vlastní kopie Skin (inverzní bind matice podle kloubů této postavy)
+## Authored skin is still one original Blender skinned mesh. Keep extra
+## digits as real skinned morph-compatible geometry, not unsynchronized
+## flat overlays. This is 5 rigid fingers per hand, NOT articulated phalanges.
+func _build_hand_details() -> void:
+	_hand_detail_nodes.clear()
+	var skeleton := _skeleton()
+	if skeleton == null:
+		return
+	var source: MeshInstance3D
+	for m in AssetLibrary.parts_in_group(_model, "body"):
+		if AssetLibrary.part_material_name(m) == "skin_body":
+			source = m
+			break
+	if source == null or source.skin == null:
+		return
+	var parts: Dictionary = HandDetailBuilder.build(source)
+	if parts.is_empty():
+		push_warning("Anatomy hand detail generation unavailable; retaining original hand geometry")
+		return
+	_hand_skin_material = StandardMaterial3D.new()
+	_hand_skin_material.resource_name = "hand_detail_skin"
+	_hand_skin_material.roughness = 0.62
+	_hand_nail_material = StandardMaterial3D.new()
+	_hand_nail_material.resource_name = "hand_detail_nails"
+	_hand_nail_material.roughness = 0.32
+	for label in ["skin", "nails"]:
+		var mi := MeshInstance3D.new()
+		mi.name = "Anatomy_fingers_" + label
+		mi.mesh = parts[label]
+		skeleton.add_child(mi)
+		mi.skeleton = NodePath("..")
+		mi.skin = source.skin
+		mi.material_override = _hand_skin_material if label == "skin" else _hand_nail_material
+		_hand_detail_nodes.append(mi)
+
+
+## Independent per-digit geometric articulation of a rigid hand skeleton:
+## finger bends are isolated GPU blend shapes and apply equally to nail plates.
+## Order in each hand: index, middle, ring, little finger, thumb. The underlying
+## rig still has no knuckle/phalange bones or physics grasp constraints.
+func set_finger_curl(side: String, finger: int, strength: float) -> bool:
+	if side not in ["l", "r"] or finger < 0 or finger >= 5:
+		return false
+	if not is_finite(strength) or strength < 0.0 or strength > 1.0:
+		return false
+	if _hand_detail_nodes.size() != 2:
+		return false
+	var digit: int = finger + (5 if side == "l" else 0)
+	var key: StringName = HandDetailBuilder.curl_key(digit)
+	for instance in _hand_detail_nodes:
+		var mesh_instance: MeshInstance3D = instance
+		var idx: int = mesh_instance.find_blend_shape_by_name(key)
+		if idx < 0:
+			return false
+	for instance in _hand_detail_nodes:
+		var mesh_instance: MeshInstance3D = instance
+		var idx: int = mesh_instance.find_blend_shape_by_name(key)
+		mesh_instance.set_blend_shape_value(idx, strength)
+	return true
+
+
+## Reusable genuine gestures for both hands. This is an appearance animation
+## only: it does not simulate grasp collisions or change gameplay state.
+func set_hand_pose(pose: String) -> bool:
+	var strengths: Array
+	match pose:
+		"open": strengths = [0.0, 0.0, 0.0, 0.0, 0.0]
+		"relaxed": strengths = [0.14, 0.22, 0.25, 0.28, 0.14]
+		"fist": strengths = [1.0, 1.0, 1.0, 1.0, 0.84]
+		"point": strengths = [0.0, 0.98, 0.98, 0.98, 0.48]
+		"pinch": strengths = [0.68, 0.30, 0.25, 0.28, 0.75]
+		_: return false
+	if _hand_detail_nodes.size() != 2:
+		return false
+	for side in ["l", "r"]:
+		for finger in 5:
+			if not set_finger_curl(side, finger, float(strengths[finger])):
+				return false
+	_hand_pose_name = pose
+	return true
+
+
+func hand_pose_name() -> String:
+	return _hand_pose_name
+
+
+## Existing shoes are hidden in barefoot outfit mode, exposing no anatomical
+## foot in the original 17-bone character. Render new sole, toes, and nails ONLY
+## when shoes == "bosy"; never pierce closed shoes on other outfits.
+func _build_torso_details() -> void:
+	_torso_detail_nodes.clear()
+	_torso_detail_materials.clear()
+	var skeleton := _skeleton()
+	if skeleton == null:
+		return
+	var shirt: MeshInstance3D = null
+	for part in AssetLibrary.parts_in_group(_model, "body"):
+		if AssetLibrary.part_material_name(part) == "cloth_shirt":
+			shirt = part
+			break
+	if shirt == null or shirt.skin == null:
+		return
+	var parts: Dictionary = TorsoDetailBuilder.build(shirt)
+	if parts.is_empty():
+		push_warning("Torso skin/nipple/umbilicus atlas is unavailable; original model retained")
+		return
+	for label in ["surface", "areola", "nipple", "navel_rim", "navel_dark"]:
+		var instance := MeshInstance3D.new()
+		instance.name = "Anatomy_torso_" + label
+		instance.mesh = parts[label]
+		skeleton.add_child(instance)
+		instance.skeleton = NodePath("..")
+		instance.skin = shirt.skin
+		var material := StandardMaterial3D.new()
+		material.resource_name = "torso_" + label
+		material.roughness = .65 if label == "surface" else .77
+		if label == "nipple":
+			material.roughness = .59
+		instance.material_override = material
+		instance.visible = false
+		_torso_detail_nodes[label] = instance
+		_torso_detail_materials[label] = material
+
+
+func torso_details_available() -> bool:
+	return _torso_detail_nodes.size() == 5
+
+
+func _refresh_torso_visibility(lp: Dictionary) -> void:
+	var top_name := String(lp.get("outfit_top", "tricko"))
+	var bare: bool = top_name == "zadne" and _anatomy_view == "off"
+	for part in _torso_detail_nodes.values():
+		(part as MeshInstance3D).visible = bare
+
+
+func _build_foot_details() -> void:
+	_foot_detail_nodes.clear()
+	var skeleton := _skeleton()
+	if skeleton == null:
+		return
+	var source: MeshInstance3D
+	for m in AssetLibrary.parts_in_group(_model, "body"):
+		if AssetLibrary.part_material_name(m) == "shoe_leather":
+			source = m
+			break
+	if source == null or source.skin == null:
+		return
+	var parts:Dictionary = FootDetailBuilder.build(source)
+	if parts.is_empty():
+		push_warning("Barefoot sole and toes could not be generated")
+		return
+	_foot_skin_material = StandardMaterial3D.new()
+	_foot_skin_material.resource_name = "bare_foot_skin"
+	_foot_skin_material.roughness = 0.66
+	_foot_nail_material = StandardMaterial3D.new()
+	_foot_nail_material.resource_name = "bare_foot_nails"
+	_foot_nail_material.roughness = 0.34
+	for label in ["skin", "nails"]:
+		var mi := MeshInstance3D.new()
+		mi.name = "Anatomy_foot_" + label
+		mi.mesh = parts[label]
+		skeleton.add_child(mi)
+		mi.skeleton = NodePath("..")
+		mi.skin = source.skin
+		mi.material_override = _foot_skin_material if label == "skin" else _foot_nail_material
+		mi.visible = false
+		_foot_detail_nodes.append(mi)
+
+
 ## Vlasy z karet (C4b): část → MeshInstance3D (sdílená síť na účes, vlastní materiál na postavu).
 ## Prázdné = karty nejdou (model bez kůže hlavy) → zůstává „helma“ z GLB (hair_short / hair_long).
 var _hair_parts := {}
@@ -113,6 +305,11 @@ func configure(p_body: Color, p_female: bool) -> void:
 
 ## Vzhled z veřejného snapshotu CharacterData (deterministicky na všech peerech).
 func apply_look(snap: Dictionary) -> void:
+	# Restore old clothes before wardrobe/morph changes, then hide newly resolved
+	# ones again if the player is viewing anatomical layers.
+	var prior_anatomy: String = _anatomy_view
+	if prior_anatomy != "off":
+		set_anatomy_view("off")
 	look_params = AppearanceResolver.resolve(snap)
 	skin_color = look_params["skin"]
 	hair_color = look_params["hair"]
@@ -124,6 +321,8 @@ func apply_look(snap: Dictionary) -> void:
 	if _model != null:
 		_apply_model_variant()
 		_apply_colors()
+		if prior_anatomy != "off":
+			set_anatomy_view(prior_anatomy)
 	elif _body_pivot != null and _body_pivot.get_child_count() >= 4:
 		(_body_pivot.get_child(0) as MeshInstance3D).material_override = _mat(bottom_color)
 		(_body_pivot.get_child(1) as MeshInstance3D).material_override = _mat(body_color, 0.85)
@@ -135,6 +334,47 @@ func apply_look(snap: Dictionary) -> void:
 
 func _ready() -> void:
 	_build()
+
+func anatomy_view() -> String:
+	return _anatomy_view
+
+
+func anatomy_available() -> bool:
+	return _model != null and AnatomyOverlay.available(_skeleton())
+
+
+## Toggle on a REAL animated SimVisual instance, including actual in-world NPCs.
+## Never alters character snapshot, authoritative simulation state or physics.
+func set_anatomy_view(mode: String) -> bool:
+	if mode not in AnatomyOverlay.VALID_LAYERS:
+		return false
+	if mode == "off":
+		if _anatomy_overlay != null:
+			AnatomyOverlay.apply_mode(_anatomy_overlay, "off")
+		for pair in _anatomy_restore:
+			if is_instance_valid(pair[0]):
+				(pair[0] as MeshInstance3D).visible = bool(pair[1])
+		_anatomy_restore.clear()
+		_anatomy_view = "off"
+		return true
+	if not anatomy_available():
+		return false
+	if _anatomy_overlay == null:
+		_anatomy_overlay = AnatomyOverlay.create_overlay(_skeleton())
+		if _anatomy_overlay == null:
+			return false
+	if _anatomy_view == "off":
+		for node in _model.find_children("*", "MeshInstance3D", true, false):
+			var mi := node as MeshInstance3D
+			if mi.is_in_group("lifesim_anatomy_visual"):
+				continue
+			_anatomy_restore.append([mi,mi.visible])
+			mi.visible = false
+	if not AnatomyOverlay.apply_mode(_anatomy_overlay,mode):
+		return false
+	_anatomy_view = mode
+	return true
+
 
 
 ## Krystal nálady a popisek nad hlavou podle skutečné výšky postavy (145–205 cm).
@@ -251,6 +491,9 @@ func _build_model() -> void:
 			_mats[mname] = skin_mat if skin_mat != null else src.duplicate()
 		mi.material_override = _mats[mname]
 	_build_hair_parts()
+	_build_hand_details()
+	_build_foot_details()
+	_build_torso_details()
 	_anim = AnimationPlayer.new()
 	_anim.name = "Anim"
 	_model.add_child(_anim)
@@ -258,6 +501,7 @@ func _build_model() -> void:
 	_anim.add_animation_library("", CharacterAnims.library())
 	_apply_model_variant()
 	_apply_colors()
+	set_hand_pose("relaxed")
 	_anim.play("idle")
 
 
@@ -368,6 +612,7 @@ func _apply_model_variant() -> void:
 	_apply_outfit(lp)
 	apply_body_shape(lp)
 	apply_face_shape(lp)
+	_refresh_torso_visibility(lp)
 
 
 ## C5: use the separate garment mesh surfaces authored in Blender as the source for
@@ -450,6 +695,8 @@ func _apply_c5_wardrobe(lp: Dictionary) -> void:
 			var mi: MeshInstance3D = _c5_nodes[i]
 			if is_instance_valid(mi) and mi.material_override is StandardMaterial3D:
 				(mi.material_override as StandardMaterial3D).albedo_color = ClothingWardrobe.tint(_c5_infos[i], lp)
+	for foot in _foot_detail_nodes:
+		foot.visible = String(lp.get("outfit_shoes", "tenisky")) == "bosy"
 	for body_mi in AssetLibrary.parts_in_group(_model, "body"):
 		var mname := AssetLibrary.part_material_name(body_mi)
 		if mname in ["cloth_shirt", "cloth_pants", "shoe_leather"]:
@@ -515,6 +762,9 @@ func apply_body_shape(lp: Dictionary) -> int:
 	# Authored C5 garments also receive the ten body morph weights.
 	var shaped_parts: Array = _body_meshes().duplicate()
 	shaped_parts.append_array(_c5_nodes)
+	shaped_parts.append_array(_hand_detail_nodes)
+	shaped_parts.append_array(_foot_detail_nodes)
+	shaped_parts.append_array(_torso_detail_nodes.values())
 	for mi in shaped_parts:
 		for k in w:
 			var idx: int = mi.find_blend_shape_by_name(StringName(k))
@@ -603,6 +853,26 @@ func _apply_colors() -> void:
 	set_col.call("cloth_shirt", body_color)
 	set_col.call("cloth_pants", bottom_color)
 	set_col.call("skin_body", skin_color)
+	if _hand_skin_material != null:
+		_hand_skin_material.albedo_color = skin_color
+	if _hand_nail_material != null:
+		_hand_nail_material.albedo_color = skin_color.lerp(Color(0.95, 0.78, 0.79), 0.42)
+	if _foot_skin_material != null:
+		_foot_skin_material.albedo_color = skin_color
+	if _foot_nail_material != null:
+		_foot_nail_material.albedo_color = skin_color.lerp(Color(0.95, 0.78, 0.79), 0.42)
+	# Derived only from each character's resolved SKIN color; no sexuality,
+	# gender or sex-based assumptions, and no personal data propagation.
+	var tone: Dictionary = {
+		"surface": skin_color,
+		"areola": skin_color.darkened(.14),
+		"nipple": skin_color.darkened(.19),
+		"navel_rim": skin_color.darkened(.08),
+		"navel_dark": skin_color.darkened(.42)
+	}
+	for part in _torso_detail_materials:
+		var material: StandardMaterial3D = _torso_detail_materials[part]
+		material.albedo_color = tone.get(part,skin_color)
 	set_col.call("hair_main", hair_color)
 	var lp: Dictionary = look_params if not look_params.is_empty() else AppearanceResolver.resolve({})
 	apply_skin(lp)
@@ -637,8 +907,10 @@ func skin_material() -> Material:
 	return _mats.get("skin_body")
 
 
+var _crying := false
+
 ## posture: stand / sit / lie; mood_value −100..100; speech = replika (prázdná = nic).
-func apply(posture: String, mood_value: float, emotion: String, title: String, action_text: String, speech := "") -> void:
+func apply(posture: String, mood_value: float, emotion: String, title: String, action_text: String, speech := "", is_crying: bool = false) -> void:
 	if not _built:
 		_build()
 	_posture = posture
@@ -657,6 +929,7 @@ func apply(posture: String, mood_value: float, emotion: String, title: String, a
 			_body_pivot.position = Vector3.ZERO
 	_update_anim()
 	_emotion = emotion
+	_crying = is_crying
 	if speech != _last_speech:
 		_last_speech = speech
 		# Čelist se hýbe úměrně délce repliky (nová replika = nová řeč; stejná replika v dalších voláních ne).
@@ -670,6 +943,8 @@ func apply(posture: String, mood_value: float, emotion: String, title: String, a
 	_gem_mat.emission = c
 	_gem.visible = posture != "lie"
 	var txt := "%s\n%s · %s" % [title, action_text, Mood.emotion_label(emotion)]
+	if _crying:
+		txt += "\nPláče"
 	if speech != "":
 		# Cenzura sprostých slov podle nastavení TOHOTO hráče (prezentace je věc klienta).
 		var gs := get_node_or_null("/root/GameSettings") if is_inside_tree() else null
@@ -774,6 +1049,8 @@ func update_expression(delta: float) -> int:
 		_xrng.seed = hash(int(sl.get("seed", 0)) * 7919 + get_instance_id() % 997)
 		_blink_wait = _xrng.randf_range(0.5, BLINK_MAX)
 	var ef: Array = EMOTION_FACE.get(_emotion, [0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+	if _crying:
+		ef = [0.0, 0.85, 0.28, 0.25, 0.0, 1.0]
 	var k := 1.0 - exp(-EXPR_RATE * maxf(delta, 0.0))
 	var tgt := {"ex_smile": ef[0], "ex_frown": ef[1], "ex_brow_up": ef[2], "ex_pupil": ef[4]}
 	for key in tgt:

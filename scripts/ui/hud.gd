@@ -6,9 +6,11 @@ extends CanvasLayer
 
 const Needs := preload("res://scripts/sim/needs.gd")
 const CharacterEditorPanel := preload("res://scripts/ui/character_editor_panel.gd")
+const CharacterCreatorPanel := preload("res://scripts/ui/character_creator_panel.gd")
 const Mood := preload("res://scripts/sim/mood.gd")
 const Traits := preload("res://scripts/sim/traits.gd")
 const ActionLibrary := preload("res://scripts/sim/action_library.gd")
+const EmotionalState := preload("res://scripts/sim/emotional_state.gd")
 const THOUGHT_SHOW_MINUTES := 240.0
 
 const CHAT_LINES := 8
@@ -19,6 +21,14 @@ var _time_label: Label
 var _speed_label: Label
 var _name_label: Label
 var _edit_button: Button
+var _create_button: Button
+var _anatomy_button: Button
+const ANATOMY_DISPLAY := ["off","bones","muscles","cartilage","fat","all"]
+const ANATOMY_LABELS := ["Vypnuto","Kostra","Svaly","Chrupavky","Tuk","Všechny vrstvy"]
+var _character_creator: Control
+var _save_button: Button
+var _load_auto_button: Button
+var _load_manual_button: Button
 var _character_editor: Control
 var _info_label: Label
 var _bars := {}
@@ -28,6 +38,13 @@ var _mem_label: Label
 var _mind_label: Label
 var _stress_bar: ProgressBar
 var _arousal_bar: ProgressBar
+var _sexual_arousal_label: Label
+var _intimacy_fade: ColorRect
+var _emotion_button: Button
+var _emotion_popup: PopupPanel
+var _emotion_bars: Dictionary = {}
+var _emotion_top: Label
+var _emotion_people: Label
 var _thought_box: VBoxContainer
 var _thought_seen := ""
 var _cmd_title: Label
@@ -44,6 +61,15 @@ var _cmd_refresh := 0.0
 
 
 func _ready() -> void:
+	# A genuine non-explicit fade covers the 3D world, not the cancelable HUD.
+	# This is visible only to the selected offline player.
+	_intimacy_fade = ColorRect.new()
+	_intimacy_fade.name = "PrivateIntimacyFade"
+	_intimacy_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_intimacy_fade.color = Color(0, 0, 0, 0.96)
+	_intimacy_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_intimacy_fade.visible = false
+	add_child(_intimacy_fade)
 	var top := PanelContainer.new()
 	top.position = Vector2(16, 16)
 	add_child(top)
@@ -64,15 +90,25 @@ func _ready() -> void:
 	tv.add_child(_roster_label)
 
 	var panel := PanelContainer.new()
+	panel.name = "NeedsAndCommandsPanel"
 	panel.anchor_left = 1.0
 	panel.anchor_right = 1.0
 	panel.offset_left = -340
 	panel.offset_right = -16
 	panel.offset_top = 16
+	panel.anchor_bottom = 1.0
+	panel.offset_bottom = -16
 	add_child(panel)
+	# The needs/action panel must remain usable in a portrait or small window.
+	# Keep commands reachable by scrolling instead of clipping below the screen.
+	var controls_scroll := ScrollContainer.new()
+	controls_scroll.name = "ControlsScroll"
+	controls_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(controls_scroll)
 	var v := VBoxContainer.new()
-	v.custom_minimum_size = Vector2(320, 0)
-	panel.add_child(v)
+	v.custom_minimum_size = Vector2(300, 0)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls_scroll.add_child(v)
 	_name_label = Label.new()
 	_name_label.add_theme_font_size_override("font_size", 22)
 	v.add_child(_name_label)
@@ -81,6 +117,36 @@ func _ready() -> void:
 	_edit_button.text = "Upravit postavu"
 	_edit_button.pressed.connect(_on_edit_character)
 	v.add_child(_edit_button)
+	_create_button = Button.new()
+	_create_button.name = "CreateNewCharacter"
+	_create_button.text = "Vytvořit vlastní postavu"
+	_create_button.pressed.connect(_on_create_character)
+	v.add_child(_create_button)
+	# The very same animated SimVisual object used by the in-game character,
+	# not a static gallery. Purely local visualization, never server commands.
+	_anatomy_button = Button.new()
+	_anatomy_button.name = "LiveCharacterAnatomy"
+	_anatomy_button.text = "Anatomie: Vypnuto"
+	_anatomy_button.tooltip_text = "Vizuální vrstvy z Blenderu. Animované s postavou; bez změny hry a fyziky."
+	_anatomy_button.pressed.connect(_on_anatomy_view)
+	v.add_child(_anatomy_button)
+	var save_actions := HBoxContainer.new()
+	v.add_child(save_actions)
+	_save_button = Button.new()
+	_save_button.name = "SaveGame"
+	_save_button.text = "Uložit hru"
+	_save_button.pressed.connect(_on_save_game)
+	save_actions.add_child(_save_button)
+	_load_auto_button = Button.new()
+	_load_auto_button.name = "LoadAutosave"
+	_load_auto_button.text = "Načíst auto"
+	_load_auto_button.pressed.connect(_on_load_autosave)
+	save_actions.add_child(_load_auto_button)
+	_load_manual_button = Button.new()
+	_load_manual_button.name = "LoadManual"
+	_load_manual_button.text = "Načíst ručně"
+	_load_manual_button.pressed.connect(_on_load_manual)
+	save_actions.add_child(_load_manual_button)
 	_info_label = Label.new()
 	_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(_info_label)
@@ -103,7 +169,12 @@ func _ready() -> void:
 	_mind_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(_mind_label)
 	_stress_bar = _make_bar(v, "Stres")
-	_arousal_bar = _make_bar(v, "Napětí")
+	_arousal_bar = _make_bar(v, "Aktivace")
+	_sexual_arousal_label = Label.new()
+	_sexual_arousal_label.text = "Sexuální vzrušení: —"
+	_sexual_arousal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_sexual_arousal_label)
+	_make_emotion_details(v)
 	_moodlet_label = Label.new()
 	_moodlet_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(_moodlet_label)
@@ -174,8 +245,45 @@ func _ready() -> void:
 		main.net.disconnected.connect(show_notice)
 
 
+func _on_anatomy_view() -> void:
+	if main == null:
+		return
+	var sim = main.get_selected_sim()
+	if sim == null:
+		return
+	var vis := sim.get("visual") as Node3D
+	if vis == null or not vis.has_method("set_anatomy_view"):
+		show_notice("Vybraná postava nemá anatomický náhled.")
+		return
+	var idx: int = ANATOMY_DISPLAY.find(String(vis.call("anatomy_view")))
+	if idx < 0:
+		idx = 0
+	var next: String = ANATOMY_DISPLAY[(idx+1)%ANATOMY_DISPLAY.size()]
+	if not bool(vis.call("set_anatomy_view",next)):
+		show_notice("Anatomická data nebo kostra této postavy nejsou dostupné.")
+		return
+	_anatomy_button.text = "Anatomie: " + String(ANATOMY_LABELS[(idx+1)%ANATOMY_DISPLAY.size()])
+
+
+func _on_create_character() -> void:
+	if main == null or main.net == null or main.net.mode != main.net.Mode.OFFLINE:
+		show_notice("Vytvoření postavy je zatím pouze offline.")
+		return
+	if (_character_creator != null and is_instance_valid(_character_creator)) or (_character_editor != null and is_instance_valid(_character_editor)):
+		return
+	var creator: Control = CharacterCreatorPanel.new()
+	creator.main = main
+	add_child(creator)
+	_character_creator = creator
+
+
 func _on_edit_character() -> void:
-	if main == null or main.net == null or main.net.is_networked():
+	if main == null or main.net == null:
+		show_notice("Editor není dostupný.")
+		return
+	var is_client_owner: bool = main.net.mode == main.net.Mode.CLIENT and main.net.character_edit_read_ui_enabled
+	var is_host_owner: bool = main.net.mode == main.net.Mode.HOST and main.net.character_edit_apply_rpc_enabled and main.get_selected_sim() != null and main.net.server_can_edit_character(1, String(main.get_selected_sim().name))
+	if main.net.is_networked() and not (is_client_owner or is_host_owner):
 		show_notice("Editor je zatím dostupný pouze offline.")
 		return
 	var sim = main.get_selected_sim()
@@ -184,11 +292,109 @@ func _on_edit_character() -> void:
 	var editor: Control = CharacterEditorPanel.new()
 	editor.main = main
 	add_child(editor)
-	if not editor.open_character(String(sim.name)):
+	var opened: bool = editor.open_network_character(String(sim.name)) if main.net.mode == main.net.Mode.CLIENT else editor.open_character(String(sim.name))
+	if not opened:
 		editor.queue_free()
 		show_notice("Úprava této postavy není povolena.")
 	else:
 		_character_editor = editor
+
+
+func _on_save_game() -> void:
+	var result: Dictionary = main.save_game("manual")
+	show_notice("Hra uložena." if result.get("ok", false) else "Ukládání selhalo: " + String(result.get("reason", "")))
+
+
+func _on_load_autosave() -> void:
+	var result: Dictionary = main.load_game("autosave")
+	show_notice("Automatické uložení načteno." if result.get("ok", false) else "Načítání selhalo: " + String(result.get("reason", "")))
+
+
+func _on_load_manual() -> void:
+	var result: Dictionary = main.load_game("manual")
+	show_notice("Ruční uložení načteno." if result.get("ok", false) else "Načítání selhalo: " + String(result.get("reason", "")))
+
+
+## The full 19-axis panel is optional and scrollable, not 19 permanently
+## expanded bars competing with commands in the main HUD.
+func _make_emotion_details(v: VBoxContainer) -> void:
+	_emotion_button = Button.new()
+	_emotion_button.name = "EmotionDetailsButton"
+	_emotion_button.text = "Emoce – 19 ukazatelů ▸"
+	_emotion_button.pressed.connect(_on_emotion_details)
+	_emotion_button.visible = false
+	v.add_child(_emotion_button)
+	_emotion_popup = PopupPanel.new()
+	_emotion_popup.name = "PrivateEmotionDetails"
+	add_child(_emotion_popup)
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(220.0, 300.0)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_emotion_popup.add_child(sc)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size.x = 220.0
+	sc.add_child(box)
+	var title := Label.new()
+	title.text = "Aktuální emoce (0–100)"
+	title.add_theme_font_size_override("font_size", 18)
+	box.add_child(title)
+	_emotion_top = Label.new()
+	_emotion_top.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_emotion_top)
+	for k in EmotionalState.KEYS:
+		var emotion_bar := _make_bar(box, EmotionalState.label(k))
+		emotion_bar.show_percentage = true
+		emotion_bar.custom_minimum_size.x = 114.0
+		var caption: Label = emotion_bar.get_parent().get_child(0)
+		caption.custom_minimum_size.x = 96.0
+		caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_emotion_bars[k] = emotion_bar
+	_emotion_people = Label.new()
+	_emotion_people.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_emotion_people)
+
+
+## The popup remains inside smaller portrait viewports without 19 bars on HUD.
+static func emotion_popup_size(viewport: Vector2) -> Vector2i:
+	return Vector2i(maxi(1, mini(410, int(viewport.x) - 16)),
+		maxi(1, mini(560, int(viewport.y) - 16)))
+
+
+func _on_emotion_details() -> void:
+	if main == null or main.net == null or main.net.is_networked() \
+			or not _emotion_button.visible:
+		return
+	if _emotion_popup.visible:
+		_emotion_popup.hide()
+		return
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	_emotion_popup.popup_centered(emotion_popup_size(vp))
+
+
+func _render_emotion_details(info: Dictionary) -> void:
+	var data: Dictionary = info.get("emotion_levels", {})
+	if data.is_empty():
+		_emotion_top.text = ""
+		return
+	var ordered: Array = []
+	for k in EmotionalState.KEYS:
+		var value: float = clampf(float(data.get(k, 0.0)), 0.0, 100.0)
+		(_emotion_bars[k] as ProgressBar).value = value
+		ordered.append({"k": k, "v": value})
+	ordered.sort_custom(func(a, b): return float(a["v"]) > float(b["v"]))
+	var names := PackedStringArray()
+	for x in ordered.slice(0, 3):
+		names.append("%s %.0f" % [EmotionalState.label(String(x["k"])), float(x["v"])])
+	_emotion_top.text = "Nejsilnější: " + ", ".join(names)
+	var people := PackedStringArray()
+	for record in info.get("emotion_toward", []):
+		if typeof(record) != TYPE_DICTIONARY:
+			continue
+		people.append("%s: %s %.0f" % [
+			String(record.get("who", "")).replace("_", " "),
+			String(record.get("label", "")), float(record.get("value", 0.0))])
+	_emotion_people.text = "Vůči lidem:\n" + (
+		"\n".join(people) if not people.is_empty() else "bez výrazného aktuálního podnětu")
 
 
 func _make_bar(parent: Control, title: String) -> ProgressBar:
@@ -304,7 +510,7 @@ func _rebuild_commands(sim) -> void:
 	# V multiplayeru o dostupnosti rozhoduje server; klient skrývá jen podle svého nastavení
 	# (kdyby se lišilo, server příkaz odmítne s vysvětlením).
 	var mind: Dictionary = sim.hud_info().get("mind", {})
-	var hard := int(mind.get("arousal", 0)) > 50
+	var hard := int(mind.get("aversive_arousal", mind.get("arousal", 0))) > 50
 	# V depresi jsou náročnější akce „těžké“ – zůstávají dostupné, jen to hráč vidí.
 	var heavy := int(mind.get("low", 0)) > 45
 	var objs: Array = main.get_smart_objects()
@@ -323,6 +529,14 @@ func _rebuild_commands(sim) -> void:
 			_add_cmd("Jít uklidnit: " + other.sim_name, ["comfort_panic", String(other.name)])
 		_add_cmd("Omluvit se: " + other.sim_name, ["apologize", String(other.name)])
 		_add_cmd("Urazit: " + other.sim_name, ["insult", String(other.name)])
+		for pressure_id in ["reproach", "guilt_trip", "blame_shift", "emotional_blackmail", "stonewalling"]:
+			var pressure_action: Dictionary = ActionLibrary.get_action(pressure_id)
+			if _cmd_allowed(pressure_action, gs):
+				_add_cmd(String(pressure_action["label"]) + ": " + other.sim_name, [pressure_id, String(other.name)])
+		if _cmd_allowed(ActionLibrary.get_action("intimacy_offer"), gs):
+			_add_cmd("Projevit intimní zájem: " + other.sim_name, ["intimacy_offer", String(other.name)])
+			_add_cmd("Odvolat souhlas: " + other.sim_name, ["intimacy_withdraw", String(other.name)])
+			_add_cmd("Soukromá intimní chvíle: " + other.sim_name, ["adult_consensual_sex", String(other.name)])
 	for a in ActionLibrary.ACTIONS:
 		if a.get("object", "") == "" and _cmd_allowed(a, gs):
 			_add_cmd(a["label"] + heavy_hint(a, heavy), [a["id"], ""])
@@ -370,10 +584,23 @@ func _process(delta: float) -> void:
 	_time_label.text = "%s · %s" % [clock.time_string(), clock.phase_name()]
 	_speed_label.text = "Rychlost: " + clock.SPEED_NAMES[clock.speed_index]
 	_chat_panel.visible = main.net.is_networked()
-	_edit_button.visible = not main.net.is_networked()
+	_edit_button.visible = not main.net.is_networked() or (main.net.character_edit_read_ui_enabled and main.net.mode == main.net.Mode.CLIENT and main.get_selected_sim() != null and String(main.get_selected_sim().name) == main.net.my_sim) or (main.net.mode == main.net.Mode.HOST and main.net.character_edit_apply_rpc_enabled and main.get_selected_sim() != null and main.net.server_can_edit_character(1, String(main.get_selected_sim().name)))
 	_edit_button.disabled = main.get_selected_sim() == null
+	for button in [_save_button, _load_auto_button, _load_manual_button]:
+		button.visible = not main.net.is_networked()
+		button.disabled = main.get_selected_sim() == null
 	_render_roster()
 	var sim = main.get_selected_sim()
+	_anatomy_button.visible = false
+	if sim != null:
+		var anatomy_visual := sim.get("visual") as Node3D
+		if anatomy_visual != null and anatomy_visual.has_method("anatomy_available") and 				bool(anatomy_visual.call("anatomy_available")):
+			_anatomy_button.visible = true
+			var view_idx: int = ANATOMY_DISPLAY.find(String(anatomy_visual.call("anatomy_view")))
+			_anatomy_button.text = "Anatomie: " + String(ANATOMY_LABELS[maxi(0,view_idx)])
+	_intimacy_fade.visible = not main.net.is_networked() and sim != null \
+		and String(sim.current_action.get("id", "")) == "adult_consensual_sex" \
+		and sim.state == sim.State.ACTING
 	_cmd_refresh -= 0.2
 	var key := String(sim.name) if sim != null else ""
 	if key != _cmd_for or _cmd_refresh <= 0.0:
@@ -382,6 +609,8 @@ func _process(delta: float) -> void:
 		_rebuild_commands(sim)
 	if sim == null:
 		_name_label.text = "Čekám na postavy…"
+		_emotion_button.visible = false
+		_emotion_popup.hide()
 		return
 	var info: Dictionary = sim.hud_info()
 	_name_label.text = String(info.get("name", ""))
@@ -399,6 +628,18 @@ func _process(delta: float) -> void:
 		_bars[k].get_parent().visible = show_private
 	_stress_bar.get_parent().visible = show_private
 	_arousal_bar.get_parent().visible = show_private
+	_sexual_arousal_label.visible = show_private and not main.net.is_networked() \
+		and typeof(info.get("sexual_arousal")) in [TYPE_FLOAT, TYPE_INT]
+	if _sexual_arousal_label.visible:
+		_sexual_arousal_label.text = "Sexuální vzrušení: %.0f/100 · Libido: %.0f/100\nNutkavé myšlenky: %.0f/100 (není diagnóza)" % [
+			float(info["sexual_arousal"]), float(info.get("libido", 0.5)) * 100.0,
+			float(info.get("sexual_preoccupation", 0.0))]
+	# The new raw emotional vector NEVER crosses the multiplayer detail RPC.
+	# Even the host cannot inspect another player's emotion panel.
+	_emotion_button.visible = show_private and not main.net.is_networked() \
+		and typeof(info.get("emotion_levels")) == TYPE_DICTIONARY
+	if not _emotion_button.visible:
+		_emotion_popup.hide()
 	if not show_private:
 		_mind_label.text = ""
 		_render_thoughts({})
@@ -427,7 +668,15 @@ func _process(delta: float) -> void:
 		extra.append("predispozice: " + ", ".join(PackedStringArray(conds)))
 	_mind_label.text = "Duševní stav: %s%s" % [String(mind.get("label", "—")),
 		(" (" + "; ".join(extra) + ")") if not extra.is_empty() else ""]
+	# Only offline SimAgent.hud_info supplies this non-replicated private care hint.
+	var care: Dictionary = info.get("care", {})
+	if bool(care.get("safety_concern", false)):
+		_mind_label.text += "\nZvýšená zátěž – může potřebovat bezpečí a podporu."
+	elif bool(care.get("support_needed", false)):
+		_mind_label.text += "\nMůže potřebovat oporu."
 	_render_thoughts(mind)
+	if _emotion_button.visible:
+		_render_emotion_details(info)
 	var ml: PackedStringArray = []
 	for m in info.get("moodlets", []):
 		ml.append("%s %+d" % [m[0], int(m[1])])

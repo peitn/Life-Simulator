@@ -1,0 +1,136 @@
+{
+  "assembly_demo": {
+    "dynamic_traversal": false,
+    "scripted_capsule_traversal": {"run_id": "city-fallback-1793032727-233707", "validator": "scripts/city/validate_stair_capsule_traversal.gd", "validator_sha256": "312cb5f35417e0bca7f1df04c4e64bcf03b41451506b303c67a270c15d728453", "capsule_radius_m": 0.18, "capsule_height_m": 1.6, "positive": "145/145 exit0 no timeout", "step07_disabled_negative": "141/145 exit1 expected no timeout", "max_foot_error_m": 0.000900, "horizontal_snags": 0, "limitation": "scripted swept move_and_collide, not frame-stepped gameplay controller; no visual render"},
+    "gemini": "Reviewed proposed and actual diff; centerline limitation accepted; no tests executed by Gemini.",
+    "negative": "Step07 disabled in memory; missing ray hit as expected, exit0",
+    "rendered": false,
+    "run_id": "city-fallback-1793029198-228012",
+    "saved_scene_tests": "41/41 exit0 no timeout",
+    "scene": "scenes/city/stair_landing_demo.tscn",
+    "scene_sha256": "31d468ecebbbb9f5f2fe9056d7ff558d7f4a6e7acb71e35570728b2829972792",
+    "stair_regression": "93/93 exit0 no timeout",
+    "validator": "scripts/city/validate_stair_landing_demo.gd",
+    "validator_sha256": "3e0b9c8f0c33d536f6e8c885ffd409f4fedcb60bb2943a0ac99225c92ed782df"
+  },
+  "asset": "staircase_straight_3m",
+  "audit": "Gemini two actual code reviews; false overlaps/UV/bounds allegations disproved, retracted. See review-staircase-20261026.md.",
+  "axes": "Godot Y up, width +X, travel -Z",
+  "blender": {
+    "all_6_sha256_match": true,
+    "blend_sha256": "e077c9464eeb07e6e7ea423938ca7270e9c1d3e016399cdb8e04bac071aaa066",
+    "bytes": 135206.0,
+    "files": 6.0,
+    "generator": "lifesim-city-staircase-generator",
+    "kit": "lifesim-city-staircase-prototype",
+    "reopened_original": true
+  },
+  "bounds": {
+    "max": [
+      1.0,
+      3.0,
+      0.0
+    ],
+    "min": [
+      0.0,
+      0.0,
+      -4.5
+    ]
+  },
+  "collision": {
+    "layer": 1.0,
+    "mask": 1.0,
+    "overlap_tolerance_m": 0.00001,
+    "shape_formula": "size(1,(i+1)*.2,.3), center(.5,(i+1)*.1,-(i+.5)*.3)",
+    "type": "15 adjacent BoxShape3D slices on one StaticBody3D"
+  },
+  "geometry": {
+    "manifold": true,
+    "polygon_faces": 34.0,
+    "triangles": 124.0,
+    "vertices": 64.0,
+    "volume_m3": 7.2
+  },
+  "glb_sha256": "c95be43b353806414742735e7fb06bf805e62c7258f036178fe70e99fdf855cb",
+  "grid_m": 0.5,
+  "license": "Original Life Simulator asset; all rights reserved",
+  "limitations": [
+    "No handrail",
+    "No ceiling opening",
+    "No locomotion, navmesh or main integration",
+    "No large-scene FPS",
+    "No fine texture maps",
+    "Lateral edge contact rays and sweep traversal pending"
+  ],
+  "material": {
+    "linear_rgba": [
+      0.52,
+      0.47,
+      0.4,
+      1.0
+    ],
+    "name": "Warm stone",
+    "roughness": 0.8
+  },
+  "next": "Test frame-stepped velocity/gravity CharacterBody3D traversal with explicit step-up/down handling across both landing seams; no main-game integration claim.",
+  "normals": "Flat outward",
+  "paths": {
+    "builder": "scripts/city/build_staircase.gd",
+    "generator": "tools/blender/city/staircase.py",
+    "glb": "assets/city/staircase_straight_3m.glb",
+    "scene": "scenes/city/staircase_straight_3m.scn",
+    "validator": "scripts/city/validate_staircase.gd"
+  },
+  "pivot": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "renders": {
+    "engine": "Blender Cycles CPU12samples",
+    "inspected": true,
+    "paths": [
+      "docs/city/staircase_front.jpg",
+      "docs/city/staircase_side.jpg",
+      "docs/city/staircase_rear.jpg"
+    ],
+    "size": [
+      320.0,
+      320.0
+    ],
+    "views": [
+      "front",
+      "side",
+      "rear"
+    ]
+  },
+  "riser_m": 0.2,
+  "run_id": "city-1793018567-220376",
+  "scene_sha256": "df369979d390fd93647bfc0e50aec529bd786a17aa52adbf96ed963acad18277",
+  "sockets": {
+    "bottom": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "top": [
+      0.0,
+      3.0,
+      -4.5
+    ]
+  },
+  "steps": 15.0,
+  "tests": {
+    "disabled_step7": "90passed/3failed exit1 expected",
+    "floor": "51/51 exit0",
+    "stairs": "93/93 exit0",
+    "stderr": "Existing18ObjectDB shutdown warning. Blender bundled addon SyntaxWarnings.",
+    "timeout": false,
+    "timing": "3.306ms validator including2physicsframes; NOT gameplay FPS"
+  },
+  "tread_m": 0.3,
+  "units": "meters",
+  "uv": "Dominant-axis planar, 1 UV unit/m. No texture maps.",
+  "version": "0.1-prototype",
+  "width_m": 1.0
+}

@@ -327,7 +327,7 @@ snapshots, `net_detail`, actions, rewards or automated injury outcomes. It is no
 clinical risk score. Support and recovery can clear the concern. Content stays hidden by
 default and the vision content restrictions remain unchanged.
 
-`D.sensory_sensitivity` is displayed as **Hypersenzitivita (smyslová citlivost)**,
+`D.sensory_sensitivity` is displayed as **Hypersenzitivita (smyslová citlivost)** (Hypersensitivity (sensory sensitivity)),
 not as noise sensitivity alone. `SensoryProfile.configure(D)` applies an interpretable,
 bounded gain to noise and crowd responses in the live simulation. Touch and bright-light
 factors are prepared for future tactile/brightness event producers; those producers have

@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+[ext_resource type="PackedScene" path="res://scenes/city/staircase_straight_3m.scn" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/city/floor_tile_2m.scn" id="2"]
+
+[node name="StairLandingDemo" type="Node3D"]
+[node name="Stairs" parent="." instance=ExtResource("1")]
+[node name="BottomLanding" parent="." instance=ExtResource("2")]
+position = Vector3(0, 0, 2)
+[node name="TopLanding" parent="." instance=ExtResource("2")]
+position = Vector3(0, 3, -4.5)

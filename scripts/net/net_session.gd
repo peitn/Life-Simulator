@@ -16,8 +16,10 @@ extends Node
 
 const Protocol := preload("res://scripts/net/net_protocol.gd")
 const ActionLibrary := preload("res://scripts/sim/action_library.gd")
+const AdultIntimacy := preload("res://scripts/sim/adult_intimacy_action.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
+const CharacterValidator := preload("res://scripts/character/character_validator.gd")
 
 signal chat_received(from: String, text: String, system: bool)
 signal roster_changed(roster: Dictionary)
@@ -160,10 +162,15 @@ func join(address: String, port: int, player_name := "", character_code := "") -
 
 func shutdown() -> void:
 	_edit_limiters.clear()
+	_public_resync_limiters.clear()
 	if multiplayer.multiplayer_peer != null and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer):
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	_connected = false
+	_public_look_revisions.clear()
+	_pending_public_looks.clear()
+	_public_resync_requested.clear()
+	cancel_character_edit_snapshot()
 
 
 # ---------------------------------------------------------------- spawn postav
@@ -176,7 +183,10 @@ func spawn_sim(data: Dictionary) -> Node:
 		node = world.spawn_sim_node(data)
 		world.sims_root.add_child(node, true)
 	elif is_authority():
-		node = spawner.spawn(data)
+		# A fresh opaque incarnation is bound to this specific spawn, never to its node name.
+		var spawn_data: Dictionary = data.duplicate(true)
+		spawn_data["net_incarnation"] = Crypto.new().generate_random_bytes(16).hex_encode()
+		node = spawner.spawn(spawn_data)
 	else:
 		push_error("spawn_sim volán na klientu")
 		return null
@@ -190,6 +200,11 @@ func _spawn_function(data: Variant) -> Node:
 	if typeof(data) != TYPE_DICTIONARY:
 		return Node3D.new()
 	var node: Node = world.spawn_sim_node(data)
+	# MultiplayerSpawner delivers the same server-generated token to every peer.
+	# This is public lifecycle metadata, NOT the private character UID.
+	var incarnation: Variant = data.get("net_incarnation", "")
+	if _valid_incarnation(incarnation):
+		node.set_meta("net_incarnation", incarnation)
 	var sync := make_synchronizer()
 	# Stav (a tím i spawn) vidí jen představení hráči – ne anonymní spojení před hello.
 	sync.add_visibility_filter(_is_visible_to)
@@ -232,10 +247,16 @@ static func make_synchronizer() -> MultiplayerSynchronizer:
 
 func _on_spawned(node: Node) -> void:
 	world.register_sim(node)
+	# A public look RPC may arrive before MultiplayerSpawner creates this puppet.
+	if mode == Mode.CLIENT:
+		_apply_pending_public_look(String(node.name))
 
 
 func _on_despawned(node: Node) -> void:
 	world.unregister_sim(node)
+	_public_look_revisions.erase(String(node.name))
+	_pending_public_looks.erase(String(node.name))
+	_public_resync_requested.erase(String(node.name))
 
 
 # ---------------------------------------------------------------- lokální hráč → server
@@ -411,6 +432,14 @@ func _register_player(id: int, raw_name: Variant, character := {}) -> void:
 	else:
 		_s2c_welcome.rpc_id(id, id, nm, sim)
 	_refresh_visibility()
+	# Spawner replays original spawn data. Catch a newly introduced peer up
+	# with the current canonical look after earlier edits. The client buffers
+	# these authoritative packets until its puppet exists.
+	if id > 1 and character_edit_apply_rpc_enabled:
+		for key in world._character_revisions:
+			var revision: int = int(world._character_revisions[key])
+			if revision > 0:
+				_server_broadcast_character_public_look(String(key), revision, id)
 	_broadcast_roster()
 	var msg := "%s vstupuje do hry" % nm
 	if sim != "":
@@ -482,6 +511,7 @@ func _on_peer_connected(id: int) -> void:
 
 func _on_peer_disconnected(id: int) -> void:
 	_edit_limiters.erase(id)
+	_public_resync_limiters.erase(id)
 	pending.erase(id)
 	_kick_at.erase(id)
 	if not players.has(id):
@@ -528,6 +558,56 @@ func _handle_chat(id: int, text: Variant) -> void:
 	_broadcast_chat(p["name"], clean, false)
 
 
+## Authenticated, immediate two-party consent processing. Only a player's own
+## avatar may create its offer. Unowned NPC evaluates willingness for itself.
+## A different player's avatar never silently accepts on their behalf.
+func _handle_intimacy_command(peer_id: int, actor, partner, action_id: String) -> String:
+	if world == null or world.net == null or not world.net.is_authority():
+		return "Intimní akce smí schválit pouze server."
+	var now: float = world.clock.total_minutes
+	if action_id == "intimacy_withdraw":
+		actor.intimacy.revoke_consent(String(partner.name))
+		if actor.current_action.get("id", "") == "adult_consensual_sex":
+			if actor.state == actor.State.ACTING:
+				actor._finish(true)
+			elif actor.state == actor.State.WALKING:
+				actor._abort()
+		elif partner.current_action.get("id", "") == "adult_consensual_sex" and partner.social_partner == actor:
+			partner._finish(true)
+		return ""
+	var gs := get_node_or_null("/root/GameSettings")
+	var enabled: bool = gs != null and gs.allows_content("adult_intimacy")
+	var eligible := AdultIntimacy.eligible_pair(world, actor, partner, now, enabled)
+	if not bool(eligible.get("ok", false)):
+		return "Intimita teď není možná (obsah, věk nebo schopnost rozhodnout)."
+	if action_id == "intimacy_offer":
+		if not actor.intimacy.offer_consent(String(partner.name), now, true, true):
+			return "Nátlak, odmítnutí nebo bezpečnostní omezení brání nabídce."
+		var controlled_target := false
+		if mode == Mode.OFFLINE:
+			# In offline play the selected character is the player's avatar.
+			controlled_target = partner == world.get_selected_sim()
+		else:
+			for player in players.values():
+				if String(player.get("sim", "")) == String(partner.name):
+					controlled_target = true
+					break
+		if not controlled_target:
+			if AdultIntimacy.npc_willing(world, partner, actor, now):
+				partner.intimacy.offer_consent(String(actor.name), now, true, true)
+			else:
+				partner.intimacy.refuse(String(actor.name), now)
+				actor.intimacy.revoke_consent(String(partner.name))
+				return "Druhá postava intimitu odmítla."
+		return ""
+	if action_id == "adult_consensual_sex":
+		if not bool(AdultIntimacy.check(world, actor, partner, now, true).get("ok", false)):
+			return "Intimita vyžaduje aktuální dobrovolný souhlas obou postav."
+		if not partner.can_join_social(actor):
+			return "Druhá postava nyní nemůže společnou činnost zahájit."
+	return ""
+
+
 ## Ověří a provede příkaz hráče. Vrací "" při úspěchu, jinak důvod odmítnutí.
 func handle_command(id: int, sim_node: Variant, action_id: Variant, target: Variant) -> String:
 	if mode != Mode.OFFLINE:
@@ -559,7 +639,7 @@ func handle_command(id: int, sim_node: Variant, action_id: Variant, target: Vari
 		stats["rejected"] += 1
 		return "Tohle se nedá zadat – je to symptom, ne volba."
 	var gs := get_node_or_null("/root/GameSettings")
-	if gs != null and not gs.allows_content(String(action.get("content", ""))):
+	if gs != null and action_id != "intimacy_withdraw" and not gs.allows_content(String(action.get("content", ""))):
 		stats["rejected"] += 1
 		return "Tahle akce je vypnutá v nastavení obsahu serveru."
 	var tgt: Node3D = null
@@ -588,6 +668,14 @@ func handle_command(id: int, sim_node: Variant, action_id: Variant, target: Vari
 		if tgt.object_tag != obj_tag:
 			stats["rejected"] += 1
 			return "Tuhle akci objekt nenabízí."
+	if String(action_id) in ["intimacy_offer", "intimacy_withdraw", "adult_consensual_sex"]:
+		var reason: String = _handle_intimacy_command(id, sim, tgt, String(action_id))
+		if reason != "":
+			stats["rejected"] += 1
+			return reason
+		if String(action_id) != "adult_consensual_sex":
+			stats["commands"] += 1
+			return ""
 	if not sim.command(action, tgt):
 		return "Fronta příkazů je plná."
 	stats["commands"] += 1
@@ -682,7 +770,13 @@ func _send_clock() -> void:
 
 
 func _process(delta: float) -> void:
-	if not _connected or not is_authority():
+	if not _connected:
+		return
+	if mode == Mode.CLIENT:
+		_expire_pending_character_edit_read()
+		_retry_public_look_resync()
+		return
+	if not is_authority():
 		return
 	_clock_timer -= delta
 	if _clock_timer <= 0.0:
@@ -793,11 +887,19 @@ func _on_connected_to_server() -> void:
 
 func _on_connection_failed() -> void:
 	_connected = false
+	cancel_character_edit_snapshot()
+	_public_look_revisions.clear()
+	_pending_public_looks.clear()
+	_public_resync_requested.clear()
 	disconnected.emit("Nepodařilo se připojit k serveru.")
 
 
 func _on_server_disconnected() -> void:
 	_connected = false
+	cancel_character_edit_snapshot()
+	_public_look_revisions.clear()
+	_pending_public_looks.clear()
+	_public_resync_requested.clear()
 	_add_chat("", "Spojení se serverem bylo ukončeno.", true)
 	disconnected.emit("Server ukončil spojení.")
 
@@ -902,12 +1004,46 @@ func server_prepare_character_edit(sender_peer_id: int, sim_node: Variant, expec
 		return {"ok":false,"reason":"conflict"}
 	return {"ok":true,"data":result["data"],"revision":expected_revision,"warnings":result["warnings"]}
 
-# H2b read-only transport. UI/Apply remain disabled until commit replication lands.
+# H2b authenticated private owner read. Enabled only by the native game setup for owner editing.
 signal character_edit_snapshot(sim_node: String, data: Dictionary, revision: int)
+# Correlation is an opaque UI generation ID, never an ownership credential.
+signal character_edit_snapshot_correlated(request_id: String, sim_node: String, data: Dictionary, revision: int)
+signal character_edit_snapshot_timed_out(request_id: String)
+const EDIT_READ_TIMEOUT_MS := 6000
+var _pending_edit_read_id := ""
+var _pending_edit_read_deadline_ms := 0
 
-func request_character_edit_snapshot() -> void:
-	if mode == Mode.CLIENT and _connected and not my_sim.is_empty():
-		_c2s_character_edit_read.rpc_id(1, my_sim)
+## Panel cleanup may cancel only its own generation. No argument is reserved
+## for connection-wide shutdown/disconnect and internal completion/expiry.
+func cancel_character_edit_snapshot(request_id: String = "") -> void:
+	if not request_id.is_empty() and request_id != _pending_edit_read_id:
+		return
+	_pending_edit_read_id = ""
+	_pending_edit_read_deadline_ms = 0
+
+func _expire_pending_character_edit_read() -> void:
+	if _pending_edit_read_id.is_empty() or _pending_edit_read_deadline_ms <= 0:
+		return
+	if Time.get_ticks_msec() < _pending_edit_read_deadline_ms:
+		return
+	var expired_id := _pending_edit_read_id
+	cancel_character_edit_snapshot()
+	character_edit_snapshot_timed_out.emit(expired_id)
+
+## True means local preflight allowed an RPC send attempt, NOT server
+## authorization, receipt or permission to open a private editor draft.
+func request_character_edit_snapshot(request_id: String = "") -> bool:
+	if not request_id.is_empty() and not _valid_incarnation(request_id):
+		return false
+	if mode != Mode.CLIENT or not _connected or my_sim.is_empty():
+		return false
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return false
+	_pending_edit_read_id = request_id
+	_pending_edit_read_deadline_ms = Time.get_ticks_msec() + EDIT_READ_TIMEOUT_MS if not request_id.is_empty() else 0
+	_c2s_character_edit_read.rpc_id(1, my_sim, request_id)
+	return true
 
 func server_read_character_edit(sender_peer_id: int, sim_node: Variant) -> Dictionary:
 	if not server_can_edit_character(sender_peer_id, sim_node):
@@ -925,7 +1061,9 @@ func server_read_character_edit(sender_peer_id: int, sim_node: Variant) -> Dicti
 	return {"ok":true,"wire":wire,"revision":int(world._character_revisions[key])}
 
 @rpc("any_peer", "call_remote", "reliable")
-func _c2s_character_edit_read(sim_node: Variant) -> void:
+func _c2s_character_edit_read(sim_node: Variant, request_id: Variant = "") -> void:
+	if typeof(request_id)!=TYPE_STRING or (not request_id.is_empty() and not _valid_incarnation(request_id)):
+		return
 	if not multiplayer.is_server():
 		return
 	var sender := multiplayer.get_remote_sender_id()
@@ -934,10 +1072,12 @@ func _c2s_character_edit_read(sim_node: Variant) -> void:
 	if not result.get("ok",false):
 		return
 	# No await between authorization and unicast. Never broadcast private data.
-	_s2c_character_edit_snapshot.rpc_id(sender, String(sim_node), result["wire"], result["revision"])
+	_s2c_character_edit_snapshot.rpc_id(sender, String(sim_node), result["wire"], result["revision"], request_id)
 
 @rpc("authority", "call_remote", "reliable")
-func _s2c_character_edit_snapshot(sim_node: Variant, wire_payload: Variant, revision: Variant) -> void:
+func _s2c_character_edit_snapshot(sim_node: Variant, wire_payload: Variant, revision: Variant, request_id: Variant = "") -> void:
+	if typeof(request_id)!=TYPE_STRING or (not request_id.is_empty() and not _valid_incarnation(request_id)):
+		return
 	if mode != Mode.CLIENT or not _connected or multiplayer.get_remote_sender_id()!=1:
 		return
 	if typeof(sim_node)!=TYPE_STRING or sim_node!=my_sim or typeof(revision)!=TYPE_INT or revision<0:
@@ -950,29 +1090,58 @@ func _s2c_character_edit_snapshot(sim_node: Variant, wire_payload: Variant, revi
 	var parser:=JSON.new()
 	if parser.parse(wire.get_string_from_utf8())!=OK or typeof(parser.data)!=TYPE_DICTIONARY:
 		return
-	character_edit_snapshot.emit(String(sim_node),parser.data,int(revision))
+	if request_id.is_empty():
+		# A legacy response must not reach consumers while a tagged UI read is pending.
+		if not _pending_edit_read_id.is_empty():
+			return
+		character_edit_snapshot.emit(String(sim_node),parser.data,int(revision))
+	else:
+		_expire_pending_character_edit_read()
+		if request_id != _pending_edit_read_id:
+			return
+		cancel_character_edit_snapshot()
+		character_edit_snapshot_correlated.emit(request_id,String(sim_node),parser.data,int(revision))
 
 
-# H2b staged write transport. Disabled in production until public appearance
-# replication, UI lifecycle and two-client real-world tests are completed.
+# H2b server-authoritative write transport. Opt-in flag fails closed by default;
+# native main.gd enables it only for real multiplayer sessions.
 # The trusted world method performs canonical validation and rechecks ownership
 # synchronously before commit. This RPC never accepts peer IDs from packets.
 signal character_edit_apply_result(sim_node: String, accepted: bool, revision: int, changed: bool, reason: String)
+## Private acknowledgement tied to the exact editor transaction (not an auth token).
+signal character_edit_apply_correlated(request_id: String, sim_node: String, accepted: bool, revision: int, changed: bool, reason: String)
+signal character_public_look_received(sim_node: String, revision: int)
+var _public_look_revisions := {}
+## Public-only, validated packets received before the corresponding puppet spawned.
+const MAX_PENDING_LOOK_INCARNATIONS := 2
+# node name -> incarnation -> latest validated snapshot; bounded by spawn_limit names.
+var _pending_public_looks := {}
+# One client resync per spawn incarnation; per-peer server token bucket.
+const PUBLIC_RESYNC_CAPACITY := 4.0
+const PUBLIC_RESYNC_REFILL := 0.25
+const PUBLIC_RESYNC_RETRY_SECONDS := 5.0
+const PUBLIC_RESYNC_MAX_ATTEMPTS := 3
+var _public_resync_limiters := {}
+var _public_resync_requested := {}
 var character_edit_apply_rpc_enabled := false
+## Independent gate for native owner HUD; default false outside live native setup.
+var character_edit_read_ui_enabled := false
 
-func request_character_edit_apply(expected_revision: int, candidate: Dictionary) -> bool:
+func request_character_edit_apply(expected_revision: int, candidate: Dictionary, request_id: String = "") -> bool:
 	if not character_edit_apply_rpc_enabled or mode != Mode.CLIENT or not _connected or my_sim.is_empty():
 		return false
-	if expected_revision < 0:
+	if expected_revision < 0 or (not request_id.is_empty() and not _valid_incarnation(request_id)):
 		return false
 	var wire := JSON.stringify(candidate).to_utf8_buffer()
 	if wire.is_empty() or wire.size() > EDIT_MAX_WIRE_BYTES:
 		return false
-	_c2s_character_edit_apply.rpc_id(1, my_sim, expected_revision, wire)
+	_c2s_character_edit_apply.rpc_id(1, my_sim, expected_revision, wire, request_id)
 	return true
 
 @rpc("any_peer", "call_remote", "reliable")
-func _c2s_character_edit_apply(sim_node: Variant, expected_revision: Variant, wire_payload: Variant) -> void:
+func _c2s_character_edit_apply(sim_node: Variant, expected_revision: Variant, wire_payload: Variant, request_id: Variant = "") -> void:
+	if typeof(request_id) != TYPE_STRING or (not request_id.is_empty() and not _valid_incarnation(request_id)):
+		return
 	if not character_edit_apply_rpc_enabled or not multiplayer.is_server():
 		return
 	var sender := multiplayer.get_remote_sender_id()
@@ -984,7 +1153,7 @@ func _c2s_character_edit_apply(sim_node: Variant, expected_revision: Variant, wi
 	# strict prepare/ownership/revision/commit path without awaiting.
 	var result: Dictionary = world.server_apply_character_edit(sender, sim_node, expected_revision, wire_payload)
 	# Private, bounded acknowledgement only; never send full character data.
-	# Public appearance replication is NOT implemented by this method.
+	# A separate public-look message replicates validated public appearance only.
 	var allowed_reasons := ["conflict", "invalid_character", "invalid_json",
 		"invalid_revision", "invalid_payload_type", "invalid_payload_size",
 		"schema_mismatch", "identity_changed", "identity_edit_pending",
@@ -997,11 +1166,13 @@ func _c2s_character_edit_apply(sim_node: Variant, expected_revision: Variant, wi
 	var revision := int(result.get("revision", expected_revision)) if typeof(expected_revision) == TYPE_INT else 0
 	_s2c_character_edit_apply_result.rpc_id(sender, String(sim_node),
 		bool(result.get("ok", false)), max(0, revision),
-		bool(result.get("changed", false)) if result.get("ok", false) else false, reason)
+		bool(result.get("changed", false)) if result.get("ok", false) else false, reason, request_id)
+	if result.get("ok", false) and result.get("changed", false):
+		_server_broadcast_character_public_look(String(sim_node), revision)
 
 @rpc("authority", "call_remote", "reliable")
 func _s2c_character_edit_apply_result(sim_node: Variant, accepted: Variant,
-		revision: Variant, changed: Variant, reason: Variant) -> void:
+		revision: Variant, changed: Variant, reason: Variant, request_id: Variant = "") -> void:
 	if not character_edit_apply_rpc_enabled or mode != Mode.CLIENT or not _connected:
 		return
 	if multiplayer.get_remote_sender_id() != 1:
@@ -1014,4 +1185,186 @@ func _s2c_character_edit_apply_result(sim_node: Variant, accepted: Variant,
 		return
 	if typeof(reason) != TYPE_STRING or reason.length() > 40:
 		return
+	if typeof(request_id) != TYPE_STRING or (not request_id.is_empty() and not _valid_incarnation(request_id)):
+		return
 	character_edit_apply_result.emit(sim_node, accepted, revision, changed, reason)
+	if not request_id.is_empty():
+		character_edit_apply_correlated.emit(request_id, sim_node, accepted, revision, changed, reason)
+
+
+## Exactly 128-bit lowercase hex, generated afresh by the server per spawn.
+static func _valid_incarnation(value: Variant) -> bool:
+	if typeof(value) != TYPE_STRING or value.length() != 32:
+		return false
+	for i in value.length():
+		if "0123456789abcdef".find(value.substr(i, 1)) < 0:
+			return false
+	return true
+
+
+## Staged public appearance replication. No private CharacterData leaves the server.
+## Disabled by default with the entire remote editor. Only introduced peers receive it.
+func _server_broadcast_character_public_look(sim_node: String, revision: int, only_peer: int = -1) -> void:
+	if not character_edit_apply_rpc_enabled or not multiplayer.is_server() or world == null:
+		return
+	if not world.has_method("read_public_character_look"):
+		return
+	var actor = world.find_sim(sim_node)
+	if actor == null:
+		return
+	var incarnation: Variant = actor.get_meta("net_incarnation", "")
+	if not _valid_incarnation(incarnation):
+		return
+	var packet: Dictionary = world.read_public_character_look(sim_node)
+	if not packet.get("ok", false) or int(packet.get("revision", -1)) != revision:
+		return
+	var checked: Dictionary = CharacterValidator.validate(packet.get("look", null),
+		{"mode":"strict", "public_only":true})
+	if not checked.get("ok", false):
+		return
+	var wire: PackedByteArray = JSON.stringify(checked["data"]).to_utf8_buffer()
+	if wire.is_empty() or wire.size() > EDIT_MAX_WIRE_BYTES:
+		return
+	for peer_id in players:
+		if int(peer_id) > 1 and (only_peer < 0 or int(peer_id) == only_peer) \
+				and not pending.has(peer_id) and not _kick_at.has(peer_id):
+			_s2c_character_public_look.rpc_id(int(peer_id), sim_node, incarnation, revision, wire)
+
+
+## Recover a missing matching pre-spawn snapshot (e.g. bounded incarnation eviction).
+## No client-supplied peer ID, character data, revision, or ownership flags.
+func _request_public_look_resync(sim_node: String, incarnation: String) -> void:
+	if not character_edit_apply_rpc_enabled or mode != Mode.CLIENT or not _connected:
+		return
+	if not Protocol.valid_id(sim_node) or not _valid_incarnation(incarnation) or spawner == null:
+		return
+	var existing: Dictionary = _public_resync_requested.get(sim_node, {})
+	if existing.get("incarnation", "") == incarnation:
+		return
+	if not _public_resync_requested.has(sim_node) and _public_resync_requested.size() >= spawner.spawn_limit:
+		return
+	_public_resync_requested[sim_node] = {"incarnation":incarnation, "attempts":1, "last_sent":_now()}
+	_c2s_character_public_look_resync.rpc_id(1, sim_node, incarnation)
+
+## Retry at most twice, while the same spawned puppet still exists.
+func _retry_public_look_resync() -> void:
+	if not character_edit_apply_rpc_enabled or mode != Mode.CLIENT or not _connected or world == null:
+		return
+	for sim_node in _public_resync_requested.keys():
+		var entry: Dictionary = _public_resync_requested[sim_node]
+		var incarnation: String = String(entry.get("incarnation", ""))
+		var sim = world.find_sim(String(sim_node))
+		if sim == null or not is_instance_valid(sim) or sim.is_queued_for_deletion() or String(sim.get_meta("net_incarnation", "")) != incarnation:
+			_public_resync_requested.erase(sim_node)
+			continue
+		if int(entry.get("attempts", 0)) >= PUBLIC_RESYNC_MAX_ATTEMPTS or _now() - float(entry.get("last_sent", 0.0)) < PUBLIC_RESYNC_RETRY_SECONDS:
+			continue
+		entry["attempts"] = int(entry.get("attempts", 0)) + 1
+		entry["last_sent"] = _now()
+		_public_resync_requested[sim_node] = entry
+		_c2s_character_public_look_resync.rpc_id(1, String(sim_node), incarnation)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _c2s_character_public_look_resync(sim_node: Variant, incarnation: Variant) -> void:
+	if not character_edit_apply_rpc_enabled or not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender <= 1 or not players.has(sender) or pending.has(sender) or _kick_at.has(sender):
+		return
+	if typeof(sim_node) != TYPE_STRING or not Protocol.valid_id(sim_node) or not _valid_incarnation(incarnation):
+		return
+	if world == null or not is_instance_valid(world) or not world.has_method("read_public_character_look"):
+		return
+	var actor = world.find_sim(String(sim_node))
+	if actor == null or not is_instance_valid(actor) or actor.is_queued_for_deletion():
+		return
+	if String(actor.get_meta("net_incarnation", "")) != incarnation:
+		return
+	if not world._character_revisions.has(String(sim_node)):
+		return
+	var revision := int(world._character_revisions[String(sim_node)])
+	if revision < 1:
+		return
+	if not _public_resync_limiters.has(sender):
+		_public_resync_limiters[sender] = Protocol.RateLimiter.new(PUBLIC_RESYNC_CAPACITY, PUBLIC_RESYNC_REFILL, _now())
+	if not _public_resync_limiters[sender].allow(_now()):
+		return
+	_server_broadcast_character_public_look(String(sim_node), revision, sender)
+
+@rpc("authority", "call_remote", "reliable")
+func _s2c_character_public_look(sim_node: Variant, incarnation: Variant, revision: Variant, wire: Variant) -> void:
+	if not character_edit_apply_rpc_enabled or mode != Mode.CLIENT or not _connected:
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	if typeof(sim_node) != TYPE_STRING or not Protocol.valid_id(sim_node):
+		return
+	if not _valid_incarnation(incarnation):
+		return
+	if typeof(revision) != TYPE_INT or revision < 1:
+		return
+	if typeof(wire) != TYPE_PACKED_BYTE_ARRAY or wire.is_empty() or wire.size() > EDIT_MAX_WIRE_BYTES:
+		return
+	if world == null:
+		return
+	var sim = world.find_sim(String(sim_node))
+	# Reject a valid server packet from an older actor with a recycled node name.
+	if sim != null and String(sim.get_meta("net_incarnation", "")) != incarnation:
+		return
+	var variants: Dictionary = _pending_public_looks.get(sim_node, {})
+	var pending: Dictionary = variants.get(incarnation, {})
+	var highest_revision: int = int(_public_look_revisions.get(sim_node, 0)) if sim != null else 0
+	highest_revision = maxi(highest_revision, int(pending.get("revision", 0)))
+	if revision <= highest_revision:
+		return
+	var parser := JSON.new()
+	if parser.parse(wire.get_string_from_utf8()) != OK or typeof(parser.data) != TYPE_DICTIONARY:
+		return
+	var checked: Dictionary = CharacterValidator.validate(parser.data,
+		{"mode":"strict", "public_only":true})
+	if not checked.get("ok", false) or world == null:
+		return
+	if sim == null or not sim.has_method("apply_public_look"):
+		# Network order cannot guarantee the independent MultiplayerSpawner
+		# finished before this RPC. Store no more than the spawn budget.
+		if _pending_public_looks.size() >= spawner.spawn_limit and not _pending_public_looks.has(sim_node):
+			return
+		# Keep the two most recently introduced incarnations for this node.
+		# Revisions are comparable only within one incarnation.
+		if not variants.has(incarnation) and variants.size() >= MAX_PENDING_LOOK_INCARNATIONS:
+			variants.erase(variants.keys()[0])
+		variants[incarnation] = {"revision":int(revision), "look":checked["data"].duplicate(true)}
+		_pending_public_looks[sim_node] = variants
+		return
+	sim.apply_public_look(checked["data"])
+	_public_look_revisions[sim_node] = revision
+	if _public_resync_requested.get(sim_node, {}).get("incarnation", "") == incarnation:
+		_public_resync_requested.erase(sim_node)
+	character_public_look_received.emit(String(sim_node), int(revision))
+
+
+## Deliver a validated authoritative packet which arrived before the puppet.
+func _apply_pending_public_look(sim_node: String) -> void:
+	if world == null:
+		return
+	var sim = world.find_sim(sim_node)
+	if sim == null or not sim.has_method("apply_public_look"):
+		return
+	var incarnation := String(sim.get_meta("net_incarnation", ""))
+	if not _pending_public_looks.has(sim_node):
+		_request_public_look_resync(sim_node, incarnation)
+		return
+	var variants: Dictionary = _pending_public_looks[sim_node]
+	var packet: Dictionary = variants.get(incarnation, {})
+	# Drop every variant once the actual authoritative spawn resolves the name.
+	_pending_public_looks.erase(sim_node)
+	if packet.is_empty():
+		_request_public_look_resync(sim_node, incarnation)
+		return
+	var revision: int = int(packet.get("revision", 0))
+	if revision > int(_public_look_revisions.get(sim_node, 0)):
+		sim.apply_public_look(packet["look"])
+		_public_look_revisions[sim_node] = revision
+		character_public_look_received.emit(sim_node, revision)
+	if _public_resync_requested.get(sim_node, {}).get("incarnation", "") == incarnation:
+		_public_resync_requested.erase(sim_node)

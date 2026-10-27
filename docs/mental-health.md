@@ -199,9 +199,9 @@ A depressive episode is no longer a single state. It has three severities, shown
 
 | Severity | HUD label | When |
 |---|---|---|
-| Mild | Mírná depresivní epizoda | Every episode starts here (burden above 0.6 for 2 game days) |
-| Moderate | Středně těžká depresivní epizoda | Burden above 0.70; drops back below 0.64 |
-| Severe | Těžká depresivní epizoda | Burden above 0.85 for at least one game day; drops back below 0.79 |
+| Mild | Mírná depresivní epizoda (mild depressive episode) | Every episode starts here (burden above 0.6 for 2 game days) |
+| Moderate | Středně těžká depresivní epizoda (moderate depressive episode) | Burden above 0.70; drops back below 0.64 |
+| Severe | Těžká depresivní epizoda (severe depressive episode) | Burden above 0.82 for at least half a game day (depth reached during onset counts); drops back below 0.76 |
 
 The bands use hysteresis, so the label does not flip back and forth near a boundary.
 
@@ -215,17 +215,17 @@ Large life events (`on_event`) can still push anyone past the ceiling.
 
 **Effects scale with severity:**
 - Burden already drives anhedonia, pessimism, low vigour, fatigue and poor sleep.
-- A moderate episode adds the mood entry "Všechno je těžké".
-- A severe episode adds "Sotva zvládám den", plus extra fatigue, worse sleep and a stronger pull to bed and sofa.
+- A moderate episode adds the mood entry "Všechno je těžké" ("Everything is hard").
+- A severe episode adds "Sotva zvládám den" ("I can barely get through the day"), plus extra fatigue, worse sleep and a stronger pull to bed and sofa.
 
 **Recovery:**
 - Recovery is faster from a mild episode (×1.15) and slower from a severe one (×0.75), but always possible.
 - The scar after an episode is `0.03 + 0.02 × peak severity` and fades over time.
 - Episodes are counted by peak severity (`severity_counts`), which is saved and validated on load.
 
-With the mental-health topics turned off there are still no episodes and no diagnostic names, only "Skleslost" or "Sklíčenost".
+With the mental-health topics turned off there are still no episodes and no diagnostic names, only "Skleslost" or "Sklíčenost" (low mood / dejection).
 
-Tests: `test_depression` section "Rozpětí deprese" (13 checks) covers:
+Tests: `test_depression` section "Rozpětí deprese" (depression range; 14 checks) covers:
 - the three predisposition levels and the label;
 - the mood entry and the stronger effects;
 - the delayed onset of severe episodes and the hysteresis;
@@ -289,3 +289,32 @@ full save/resume and dedicated privacy/accessibility controls. Relationship
 dependency alone cannot force an incident, and there must never be a
 playable harm action or reward. The system models adult character
 experiences; it is not a psychiatric prediction.
+
+## Withdrawal and conflict avoidance (27 October 2026)
+
+Two follow-ups to Grok's review (#169) of the severity range: severe depression now visibly changes behaviour, not just
+the HUD label, and a stressed household gets a way out of escalating frictions.
+
+**Withdrawal (`Depression.withdrawal()`, 0..0.35).** The value is 0 / 0.06 / 0.16 / 0.30 for no / mild / moderate /
+severe episode, plus a small part from the burden itself. It shifts preferences only; nothing is ever forbidden:
+- ordinary social actions are less appealing (× (1 − w));
+- confiding is affected less (× (1 − 0.4 w)), so the path to support stays open;
+- demanding chores (exercise, repairs, cooking) × (1 − 0.5 w);
+- quiet activities and hiding under the duvet become more appealing (× (1 + w)).
+
+A severe episode also dampens joy from favourite things beyond what the burden alone does
+(`joy_severity_mult()`: 1 / 1 / 0.9 / 0.75 applied to `SimAgent.joy_capacity()`).
+
+**Conflict avoidance (`MentalState.avoidance()`, 0..0.7).** It is high stress (above 55) plus withdrawal. With the
+mental-health topics turned off only the stress part remains. Two effects:
+- *Avoiding the person.* When choosing a social target, a character avoids the person they are sore at (a grudge or a
+  fresh complaint): `UtilityPlanner.avoidance_weight()` lowers the score by up to the avoidance value. Apologies and the
+  pressure actions keep their own rules.
+- *Swallowing a complaint.* When a conversation would start with a complaint, the character sometimes keeps it to
+  themselves (probability 0.6 × avoidance), so the talk does not turn into an argument. This is not free: rumination
+  rises and the mood entry "Radši jsem mlčel(a)" ("I'd rather have kept quiet") appears.
+
+The default healthy 3-person household is unaffected (identical argument rates in all 16 seeds of
+`test_household_dynamics`); the effects show only under stress or depression.
+
+Tests: `tests/test_withdrawal_avoidance.gd` (22 checks).

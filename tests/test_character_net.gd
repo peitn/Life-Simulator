@@ -195,8 +195,65 @@ func _run() -> void:
 		server._character_records[edit_key].mind["dispositions"]["rejection_reactivity"]==0.73,
 		"rejected private-axis edit preserves data and revision")
 
-	# Public change replication is the next implementation unit, not claimed here.
-	print("H2B_PUBLIC_REPLICATION_CURRENT=",pa.look==s_own.look and pb.look==s_own.look)
+	section("H2b public appearance replication and late join")
+	check(await wait_until(func(): return pa.look==s_own.look and pb.look==s_own.look, 4.0),
+		"owner and observer receive canonical public appearance after Apply")
+	check(Resolver.resolve(pa.look)==Resolver.resolve(s_own.look) and
+		Resolver.resolve(pb.look)==Resolver.resolve(s_own.look) and
+		pb.visual.look_params==s_own.visual.look_params,
+		"both clients resolve and render updated public proportions")
+	check(int(a.net._public_look_revisions.get(edit_key,0))==old_revision+1 and
+		int(b.net._public_look_revisions.get(edit_key,0))==old_revision+1,
+		"clients track the authoritative appearance revision")
+	var late := _client("LateClient", "Pozdější")
+	late.net.character_edit_apply_rpc_enabled = true
+	check(await wait_until(func(): return late.net.my_sim!="" and late.find_sim(edit_key)!=null, 7.0),
+		"late-joining player completes handshake and character spawn")
+	var late_puppet = late.find_sim(edit_key)
+	check(await wait_until(func(): return late_puppet!=null and late_puppet.look==s_own.look, 4.0),
+		"late-joining player receives post-edit appearance (not cached initial spawn)")
+	check(late_puppet!=null and late_puppet.visual.look_params==s_own.visual.look_params and
+		int(late.net._public_look_revisions.get(edit_key,0))==old_revision+1,
+		"late client applies the versioned public look to the actual visual")
+	var late_wire := JSON.stringify(late_puppet.look) if late_puppet!=null else ""
+	check(late_puppet!=null and not late_puppet.has_private and
+		not late_wire.contains("hypervigilance") and not late_wire.contains("trait_levels") and
+		not late_wire.contains("predispositions") and not late_wire.contains("Tajná"),
+		"late client sees no private psychological or story state")
+	section("H2b repeated Apply across three real ENet clients")
+	# No sleeps: verify two sequential owner edits and eventual server/puppet convergence.
+	var second: Dictionary = server._character_records[edit_key].to_dict()
+	second["body"]["height_cm"] = 180.0
+	check(a.net.request_character_edit_apply(old_revision+1, second), "owner sends second valid Apply")
+	check(await wait_until(func(): return replies_a.size()==4, 3.0), "second Apply acknowledgement arrives")
+	check(replies_a.size()==4 and replies_a[3]["ok"] and replies_a[3]["revision"]==old_revision+2,
+		"second Apply advances exactly one revision")
+	var third: Dictionary = server._character_records[edit_key].to_dict()
+	third["body"]["height_cm"] = 182.0
+	check(a.net.request_character_edit_apply(old_revision+2, third), "owner sends third valid Apply")
+	check(await wait_until(func(): return replies_a.size()==5, 3.0), "third Apply acknowledgement arrives")
+	check(replies_a.size()==5 and replies_a[4]["ok"] and replies_a[4]["revision"]==old_revision+3,
+		"third Apply advances exactly one revision")
+	var converged := await wait_until(func(): return is_instance_valid(late_puppet) and pa.look.get("body",{}).get("height_cm")==182.0 and pb.look.get("body",{}).get("height_cm")==182.0 and late_puppet.look.get("body",{}).get("height_cm")==182.0, 4.0)
+	check(converged, "owner, observer and late joiner converge to latest public look")
+	check(server._character_revisions[edit_key]==old_revision+3 and
+		server._character_records[edit_key].body["height_cm"]==182.0 and
+		int(a.net._public_look_revisions.get(edit_key,0))==old_revision+3 and
+		int(b.net._public_look_revisions.get(edit_key,0))==old_revision+3 and
+		int(late.net._public_look_revisions.get(edit_key,0))==old_revision+3,
+		"canonical and three client revision counters converge")
+	check(is_instance_valid(late_puppet) and
+		pa.visual.look_params==s_own.visual.look_params and
+		pb.visual.look_params==s_own.visual.look_params and
+		late_puppet.visual.look_params==s_own.visual.look_params,
+		"all three puppet visual parameters match server")
+	check(replies_b.is_empty() and is_instance_valid(late_puppet) and
+		not late_puppet.look.has("mind") and not late_puppet.look.has("story") and
+		not late_puppet.look.get("personality",{}).has("trait_levels"),
+		"repeated Apply sends no private acknowledgement or private look fields")
+	late.net.shutdown()
+	check(await wait_until(func(): return server.net.players.size()==2, 4.0),
+		"late client disconnect cleans up without affecting original players")
 	server.net.character_edit_apply_rpc_enabled = false
 	a.net.character_edit_apply_rpc_enabled = false
 	b.net.character_edit_apply_rpc_enabled = false
@@ -237,6 +294,8 @@ func _run() -> void:
 
 	section("Odchod hráče s vlastní postavou")
 	var own_name: String = a.net.my_sim
+	var old_lifetime_public: Dictionary = s_own.look.duplicate(true)
+	var old_lifetime_incarnation: String = String(s_own.get_meta("net_incarnation", ""))
 	a.net.shutdown()
 	var gone := await wait_until(func(): return server.find_sim(own_name) == null and b.find_sim(own_name) == null, 5.0)
 	check(gone, "postava odpojeného hráče zmizela ze serveru i u ostatních")
@@ -249,6 +308,34 @@ func _run() -> void:
 	check(s_b != null and b_id > 0 and server.net.handle_command(b_id, b.net.my_sim, "cancel", "") == "",
 		"hra pokračuje (B dál ovládá svou postavu)")
 	check(not server.net.players.values().any(func(p): return p["sim"] == own_name), "nikdo neovládá zmizelou postavu")
+	section("H2b real MultiplayerSpawner recycled-name diagnostic")
+	check(not b.net._public_look_revisions.has(own_name) and
+		not b.net._pending_public_looks.has(own_name),
+		"actual despawn clears observer revision and pending state")
+	var fresh_character: Dictionary = _char(505, {"body":{"height_cm":160.0}})
+	var respawned = server.spawn_character(fresh_character, Vector3.ZERO, 12345, own_name)
+	check(respawned != null and String(respawned.name) == own_name,
+		"server reuses freed actor name in real MultiplayerSpawner")
+	check(await wait_until(func(): return b.find_sim(own_name) != null, 5.0),
+		"observer receives recycled-name spawn")
+	var fresh_puppet = b.find_sim(own_name)
+	check(fresh_puppet != null and fresh_puppet.look.get("body",{}).get("height_cm") == 160.0,
+		"new puppet initially uses new canonical public look")
+	var fresh_incarnation: String = String(respawned.get_meta("net_incarnation", ""))
+	check(fresh_incarnation.length() == 32 and fresh_incarnation != old_lifetime_incarnation and String(fresh_puppet.get_meta("net_incarnation", "")) == fresh_incarnation, "new spawn carries a distinct incarnation")
+	server.net.character_edit_apply_rpc_enabled = true
+	b.net.character_edit_apply_rpc_enabled = true
+	var observer_peer_id: int = b.net.multiplayer.get_unique_id()
+	server.net._s2c_character_public_look.rpc_id(observer_peer_id, own_name,
+		old_lifetime_incarnation, old_revision+3, JSON.stringify(old_lifetime_public).to_utf8_buffer())
+	await wait_seconds(0.3)
+	check(fresh_puppet.look.get("body",{}).get("height_cm") == 160.0 and not b.net._public_look_revisions.has(own_name), "old incarnation update is ignored")
+	server.net._s2c_character_public_look.rpc_id(observer_peer_id, own_name,
+		fresh_incarnation, 1, JSON.stringify(respawned.look).to_utf8_buffer())
+	check(await wait_until(func(): return int(b.net._public_look_revisions.get(own_name,0)) == 1, 3.0), "current incarnation update is accepted")
+	check(fresh_puppet.look.get("body",{}).get("height_cm") == 160.0, "current appearance remains canonical")
+	server.net.character_edit_apply_rpc_enabled = false
+	b.net.character_edit_apply_rpc_enabled = false
 	for w in [b, g, c, d2, e, f]:
 		w.net.shutdown()
 	server.net.shutdown()

@@ -1,0 +1,15 @@
+# H2b sleeve join — discrete vertex-cloud baseline (26 Oct 2026)
+
+Run: `main-fallback-1793003121-209145`. Scope: **test-only characterization**, not a mesh repair or an assertion that a visible gap has been geometrically proven. The nearest-shell-vertex distance is an upper bound on nearest continuous-shell-surface distance, and cannot detect penetration or skinned-pose separation.
+
+## Evidence
+- Read authored `res://assets/src/clothing_c5/top.lsx` through production `scripts/assets/clothing_wardrobe.gd` decoder, without modifying it. The cat and ordinary hoodie each have a 830-vertex shell and separate 70-vertex left/right sleeves, with 14 top-rim vertices per side in the current export.
+- Added `tests/test_cat_hoodie_sleeve_gap.gd` (a static RefCounted test callable through `godot_run_script`). Test reads both hoodie styles and both sleeves, checks shell/rim presence, numerical baseline and left/right symmetry, and validates that the vertex-distance metric returns zero for a coincident shell vertex.
+- Actual Godot result: 20/20 checks, exit 0, timed_out false. Cat hoodie nearest-shell-VERTEX medians: left 0.022882435 m, right 0.022883128 m; maxima 0.035487168 m and 0.035501864 m. Ordinary hoodie medians: left 0.019797826 m, right 0.019800123 m; maxima 0.031396732 m and 0.031399820 m. These are vertex-cloud proximity measurements, **not** true surface gaps.
+- Godot syntax checker: 60/60 OK. Pre-edit project backup: 115782 KB, library backup 120 KB. Existing 18 ObjectDB shutdown warnings in direct Godot runs; no new runtime parse error. No UI change, so no new render claimed.
+
+## Skeptical Gemini audit and independent disposition
+Gemini reviewed the exact test source and numeric result. Valid: nearest vertex overestimates continuous triangle-surface distance; skinning, intersection/penetration, and transforms are not covered. These limitations were explicitly documented before audit and are retained as blockers **to claiming a physical seam gap or fix**, not blockers to a vertex-only characterization. Valid maintenance warning: fixed 830/14 vertex counts and numeric ranges deliberately pin the current asset export; any retopology requires recalibration, even if appearance is unchanged. It is an intentional topology-change tripwire, not a portable geometry correctness criterion. Unsupported as a concrete new failure: claim that coordinate-space mismatch actually exists; both arrays originate from the same decoded clothing source, and no mismatched transform was demonstrated. ObjectDB warning predates this test; no new leak was established. Gemini did not execute Godot or inspect a rendered image.
+
+## Remaining issue / single next step
+**Do not mark H2b sleeves repaired.** Next: measure sleeve-rim point-to-shell-triangle distances and skin-weight continuity in rest and bent-elbow poses, with an actual front/side render, before making a scoped geometry/weight correction. Keep network Apply disabled, city files untouched and GitHub read-only. Separate household seed-4 critical hygiene/cooking regression remains unresolved.

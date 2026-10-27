@@ -107,7 +107,7 @@ Eight steps, each one complete and tested. Principles and details are in
 ## (g) UI, saving, economy, stories
 
 - ✅ HUD, content settings, content warning, crisis help.
-- ⬜ Save and load.
+- 🟡 Offline save/load + 5-minute real-time autosave, game-day autosave, auto-resume, previous-save backup/recovery and manual slots; server persistence and multi-version migrations pending.
 - ⬜ Legal and illegal careers; an economy with debt, enforcement and poverty.
 - ⬜ Emergent stories with lasting consequences; a character diary.
 - ⬜ Later blocks proposed in the room, not scheduled yet: a fictional currency with integer amounts, a

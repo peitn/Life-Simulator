@@ -1,0 +1,221 @@
+{
+  "assembly_demo": {
+    "dynamic_traversal": true,
+    "gemini": "Reviewed proposed and actual diff; centerline limitation accepted; no tests executed by Gemini.",
+    "negative": "Step07 disabled in memory; missing ray hit as expected, exit0",
+    "physics_tick_traversal": {
+      "floor_ticks": 420.0,
+      "gemini": "two actual source audits; dispositions in review-stair-physics-20261026.md",
+      "lifts": 49.0,
+      "max_tick_displacement_m": 0.220587,
+      "physics_hz": 60.0,
+      "positive": "10/10 exit0 no timeout",
+      "run_id": "city-1793035640-241542",
+      "scope": "isolated test controller only; repeated lifts, no smoothness/render/main integration certification",
+      "ticks": 483.0,
+      "validator": "scripts/city/validate_stair_physics_walk.gd",
+      "validator_sha256": "5967aef67aeb8242bfa65d6f92844f5224def3fb2b7baa3c59e89ae5b2b3fcee",
+      "wall_negative": "6/10 exit1 expected no timeout, blocked before wall"
+    },
+    "rendered": false,
+    "run_id": "city-fallback-1793029198-228012",
+    "saved_scene_tests": "41/41 exit0 no timeout",
+    "scene": "scenes/city/stair_landing_demo.tscn",
+    "scene_sha256": "31d468ecebbbb9f5f2fe9056d7ff558d7f4a6e7acb71e35570728b2829972792",
+    "scripted_capsule_traversal": {
+      "capsule_height_m": 1.6,
+      "capsule_radius_m": 0.18,
+      "horizontal_snags": 0.0,
+      "limitation": "scripted swept move_and_collide, not frame-stepped gameplay controller; no visual render",
+      "max_foot_error_m": 0.0009,
+      "positive": "145/145 exit0 no timeout",
+      "run_id": "city-fallback-1793032727-233707",
+      "step07_disabled_negative": "141/145 exit1 expected no timeout",
+      "validator": "scripts/city/validate_stair_capsule_traversal.gd",
+      "validator_sha256": "312cb5f35417e0bca7f1df04c4e64bcf03b41451506b303c67a270c15d728453"
+    },
+    "stair_regression": "93/93 exit0 no timeout",
+    "validator": "scripts/city/validate_stair_landing_demo.gd",
+    "validator_sha256": "3e0b9c8f0c33d536f6e8c885ffd409f4fedcb60bb2943a0ac99225c92ed782df"
+  },
+  "asset": "staircase_straight_3m",
+  "audit": "Gemini two actual code reviews; false overlaps/UV/bounds allegations disproved, retracted. See review-staircase-20261026.md.",
+  "axes": "Godot Y up, width +X, travel -Z",
+  "blender": {
+    "all_6_sha256_match": true,
+    "blend_sha256": "e077c9464eeb07e6e7ea423938ca7270e9c1d3e016399cdb8e04bac071aaa066",
+    "bytes": 135206.0,
+    "files": 6.0,
+    "generator": "lifesim-city-staircase-generator",
+    "kit": "lifesim-city-staircase-prototype",
+    "reopened_original": true
+  },
+  "bounds": {
+    "max": [
+      1.0,
+      3.0,
+      0.0
+    ],
+    "min": [
+      0.0,
+      0.0,
+      -4.5
+    ]
+  },
+  "collision": {
+    "layer": 1.0,
+    "mask": 1.0,
+    "overlap_tolerance_m": 0.00001,
+    "shape_formula": "size(1,(i+1)*.2,.3), center(.5,(i+1)*.1,-(i+.5)*.3)",
+    "type": "15 adjacent BoxShape3D slices on one StaticBody3D"
+  },
+  "contact_aware_smoothing_20261026": {
+    "controller": "scripts/city/validate_stair_physics_walk.gd",
+    "double_roundtrip": "in-memory10/10 exit0,996ticks,33lifts,874floor",
+    "gemini": "two actual skeptical audits; stateful rejected, fixed-capsule limitation accepted",
+    "next": "side-view trajectory capture and visual jitter inspection",
+    "positive": "11/11 exit0,496ticks,15lifts,434floor,no timeout",
+    "regressions": "demo41/41,stairs93/93 exit0",
+    "rendered": false,
+    "report": "docs/city/review-stair-contact-20261026.md",
+    "run_id": "city-fallback-1793054559-288394",
+    "sha256": "e8a8864661f467f04cf4536a4c3bd966a69f9499451ded12741ba0e4a58f3333",
+    "wall_negative": "7/11 exit1 expected,900ticks,blocked"
+  },
+  "geometry": {
+    "manifold": true,
+    "polygon_faces": 34.0,
+    "triangles": 124.0,
+    "vertices": 64.0,
+    "volume_m3": 7.2
+  },
+  "glb_sha256": "c95be43b353806414742735e7fb06bf805e62c7258f036178fe70e99fdf855cb",
+  "grid_m": 0.5,
+  "license": "Original Life Simulator asset; all rights reserved",
+  "limitations": [
+    "No handrail",
+    "No ceiling opening or overhead clearance matrix",
+    "No production locomotion, navmesh or main integration",
+    "No large-scene FPS",
+    "No fine texture maps",
+    "Isolated frame-stepped traversal passes, but49 lifts for15risers needs smoothing"
+  ],
+  "material": {
+    "linear_rgba": [
+      0.52,
+      0.47,
+      0.4,
+      1.0
+    ],
+    "name": "Warm stone",
+    "roughness": 0.8
+  },
+  "lift_height_ablation_20261027": {
+    "run_id": "city-fallback-1793065446-292636",
+    "report": "docs/city/review-stair-lift-height-20261027.md",
+    "baseline": "0.22m,11/11 exit0,496ticks,15lifts,434floor,max ascent drop 0.06430m",
+    "candidate_210": "11/11 exit0,497ticks,16lifts,435floor,max drop 0.05445m; wall negative7/11 exit1 expected; two-roundtrip11/11 exit0",
+    "candidate_205": "11/11 exit0,499ticks,17lifts,437floor,max drop 0.05024m",
+    "gemini": "actual skeptical audit; recommended no merge pending wider clearance and robustness",
+    "decision": "test-only candidates removed; original controller unchanged; no new render",
+    "next": "contact-driven vertical correction retaining .22m clearance; lateral offsets, wall and repeat-trip checks"
+  },
+  "lateral_offset_regression_20261027": {
+    "run_id": "city-fallback-1793069048-296191",
+    "validator": "scripts/city/validate_stair_lateral_offsets.gd",
+    "sha256": "57bdeb194ccb59f2297ff616174533d22f552bc2ba020c808a3b1bcff6b57036",
+    "positive": "27/27 exit0 no timeout; x=.23 498ticks/17lifts/438floor, x=.50 496/15/434, x=.77 499/17/439",
+    "regressions": "physics11/11, demo41/41, stairs93/93 exit0; wall-negative7/11 exit1 expected; syntax60/60",
+    "gemini": "actual skeptical review; max_y and watchdog added, false top-check allegation rejected; Gemini did not run tests",
+    "limitations": "fixed staircase/capsule, no vertical smoothing, no new render, no production integration"
+  },
+  "next": "Test contact-driven vertical correction retaining .22m clearance; verify lateral offsets, wall and repeated trips.",
+  "normals": "Flat outward",
+  "paths": {
+    "builder": "scripts/city/build_staircase.gd",
+    "generator": "tools/blender/city/staircase.py",
+    "glb": "assets/city/staircase_straight_3m.glb",
+    "scene": "scenes/city/staircase_straight_3m.scn",
+    "validator": "scripts/city/validate_staircase.gd"
+  },
+  "pivot": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "renders": {
+    "engine": "Blender Cycles CPU12samples",
+    "inspected": true,
+    "paths": [
+      "docs/city/staircase_front.jpg",
+      "docs/city/staircase_side.jpg",
+      "docs/city/staircase_rear.jpg"
+    ],
+    "size": [
+      320.0,
+      320.0
+    ],
+    "views": [
+      "front",
+      "side",
+      "rear"
+    ]
+  },
+  "riser_m": 0.2,
+  "run_id": "city-1793018567-220376",
+  "scene_sha256": "df369979d390fd93647bfc0e50aec529bd786a17aa52adbf96ed963acad18277",
+  "smoothing_ablation_20261026": {
+    "baseline": "10/10 exit0; 483 ticks,49 lifts,420 floor ticks",
+    "code_changed": false,
+    "gemini": "actual skeptical audit rejected timer/no-gravity workaround; did not run tests",
+    "hold_candidate": "15 lifts,345/482 grounded; fails original 80pct floor threshold; rejected",
+    "rendered": false,
+    "report": "docs/city/review-stair-smoothing-ablation-20261026.md",
+    "run_id": "city-fallback-1793047120-277067",
+    "snap_ablation": "snap .08/.12/.16/.20: all failed original checks; no-explicit-snap also failed",
+    "wall_negative": "6/10 exit1 expected,900 ticks"
+  },
+  "sockets": {
+    "bottom": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "top": [
+      0.0,
+      3.0,
+      -4.5
+    ]
+  },
+  "steps": 15.0,
+  "tests": {
+    "disabled_step7": "90passed/3failed exit1 expected",
+    "floor": "51/51 exit0",
+    "stairs": "93/93 exit0",
+    "stderr": "Existing18ObjectDB shutdown warning. Blender bundled addon SyntaxWarnings.",
+    "timeout": false,
+    "timing": "3.306ms validator including2physicsframes; NOT gameplay FPS"
+  },
+  "trajectory_capture_20261026": {
+    "audit": "two actual Gemini reviews; findings verified in CHECKPOINT/HANDOFF",
+    "descent_rise_ticks_above_5mm": 0,
+    "floor_ticks": 434,
+    "inspected": true,
+    "largest_ascent_drop_m": 0.06429857,
+    "lifts": 15,
+    "limitation": "Static trajectory, residual snap jitter; no smoothness/FPS certification",
+    "renders": [
+      "docs/city/trajectory-city-1793057445-289586-side.jpg",
+      "docs/city/trajectory-city-1793057445-289586-oblique.jpg"
+    ],
+    "run_id": "city-1793057445-289586",
+    "source": "scripts/city/capture_stair_trajectory.gd",
+    "ticks": 496,
+    "trace": "docs/city/trajectory-city-1793057445-289586.json"
+  },
+  "tread_m": 0.3,
+  "units": "meters",
+  "uv": "Dominant-axis planar, 1 UV unit/m. No texture maps.",
+  "version": "0.1-prototype",
+  "width_m": 1.0
+}

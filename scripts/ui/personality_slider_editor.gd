@@ -67,6 +67,9 @@ func _build() -> void:
 		var ds: Dictionary = mind.get("dispositions", {})
 		var initial := float(ds.get(id, result.get("D", {}).get(id, 0.5)))
 		_row("dispositions", String(id), String(Schema.PSYCHE_SLIDERS[id]), initial, 0.0, 1.0)
+	_section("Vnitřní přesvědčení o sobě (0 = vůbec, 1 = velmi silné)")
+	_row("mind_belief", "self_defectiveness", "Jsem nedostatečná/nedostatečný — pocit vlastní defektnosti",
+		float(mind.get("self_defectiveness", 0.0)), 0.0, 1.0)
 	_section("Náchylnost k psychickým obtížím (0 = žádná, 1 = výrazná)")
 	for id in Schema.PREDISPOSITIONS:
 		var preds: Dictionary = mind.get("predispositions", {})
@@ -96,6 +99,8 @@ func _row(group: String, id: String, title: String, initial: float, lo: float, h
 	var controls := HBoxContainer.new()
 	row.add_child(controls)
 	var slider := HSlider.new()
+	if group == "mind_belief" and id == "self_defectiveness":
+		slider.name = "BeliefDefectiveness"
 	slider.min_value = lo
 	slider.max_value = hi
 	slider.step = 0.01
@@ -112,6 +117,10 @@ func _row(group: String, id: String, title: String, initial: float, lo: float, h
 
 func _on_slider(value: float, group: String, id: String, value_label: Label) -> void:
 	value_label.text = "%.2f" % value
+	if group == "mind_belief" and id == "self_defectiveness":
+		character.mind[id] = clampf(value, 0.0, 1.0)
+		character_changed.emit(group, id, value)
+		return
 	var container: Dictionary
 	var field := group
 	if group == "trait_levels" or group == "hexaco":

@@ -1,9 +1,17 @@
-# Webová verze Life Simulatoru
+# Web version of Life Simulator
 
-Stejná herní pravidla jako v tomto projektu (potřeby, rysy, nálada, utility AI, vztahy, křivdy a omluvy, stres, úzkost, panika, deprese,
-nastavení obsahu), přenesená do JavaScriptu s rozhraním z čistého DOM + CSS. Nepotřebuje `<canvas>` ani WebGL, takže jde hrát na telefonech a tabletech.
+The web version follows the same game rules as this project:
+- needs, traits, mood and utility AI;
+- relationships, grudges and apologies;
+- stress, anxiety, panic and depression;
+- content settings.
 
-- Hraje se na: https://lifesim.peiti.workers.dev/ (Cloudflare je jen brána)
-- Hostuje ho tento server: https://peiti-godot-mcp.hf.space/lifesim/ (soubory v repozitáři Space, složka web/lifesim/)
-- Co webová verze zatím NEMÁ oproti Godot projektu: 3D vizuál a modely, multiplayer, hudbu a zvuky objektů, editor postavy, město a stavění.
-- Jádro je testované headless (47 kontrol, `node tests/sim.test.mjs`); pravidla v scripts/sim/*.gd zůstávají zdrojem pravdy.
+The rules are ported to JavaScript, with an interface built from plain DOM and CSS. It needs neither `<canvas>` nor
+WebGL, so it can be played on phones and tablets.
+
+- Play it at: https://lifesim.peiti.workers.dev/ (Cloudflare is only a gateway).
+- It is hosted by this server: https://peiti-godot-mcp.hf.space/lifesim/ (files in the Space repository, folder `web/lifesim/`).
+- Compared with the Godot project, the web version does NOT yet have: 3D visuals and models, multiplayer, music and
+  object sounds, the character editor, the city or building.
+- The core is tested headless (47 checks, `node tests/sim.test.mjs`); the rules in `scripts/sim/*.gd` remain the source
+  of truth.

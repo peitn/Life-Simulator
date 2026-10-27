@@ -323,6 +323,21 @@ func on_rumination(hours: float) -> void:
 
 # ---------------------------------------------------------------- vliv na simulaci
 
+## Stažení do sebe podle stupně epizody (review Groka #169): méně chuti na společnost a náročné
+## povinnosti, víc na samotu a klid. Malá složka i ze samotné zátěže. Nikdy nic nezakazuje (strop 0,35).
+const SEV_WITHDRAW := [0.0, 0.06, 0.16, 0.3]
+## Těžší epizoda tlumí radost i z oblíbených věcí víc, než odpovídá samotné zátěži (hedonic).
+const SEV_JOY := [1.0, 1.0, 0.9, 0.75]
+
+
+func withdrawal() -> float:
+	return clampf(SEV_WITHDRAW[severity_level()] + 0.1 * maxf(burden - 0.3, 0.0), 0.0, 0.35)
+
+
+func joy_severity_mult() -> float:
+	return SEV_JOY[severity_level()]
+
+
 ## Těžká epizoda přidává k účinkům zátěže ještě vlastní složku (únava, horší spánek, stažení).
 func _sev_extra() -> float:
 	return [0.0, 0.0, 0.05, 0.15][severity_level()]

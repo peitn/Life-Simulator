@@ -1,0 +1,209 @@
+{
+  "schema": "lifesim.fem.musclefat.v1",
+  "date": "2026-10-26",
+  "solver": "ElmerSolver 26.2",
+  "blender_asset": "lifesim-anatomy-skeleton-v1",
+  "units": "SI metre kilogram kelvin watt pascal joule second",
+  "methodology": {
+    "geometry": "2D two-material aligned rectangle; inner muscle 25mm then outer adipose 10mm or 20mm; lateral height 12mm",
+    "thermal": {
+      "k_muscle_W_mK": 0.5,
+      "k_adipose_W_mK": 0.2,
+      "density_muscle_kg_m3": 1050,
+      "density_fat_kg_m3": 900,
+      "specific_heat_muscle_J_kgK": 3750,
+      "specific_heat_fat_J_kgK": 2300,
+      "core_temp_K": 310.15,
+      "ambient_temp_K": 293.15,
+      "h_surface_W_m2K": 10,
+      "bc": "core facing x=0 T=310.15K, skin-facing x=L Robin h=10 W/m2K to 293.15K, transverse adiabatic",
+      "source_internal_input": "Volumetric generation qm in W/m3 translated to Elmer Heat Source W/kg = qm/rho; important corrected initial wrong density multiplication",
+      "solver_scope": "Steady-state with volumetric source AND separate 12x60s implicit transient cooling using tissue heat capacities rho*Cp; no perfusion or evaporative cooling."
+    },
+    "mechanical": {
+      "bc": "inner x=0 fixed u_x=u_y=0; skin-facing x=35mm traction Force1=-100 Pa; transverse traction-free",
+      "plane_stress": true,
+      "linear_isotropic": true,
+      "skin_and_muscle_activation_or_tendon_solver": false
+    }
+  },
+  "cases": [
+    {
+      "name": "lifesim_mfat_heat_rest_t10",
+      "typ": "heat",
+      "qm": 700,
+      "qf": 60,
+      "Lm": 0.025,
+      "Lf": 0.01,
+      "nxm": 12,
+      "nxf": 8,
+      "ny": 6,
+      "points": 147,
+      "temperature_min_K": 301.891,
+      "temperature_max_K": 310.15,
+      "analytic": {
+        "surface_K": 301.89124999999996,
+        "interface_K": 306.246875,
+        "maximum_K": 310.15,
+        "skin_C": 28.74124999999998,
+        "surface_heat_flux_W_m2": 87.41249999999998,
+        "core_flux_W_m2": 69.31249999999999,
+        "thermal_resistance_m2K_W": 0.2
+      },
+      "errors": {
+        "surface_K": -0.00024999999993724487,
+        "max_K": 0
+      },
+      "solver_ok": true,
+      "output_vtu": "case_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_heat_active_t10",
+      "typ": "heat",
+      "qm": 5000,
+      "qf": 60,
+      "Lm": 0.025,
+      "Lf": 0.01,
+      "nxm": 12,
+      "nxf": 8,
+      "ny": 6,
+      "points": 147,
+      "temperature_min_K": 303.235,
+      "temperature_max_K": 310.269,
+      "analytic": {
+        "surface_K": 303.23499999999996,
+        "interface_K": 308.2625,
+        "maximum_K": 310.2725125,
+        "skin_C": 30.08499999999998,
+        "surface_heat_flux_W_m2": 100.85000000000001,
+        "core_flux_W_m2": -24.74999999999999,
+        "thermal_resistance_m2K_W": 0.2
+      },
+      "errors": {
+        "surface_K": 5.684341886080802e-14,
+        "max_K": -0.0035124999999993634
+      },
+      "solver_ok": true,
+      "output_vtu": "case_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_heat_thickfat_t10",
+      "typ": "heat",
+      "qm": 700,
+      "qf": 60,
+      "Lm": 0.025,
+      "Lf": 0.02,
+      "nxm": 12,
+      "nxf": 16,
+      "ny": 6,
+      "points": 203,
+      "temperature_min_K": 300.173,
+      "temperature_max_K": 310.15,
+      "analytic": {
+        "surface_K": 300.173,
+        "interface_K": 307.13599999999997,
+        "maximum_K": 310.15,
+        "skin_C": 27.023000000000025,
+        "surface_heat_flux_W_m2": 70.23,
+        "core_flux_W_m2": 51.53,
+        "thermal_resistance_m2K_W": 0.25
+      },
+      "errors": {
+        "surface_K": 0,
+        "max_K": 0
+      },
+      "solver_ok": true,
+      "output_vtu": "case_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_heat_fine_t10",
+      "typ": "heat",
+      "qm": 700,
+      "qf": 60,
+      "Lm": 0.025,
+      "Lf": 0.01,
+      "nxm": 24,
+      "nxf": 16,
+      "ny": 8,
+      "points": 369,
+      "temperature_min_K": 301.891,
+      "temperature_max_K": 310.15,
+      "analytic": {
+        "surface_K": 301.89124999999996,
+        "interface_K": 306.246875,
+        "maximum_K": 310.15,
+        "skin_C": 28.74124999999998,
+        "surface_heat_flux_W_m2": 87.41249999999998,
+        "core_flux_W_m2": 69.31249999999999,
+        "thermal_resistance_m2K_W": 0.2
+      },
+      "errors": {
+        "surface_K": -0.00024999999993724487,
+        "max_K": 0
+      },
+      "solver_ok": true,
+      "output_vtu": "case_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_mech_t10",
+      "typ": "mechanics",
+      "Lm": 0.025,
+      "Lf": 0.01,
+      "nxm": 12,
+      "nxf": 8,
+      "ny": 6,
+      "points": 147,
+      "load_traction_pa": 100,
+      "muscle_E_pa": 30000,
+      "fat_E_pa": 5000,
+      "poisson": 0.35,
+      "measured_max_vector_displacement_m": 0.000285811,
+      "maximum_displacement_vector_m": [
+        -0.00028239617,
+        -0.00004405177,
+        0
+      ],
+      "max_von_mises_pa": 127.472,
+      "uniaxial_series_analytic_m": 0.0002833333333333333,
+      "relative_error_vs_uniaxial": 0.008744705882353099,
+      "solver_ok": true,
+      "output_vtu": "case_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_thermal_transient_t10",
+      "typ": "transient_heat",
+      "qm": 700,
+      "qf": 60,
+      "Lm": 0.025,
+      "Lf": 0.01,
+      "nxm": 12,
+      "nxf": 8,
+      "ny": 6,
+      "points": 147,
+      "total_time_s": 720,
+      "timestep_s": 60,
+      "timesteps": 12,
+      "time_scheme": "BDF_implicit_first_order",
+      "initial_temperature_K": 310.15,
+      "temperature_min_at_12min_K": 304.685,
+      "temperature_max_at_12min_K": 310.169,
+      "steady_state_skin_target_K": 301.891,
+      "solver_ok": true,
+      "output_vtu": "case_t0001.vtu",
+      "interpretation": "Transient surface remains warmer than steady state after 12 min; heat capacity rho cp actively used in transient solve"
+    }
+  ],
+  "flags": {
+    "actual_solver_runs": true,
+    "VTU_emitted": true,
+    "validated_against_analytic": true,
+    "full_3d_anatomical_mesh_solved": false,
+    "actual_muscle_fiber_contraction": false,
+    "adipose_nonlin_compression": false,
+    "explicit_blood_perfusion": false,
+    "transient_specific_heat_solved": true,
+    "live_gameplay_physics": false,
+    "medical_model": false,
+    "model_source": "isolated homogeneous two-layer surrogate"
+  }
+}

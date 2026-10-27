@@ -18,7 +18,8 @@ const RelLedger := preload("res://scripts/sim/rel_ledger.gd")
 const SEEDS := 16
 const DAYS := 14
 ## Kritéria dlouhého běhu (zadání uživatelky 21. 10. 2026).
-const ARGUE_MIN := 0.20
+## The new model does not treat awkward/misunderstood conversation as a fight.
+const ARGUE_MIN := 0.10
 const ARGUE_MAX := 0.40
 const SPIRAL_LEVEL := -30.0
 const STRESS_HI := 85.0
@@ -428,7 +429,21 @@ func _test_long_runs() -> void:
 	var sd := _sd(rates)
 	print("  hádky: průměr %.1f %%, sm. odch. %.1f p. b., min %.0f %%, max %.0f %%" % [m * 100.0, sd * 100.0,
 		rates.min() * 100.0, rates.max() * 100.0])
-	check(m >= ARGUE_MIN and m <= ARGUE_MAX, "hádky v průměru 20–40 % rozhovorů", "%.1f %%" % (m * 100.0))
+	check(m >= ARGUE_MIN and m <= ARGUE_MAX,
+		"skutečné hádky 10–40 % rozhovorů; ostatní neúspěchy nejsou hádka", "%.1f %%" % (m * 100.0))
+	var histogram := {"chat": 0, "argue": 0, "awkward": 0, "misunderstanding": 0}
+	var all_talks := 0
+	for r in runs:
+		all_talks += int(r["talks"])
+		for kind in histogram:
+			histogram[kind] += int(r["stats"].get("outcomes", {}).get(kind, 0))
+	var outcomes_sum := 0
+	for kind in histogram:
+		outcomes_sum += int(histogram[kind])
+	check(histogram["awkward"] > 0 and histogram["misunderstanding"] > 0 and histogram["argue"] > 0,
+		"reálné nedorozumění i trapné ticho vzniká nezávisle na skutečných hádkách")
+	check(outcomes_sum == all_talks,
+		"každý rozhovor má přesně jeden odlišitelný výsledek")
 	check(rates.min() >= 0.08 and rates.max() <= 0.6, "žádný seed neujede (8–60 %)", "%.0f–%.0f %%" % [rates.min() * 100.0, rates.max() * 100.0])
 	check(runs.all(func(r): return int(r["talks"]) >= DAYS * 2), "postavy spolu mluví (aspoň 2 rozhovory denně)")
 

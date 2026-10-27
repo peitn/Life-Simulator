@@ -102,6 +102,25 @@ const ACTIONS: Array = [
 		"effects": {"social": 4.0}, "tags": ["social", "mean"], "posture": "stand",
 		"player_only": true, "forced_outcome": "negative",
 	},
+	# Difficult communication can damage trust; abuse never improves intimacy consent.
+	{"id": "reproach", "label": "Vyčítá", "object": "sim", "duration": 15.0,
+		"effects": {"social": 2.0}, "tags": ["social", "pressure"], "pressure_kind": "reproach", "base_appeal": 0.3},
+	{"id": "guilt_trip", "label": "Vyvolává vinu", "object": "sim", "duration": 15.0,
+		"effects": {}, "tags": ["social", "pressure"], "pressure_kind": "guilt_trip", "base_appeal": 0.05},
+	{"id": "blame_shift", "label": "Přehazuje odpovědnost", "object": "sim", "duration": 15.0,
+		"effects": {}, "tags": ["social", "pressure"], "pressure_kind": "blame_shift", "base_appeal": 0.02},
+	{"id": "emotional_blackmail", "label": "Citově vydírá", "object": "sim", "duration": 15.0,
+		"effects": {}, "tags": ["social", "pressure"], "pressure_kind": "emotional_blackmail", "base_appeal": 0.0},
+	{"id": "stonewalling", "label": "Odmítá komunikovat", "object": "sim", "duration": 12.0,
+		"effects": {}, "tags": ["social", "pressure"], "pressure_kind": "stonewalling", "base_appeal": 0.3},
+	# Private, consensual, adult-only encounter: two independent offers before action.
+	{"id": "intimacy_offer", "label": "Projeví zájem o intimitu", "object": "sim", "duration": 0.0,
+		"effects": {}, "tags": ["intimacy"], "content": "adult_intimacy", "player_only": true, "special": true},
+	{"id": "intimacy_withdraw", "label": "Odvolá souhlas", "object": "sim", "duration": 0.0,
+		"effects": {}, "tags": ["intimacy"], "content": "adult_intimacy", "player_only": true, "special": true},
+	{"id": "adult_consensual_sex", "label": "Stráví intimní chvíli (mimo záběr)", "object": "sim", "duration": 45.0,
+		"effects": {}, "tags": ["intimacy", "social"], "posture": "stand", "content": "adult_intimacy",
+		"interruptible": true, "private_presentation": "fade_to_black", "player_only": true},
 	{
 		"id": "text_friend", "label": "Píše si s kamarádem", "object": "", "duration": 20.0,
 		"effects": {"social": 12.0, "fun": 3.0}, "tags": ["social", "solo"], "posture": "stand",
@@ -183,6 +202,11 @@ const FUN_HEDONIC := 0.15
 ## Repliky do bublin. Dospělý tón – sprostá mluva patří k hádkám, ne k zábavě na něčí účet
 ## (žádné nadávky cílené na skutečné skupiny lidí).
 const LINES := {
+	"reproach": ["Když se tohle opakuje, mrzí mě to.", "Přijde mi, že na to zůstávám sám/sama."],
+	"guilt_trip": ["Po tom všem, co jsem pro tebe udělal(a)…", "Tohle mi snad vážně uděláš?"],
+	"blame_shift": ["Já za to nemůžu, to ty.", "Kdybys neudělal(a) tamto, nic se nestalo."],
+	"emotional_blackmail": ["Jestli ti na mně záleží, uděláš to, co chci.", "Když odmítneš, tak už se mnou nepočítej."],
+	"stonewalling": ["O tom se prostě nebudu bavit.", "Nemám ti co říct."],
 	"insult": [
 		"Ty seš fakt kretén, víš to?",
 		"Kurva, nech mě bejt.",
@@ -197,6 +221,16 @@ const LINES := {
 		"Vždycky je to jenom o tobě.",
 		"Sakra, poslouchej mě aspoň jednou.",
 		"Tohle už fakt nesnesu.",
+	],
+	"awkward": [
+		"Eh… no, asi nic.",
+		"Tak se měj.",
+		"Promiň, nevím, co na to říct.",
+	],
+	"misunderstanding": [
+		"Počkej, to jsem tak nemyslel(a).",
+		"Asi jsme se nepochopili.",
+		"To zní úplně jinak, než jak jsem to myslel(a).",
 	],
 	"insulted": [
 		"Cože jsi to řekl(a)?!",

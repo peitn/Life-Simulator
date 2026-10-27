@@ -82,9 +82,134 @@ static func _mat(material_name: String) -> StandardMaterial3D:
 	return mat
 
 
+## H2b shoulder seam corrective for legacy C5 LSX, before bind remapping.
+## The Blender source now authors the same higher two rings. This migration only
+## recognizes the old 1.164/1.096m ring heights, so a freshly regenerated LSX is
+## never offset twice. Every morph target gets the *same rest offset*, ensuring
+## blend shapes remain relative to the revised base and remain deterministic.
+static func _sleeve_join_delta(y: float) -> float:
+	if absf(y - 1.164) < 0.001:
+		return 0.045
+	if absf(y - 1.096) < 0.002:
+		return 0.012
+	return 0.0
+
+
+static func _rebuild_vertex_normals(arrays: Array, topology: PackedInt32Array = PackedInt32Array()) -> void:
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = topology if not topology.is_empty() else arrays[Mesh.ARRAY_INDEX]
+	if verts.is_empty() or indices.is_empty():
+		return
+	var normals := PackedVector3Array()
+	normals.resize(verts.size())
+	for t in range(0, indices.size(), 3):
+		var ia: int = indices[t]
+		var ib: int = indices[t + 1]
+		var ic: int = indices[t + 2]
+		var normal: Vector3 = (verts[ib] - verts[ia]).cross(verts[ic] - verts[ia])
+		normals[ia] += normal
+		normals[ib] += normal
+		normals[ic] += normal
+	var prior: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	for i in normals.size():
+		if normals[i].length_squared() > 0.000000001:
+			normals[i] = normals[i].normalized()
+		elif i < prior.size():
+			normals[i] = prior[i]
+		else:
+			normals[i] = Vector3.UP
+	arrays[Mesh.ARRAY_NORMAL] = normals
+
+
+static func _fit_legacy_sleeve(arrays: Array, blend: Array) -> void:
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	# Source sleeve topology consists of exactly five 14-vertex rings.
+	if verts.size() != 70:
+		return
+	var shifts := PackedFloat32Array()
+	shifts.resize(verts.size())
+	var top := 0
+	var next_ring := 0
+	for i in verts.size():
+		var delta: float = _sleeve_join_delta(verts[i].y)
+		shifts[i] = delta
+		if delta > 0.03:
+			top += 1
+		elif delta > 0.0:
+			next_ring += 1
+	# Fail closed for unknown sources instead of half-changing a garment.
+	if top != 14 or next_ring != 14:
+		return
+	# The legacy top two rings inherited ~73% FOREARM weight despite being
+	# embedded in the upper shirt/shoulder shell. This detached the rim on an
+	# elbow bend. Recover anatomically plausible weights from the authored ring
+	# height, not from the old (wrong) nearest shirt sample. C5 bone IDs below
+	# are in LSX order; remap to character Skin happens later in _textured_mesh.
+	var bone_ids: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+	if bone_ids.size() != verts.size() * 4 or weights.size() != bone_ids.size():
+		return
+	for i in verts.size():
+		if shifts[i] <= 0.0:
+			continue
+		var upper_id := 5 if verts[i].x > 0.0 else 8
+		var forearm_id := upper_id + 1
+		for k in 4:
+			var w: float = weights[i * 4 + k]
+			if w > 0.0001 and bone_ids[i * 4 + k] not in [upper_id, forearm_id]:
+				return
+	for i in verts.size():
+		if shifts[i] > 0.0:
+			var upper_id := 5 if verts[i].x > 0.0 else 8
+			# Shoulder rim: upper-arm anchored. Next ring: smooth transition
+			# towards the elbow, where forearm influence is physically expected.
+			var forearm: float = 0.0 if shifts[i] > 0.03 else 0.36
+			for k in 4:
+				bone_ids[i * 4 + k] = upper_id if k == 0 else (upper_id + 1 if k == 1 else 0)
+				weights[i * 4 + k] = (1.0 - forearm) if k == 0 else (forearm if k == 1 else 0.0)
+			verts[i].y += shifts[i]
+	arrays[Mesh.ARRAY_BONES] = bone_ids
+	arrays[Mesh.ARRAY_WEIGHTS] = weights
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	_rebuild_vertex_normals(arrays)
+	for target in blend:
+		var moved: PackedVector3Array = target[Mesh.ARRAY_VERTEX]
+		for i in moved.size():
+			if shifts[i] > 0.0:
+				moved[i].y += shifts[i]
+		target[Mesh.ARRAY_VERTEX] = moved
+		_rebuild_vertex_normals(target, arrays[Mesh.ARRAY_INDEX])
+
+
+## Legacy C5 hanging waist chains contain a duplicated central path sample:
+## 12 rings x 6 vertices; rings 5 and 6 coincide, collapsing 12 triangles
+## in each of three subculture bottoms. Match exact topology/duplicate
+## coordinates before moving the second ring 6 mm vertically. The authored
+## Blender generator uses the same asymmetry for new exports.
+static func _repair_legacy_waist_chain(arrays: Array, blends: Array) -> void:
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	if vertices.size() != 72:
+		return
+	for k in 6:
+		if vertices[30 + k].distance_to(vertices[36 + k]) > 0.00001:
+			return
+	for k in 6:
+		vertices[36 + k].y += 0.006
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	_rebuild_vertex_normals(arrays)
+	for shape in blends:
+		var moved: PackedVector3Array = shape[Mesh.ARRAY_VERTEX]
+		if moved.size() != vertices.size():
+			continue
+		for k in 6:
+			moved[36 + k].y += 0.006
+		shape[Mesh.ARRAY_VERTEX] = moved
+		_rebuild_vertex_normals(shape, arrays[Mesh.ARRAY_INDEX])
+
+
 ## The compact LSX stores mesh geometry but not UVs. Add deterministic world-oriented
 ## UV coordinates and approximate tangent frame without changing any blend shape or skin weights.
-static func _textured_mesh(source: ArrayMesh, mat_name: String) -> ArrayMesh:
+static func _textured_mesh(source: ArrayMesh, mat_name: String, piece: String = "") -> ArrayMesh:
 	if source == null or source.get_surface_count() == 0:
 		return null
 	var m := ArrayMesh.new()
@@ -93,6 +218,11 @@ static func _textured_mesh(source: ArrayMesh, mat_name: String) -> ArrayMesh:
 		m.add_blend_shape(source.get_blend_shape_name(i))
 	for s in source.get_surface_count():
 		var arrays := source.surface_get_arrays(s)
+		var blend := source.surface_get_blend_shape_arrays(s)
+		if piece.begins_with("sleeve_"):
+			_fit_legacy_sleeve(arrays, blend)
+		elif piece == "waist_chain":
+			_repair_legacy_waist_chain(arrays, blend)
 		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		# LSX encodes bone IDs by its own Skin order; the existing avatar's Skin uses
 		# a different bind order. Remap once while preparing the shared mesh.
@@ -116,7 +246,6 @@ static func _textured_mesh(source: ArrayMesh, mat_name: String) -> ArrayMesh:
 			tangents.append_array(PackedFloat32Array([axis.x, axis.y, axis.z, 1.0]))
 		arrays[Mesh.ARRAY_TEX_UV] = uv
 		arrays[Mesh.ARRAY_TANGENT] = tangents
-		var blend := source.surface_get_blend_shape_arrays(s)
 		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, blend)
 		m.surface_set_material(s, _mat(mat_name))
 	m.resource_name = source.resource_name
@@ -146,7 +275,7 @@ static func _load(kind: String) -> void:
 			continue
 		var style := String(tokens[3])
 		var mat_name := String(tokens[-1])
-		var mesh := _textured_mesh(mi.mesh as ArrayMesh, mat_name)
+		var mesh := _textured_mesh(mi.mesh as ArrayMesh, mat_name, String(tokens[4]))
 		if mesh == null:
 			continue
 		if not _loaded[kind].has(style):
@@ -180,6 +309,14 @@ static func active_parts(lp: Dictionary) -> Array:
 static func tint(info: Dictionary, lp: Dictionary) -> Color:
 	var mat_name := String(info.get("material", ""))
 	var part := String(info.get("name", ""))
+	# Cat applique keeps its own palette; the garment fabric remains independently tintable.
+	if String(info.get("category", "")) == "top" and String(lp.get("outfit_top", "")) == "kawaii_kocici_mikina":
+		if part == "cat_face" or part.begins_with("motif_ear_"):
+			return Color(0.94, 0.91, 0.86)
+		if part.begins_with("cat_eye_") or part.begins_with("whisker_"):
+			return Color(0.06, 0.045, 0.065)
+		if part == "cat_nose":
+			return Color(0.55, 0.16, 0.28)
 	if mat_name.begins_with("skin_"):
 		return lp.get("skin", Color(0.8, 0.6, 0.45))
 	if String(info.get("category", "")) == "shoes":

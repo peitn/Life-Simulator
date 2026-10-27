@@ -163,6 +163,7 @@ func _run_one(n: int, sd: int) -> Dictionary:
 		if m == MID_DAY * 720 - 1 and DAYS > MID_DAY:
 			mid = {"argue": w.dynamics.argue_rate(), "rel": _rel_stats(w)}
 	var argue: float = w.dynamics.argue_rate()
+	var unpleasant := unpleasant_rate(w.dynamics.stats)
 	var rel := _rel_stats(w)
 	var people: Array = []
 	var line := PackedStringArray()
@@ -201,9 +202,13 @@ func _run_one(n: int, sd: int) -> Dictionary:
 		if p["stress_hi_max_h"] > 72:
 			ok_streak = false
 			detail.append("%s dlouhý stres" % s.sim_name)
-	print("  hádky %.0f %% | vztahy ⌀%+.0f sd %.0f, ≤−50: %.0f %% | %s" % [argue * 100.0, rel["mean"], rel["sd"], rel["neg50"] * 100.0, " | ".join(line)])
-	# Jednotlivý běh smí být hádavější (skladba domácnosti: 2 bručouni ze 4), průměr velikosti hlídá _aggregate (15–40 %).
-	check(argue >= 0.10 and argue <= 0.45, "%s: hádky 10–45 %%" % tag, "%.0f %%" % (argue * 100.0))
+	print("  hádky %.0f %% (nepříjemné rozhovory %.0f %%) | vztahy ⌀%+.0f sd %.0f, ≤−50: %.0f %% | %s" % [argue * 100.0, unpleasant * 100.0, rel["mean"], rel["sd"], rel["neg50"] * 100.0, " | ".join(line)])
+	# Kritéria z běhu 23 (#164) vznikla před H5, kdy byl každý nepovedený rozhovor hádkou. Od H5 má rozhovor 4 výsledky
+	# (dobrý / hádka / trapné ticho / nedorozumění), takže původní metrice odpovídá podíl NEPŘÍJEMNÝCH rozhovorů – ten drží
+	# původní meze 10–45 % (běh) a 15–40 % (průměr velikosti). Skutečné hádky se hlídají zvlášť: nesmí zmizet (≥ 5 %)
+	# ani převládnout (≤ 45 %). Jednotlivý běh smí být hádavější (skladba domácnosti: 2 bručouni ze 4).
+	check(unpleasant >= 0.10 and unpleasant <= 0.45, "%s: nepříjemné rozhovory 10–45 %%" % tag, "%.0f %%" % (unpleasant * 100.0))
+	check(argue >= 0.05 and argue <= 0.45, "%s: skutečné hádky 5–45 %% (konflikt nezmizí ani nepřeváží)" % tag, "%.0f %%" % (argue * 100.0))
 	check(ok_low, "%s: nikdo nemá potřeby pod 20 víc než 10 %% času" % tag, ", ".join(detail))
 	check(ok_sat, "%s: deprese nikomu nezamrzne na maximu (< 25 %% času)" % tag, ", ".join(detail))
 	check(ok_drink, "%s: pití nejvýš 2× denně" % tag, ", ".join(detail))
@@ -212,13 +217,20 @@ func _run_one(n: int, sd: int) -> Dictionary:
 	# četnost napříč seedy v _aggregate; u zdravých postav platí přísná mez výše vždy.
 	check(rel["neg50"] < 0.5, "%s: žádná univerzální spirála (vztahů ≤ −50 méně než polovina)" % tag, "%.0f %%" % (rel["neg50"] * 100.0))
 	check(rel["max"] - rel["min"] >= 15.0, "%s: vztahy se liší podle povah (rozpětí ≥ 15)" % tag, "%.0f–%.0f" % [rel["min"], rel["max"]])
-	var run := {"size": n, "seed": sd, "days": DAYS, "argue": snappedf(argue, 0.001), "rel": rel, "mid": mid, "people": people,
+	var run := {"size": n, "seed": sd, "days": DAYS, "argue": snappedf(argue, 0.001), "unpleasant": snappedf(unpleasant, 0.001), "rel": rel, "mid": mid, "people": people,
 		"long_severe": not ok_streak}
 	report["runs"].append(run)
 	w.queue_free()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	return run
+
+
+## Podíl nepříjemných rozhovorů (hádka + trapné ticho + nedorozumění) ze statistik HouseholdDynamics.
+static func unpleasant_rate(stats: Dictionary) -> float:
+	var o: Dictionary = stats.get("outcomes", {})
+	var bad := float(o.get("argue", 0)) + float(o.get("awkward", 0)) + float(o.get("misunderstanding", 0))
+	return bad / maxf(1.0, float(stats.get("talks", 0)))
 
 
 func _rel_stats(w: Node3D) -> Dictionary:
@@ -274,13 +286,17 @@ func _aggregate(n: int, runs: Array) -> void:
 		"stress_hi_predisposed": _ms(hi_p), "relationship_mean": _ms(rel_mean)}
 	var long_runs := 0
 	var argue_mean := 0.0
+	var unpleasant_mean := 0.0
 	for r in runs:
 		argue_mean += float(r["argue"]) / runs.size()
+		unpleasant_mean += float(r.get("unpleasant", r["argue"])) / runs.size()
 		if bool(r.get("long_severe", false)):
 			long_runs += 1
 	agg["long_severe_runs"] = long_runs
 	report["sizes"][str(n)] = agg
-	check(argue_mean >= 0.15 and argue_mean <= 0.40, "%d postav: průměr hádek přes seedy 15–40 %%" % n, "%.0f %%" % (argue_mean * 100.0))
+	agg["unpleasant_mean"] = snappedf(unpleasant_mean, 0.001)
+	check(unpleasant_mean >= 0.15 and unpleasant_mean <= 0.40, "%d postav: průměr nepříjemných rozhovorů přes seedy 15–40 %%" % n,
+		"%.0f %% (z toho skutečné hádky %.0f %%)" % [unpleasant_mean * 100.0, argue_mean * 100.0])
 	check(long_runs <= ceili(runs.size() * 0.25), "%d postav: stres > 85 déle než 72 h v kuse nanejvýš v ~čtvrtině běhů (menšinový těžký průběh)" % n,
 		"%d z %d" % [long_runs, runs.size()])
 	print("\n  SOUHRN %d postav (%d seedů): hádky %s | nálada zdraví %s, s predispozicí %s | stres>85 (predisp.) %s | vztahy ⌀ %s" % [

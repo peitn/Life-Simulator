@@ -1,568 +1,826 @@
-# Life Simulator – audit kvality
+# Life Simulator – quality audit
 
-Každý běh: self-review změněných souborů, `godot_check`, automatické testy v `res://tests/`,
-nezávislý audit (Gemini, příp. ChatGPT v AI místnosti). Otevřené nálezy mají v dalším běhu přednost.
+Every run does:
+- a self-review of changed files;
+- `godot_check`;
+- automated tests in `res://tests/`;
+- an independent audit (Gemini, and ChatGPT in the AI room where available).
 
-Spuštění testů: `godot_run scene=res://tests/<test>.tscn` a `godot_run -- --test N` (headless simulace).
+Open findings take priority in the next run.
 
----
-
-## 2026-10-23 (běh 23, ~02:50–04:05 UTC, plánovaný) – uzavření běhu 22 + ladění plné domácnosti + zátěžová matice
-
-**Rozsah:** dokončení běhu 22 (spadl před uzavřením; C3++ opravy, C4c mikrodetail kůže, schéma v7), ladění plné domácnosti
-z hlavního chatu (#161: `sensory_profile.gd`, `household_dynamics.gd`, `mental_state.gd`, `depression.gd`, `utility_planner.gd`,
-`sim_agent.gd`, `action_library.gd`, `main.gd`, `test_crowded_household`), nově v běhu 23: `tests/test_household_matrix.gd`,
-`tests/data/household_extra.json`, `MentalState.stress_sources`, opravy z matice (`sim_agent.gd`, `mental_state.gd`),
-`skin_layers.gd` (mastná pleť), docs. Souběžně (03:21 UTC) hlavní chat upravil `depression.gd` + `test_depression.gd`
-+ docs/mental-health.md (stupně závažnosti epizod) – regrese běhu 23 je zahrnuje.
-
-**Běh 22 (doplněno, běh spadl před zápisem):** testy test_skin_micro 50/50 (nový), test_face_detail 66/66 (nové kontroly tvaru),
-regrese všech sad OK; Gemini 5 bodů – 1 oprava (pojistka logaritmu v `nasolabial()`), 4 zdůvodněně odmítnuty (podrobnosti
-se z checkpointu nedochovaly); review C4c v místnosti #156 (soubor 6b07570a…) zatím bez odpovědi.
-
-**a) Self-review a vizuální kontrola:**
-- `godot_check` hlásil chybu v `scripts/circulatory/test_circulatory_smoke.gd` (skeleton Groka, mimo plán): třída
-  `CirculatorySystem` nebyla v cache globálních tříd. Editor import (`--editor --quit`) cache obnovil → 60/60 bez zásahu do
-  souborů. Krevní oběh zůstává v rezervoáru, do simulace zapojen není.
-- Render C4c (Blender, finální GLB md5 d9fd3513…) prohlédnut: otevřená ústa jako čočka a Duchennův úsměv OK; typy pleti:
-  normální, suchá (řídké šupinky ve skupinkách) a smíšená OK, **mastná působila mokře po celé tváři** → `SKIN_TYPE_ZONES`
-  oily: maz na tvářích 0,8 → 0,55 (T-zóna 1,0). Obrázky `docs/images/c4c-skin-types-run22.jpg`, `c4c-expressions-run22-final.jpg`.
-- Self-review `sensory_profile.gd` a výňatků domácnosti (hlavní chat): bez chyb; poznámky viz Gemini.
-
-**b) Testy (na pozadí, logy previews/testlogs):**
-- Před opravami z matice (r23/r23b): crowded_household 50, household_dynamics 78, mental_health 95, depression 92,
-  reconciliation 58, player_commands 40, psyche_presentation 19, net_protocol 34, multiplayer 67, psyche 93, character_v2 43,
-  character_net 28, neck_length 36, body_morphs 62, skin 61, skin_micro 50, face_detail 66, hair 60, neck_seam 56,
-  assets 155, audio_tone 222, head 43. **test_character 156/157** – posuvník 5,36–6,34 ms (limit 4) při zátěži stroje;
-  rozpad při zátěži: validace ~3,0 ms, `public_snapshot` ~3,9 ms (znovu validuje přes `repaired`), aplikace ~2,7 ms. Běh 22
-  naměřil samostatně 3,94 ms. Nejde o regresi kódu běhu 23; optimalizace snapshotu (nevalidovat podruhé data, která
-  prošla validátorem) je v ROADMAP pro C6.
-- **Zátěžová matice** (nový `test_household_matrix`, 1. průchod): 110/112. ✘ 4 postavy seed 3: hádky 42 % (domácnost
-  Jana/Petr/Eliška/Tomáš má 2 bručouny ze 4); ✘ 8 postav seed 1: Lucie (úzkost 0,9 + deprese 0,45 + šikana) 139 h v kuse
-  se stresem > 85, nálada −86; seed 3: 69 h. Determinismus stejného seedu ✔. Tomáš (deprese 0,95 + 2 traumata): epizoda
-  v 6 z 12 běhů.
-- **Diagnostika** (`previews/diag/lucie_diag.gd`, nový čítač `MentalState.stress_sources`): (1) stres z tlačenice se
-  počítal i ve spánku (8 lidí, 3 postele → spaní na zemi vedle ostatních; ~64 bodů první den), (2) od ~10. dne „needs“
-  ~40 bodů/den – samota (social 0) stresovala i ve spánku (~17 bodů za noc). **Opravy:** tlačenice jen v bdělosti
-  (`sim_agent._mental_tick`), ve spánku stresují jen tělesné potřeby (`MentalState.SLEEP_UNMET`: hlad ×0,5). Stejný seed:
-  stresový týden (⌀ 70–77, deprese do 0,47), pak zotavení (⌀ ~40), bez saturace.
-- **Kritéria matice upravena podle review ChatGPT #164** (distribuce, ne „všichni zdraví“): zdravé postavy přísně v každém
-  běhu (stres > 85 < 10 % času a ≤ 24 h v kuse); dlouhý těžký stav (> 85 déle než 72 h) u predispozice přípustný v ≤ ~¼
-  běhů dané velikosti; hádky v jednom běhu 10–45 %, průměr velikosti 15–40 %.
-- Po opravách (r23c/r23d/r23e): **test_household_matrix 105/106** – 4 postavy hádky 41 ± 2 % (✘ průměr 15–40 %; jednotlivé
-  běhy 41–44 %, vztahy ⌀ +12), 6 postav 19 ± 3 %, 8 postav 24 ± 2 %; stres > 85 u zdravých 0 % ve všech bězích; nejdelší úsek
-  > 85 u predispozice 17 h (dřív 139 h); Lucie v 8 lidech: seed 1 nálada −1 (dřív −86), seedy 2–3 těžší průběh (nálada −61/−70,
-  19–27 % času nad 85, max 17 h v kuse) – přípustný menšinový průběh; Tomáš: epizoda ve 4 z 12 běhů; determinismus ✔.
-  Rozbor 4 postav (12 dní): 121 rozhovorů, 55 neúspěšných, 36 třenic „nádobí“ (3/den), polarizované vztahy (Jana–Eliška +75,
-  Jana–Tomáš −28, Petr–Eliška −23) → **otevřený nález** pro další běh (četnost „nádobí“ v malé domácnosti; neúspěšný
-  rozhovor ≠ hádka).
-  Regrese simulace po opravách: crowded_household 50, mental_health 95, depression 106 (se stupni závažnosti z hlavního
-  chatu), household_dynamics 78, psyche 93, reconciliation 58, player_commands 40, psyche_presentation 19; test_multiplayer
-  2× ✘ „klientské hodiny převzaly pauzu“ (i samostatně), potřetí samostatně **67/67** → časový flake (okno 2 s → 5 s,
-  kontrola teď vypisuje rychlosti a počet synchronizací); test_character 156/157 – posuvník 4,61–6,18 ms při zátěži.
-  `godot_check` 60/60.
-
-**c) Gemini** (`gemini-3.5-flash-lite`; `3.5-pro` neexistuje, `3.5-flash` přetížený):
-1. *VYSOKÁ: `hash([seed, "sensory"])` nedeterministický* – **částečně**: `hash()` pole je v rámci jedné verze enginu
-   deterministický a profil je jen na serveru, ale závisí na implementaci enginu (uložené hry po upgradu) → **opraveno**:
-   explicitní míchání `(seed * 0x9E3779B1 + 0x5E5E5017) & 0x7FFF…`.
-2. *VYSOKÁ: O(n²) v `HouseholdDynamics.tick`* – **zamítnuto**: ≤ 8 postav = 56 dvojic za 10 herních minut; prostorový filtr
-   je v ROADMAP pro větší parcely.
-3. *VYSOKÁ: hádky na dálku přes manipulaci paketů* – **zamítnuto**: tření počítá jen server, klient nic takového neposílá.
-4. *VYSOKÁ: pití lze „optimalizovat“* – **částečně**: AI ne, ale hráč mohl opakovaně přerušit pití pod 0,3 dávky a obejít
-   okno → **opraveno**: do okna se počítá dávka > 0,1. Trvalé „ničení“ zdravých copingů za alkohol odmítnuto (nerealistické).
-5. *STŘEDNÍ: `exp(-dm/τ)` nestabilní pro velké dm* – **zamítnuto**: exponenciální rozpad je přesný pro libovolné dm.
-6. *STŘEDNÍ: derivace v shaderu nejsou deterministické* – **zamítnuto**: jde jen o vykreslení, simulace ani snapshot je nepoužívají.
-- Druhé kolo (opravy z matice): (1) *spánek jako „tlačítko proti stresu“* – **zamítnuto/ověřeno**: uklidnění ve spánku
-  existovalo dřív, změna jen přestala přičítat samotu a dav; spánek končí při plné energii (`until_full`) a přes den ho
-  planner tlumí – hráč z něj nástroj neudělá; usínání při vysoké aktivaci (nespavost) je otevřený bod. (2) *časovač
-  tlačenice závislý na snímcích* – zamítnuto (počítá se v herních minutách `dm`). (3) *nepohodlí spaní na zemi by mělo
-  stresovat* – **částečně**: realističtěji snižuje kvalitu spánku → otevřený bod pro bydlení/nábytek. (4) *alokace slovníku*
-  – zamítnuto (volá se jen v diagnostice).
-
-**d) Review v místnosti:** ChatGPT #164 (distribuce místo „všichni zdraví“, kontrolované scénáře, víc seedů) – zapracováno do
-kritérií, scénáře a víc seedů v ROADMAP; Grok #157 (kritéria matice) – zapracováno; review soubor #163 (sensory_profile,
-test_household_matrix) čeká na odpověď.
-
-**Otevřené body:** výkon posuvníku pod zátěží (C6); nespavost při vysoké aktivaci; kvalita spánku na zemi; kontrolované
-scénáře matice; krevní oběh (rezervoár, rozhodne uživatelka); GitHub push z plánovaných běhů dál blokuje proxy.
+Running tests: `godot_run scene=res://tests/<test>.tscn` and `godot_run -- --test N` (headless simulation).
 
 ---
 
-## 2026-10-22 (běh 21, ~18:20–19:05 + ~20:58–21:45 UTC, plánovaný; první pokus spadl) – C3++ detaily obličeje a mimika
+## 2026-10-23 (run 23, ~02:50–04:05 UTC, scheduled) – closing run 22 + full-household tuning + stress matrix
 
-**Rozsah:** `scripts/assets/head_builder.gd` (řasy, zuby, dáseň, jazyk, dutina úst, limbus, zornice, mimika `ex_*`, rotace
-čelisti), `scripts/character/face_morphs.gd` (detail_values, expression_weights, cache weights), `character_schema.gd` (**v6**:
-FACE_DETAILS, makeup.mascara, cache polí face), `character_codec.gd` (v5→v6), `character_randomizer.gd` (_face_details),
-`appearance_resolver.gd` (barvy zubů/dásně/jazyka/řas/limbu), `scripts/sim/sim_visual.gd` (mimika, mrkání, řeč, výkon),
-`assets/models/character.glb` (přeimport 2×), `tests/test_face_detail.gd` (nový), úpravy test_head/test_psyche/test_character/
-test_assets, `tools/face_render_export.gd`, `tools/blender/face_render.py`, docs.
-První pokus (od ~18:20) spadl po implementaci a test_face_detail (checkpoint 19:05); tento běh navázal regresí.
+**Scope:**
+- Completing run 22, which crashed before closing: C3++ fixes, C4c skin micro detail, schema v7.
+- Full-household tuning from the main chat (#161): `sensory_profile.gd`, `household_dynamics.gd`, `mental_state.gd`,
+  `depression.gd`, `utility_planner.gd`, `sim_agent.gd`, `action_library.gd`, `main.gd`, `test_crowded_household`.
+- New in run 23: `tests/test_household_matrix.gd`, `tests/data/household_extra.json`, `MentalState.stress_sources`,
+  fixes from the matrix (`sim_agent.gd`, `mental_state.gd`), `skin_layers.gd` (oily skin), docs.
+- In parallel (03:21 UTC) the main chat changed `depression.gd` + `test_depression.gd` + docs/mental-health.md (episode
+  severity levels). The run 23 regression includes these changes.
 
-**a) Self-review a vizuální kontrola:**
-- Regrese po prvním pokusu: 3 zastaralé testy (ne chyby kódu) – test_psyche čekal `VERSION == 5`, test_character počet polí
-  face bez FACE_DETAILS, test_assets rozpočet 18 000 tri (postava má 19 260 – řasy ~730, ústa ~1 600) → testy obecně na
-  aktuální verzi, rozpočet 20 000 (zdůvodnění v docs/asset-pipeline.md).
-- **Výkon posuvníku 5,8 ms (limit 4)** – regrese běhu 21 (~90 blend shapes na každém povrchu hlavy, víc polí). Opraveno:
-  `Schema.fields("face")` v cache (jen pro čtení), `FaceMorphs.weights` s cache (klíč = hash vstupů + plné porovnání, vrací
-  kopii), `apply_face_shape` přeskočí stejné váhy a zapisuje jen změněné hodnoty, cache názvů blend shapes podle sítě →
-  3,68 ms v testu (nejlepší dávka 3,82 ms při zátěži hostitele ~50 na 2 jádrech; měření je hlučné).
-- **Render v Blenderu** (Cycles, 8 výrazů × 4 pohledy, docs/images/c3pp-expressions-run21-before.jpg) – prohlédnut:
-  (1) úsměv vypadal jako grimasa – koutky se nezvedaly, jen se rozestoupily rty → koutky +5,8 mm nahoru / −3,4 mm dozadu
-  v užším poli (σ 11,5 mm), dolní ret uprostřed −1,2 mm (jen pod linií úst); (2) řasy mířily podél normály víčka nahoru,
-  zepředu vypadaly jako vějíř pod obočím → vycházejí dopředu a stáčejí se, vliv lash_length 0,32 → 0,24. Po přeimportu
-  detail (docs/images/c3pp-mouth-lashes-run21-after.jpg): úsměv čitelný, řasy krátké linky u víčka, mrknutí zavírá oko
-  čistě, zuby/mezera/nerovnosti viditelné bez karikatury. Zůstává: otevřená ústa mají hranaté koutky; materiál řas
-  v Blenderu je jen náhrada (vypadají světlejší než ve hře).
-- `_write_expression`: drift pod prahem se sčítá (porovnává se s posledním zapsaným vstupem), po invalidaci slotů se
-  počítá znovu; `apply_face_shape` se po výměně sítě vlasů invaliduje spolu se sloty mimiky.
+**Run 22 (added afterwards; the run crashed before writing it):**
+- Tests: test_skin_micro 50/50 (new), test_face_detail 66/66 (new shape checks), regression of all suites OK.
+- Gemini raised 5 points: 1 fixed (a guard for the logarithm in `nasolabial()`), 4 rejected with reasons (the details
+  were not preserved in the checkpoint).
+- The C4c review in room #156 (file 6b07570a…) has no answer yet.
 
-**b) Testy (běží na pozadí přes setsid, logy v previews/testlogs – nástroj má strop 120 s, test_head trvá ~4 min):**
-test_face_detail **55/55** (nový) · test_head 43 · test_character 157 (posuvník 3,68 ms) · test_character_v2 43 ·
-test_character_net 28 · test_multiplayer 67 (1× flake „klientské hodiny převzaly pauzu“ při zátěži, samostatně 67/67) ·
-test_hair 60 · test_skin 61 · test_body_morphs 62 · test_neck_length 36 · test_neck_seam 56 · test_assets 155 ·
-test_psyche 93 · mental_health 95 · depression 92 · reconciliation 58 · household_dynamics 78 · player_commands 40 ·
-psyche_presentation 19 · net_protocol 34 · audio_tone 222 · `--test 7` OK (hádky 40 %, stres > 85 0 min) · hra 25 s bez
-chyb · `godot_check` 60/60.
+**a) Self-review and visual check:**
+- `godot_check` reported an error in `scripts/circulatory/test_circulatory_smoke.gd` (Grok's skeleton, outside the plan):
+  the `CirculatorySystem` class was missing from the global class cache. An editor import (`--editor --quit`) restored
+  the cache → 60/60 without touching any files. The circulatory system stays in the reservoir and is not wired into the
+  simulation.
+- C4c render inspected (Blender, final GLB md5 d9fd3513…):
+  - the open mouth as a lens and the Duchenne smile are OK;
+  - skin types normal, dry (sparse flakes in clusters) and combination are OK;
+  - **oily skin looked wet over the whole face** → `SKIN_TYPE_ZONES` oily: sebum on the cheeks 0.8 → 0.55 (T-zone 1.0).
 
-**c) Gemini (flash-lite), 8 bodů, 1 zapracován:** (1) slovník vah mimiky se staví každý snímek → **opraveno** (klidová tvář
-nic nepočítá ani nealokuje). (2) „chybí serverová validace polí v6“ → odmítnuto: validátor validuje všechna pole ze
-`Schema.fields("face")` (FACE_DETAILS jsou jeho součástí), fuzz v test_character a test_face_detail; ořez v FaceMorphs je
-druhá pojistka. (3) `get_instance_id()` v seedu mrkání nedeterministický → odmítnuto záměrně: mrkání je klientská prezentace,
-nereplikuje se a peery se na něm shodnout nemusí (rozfázování mezi postavami). (4) duplicitní k (1). (5) operátor `^`
-→ odmítnuto: v reálném kódu je `pow()`, `^` byl jen zkrácený zápis v zadání. (6) věk a odstín zubů/hustota řas jako
-stereotyp → odmítnuto: věk posouvá jen průměr normálního rozdělení (σ 0,12–0,15), nic není garantované, žádná vazba na rod
-či původ. (7) dělení nulou v tečně řas → odmítnuto: ošetřeno prahem 1e-9 s náhradní osou. (8) formátování klíče oka →
-odmítnuto: offline stavba sítě, ne za běhu.
+  Images: `docs/images/c4c-skin-types-run22.jpg`, `c4c-expressions-run22-final.jpg`.
+- Self-review of `sensory_profile.gd` and the household excerpts (main chat): no errors; notes under Gemini.
 
-**d) ChatGPT/Grok:** Grok #148 (review běhu 20) – metrika rezidua a explain() oříznuté komorbidity → do 2. osy psychiky;
-sloty oblečení jako povrchy nad morfy → C5. ChatGPT #150 (Elmer FEM) – bez akce.
+**b) Tests (in the background, logs in previews/testlogs):**
+- **Before the matrix fixes (r23/r23b):**
+  - crowded_household 50, household_dynamics 78, mental_health 95, depression 92, reconciliation 58, player_commands 40,
+    psyche_presentation 19, net_protocol 34, multiplayer 67, psyche 93, character_v2 43, character_net 28,
+    neck_length 36, body_morphs 62, skin 61, skin_micro 50, face_detail 66, hair 60, neck_seam 56, assets 155,
+    audio_tone 222, head 43.
+  - **test_character 156/157**: the slider took 5.36–6.34 ms (limit 4) under machine load. Breakdown under load:
+    validation ~3.0 ms, `public_snapshot` ~3.9 ms (it re-validates through `repaired`), application ~2.7 ms. Run 22
+    measured 3.94 ms on its own.
+  - This is not a code regression from run 23. Optimising the snapshot (not validating data a second time after it has
+    passed the validator) is in the ROADMAP for C6.
+- **Stress matrix** (new `test_household_matrix`, first pass): 110/112.
+  - ✘ 4 characters, seed 3: arguments 42 % (the household Jana/Petr/Eliška/Tomáš has 2 grumps out of 4).
+  - ✘ 8 characters, seed 1: Lucie (anxiety 0.9 + depression 0.45 + bullying) spent 139 h in a row with stress > 85,
+    mood −86; seed 3: 69 h.
+  - Same-seed determinism ✔.
+  - Tomáš (depression 0.95 + 2 traumas): an episode in 6 of 12 runs.
+- **Diagnostics** (`previews/diag/lucie_diag.gd`, new counter `MentalState.stress_sources`) found two causes:
+  1. Stress from crowding was counted even during sleep (8 people, 3 beds → sleeping on the floor next to the others;
+     ~64 points on the first day).
+  2. From about day 10, "needs" gave ~40 points a day: loneliness (social 0) caused stress even during sleep (~17
+     points per night).
 
-**e) Otevřené:** hranaté koutky otevřených úst; GitHub push z plánovaných běhů blokovaný (nástroj add_repo v běhu není).
+  **Fixes:** crowding counts only while awake (`sim_agent._mental_tick`); during sleep only bodily needs cause stress
+  (`MentalState.SLEEP_UNMET`: hunger ×0.5). On the same seed: a stressful week (⌀ 70–77, depression up to 0.47), then
+  recovery (⌀ ~40), no saturation.
+- **Matrix criteria adjusted after ChatGPT review #164** (a distribution, not "everyone healthy"):
+  - healthy characters strictly in every run (stress > 85 < 10 % of the time and ≤ 24 h in a row);
+  - a long severe state (> 85 for more than 72 h) is acceptable with predisposition in ≤ ~¼ of runs of a given size;
+  - arguments 10–45 % in a single run, size average 15–40 %.
+- **After the fixes (r23c/r23d/r23e): test_household_matrix 105/106.**
+  - 4 characters: arguments 41 ± 2 % (✘ average 15–40 %; individual runs 41–44 %, relationships ⌀ +12).
+  - 6 characters: 19 ± 3 %. 8 characters: 24 ± 2 %.
+  - Stress > 85 for healthy characters: 0 % in all runs.
+  - Longest stretch > 85 with predisposition: 17 h (previously 139 h).
+  - Lucie in an 8-person household: seed 1 mood −1 (previously −86). Seeds 2–3 were harder (mood −61/−70, 19–27 % of the
+    time above 85, max 17 h in a row); this is an acceptable minority course.
+  - Tomáš: an episode in 4 of 12 runs. Determinism ✔.
+  - Analysis of the 4-person household (12 days): 121 conversations, 55 unsuccessful, 36 "dishes" frictions (3 a day),
+    polarised relationships (Jana–Eliška +75, Jana–Tomáš −28, Petr–Eliška −23). → **Open finding** for the next run: the
+    frequency of "dishes" in a small household; an unsuccessful conversation ≠ an argument.
+- **Simulation regression after the fixes:**
+  - crowded_household 50, mental_health 95, depression 106 (with severity levels from the main chat),
+    household_dynamics 78, psyche 93, reconciliation 58, player_commands 40, psyche_presentation 19.
+  - test_multiplayer ✘ twice on "client clock took over the pause" (also when run on its own); the third standalone
+    run passed **67/67** → a timing flake. The window went from 2 s to 5 s, and the check now prints speeds and the
+    number of synchronisations.
+  - test_character 156/157: the slider took 4.61–6.18 ms under load.
+  - `godot_check` 60/60.
+
+**c) Gemini** (`gemini-3.5-flash-lite`; `3.5-pro` does not exist, `3.5-flash` overloaded):
+1. *HIGH: `hash([seed, "sensory"])` is non-deterministic* – **partly valid**. Within one engine version `hash()` of an
+   array is deterministic, and the profile exists only on the server, but it depends on the engine implementation (saved
+   games after an upgrade). → **Fixed** with explicit mixing `(seed * 0x9E3779B1 + 0x5E5E5017) & 0x7FFF…`.
+2. *HIGH: O(n²) in `HouseholdDynamics.tick`* – **rejected**: ≤ 8 characters = 56 pairs per 10 game minutes. A spatial
+   filter is in the ROADMAP for larger lots.
+3. *HIGH: remote arguments through packet manipulation* – **rejected**: only the server computes friction, and the client
+   sends nothing of the kind.
+4. *HIGH: drinking can be "optimised"* – **partly valid**. The AI cannot, but the player could repeatedly interrupt
+   drinking below 0.3 of a dose and bypass the window. → **Fixed**: any dose > 0.1 counts towards the window. Permanently
+   "destroying" healthy coping because of alcohol was rejected as unrealistic.
+5. *MEDIUM: `exp(-dm/τ)` unstable for large dm* – **rejected**: exponential decay is exact for any dm.
+6. *MEDIUM: derivatives in the shader are not deterministic* – **rejected**: they only affect rendering; neither the
+   simulation nor the snapshot uses them.
+
+Second round (matrix fixes):
+1. *Sleep as an "anti-stress button"* – **rejected/verified**. Calming during sleep existed before; the change only
+   stopped adding loneliness and crowding. Sleep ends at full energy (`until_full`) and the planner dampens it during
+   the day, so the player cannot turn it into a tool. Falling asleep under high arousal (insomnia) is an open point.
+2. *Crowding timer depends on frames* – rejected (it is computed in game minutes `dm`).
+3. *The discomfort of sleeping on the floor should cause stress* – **partly valid**: more realistically it lowers sleep
+   quality → open point for housing/furniture.
+4. *Dictionary allocation* – rejected (it is called only in diagnostics).
+
+**d) Review in the room:**
+- ChatGPT #164 (distribution instead of "everyone healthy", controlled scenarios, more seeds): worked into the criteria;
+  scenarios and more seeds are in the ROADMAP.
+- Grok #157 (matrix criteria): worked in.
+- The review file #163 (sensory_profile, test_household_matrix) is waiting for an answer.
+
+**Open points:**
+- slider performance under load (C6);
+- insomnia under high arousal; sleep quality on the floor;
+- controlled matrix scenarios;
+- circulatory system (reservoir; the owner decides);
+- GitHub push from scheduled runs is still blocked by the proxy.
 
 ---
 
-## 2026-10-22 (běh 20, ~15:40–17:00 UTC, plánovaný) – 1. osa psychiky (PsycheModel)
+## 2026-10-22 (run 21, ~18:20–19:05 + ~20:58–21:45 UTC, scheduled; the first attempt crashed) – C3++ face details and expressions
 
-**Rozsah:** nový `scripts/psyche/psyche_model.gd`, `data/conditions/anxiety.json` + `depression.json`, `scripts/sim/mental_state.gd`
-(CONDITIONS ze dat, háčky, vazby, `cfg_mode`), `sim_agent.gd` (`apply_character_private` → `set_psyche`), `utility_planner.gd`
-(cfg do `coping_appeal`), schéma **v5** (`character_schema.gd` HEXACO + 2 pole, `character_validator.gd` typ `axes`,
-`character_codec.gd` migrace v4→v5, `character_randomizer.gd` seed na konci), `tests/test_psyche.gd` (nový),
-`tests/test_neck_length.gd` (verze obecně), docs. Předchozí pokus o běh 20 (~11:50) poslal jen plán #140 a nic nezapsal.
+**Scope:**
+- `scripts/assets/head_builder.gd`: lashes, teeth, gums, tongue, mouth cavity, limbus, pupils, `ex_*` expressions, jaw
+  rotation.
+- `scripts/character/face_morphs.gd`: detail_values, expression_weights, weight cache.
+- `character_schema.gd` (**v6**: FACE_DETAILS, makeup.mascara, face field cache) and `character_codec.gd` (v5→v6).
+- `character_randomizer.gd` (_face_details) and `appearance_resolver.gd` (colours of teeth/gums/tongue/lashes/limbus).
+- `scripts/sim/sim_visual.gd`: expressions, blinking, speech, performance.
+- `assets/models/character.glb`, re-imported twice.
+- Tests: `tests/test_face_detail.gd` (new); changes to test_head/test_psyche/test_character/test_assets.
+- Tools: `tools/face_render_export.gd`, `tools/blender/face_render.py`; docs.
+
+The first attempt (from ~18:20) crashed after the implementation and test_face_detail (checkpoint 19:05); this run
+continued with the regression.
+
+**a) Self-review and visual check:**
+- Regression after the first attempt: 3 outdated tests (not code errors):
+  - test_psyche expected `VERSION == 5`;
+  - test_character counted face fields without FACE_DETAILS;
+  - test_assets had an 18,000-triangle budget, but the character now has 19,260 (lashes ~730, mouth ~1,600).
+
+  The tests now check the current version, and the budget is 20,000 (justified in docs/asset-pipeline.md).
+- **Slider performance 5.8 ms (limit 4)** – a run 21 regression (~90 blend shapes on every head surface, more fields).
+  - Fixed: `Schema.fields("face")` cached (read-only); `FaceMorphs.weights` cached (key = hash of inputs + full
+    comparison, returns a copy); `apply_face_shape` skips identical weights and writes only changed values; blend shape
+    names cached per mesh.
+  - Result: 3.68 ms in the test (best batch 3.82 ms with host load ~50 on 2 cores; the measurement is noisy).
+- **Blender render** (Cycles, 8 expressions × 4 views, docs/images/c3pp-expressions-run21-before.jpg), inspected:
+  1. The smile looked like a grimace: the corners did not rise, only the lips parted. → Corners +5.8 mm up / −3.4 mm back
+     in a narrower field (σ 11.5 mm); the middle of the lower lip −1.2 mm (only below the mouth line).
+  2. The lashes pointed up along the eyelid normal and from the front looked like a fan under the eyebrow. → They now
+     come out forwards and curl; the lash_length influence went from 0.32 to 0.24.
+- Detail after re-import (docs/images/c3pp-mouth-lashes-run21-after.jpg): the smile reads clearly, the lashes are short
+  lines at the eyelid, a blink closes the eye cleanly, and teeth/gaps/irregularities are visible without caricature.
+- Remaining: the open mouth has angular corners; the lash material in Blender is only a stand-in (they look lighter than
+  in the game).
+- `_write_expression`: drift below the threshold accumulates (it compares with the last written input) and is recomputed
+  after slots are invalidated. `apply_face_shape` is invalidated together with the expression slots when the hair mesh is
+  swapped.
+
+**b) Tests** (run in the background via setsid, logs in previews/testlogs – the tool has a 120 s cap and test_head
+takes ~4 min):
+- test_face_detail **55/55** (new).
+- test_head 43, test_character 157 (slider 3.68 ms), test_character_v2 43, test_character_net 28.
+- test_multiplayer 67: one flake ("client clock took over the pause") under load; 67/67 when run alone.
+- test_hair 60, test_skin 61, test_body_morphs 62, test_neck_length 36, test_neck_seam 56, test_assets 155.
+- test_psyche 93, mental_health 95, depression 92, reconciliation 58, household_dynamics 78, player_commands 40,
+  psyche_presentation 19, net_protocol 34, audio_tone 222.
+- `--test 7` OK (arguments 40 %, stress > 85 0 min); game ran 25 s without errors; `godot_check` 60/60.
+
+**c) Gemini (flash-lite): 8 points, 1 adopted:**
+1. The expression weight dictionary is built every frame → **fixed** (a resting face computes and allocates nothing).
+2. "Missing server validation of v6 fields" → rejected: the validator validates every field from `Schema.fields("face")`
+   (FACE_DETAILS are part of it), with fuzzing in test_character and test_face_detail; clamping in FaceMorphs is a second
+   safeguard.
+3. `get_instance_id()` in the blink seed is non-deterministic → rejected on purpose: blinking is client-side presentation,
+   it is not replicated, and peers do not need to agree on it (phase offset between characters).
+4. Duplicate of (1).
+5. The `^` operator → rejected: the real code uses `pow()`; `^` was only shorthand in the prompt.
+6. Age and tooth shade / lash density as a stereotype → rejected: age only shifts the mean of a normal distribution
+   (σ 0.12–0.15), nothing is guaranteed, and there is no link to gender or origin.
+7. Division by zero in the lash tangent → rejected: handled with a 1e-9 threshold and a fallback axis.
+8. Eye key formatting → rejected: offline mesh building, not at runtime.
+
+**d) ChatGPT/Grok:**
+- Grok #148 (run 20 review): the residual metric and explain() of clipped comorbidity → into psyche axis 2; clothing slots
+  as surfaces over morphs → C5.
+- ChatGPT #150 (Elmer FEM): no action.
+
+**e) Open:** angular corners of the open mouth; GitHub push from scheduled runs blocked (the add_repo tool is not
+available in the run).
+
+---
+
+## 2026-10-22 (run 20, ~15:40–17:00 UTC, scheduled) – psyche axis 1 (PsycheModel)
+
+**Scope:**
+- New `scripts/psyche/psyche_model.gd`, plus `data/conditions/anxiety.json` and `depression.json`.
+- `scripts/sim/mental_state.gd`: CONDITIONS from data, hooks, couplings, `cfg_mode`.
+- `sim_agent.gd` (`apply_character_private` → `set_psyche`) and `utility_planner.gd` (cfg into `coping_appeal`).
+- Schema **v5**: `character_schema.gd` (HEXACO + 2 fields), `character_validator.gd` (type `axes`), `character_codec.gd`
+  (migration v4→v5), `character_randomizer.gd` (seed drawn at the end).
+- Tests: `tests/test_psyche.gd` (new), `tests/test_neck_length.gd` (generic version check); docs.
+
+An earlier attempt at run 20 (~11:50) only sent plan #140 and wrote nothing.
 
 **a) Self-review:**
-- Dvojí započtení: první návrh by D z rysů a diagnóz pustil do háčků navíc k dnešním mechanikám (Úzkostlivý už má
-  `trait_vuln`, Impulzivní flag `impulsive`) → zavedeno **reziduum D − D_legacy** (nesené příspěvky bez individuality).
-  Test: bez individuality a explicitní osobnosti je reziduum přesně 0 u 60 náhodných postav; MentalState s takovými háčky
-  je bit po bitu shodný se stavem bez háčků (600 min se stresory).
-- Bug nalezený testem: `pers["traits"]` při chybějícím klíči (výchozí `[]` z `get` prošlo typovou kontrolou) → čte se jednou
-  do lokální proměnné. Odstraněna nepoužitá proměnná `cond_add`.
-- Randomizer: nový los `psyche_seed` by posunul sekvenci RNG pro příběh a predispozice → los až na konci `generate`
-  (stejný seed generátoru = stejná postava jako ve v4, kromě nového pole).
-- Režim obsahu: MentalState dostává háčky pro full/muted/off a vybírá podle aktuálního cfg (přepnutí za běhu funguje);
-  `cfg_mode` pozná režim i ze starého cfg bez klíče `mode`.
-- Rozmanitost: v klidném prostředí byla individualita skoro neviditelná (dvě postavy shodné) → test měří v napjatém prostředí
-  a požaduje, aby se každá dvojice lišila volbou copingů nebo aktivací. Efekt individuality je záměrně mírný (háčky 0,7–1,3,
-  rezidua do ~0,1); výrazné rozdíly dává zadaná osobnost (emocionalita ±0,9 → threat_gain 0,70 / 1,30).
-- `godot_check` hlásí 60/60 skriptů – nové soubory bez `.uid` možná nepočítá; jejich kompilaci ověřilo spuštění testů a hry.
+- **Double counting.** The first design would have fed D (from traits and diagnoses) into the hooks on top of the
+  existing mechanics (Anxious already has `trait_vuln`, Impulsive has the `impulsive` flag).
+  - Introduced the **residual D − D_legacy** (the carried contributions without individuality).
+  - Test: without individuality and explicit personality the residual is exactly 0 for 60 random characters.
+  - MentalState with such hooks is bit-for-bit identical to the state without hooks (600 min with stressors).
+- **Bug found by a test.** `pers["traits"]` with a missing key (the default `[]` from `get` passed the type check) →
+  now read once into a local variable. Removed the unused variable `cond_add`.
+- **Randomiser.** A new draw for `psyche_seed` would have shifted the RNG sequence for the backstory and predispositions
+  → it is drawn at the end of `generate`. The same generator seed gives the same character as in v4, apart from the new
+  field.
+- **Content mode.** MentalState receives hooks for full/muted/off and chooses by the current cfg, so switching at runtime
+  works. `cfg_mode` recognises the mode even from an old cfg without the `mode` key.
+- **Diversity.** In a calm environment individuality was almost invisible (two characters identical).
+  - The test now measures in a tense environment and requires every pair to differ in coping choices or arousal.
+  - The individuality effect is deliberately mild (hooks 0.7–1.3, residuals up to ~0.1).
+  - Large differences come from an explicitly set personality (emotionality ±0.9 → threat_gain 0.70 / 1.30).
+- `godot_check` reports 60/60 scripts; it may not count new files without `.uid`. Running the tests and the game verified
+  that they compile.
 
-**b) Testy:** test_psyche **93/93** (nové) · regrese 20 sad beze změny: mental_health 95, depression 92, reconciliation 58,
-household_dynamics 78 (hádky 31,4 % ± 7,9 – stejné jako dřív), player_commands 40, psyche_presentation 19, net_protocol 34,
-multiplayer 67, character 157 (posuvník 3,25 ms), character_v2 43, character_net 28, neck_length 36, body_morphs 62,
-head 43, neck_seam 56, skin 61, hair 60, assets 150, audio_tone 222 · `--test 7` OK · hra bez argumentů 25 s bez chyb.
+**b) Tests:** test_psyche **93/93** (new). Regression of 20 suites unchanged:
+- mental_health 95, depression 92, reconciliation 58, household_dynamics 78 (arguments 31.4 % ± 7.9, same as before),
+  player_commands 40, psyche_presentation 19;
+- net_protocol 34, multiplayer 67;
+- character 157 (slider 3.25 ms), character_v2 43, character_net 28, neck_length 36, body_morphs 62, head 43,
+  neck_seam 56, skin 61, hair 60, assets 150, audio_tone 222;
+- `--test 7` OK; the game without arguments ran 25 s without errors.
 
-**c) Gemini (flash-lite; flash a flash-lite napoprvé „high demand“), 6 bodů, 0 oprav – vše zdůvodněně odmítnuto:**
-(1) CRC-32 jako zdroj individuality „nedeterministický“ → odmítnuto: vstup je ASCII řetězec z int a pevného klíče, CRC je
-bitově stejné na všech platformách, počítá jen server a nic se nereplikuje; test round-trip přes sdílecí kód. (2) „rysy
-v reziduu dvakrát“ → odmítnuto: D počítá P→D z p_eff s individualitou, D_legacy z p_tr bez ní – reziduum je přesně rozdíl,
-test 0 bez individuality. (3) součin mul bez ořezu členů → odmítnuto: každý člen je lerp(1, amount, sev) s amount ověřeným
-v 0,5–2 a sev v 0–1, tedy kladný a v mezích; součin se ořízne; prahy se ořezávají kumulativně. (4) I/O při spawnu a injekce
-profilu z klienta → odmítnuto: profily se načtou jednou (statická cache), klient posílá jen ID predispozic z katalogu schématu,
-validátor ostatní odmítne. (5) vazby ovládají postavu → odmítnuto: vazba mění jen stav (stres/aktivace/hrozba/zátěž) jako
-existující dynamika, nikdy akce; validátor profilů povoluje jen cíle D/T/S, test agency. (6) Kahn každou hodinu → odmítnuto:
-pořadí se počítá v `compute()` při vstupu postavy, za hodinu se jen prochází seřazené pole.
+**c) Gemini (flash-lite; flash and flash-lite returned "high demand" on the first try): 6 points, 0 fixes – all rejected
+with reasons:**
+1. CRC-32 as the individuality source is "non-deterministic" → rejected: the input is an ASCII string from an int and a
+   fixed key; CRC is bit-identical on all platforms; only the server computes it and nothing is replicated. Round-trip
+   test through the share code.
+2. "Traits counted twice in the residual" → rejected: D computes P→D from p_eff with individuality, D_legacy from p_tr
+   without it; the residual is exactly the difference, and the test gives 0 without individuality.
+3. The mul product does not clamp its terms → rejected: each term is lerp(1, amount, sev), with amount checked to be in
+   0.5–2 and sev in 0–1, so it is positive and bounded. The product is clamped; thresholds are clamped cumulatively.
+4. I/O at spawn and profile injection from the client → rejected: profiles are loaded once (static cache); the client
+   only sends predisposition IDs from the schema catalogue, and the validator rejects anything else.
+5. Couplings control the character → rejected: a coupling only changes state (stress/arousal/threat/burden) like the
+   existing dynamics, never actions. The profile validator allows only D/T/S targets; there is an agency test.
+6. Kahn's algorithm every hour → rejected: the order is computed in `compute()` when the character enters; every hour
+   only the sorted array is traversed.
 
-**d) Otevřené:** hodnoty/světonázor (V) odloženy; individualita zatím jen ve 4 háčcích; HUD/editor `explain()` zatím nezobrazuje
-(C7). Další krok: C5 oblečení, pak integrovaný průchod (Grok #141).
+**d) Open:**
+- values/worldview (V) postponed;
+- individuality so far only in 4 hooks;
+- the HUD/editor does not show `explain()` yet (C7).
+
+Next step: C5 clothing, then an integrated playthrough (Grok #141).
 
 ---
 
-## 2026-10-22 (běh 19, ~10:55–11:40 UTC, ruční spuštění) – C4b+ detaily vlasů a vousů
+## 2026-10-22 (run 19, ~10:55–11:40 UTC, manual start) – C4b+ hair and beard details
 
-**Rozsah:** `scripts/assets/hair_builder.gd` (skořepina s dělením okraje, copánky/dredy, plnovous), `tests/test_hair.gd`
-(přesné ověření průniku, nová sekce běhu 19), `tools/hair_export.gd` (`_build()` mimo běžící strom), docs.
-Payload ručního spuštění popisoval stav před během 18 (C3+ B) – ten už byl hotový, takže běh navázal checkpointem
-(C4b+) a zapracoval připomínky z payloadu (vousy níž na krk, copánky/dredy pravidelné a přes obličej).
+**Scope:**
+- `scripts/assets/hair_builder.gd`: shell with edge subdivision, braids/dreadlocks, full beard.
+- `tests/test_hair.gd`: exact penetration check, new run 19 section.
+- `tools/hair_export.gd`: `_build()` outside the running tree.
+- Docs.
+
+The manual start's payload described the state before run 18 (C3+ B), which was already done. So the run continued from
+the checkpoint (C4b+) and worked in the comments from the payload: beards lower onto the neck; braids/dreadlocks
+irregular and across the face.
 
 **a) Self-review:**
-- Dělení skořepiny: první verze dělila každý trojúhelník s okrajem v (0;1) a u uší → +6–11 tis. trojúhelníků (afro přes
-  rozpočet) → dělí se jen trojúhelníky, přes které vede samotná linie (0,42–0,62), ne u ucha, 2× jen u spánků, afro vrstvy 0×.
-- Penetrace: test měřil vůči radiální mapě (max. poloměr v binu) a body na plochých trojúhelnících vycházely „pod hlavou“;
-  zkoušené Phongovo zvednutí středů by dělalo trhliny u nedělených sousedů → středy zůstávají v rovině trojúhelníku (= kůže,
-  jak ji hra kreslí) a test podezřelé body ověřuje přesnou projekcí na trojúhelníky kůže.
-- Vousy: zóny přepočítané na nové rty (C3+ B) – brada začíná pod červení dolního rtu, hustší vzorkování pod rtem.
-- Copánky/dredy: kopie stylu na pramen (`st.duplicate()` jen přepisuje skalární klíče), RNG pevné na účes → determinismus
-  vlákno × synchronně ověřen testem.
-- `tools/hair_export.gd`: SimVisual se mimo běžící strom nepostavil (`_ready` se nevolal) → explicitní `_build()` (idempotentní).
+- **Shell subdivision.** The first version subdivided every triangle with an edge in (0;1) and around the ears, adding
+  6–11 thousand triangles (afro over budget). → Only triangles crossed by the line itself (0.42–0.62) are subdivided:
+  not at the ear, twice only at the temples, afro layers not at all.
+- **Penetration.** The test measured against a radial map (maximum radius per bin), so points on flat triangles came out
+  "below the head". The Phong lift of midpoints that was tried would have caused cracks at undivided neighbours. →
+  Midpoints stay in the triangle plane (= the skin as the game draws it), and the test verifies suspicious points with
+  an exact projection onto the skin triangles.
+- **Beards.** Zones recomputed for the new lips (C3+ B): the chin starts below the vermilion of the lower lip, with
+  denser sampling under the lip.
+- **Braids/dreadlocks.** A copy of the style per strand (`st.duplicate()` only overwrites scalar keys); the RNG is fixed
+  per hairstyle → thread × synchronous determinism verified by a test.
+- **`tools/hair_export.gd`.** SimVisual did not build outside the running tree (`_ready` was not called) → explicit
+  `_build()` (idempotent).
 
-**b) Testy:** `godot_check` 60/60 · test_hair 60/60 (nové: hrana přes linii u spánků 18,0 → 8,6 mm; trubice ≥ 8,5/8,7 cm
-od středu obličeje; plnovous nejníž 1,517 m, pod 1,53 m 1,5 %; pod rtem 45 vrcholů; rozpočty: max 25 408 kudrnaté, afro
-21 497) · test_assets 150/150 · test_neck_seam 56/56 · test_character 157/157 (posuvník 3,93 ms – kolísá 3,1–3,9 ms, limit 4) ·
-`--test 7` OK. Ostatní sady (mentální zdraví, deprese, vztahy, MP, audio…) běžely v běhu 18 před hodinou a jejich kód se
-v běhu 19 nezměnil.
-**Vizuálně:** Blender render (`docs/images/c4bp-hair-run19.jpg`: copánky, dredy+knír, undercut+plnovous, ústup+šediny+bradka,
-krátké; 4 pohledy) prohlédnutý: obličej volný, prameny nepravidelné a rámují obličej, plnovous končí pod čelistí, spánky
-bez schodů. Zbývá: textura copánků v Blenderu je jen náhrada shaderu (pruhy), dredy přes čelo od pěšinky (záměr – boční
-pěšinka), vzadu copánky dál dost hustě a rovnoměrně.
+**b) Tests:**
+- `godot_check` 60/60.
+- test_hair 60/60. New checks:
+  - edge across the line at the temples 18.0 → 8.6 mm;
+  - tubes ≥ 8.5/8.7 cm from the centre of the face;
+  - full beard lowest at 1.517 m, 1.5 % below 1.53 m; 45 vertices under the lip;
+  - budgets: max 25,408 (curly), afro 21,497.
+- test_assets 150/150, test_neck_seam 56/56, test_character 157/157 (slider 3.93 ms, varies 3.1–3.9 ms, limit 4),
+  `--test 7` OK.
+- The other suites (mental health, depression, relationships, MP, audio…) ran in run 18 an hour earlier, and their code
+  did not change in run 19.
 
-**c) Gemini (flash-lite), 6 bodů:** (2) nulový součet normál při dělení → **zapracováno** (pojistka). (1) T-spoje u nedělených
-sousedů → odmítnuto jako kritické: středy leží v rovině trojúhelníku, odchylka je jen rozdíl odsazení po normále (≪ 0,1 mm)
-u 1mm skořepiny s průhledností; vedeno jako drobné. (3) mělká kopie a pořadí RNG → odmítnuto (přepisují se jen skalární
-klíče; síť se staví ze stejného GLB stejným kódem, test vlákno × synchronně). (4) lambdy ve vlákně → odmítnuto (čtou jen
-konstanty). (5) kolize vrstev v cache → odmítnuto (každé volání `shell()` má vlastní cache). (6) skok x v `avoid_face` →
-ponecháno (dřívější chování, na renderu bez zlomu).
+**Visually:** Blender render (`docs/images/c4bp-hair-run19.jpg`) inspected, covering braids, dreadlocks + moustache,
+undercut + full beard, receding hairline + greying + goatee, and short hair, in 4 views.
+- The face is clear, the strands are irregular and frame the face, the full beard ends under the jaw, and the temples
+  have no steps.
+- Remaining: the braid texture in Blender is only a shader stand-in (stripes); dreadlocks fall across the forehead from
+  the parting (intended – side parting); at the back the braids are still fairly dense and even.
 
-**d) Další krok:** 1. osa psychiky (společný rámec dimenzí), potom C5 oblečení.
+**c) Gemini (flash-lite): 6 points:**
+1. T-junctions at undivided neighbours → rejected as critical: midpoints lie in the triangle plane, and the deviation is
+   only the difference in offset along the normal (≪ 0.1 mm) on a 1 mm shell with transparency; logged as minor.
+2. A zero sum of normals when subdividing → **adopted** (safeguard).
+3. Shallow copy and RNG order → rejected: only scalar keys are overwritten; the mesh is built from the same GLB by the
+   same code; thread × synchronous test.
+4. Lambdas in the thread → rejected (they only read constants).
+5. Layer collisions in the cache → rejected (every `shell()` call has its own cache).
+6. A jump in x in `avoid_face` → kept (earlier behaviour, no kink in the render).
+
+**d) Next step:** psyche axis 1 (shared framework of dimensions), then C5 clothing.
 
 ---
 
-## 2026-10-22 (běh 18, ~10:00–11:00 UTC) – C3+ B doladění obličeje (brada, oči, rty, velikost hlavy)
+## 2026-10-22 (run 18, ~10:00–11:00 UTC) – C3+ B face polish (chin, eyes, lips, head size)
 
-**Rozsah:** `scripts/assets/head_builder.gd` (projekce brady, `surface_xy`, oční štěrbina a koutky mimo kouli, rty a ústa),
-`scripts/character/face_morphs.gd` (korekční dvojice eye_distance × eye_depth), `scripts/character/character_randomizer.gd`
-(head_size × frame), `scripts/character/skin_layers.gd` + `shaders/skin.gdshader` (orientační body make-upu, bod brady),
-`tests/test_skin.gd`, `tests/test_character_v2.gd`, `assets/models/character.glb` (+ manifest), nové nástroje
-`tools/face_render_export.gd` a `tools/blender/face_render.py`, docs.
+**Scope:**
+- `scripts/assets/head_builder.gd`: chin projection, `surface_xy`, eye opening with corners outside the eyeball, lips and
+  mouth.
+- `scripts/character/face_morphs.gd`: corrective pair eye_distance × eye_depth.
+- `scripts/character/character_randomizer.gd`: head_size × frame.
+- `scripts/character/skin_layers.gd` + `shaders/skin.gdshader`: make-up landmarks, chin point.
+- Tests: `tests/test_skin.gd`, `tests/test_character_v2.gd`.
+- `assets/models/character.glb` (+ manifest).
+- New tools `tools/face_render_export.gd` and `tools/blender/face_render.py`; docs.
 
 **a) Self-review:**
-- Render „před“ (12 postav × 4 pohledy, `docs/images/c3b-face-run18-before.jpg`) + měření povrchu: měkký pogonion ~20 mm za
-  dolním rtem (bezzubý profil), štěrbina víček 23,6 mm obtočená kolem koule (v čelním pohledu ~21 mm), vnitřní koutek 20 mm
-  od středu, rty ~5 / 8,5 mm. Výška hlavy změřena 22,5 cm – v rozsahu dospělých (ž ~21,9, m ~23,2) → beze změny (původní
-  tvrzení „o 1 cm nižší“ se neověřilo; dojem malé hlavy u mohutné postavy řeší generátor).
-- Projekce brady nejdřív z aktuální polohy vrcholu → chyba lineárních blend shapes u extrémů 3,9 → 5,02 mm (limit 5). Diagnóza
-  ukázala, že nejhorší vrchol je ve vnějším prstenci víček (ne brada) → projekce přepsána na váhu z VÝCHOZÍ hlavy na paprsku
-  (`JAW_D0`, konstantní posun na vrchol), a interakce eye_distance+1 × eye_depth−1 (2,9 mm, změřeno na všech dvojicích morfů očí,
-  obočí a lící) dostala korekční tvar → 4,07 mm.
-- `surface_xy` – povrch už není čistě paprskový, pevný bod by zmenšoval x, y o ~dz/z → iterace opravuje cílové x, y.
-- `_sph`: oblouk za `EYE_WRAP` začíná tečnou koule (C1 spojitost), směr se stáčí exponenciálně; `k == 1.0` je porovnání
-  s literálem předaným volajícím (víčka 1.0, spojivka 1.55), ne výsledek aritmetiky.
-- Thread-safety: `JAW_D0` je konstantní (v Godotu 4 read-only) slovník, `jaw_projection*` jsou čisté funkce.
-- Výkon: `build_data` 42 → 55 s (jen import offline); aplikace obličeje 0,30 ms; posuvník 3,12 ms samostatně.
-- Konstanty make-upu `EYE_SHAPE` (půlšířka 15,1 mm = průměr nesouměrné štěrbiny) a `MOUTH` sjednocené s hlavou + nový test.
+- **"Before" render** (12 characters × 4 views, `docs/images/c3b-face-run18-before.jpg`) + surface measurements:
+  - the soft pogonion was ~20 mm behind the lower lip (toothless profile);
+  - the eyelid opening was 23.6 mm wrapped around the eyeball (~21 mm in the front view);
+  - the inner corner was 20 mm from the centre; lips ~5 / 8.5 mm.
+- **Head height** measured at 22.5 cm, within the adult range (f ~21.9, m ~23.2) → unchanged. The original claim "1 cm
+  lower" was not confirmed; the impression of a small head on a large character is handled by the generator.
+- **Chin projection.** First computed from the current vertex position, which raised the linear blend shape error at
+  extremes from 3.9 to 5.02 mm (limit 5).
+  - Diagnosis showed the worst vertex was in the outer ring of the eyelids, not the chin.
+  - The projection was rewritten to a weight from the DEFAULT head along the ray (`JAW_D0`, a constant offset per vertex).
+  - The interaction eye_distance+1 × eye_depth−1 (2.9 mm, measured over all pairs of eye, brow and cheek morphs) got a
+    corrective shape → 4.07 mm.
+- `surface_xy`: the surface is no longer purely radial, and a fixed point would shrink x, y by ~dz/z → an iteration
+  corrects the target x, y.
+- `_sph`: the arc beyond `EYE_WRAP` starts tangent to the sphere (C1 continuity) and the direction turns exponentially.
+  `k == 1.0` compares against a literal passed by the caller (eyelids 1.0, conjunctiva 1.55), not an arithmetic result.
+- Thread safety: `JAW_D0` is a constant (read-only in Godot 4) dictionary; `jaw_projection*` are pure functions.
+- Performance: `build_data` 42 → 55 s (offline import only); applying the face 0.30 ms; the slider 3.12 ms on its own.
+- The make-up constants `EYE_SHAPE` (half-width 15.1 mm = mean of the asymmetric opening) and `MOUTH` were unified with
+  the head, with a new test.
 
-**b) Testy:** `godot_check` 60/60 · test_head 43/43 (extrémy max 4,07 / průměr 0,20 mm, 48 kombinací bez průniku kůže–oko,
-rty se nekříží, 0 přeložených ploch, 78 blend shapes v GLB) · test_skin 61/61 (+ make-up = hlava; bod brady 1,4 mm od povrchu)
-· test_character_v2 43/43 (+ head_size: sd 0,30, r(frame) 0,24, rod max. rozdíl 0,018) · test_neck_seam 56/56 · test_neck_length
-36/36 · test_hair 55/55 · test_assets 150/150 · test_body_morphs 62/62 · test_character 157/157 (posuvník 3,12 ms; při třech
-souběžných testech 4,22 ms – měřit samostatně) · test_character_net 28/28 · test_multiplayer 67/67 · test_mental_health 95/95
-· test_depression 92/92 · test_reconciliation 58/58 · test_household_dynamics 78/78 · test_player_commands 40/40 ·
-test_net_protocol 34/34 · test_psyche_presentation 19/19 · test_audio_tone 222/222 · `--test 7` OK.
-**Vizuálně:** render „po“ (`docs/images/c3b-face-run18-after.jpg`, 6 postav × 3 pohledy) prohlédnutý: profil s bradou, oči
-s koutky a slzným jezírkem, plné rty; extrém −1 všech posuvníků má dál úzké oči a tenké rty (součet minim), hřbet nosu ostrý.
+**b) Tests:**
+- `godot_check` 60/60.
+- test_head 43/43: extremes max 4.07 / mean 0.20 mm; 48 combinations without skin–eye penetration; lips do not cross;
+  0 folded faces; 78 blend shapes in the GLB.
+- test_skin 61/61 (+ make-up = head; chin point 1.4 mm from the surface).
+- test_character_v2 43/43 (+ head_size: sd 0.30, r(frame) 0.24, max gender difference 0.018).
+- test_character 157/157: slider 3.12 ms; 4.22 ms with three tests running concurrently, so measure it alone.
+- test_neck_seam 56/56, test_neck_length 36/36, test_hair 55/55, test_assets 150/150, test_body_morphs 62/62,
+  test_character_net 28/28, test_multiplayer 67/67.
+- test_mental_health 95/95, test_depression 92/92, test_reconciliation 58/58, test_household_dynamics 78/78,
+  test_player_commands 40/40, test_net_protocol 34/34, test_psyche_presentation 19/19, test_audio_tone 222/222.
+- `--test 7` OK.
 
-**c) Gemini (flash-lite), 5 bodů:** (1) „vysoká“ thread-safety `JAW_D0` → odmítnuto: konstantní slovník je v Godotu 4 jen
-pro čtení a funkce nic nemutují; `derive()` vrací vždy nový slovník. (2) NaN v `pow(1 − a², …)` → odmítnuto: `a` je ořezané
-do ⟨−1; 1⟩, takže 1 − a² ≥ 0 a pow(0; 0,85) = 0; `_dir_to` v `surface_xy` nikdy nedostane nulový vektor (z ≥ ~0,08).
-(3) `k == 1.0` → odmítnuto (literál, geometrie se navíc počítá jen offline při importu; klienti načítají GLB). (4) head_size
-nezávislé na rodu – potvrzeno jako v pořádku. (5) výkon `surface_xy` 6 iterací → ponecháno (jen import, +13 s).
-**ChatGPT:** plán a otázka (anatomické cíle jako testy) poslány v #134; review souborů v místnosti po syncu.
+**Visually:** the "after" render (`docs/images/c3b-face-run18-after.jpg`, 6 characters × 3 views) was inspected: a
+profile with a chin, eyes with corners and a lacrimal lake, full lips. At −1 on all sliders the eyes stay narrow and the
+lips thin (the sum of minima), and the nose bridge is sharp.
 
-**d) Známé problémy / další krok:** C4b+ – schodovitý okraj skořepiny vlasů u spánků, sloupcový vzor plnovousu, mezera
-pod dolním rtem u plnovousu (tento běh nezačato); měkká zóna extrémů posuvníků až v editoru C6; zuby, jazyk, mimika.
+**c) Gemini (flash-lite): 5 points:**
+1. "High" thread safety of `JAW_D0` → rejected: a constant dictionary is read-only in Godot 4 and the functions mutate
+   nothing; `derive()` always returns a new dictionary.
+2. NaN in `pow(1 − a², …)` → rejected: `a` is clamped to ⟨−1; 1⟩, so 1 − a² ≥ 0 and pow(0; 0.85) = 0. `_dir_to` in
+   `surface_xy` never receives a zero vector (z ≥ ~0.08).
+3. `k == 1.0` → rejected (a literal; moreover the geometry is computed only offline at import, and clients load the
+   GLB).
+4. head_size independent of gender – confirmed as fine.
+5. `surface_xy` performance with 6 iterations → kept (import only, +13 s).
+
+**ChatGPT:** the plan and a question (anatomical targets as tests) were sent in #134; a review of the files in the room
+after the sync.
+
+**d) Known problems / next step:**
+- C4b+, not started in this run: a stepped hair-shell edge at the temples, a columnar full-beard pattern, a gap under
+  the lower lip with a full beard.
+- The soft zone for slider extremes only in the C6 editor.
+- Teeth, tongue, expressions.
 
 ---
 
-## 2026-10-22 (běh 17, ~02:50–04:00 UTC) – hudba v3 + C4b vlasy, vousy, obočí (dokončení)
+## 2026-10-22 (run 17, ~02:50–04:00 UTC) – music v3 + C4b hair, beards, eyebrows (completion)
 
-**Rozsah:** `scripts/audio/music_data.gd` (návrat k původní hudbě + nové „Mlhavé ráno“), `tests/test_audio_tone.gd`
-(nová pravidla, jas, šev smyčky), `docs/audio.md`, `audio/music/*.wav`; C4b z běhů 14/16 (`hair_builder.gd`, `hair_rig.gd`,
-`hair.gdshader`, `sim_visual.gd`, `appearance_resolver.gd`, `tests/test_hair.gd`) + opravy tohoto běhu; `tools/hair_export.gd`
-(nový – export pro Blender), `main.gd` (async stavba vlasů ve hře, audio report 25 souborů).
+**Scope:**
+- Music: `scripts/audio/music_data.gd` (back to the original music + the new "Mlhavé ráno"), `tests/test_audio_tone.gd`
+  (new rules, brightness, loop seam), `docs/audio.md`, `audio/music/*.wav`.
+- C4b from runs 14/16 (`hair_builder.gd`, `hair_rig.gd`, `hair.gdshader`, `sim_visual.gd`, `appearance_resolver.gd`,
+  `tests/test_hair.gd`) + this run's fixes.
+- `tools/hair_export.gd` (new, export for Blender).
+- `main.gd`: async hair building in game, audio report of 25 files.
 
 **a) Self-review:**
-- Hudba: renderer a data původních skladeb ověřené MD5 proti GitHubu 0518c53 (renderer `0b4c6430…`, data `585f4cbd…`);
-  nástroje původních skladeb v synth.gd beze změny (porovnáno řádek po řádku) → zní jako původní demo. Pevná mez švu 0,035
-  byla na původní „den“ (hi-hat, skok 0,054 < p99 0,087) moc přísná → mez = max(0,035; p99 rozdílů sousedních vzorků).
-- C4b stav z běhu 16 byl hotový a nezapsaný (test_hair 40/40). `sim_visual._build_hair_parts` neresetoval `_hair_mats` a při
-  chybě shaderu nechal viset už vytvořené části → opraveno. `resolve_hair_look`: NaN/∞/text v číslech a barva bez „#“ →
-  `_f01` a kontrola prefixu (pojistka, snapshot je validovaný) + test.
-- **Render v Blenderu** (8 postav × 5 pohledů, 3 kola + detail obličeje; materiál v Blenderu napodobuje hair.gdshader –
-  prameny z UV/CUSTOM0, šediny po vlasech, ústup linie). Nálezy a opravy:
-  1. copánky a dredy trčely vpředu 15–20 cm před hrudník, dlouhé vlasy odstávaly od zad → náklon gravitace jen nad
-     rameny (LEAN_Y0/Y1 1,38–1,50) a jen u bočních pramenů (dopředu od |x| 7,5 cm), pod středem hlavy pramen ztrácí
-     hybnost (g ≥ 0,6). Vpředu max 15,5 → 7,3 cm; vzadu medián 2,5–4 cm. Nový test `_test_drape`.
-  2. **obočí se stavělo jen u kořene nosu** (bod projekce z = 0,11 m byl mimo dosah prostorového hashe) → 37 ze 140 karet,
-     na renderu šedý chomáček mezi očima. Výchozí bod radiálně z mapy hlavy → 140/140, ±5,2 cm. Test pokrytí obočí.
-     (Starý test „obočí nad očima“ prošel, protože kontroloval jen meze, ne pokrytí – doplněno.)
-  3. undercut a krátké vlasy ježaté → lift/stiff 0,25/0,8 a 0,32/0,9.
-  4. ponecháno jako známé: schodovitý okraj skořepiny u spánků (velké trojúhelníky kůže), sloupcový vzor plnovousu,
-     afro v Blenderu příliš lesklé (jen náhradní materiál), mezera pod dolním rtem u plnovousu.
+- **Music.** The renderer and data of the original tracks were verified by MD5 against GitHub 0518c53 (renderer
+  `0b4c6430…`, data `585f4cbd…`); the instruments of the original tracks in synth.gd are unchanged (compared line by line)
+  → it sounds like the original demo.
+  - The fixed seam limit of 0.035 was too strict for the original "day" track (hi-hat, jump 0.054 < p99 0.087) → the
+    limit is now max(0.035; p99 of adjacent-sample differences).
+- **C4b state from run 16** was finished but not recorded (test_hair 40/40).
+  - `sim_visual._build_hair_parts` did not reset `_hair_mats` and, on a shader error, left already created parts
+    dangling → fixed.
+  - `resolve_hair_look`: NaN/∞/text in numbers and a colour without "#" → `_f01` and a prefix check (a safeguard; the
+    snapshot is validated) + test.
+- **Blender render** (8 characters × 5 views, 3 rounds + face detail). The Blender material imitates hair.gdshader:
+  strands from UV/CUSTOM0, grey hairs strand by strand, receding hairline. Findings and fixes:
+  1. Braids and dreadlocks stuck out 15–20 cm in front of the chest, and long hair stood off the back.
+     - Gravity lean now applies only above the shoulders (LEAN_Y0/Y1 1.38–1.50) and only to side strands (forward from
+       |x| 7.5 cm); below the centre of the head a strand loses momentum (g ≥ 0.6).
+     - Front max 15.5 → 7.3 cm; back median 2.5–4 cm. New test `_test_drape`.
+  2. **The eyebrows were built only at the root of the nose**: the projection point z = 0.11 m was out of reach of the
+     spatial hash, so only 37 of 140 cards were built, and the render showed a grey tuft between the eyes.
+     - The starting point is now taken radially from the head map → 140/140, ±5.2 cm. Eyebrow coverage test.
+     - The old test "eyebrows above the eyes" had passed because it checked only bounds, not coverage – added.
+  3. Undercut and short hair were spiky → lift/stiff 0.25/0.8 and 0.32/0.9.
+  4. Kept as known issues: a stepped shell edge at the temples (large skin triangles), a columnar full-beard pattern,
+     the afro too glossy in Blender (only a stand-in material), a gap under the lower lip with a full beard.
 
-**b) Testy:** `godot_check` 60/60 · test_hair **55/55** (nově drape 8, pokrytí obočí, poškozené hodnoty, async 5) ·
-test_audio_tone **222/222** · regrese: test_assets 150, test_character 157, test_character_v2 39, test_character_net 28,
-test_multiplayer 67, test_skin 60, test_body_morphs 62, test_head 43, test_neck_seam 56, test_neck_length 36,
-test_household_dynamics 78, test_mental_health 95, test_depression 92, test_reconciliation 58, test_player_commands 40,
-test_net_protocol 34, test_psyche_presentation 19 – vše OK · `--test 7` OK (audio report 25/25 souborů) · hra spuštěná
-bez argumentů 25 s bez chyb (async stavba vlasů).
+**b) Tests:**
+- `godot_check` 60/60.
+- test_hair **55/55** (new: drape 8, eyebrow coverage, corrupted values, async 5); test_audio_tone **222/222**.
+- Regression, all OK: test_assets 150, test_character 157, test_character_v2 39, test_character_net 28,
+  test_multiplayer 67, test_skin 60, test_body_morphs 62, test_head 43, test_neck_seam 56, test_neck_length 36,
+  test_household_dynamics 78, test_mental_health 95, test_depression 92, test_reconciliation 58,
+  test_player_commands 40, test_net_protocol 34, test_psyche_presentation 19.
+- `--test 7` OK (audio report 25/25 files); the game started without arguments ran 25 s without errors (async hair
+  building).
 
-**c) Gemini (gemini-3.5-flash-lite), 6 nálezů:**
-- ✅ (2, vysoká) první sestavení účesu 0,25–1 s na hlavním vlákně → zasekne hru při vstupu postavy s novým účesem.
-  **Zapracováno:** `HairRig.request_mesh` + `WorkerThreadPool` (ve vlákně jen pole: geometrie, přenos morfů, kosti;
-  ArrayMesh na hlavním vlákně přes `call_deferred`), postava mezitím ukazuje helmu z GLB, `_on_hair_mesh_ready` přepne
-  na karty; kontext a hash trojúhelníků se staví předem (vlákna jen čtou), mutex na cache. Zapnuto jen ve hře
-  (`main.gd`), testy a `--test` synchronně. Test: helma během stavby, výměna, síť z vlákna = synchronní, zrušený vlastník.
-- ❌ (1) „sdílené rng rozbije determinismus“ – rng je lokální v `HairBuilder.build`, seed jen ze stylu, stejný kód na všech
-  peerech; test bit-po-bitu (i po vymazání cache) a nově i vlákno × synchronně.
-- ❌ (3) „Color.html může spadnout“ – vstup je předem ověřený (7 znaků, „#“, hex); GDScript chybu nevyhazuje jako výjimku.
-- ❌ (4) „dělení nulou / zacyklení ve strand“ – jmenovatel má maxf(…, 1e-6), cyklus má pevný počet kroků a break při nulovém posunu.
-- ❌ (5) mez švu: minimum 0,035 je záměr (tiché smyčky), hodnoty p99 se vypisují v testu.
-- ❌ (6) „smazání všech částí při chybě materiálu je destruktivní“ – shader je pro všechny části stejný; když chybí, nejde
-  žádná karta a správný stav je celá helma z GLB (fallback).
+**c) Gemini (gemini-3.5-flash-lite): 6 findings:**
+- ✅ (2, high) The first build of a hairstyle takes 0.25–1 s on the main thread and freezes the game when a character
+  with a new hairstyle enters. **Adopted:**
+  - `HairRig.request_mesh` + `WorkerThreadPool`: the thread handles only arrays (geometry, morph transfer, bones), and
+    the ArrayMesh is built on the main thread via `call_deferred`.
+  - Meanwhile the character shows the helmet from the GLB, and `_on_hair_mesh_ready` switches to cards.
+  - The context and triangle hash are built in advance (threads only read); a mutex guards the cache.
+  - Enabled only in game (`main.gd`); tests and `--test` run synchronously.
+  - Test: helmet during the build, swap, thread mesh = synchronous mesh, cancelled owner.
+- ❌ (1) "A shared rng breaks determinism" – the rng is local to `HairBuilder.build`, seeded only from the style, with
+  the same code on all peers. Bit-for-bit test (also after clearing the cache) and now also thread × synchronous.
+- ❌ (3) "Color.html may crash" – the input is validated beforehand (7 characters, "#", hex); GDScript does not throw it
+  as an exception.
+- ❌ (4) "Division by zero / infinite loop in strand" – the denominator has maxf(…, 1e-6); the loop has a fixed number of
+  steps and breaks on zero displacement.
+- ❌ (5) Seam limit: the 0.035 minimum is intentional (quiet loops); the p99 values are printed in the test.
+- ❌ (6) "Deleting all parts on a material error is destructive" – the shader is the same for all parts; if it is
+  missing, no card works and the correct state is the whole helmet from the GLB (fallback).
 
-**d) ChatGPT/Grok:** #127 – bouchnutí dveří podle intenzity hádky a povahy: otevřené (audio_manager z paralelního chatu).
-Hystereze úrovní vztahu a uid místo jmen v household_dynamics (#127): otevřené, další běh dynamiky.
+**d) ChatGPT/Grok:**
+- #127: door slams by argument intensity and personality – open (audio_manager from the parallel chat).
+- Hysteresis of relationship levels and uids instead of names in household_dynamics (#127) – open, next dynamics run.
 
-**Známé problémy:** viz (a)4; výkon: první síť účesu 0,25–1 s (teď ve vlákně), 20–27 blend shapes na účes;
-GitHub push z naplánované session pravděpodobně dál nejde (viz DEVLOG).
+**Known problems:**
+- see (a)4;
+- performance: the first hairstyle mesh 0.25–1 s (now in a thread), 20–27 blend shapes per hairstyle;
+- GitHub push from the scheduled session probably still does not work (see DEVLOG).
 
 ---
 
-## 2026-10-21 (běh 15, ~21:20–22:50 UTC) – dynamika domácnosti (konec „studené války“)
+## 2026-10-21 (run 15, ~21:20–22:50 UTC) – household dynamics (end of the "cold war")
 
-**Rozsah:** `scripts/sim/household_dynamics.gd` (nový), `scripts/sim/sim_agent.gd` (vyvážení, talk_success_chance,
-de-eskalace, stížnosti, měkký strop stresu z hádek, drift, note_relationship_change, signál conversation),
-`scripts/sim/traits.gd` (irritability, argue_stress_cap), `scripts/sim/action_library.gd` (repliky), `scripts/sim/fccs_oracle.gd`
-(zjednodušen na modulátor rozhovoru), `main.gd` (napojení jen na autoritě + report domácnosti v `--test`),
-`tests/test_base.gd` (watchdog), `tests/test_household_dynamics.gd` (nový, 78).
-Rozhodnutí uživatelky (CHECKPOINT běhu 14): nejdřív dynamika postav, C4b potom.
+**Scope:**
+- `scripts/sim/household_dynamics.gd` (new).
+- `scripts/sim/sim_agent.gd`: balance, talk_success_chance, de-escalation, complaints, soft stress ceiling from
+  arguments, drift, note_relationship_change, conversation signal.
+- `scripts/sim/traits.gd` (irritability, argue_stress_cap) and `scripts/sim/action_library.gd` (lines).
+- `scripts/sim/fccs_oracle.gd`, simplified to a conversation modulator.
+- `main.gd`: wired up only on the authority + household report in `--test`.
+- Tests: `tests/test_base.gd` (watchdog), `tests/test_household_dynamics.gd` (new, 78).
+
+The owner's decision (run 14 CHECKPOINT): character dynamics first, C4b afterwards.
 
 **a) Self-review:**
-- První zapojení bez kalibrace: 80 % hádek. Diagnostika rozkladu šance (`previews/diag/diag_household.gd`): průměr p 0,22,
-  stres −0,21 a emoce −0,11 → spirála „hádka → stres + vztek na 200 min → další hádka“. Oprava: stres ubírá až nad 35 a
-  /320 (dřív 30 a /250), emoce vztek 0,12 / únava a napětí 0,06 (dřív všechny 0,15), výchozí 0,65.
-- Bug v testovací infrastruktuře: `test_base.gd` vytvářel watchdog v `_enter_tree()` – dřív, než podtřída v `_ready()`
-  nastavila `watchdog_seconds`, takže každý test měl 60 s (u test_reconciliation 90 s „platilo“ jen náhodou). Opraveno
-  odloženým startem.
-- Vzpomínka „Vztah se zhoršil: X je teď blízká přítelkyně“ (experiment v4): text se nevybíral podle úrovně – pokles
-  z nejlepší na blízkou přítelkyni zněl jako zhoršení do nepřátelství. Nově jedna funkce pro všechny cesty (hovor,
-  hádka, urážka, svěření, pomoc, omluva, společná chvíle) se 4 texty podle směru a úrovně; test kontroluje, že
-  „zhoršil“ vždy obsahuje „nepřítel“.
-- Statistika: kalibrace je citlivá na pořadí náhody (stejné parametry, jiný počet hodů kvůli pravidlu nádobí →
-  průměr z 10 seedů 36,7 % vs 45,7 %). Test proto běží na 16 seedech a kontroluje průměr i rozpětí, ne jeden běh.
+- **Calibration.** The first hook-up without calibration gave 80 % arguments.
+  - Diagnosis of the chance breakdown (`previews/diag/diag_household.gd`): mean p 0.22, stress −0.21 and emotions −0.11
+    → a spiral "argument → stress + anger for 200 min → another argument".
+  - Fix: stress subtracts only above 35 and /320 (previously 30 and /250); emotion penalties anger 0.12 / tiredness and
+    tension 0.06 (previously all 0.15); default 0.65.
+- **Bug in the test infrastructure.** `test_base.gd` created the watchdog in `_enter_tree()`, before the subclass set
+  `watchdog_seconds` in `_ready()`, so every test had 60 s (test_reconciliation's 90 s "applied" only by chance). Fixed
+  with a deferred start.
+- **Memory text.** "The relationship got worse: X is now a close friend" (experiment v4): the text was not chosen by
+  level, so a drop from best friend to close friend sounded like a fall into enmity.
+  - Now one function serves all paths (conversation, argument, insult, confiding, help, apology, shared moment), with 4
+    texts by direction and level.
+  - The test checks that "got worse" always contains "enemy".
+- **Statistics.** The calibration is sensitive to the order of randomness: the same parameters but a different number
+  of rolls because of the dishes rule gave a mean over 10 seeds of 36.7 % vs 45.7 %. So the test runs on 16 seeds and
+  checks the mean and the range, not a single run.
 
-**b) Testy:** `godot_check` 60/60 (nové skripty ověřeny i `load().can_instantiate()`); **test_household_dynamics 78/78**:
-- 16 seedů × 14 dní: hádky **32,0 %** (sm. odch. 10,4 p. b., 17–54 %), vztahy průměr **+25,6** (−50…+100), rozdíl dvojic
-  (sm. odch.) 50, gradient podle nálady 21 / 42 / 72 %, de-eskalací 44, rozhovorů se stížností 112 (hádky 36 %),
-  stres > 85 průměr 0,01 % času (nejhorší 0,42 %), 0 kritických potřeb, události 1,13 na postavu a den, determinismus OK.
-- Regrese: reconciliation 58, mental_health 95, depression 92, player_commands 40, multiplayer 67 (po finální kalibraci);
-  character 157, character_v2 39, character_net 28, body_morphs 62, assets 150, skin 60, head 43, neck_seam 56,
-  neck_length 36, psyche_presentation 19, net_protocol 34 (beze změn v jejich kódu); `--test 7` OK (26 % hádek, vztahy
-  +12…+47), `--test 14` OK.
+**b) Tests:**
+- `godot_check` 60/60 (new scripts also verified with `load().can_instantiate()`).
+- **test_household_dynamics 78/78**, 16 seeds × 14 days:
+  - arguments **32.0 %** (sd 10.4 pp, 17–54 %);
+  - relationships mean **+25.6** (−50…+100), pair difference (sd) 50;
+  - gradient by mood 21 / 42 / 72 %; 44 de-escalations; 112 conversations with a complaint (36 % arguments);
+  - stress > 85 mean 0.01 % of the time (worst 0.42 %); 0 critical needs;
+  - events 1.13 per character per day; determinism OK.
+- Regression:
+  - reconciliation 58, mental_health 95, depression 92, player_commands 40, multiplayer 67 (after the final
+    calibration);
+  - unchanged code: character 157, character_v2 39, character_net 28, body_morphs 62, assets 150, skin 60, head 43,
+    neck_seam 56, neck_length 36, psyche_presentation 19, net_protocol 34;
+  - `--test 7` OK (26 % arguments, relationships +12…+47), `--test 14` OK.
 
-**c) Gemini (gemini-3.5-flash-lite; 3.5-flash přetížený):** 6 nálezů.
-- ✅ #2 (část) griefing třenicemi přes rychlé příkazy: „vař“ zrušené po minutě nechávalo nádobí → nádobí jen po ≥ 20 min
-  skutečného vaření (`DISHES_MIN_COOK`), test 60 pokusů krátké vs dlouhé vaření.
-- ✅ #4 farmení vztahu společnými chvílemi přes křivdu → při křivdě > 60 (kterákoli strana) se nic nestane; pod prahem
-  tlumí `warmth_mult`. Práh 30 (návrh) zkoušen: zmizela hlavní cesta zpět a hádky vyskočily na 46 % → 60.
-- ❌ #1 O(n²) dvojic: třenice jsou směrové (A štve B ≠ B štve A), potřebujeme uspořádané dvojice; domácnost ≤ 8 postav =
-  56 kontrol za 10 herních minut. Prostorové filtrování zapsáno do plánu pro velké parcely v MP.
-- ❌ #2 (zbytek) klient falšuje stav akce: `acting_id` čte stav serverové postavy (ACTING), klient posílá jen příkazy
-  validované NetSession; hluk v noci schválně vedle spícího je legitimní hra (cooldown 6 h na dvojici, +3 stres) –
-  opt-out z PvP je v plánu MP.
-- ❌ #3 nedeklarované proměnné: artefakt zkráceného pseudokódu v zadání, skutečný kód má `var`.
-- ❌ #5 pád na null v `take_complaint`: kontrola `typeof(c) != TYPE_DICTIONARY` a `get()` s výchozí hodnotou; test
-  poškozené stížnosti.
-- ❌ #6 strop stresu blokuje stres: spodní mez ×0,15 (test „strop je měkký“).
+**c) Gemini (gemini-3.5-flash-lite; 3.5-flash overloaded): 6 findings:**
+- ✅ #2 (part) Griefing with frictions via quick commands: "cook" cancelled after a minute left dishes → dishes only
+  after ≥ 20 min of real cooking (`DISHES_MIN_COOK`); test of 60 attempts with short vs long cooking.
+- ✅ #4 Farming a relationship with shared moments despite a grudge → with a grudge > 60 (either side) nothing happens;
+  below the threshold `warmth_mult` dampens it. A threshold of 30 (as proposed) was tried: the main way back disappeared
+  and arguments jumped to 46 % → 60.
+- ❌ #1 O(n²) pairs: frictions are directional (A annoys B ≠ B annoys A), so ordered pairs are needed; a household of
+  ≤ 8 characters = 56 checks per 10 game minutes. Spatial filtering is in the plan for large MP lots.
+- ❌ #2 (rest) The client forges the action state: `acting_id` reads the state of the server character (ACTING); the
+  client only sends commands validated by NetSession. Deliberate noise next to a sleeper at night is legitimate play
+  (6 h cooldown per pair, +3 stress); PvP opt-out is in the MP plan.
+- ❌ #3 Undeclared variables: an artefact of shortened pseudocode in the prompt; the real code has `var`.
+- ❌ #5 Null crash in `take_complaint`: a `typeof(c) != TYPE_DICTIONARY` check and `get()` with a default; test with a
+  corrupted complaint.
+- ❌ #6 The stress ceiling blocks stress: lower bound ×0.15 (test "the ceiling is soft").
 
-**d) ChatGPT/Grok:** #117 (review běhu 13) – runtime testy krku (GLB v Godotu pro neck −1/0/+1, crown_height = max Y,
-geometrie na 2 peerech) přesunuty k C4b; plán běhu 15 v #119, kód k review v místnosti po tomto zápisu.
+**d) ChatGPT/Grok:**
+- #117 (run 13 review): runtime neck tests (GLB in Godot for neck −1/0/+1, crown_height = max Y, geometry on 2 peers)
+  moved to C4b.
+- Run 15 plan in #119; code for review in the room after this entry.
 
-**Otevřené:** O(n²) a opt-out z třenic v MP; víc druhů třenic (peníze, úklid) až s ekonomikou; Jana↔Eliška se často
-sbližují až k +100 (povahy, ne chyba – sledovat, jestli to není nová idyla u jiných povah); statistika domácnosti v HUD.
-
----
-
-## 2026-10-21 (běh 13, ~18:20–19:30 UTC) – C3+ A2 krk: anatomie báze krku + body.neck_length (schéma v4)
-
-**Rozsah:** `scripts/assets/character_assembly.gd` (pole zvednutí báze krku podle směru), `scripts/assets/head_builder.gd`
-(blend shape `b_neck_len`, `neck_len_ramp`, `SEAM_Y_TOP` 1,64, robustní `loop_hit`), `scripts/character/body_morphs.gd`
-(`NECK_LEN_RANGE`, `head_links`, `neck_offset`, `scales`/`crown_height`), `face_morphs.gd` (podepsaná vazba + výkon),
-`appearance_resolver.gd`, `character_schema.gd` (v4), `character_codec.gd` (`_v3_to_v4`), `character_randomizer.gd`,
-`skin_layers.gd` (body krku), testy `tests/test_neck_length.gd` (nový, 36), `tests/test_neck_seam.gd` (32 → 56),
-`tests/test_skin.gd`; `character.glb` přeimportováno.
-
-**Měření (vstup):** GLB 1,78 m – jugulum 1,466 (0,82 H ✓), C7 ~1,51–1,52 (cíl 0,868 H = 1,546), bod krk–rameno
-(|x| 0,10) 1,47 (cíl ~1,50), trapéz (0,14) 1,46. Krk nebyl „dlouhý“ vpředu, ale báze krku vzadu a po stranách ležela
-2,5–4 cm nízko. **Po změně:** C7 1,545, bod krk–rameno 1,503, trapéz 1,475, brada 1,557, výška hlavy 22,3 cm,
-přední krk 9,1 cm = 0,41 výšky hlavy (reference ~0,36–0,41).
-
-**a) Self-review** (každý změněný soubor znovu přečten):
-- `lift_dir(c)`: L(1)=4 mm, L(0)=30 mm, L(−1)=46 mm; derivace a1 + 4·a2·c < 0 na celém ⟨−1; 1⟩ → monotónní, bez
-  překmitu. Řez krku dál podle výšky PŘED zvednutím (topologie smyčky beze změny, 16 vrcholů).
-- `neck_len_ramp` se počítá z polohy po `_apply_seam` (přilnutí je jen radiální, y se nemění) → lineární v dl,
-  v pásu plného přilnutí rampa 0 (okraj krku se nehne). Pojistka `bot ≤ top − 1 cm`. Komprese při −1: nejmenší
-  poměr výšek 1 − 0,015·ṙ > 0 (test monotónnosti v 12 směrech).
-- `SEAM_Y_TOP` 1,60 by po zvednutí useknul pás švu vzadu (smyčka 1,544 + 6,5 cm) → 1,64.
-- `BodyMorphs.weights()` NEnese klíč krku (síť těla ho nemá; test vah těla by jinak selhal) → `head_links()`.
-- Výkon: `FaceMorphs.value()` skládal `Schema.fields("face")` pro každé pole (0,9 ms/postavu) → slovník jednou;
-  odezva posuvníku 4,2 → 3,7 ms (limit 4 ms; dřív hlášené kolísání 3,6–6,3 ms mělo tuto příčinu).
-- Testy: v `test_neck_seam` opravené vlastní chyby (formát `%.1e` Godot nepodporuje; počáteční hodnota v testu rampy;
-  brada se měří svislým paprskem, protože střední řada sítě mezi hrdlem 1,552 a spodkem brady 1,566 nemá vrchol);
-  test řezu hledá zbytky krku nad 1,555 (smyčka vzadu je nově 1,545); počet vrcholů u smyčky pro srovnání normál
-  ≥ 6 (dřív 8; jiná výška řad mřížky, nejhorší odchylka 2,0°).
-- `skin_layers.gd`: body krku pro jizvy/tetování přeměřené paprskem na novém krku (hrdlo 1,535, boky 1,54,
-  zátylek nad C7 1,565).
-
-**b) Testy:** `godot_check` 60/60. test_neck_length 36/36 (nový), test_neck_seam 56/56, test_head 43/43, test_skin
-60/60, test_assets 150/150, test_body_morphs 62/62, test_character 157/157 (posuvník 3,68 ms), test_character_v2 39/39,
-test_character_net 28/28, test_multiplayer 67/67, test_depression 92/92, test_mental_health 95/95, test_reconciliation
-58/58, test_player_commands 40/40, test_psyche_presentation 19/19, test_net_protocol 34/34, `--test 7` OK.
-
-**Vizuální kontrola (Blender Cycles, 6 postav × 5 pohledů, prohlédnuto):** výchozí, krk −1, krk +1, svaly+tuk,
-tuk + krk −1, štíhlá + krk +1 (tmavá kůže). Hlava už „nevisí“ nad rameny, zadní strana krku a trapéz stoupají k C7,
-±1 vypadá jako běžná variabilita dospělých (ne „žirafa“ ani „bez krku“). Profil: temeno při ±1 přesně ±10 px
-(= ±15 mm). **Nález v postupu renderu:** Blender ořezává hodnoty shape keys na 0..1 (`slider_min` = 0) → záporné
-váhy se dřív renderovaly jako 0 (řádky „min“ v renderech běhů 10b–12 nebyly přesné). Opraveno v render knihovně
-(`slider_min = -1`) a v docs/asset-pipeline.md.
-
-**c) Nezávislý audit – Gemini (flash-lite; 3.5-flash přetížený):** 4 nálezy, všechny zdůvodněně odmítnuté:
-1. „chybí clamp neck_length“ – `_val()` ořezává do rozsahu schématu, NaN/typ → výchozí; server navíc validuje
-   striktně (test fuzz 400 hodnot + 11 nevalidních typů).
-2. „dělení nulou ve scales()“ – b ≥ 1,48 (nohy 0,92–1,08), h ≥ 1,45 (ořez), `maxf` pojistky už existují.
-3. „rel.length() ≈ 0 v rampě“ – ošetřeno (c = 1); body na ose krku jsou jen víčko uvnitř trupu (rampa 0) nebo
-   temeno (rampa 1), výsledek na volbě c nezávisí.
-4. „migrace spadne bez body“ – `typeof(body) == TYPE_DICTIONARY` už je; chybějící body doplní validátor.
-**ChatGPT #111:** loop_hit → nejbližší průsečík + test nehvězdicové a degenerované smyčky; invarianty Catmull-Rom
-(192 směrů: součet vah 1, konečné body, odchylka od polygonu ≤ 1,08 mm, pořadí zachované) – zapracováno.
-**Grok #113:** test ±30° ohnutí × neck ±1 × tuk/svaly – zapracováno; „posunout kost hlavy a přepočítat váhy“ –
-zdůvodněně jinak: posun je blend shape hlavy (krk pod bradou má smíšené váhy head/neck, posun kosti by táhl
-podbradek), okraj švu má váhy těla a nehne se, šev drží i při ohnutí (test); temeno a vlasy se posouvají s hlavou
-(test „vlasy převzaly b_neck_len“, temeno +15,00 mm); sešikmené rozdělení randomizéru ne – N(0; 0,3) s ořezem
-±0,8 dává extrémy |v| > 0,7 u 1,5 % postav. Review diffu poslané do místnosti (#115) – odpověď zatím nepřišla.
-
-**Otevřené:** hlava o ~1 cm nižší než reference (22,3 vs ~23 cm) a u svalnaté postavy působí malá (C3+ B);
-přední krk 9,1 cm je na horní hraně reference. Vlasy = helma (C4b). GitHub push nejde (repo mimo autorizované zdroje
-session) – viz DEVLOG.
+**Open:**
+- O(n²) and friction opt-out in MP;
+- more kinds of friction (money, cleaning) once there is an economy;
+- Jana↔Eliška often grow close up to +100. That comes from their personalities, not a bug; watch that it is not a new
+  idyll for other personalities;
+- household statistics in the HUD.
 
 ---
 
-## 2026-10-21 (běh 12, ~13:55–15:50 UTC) – C3+ krk a šev hlava–tělo (dokončení přerušeného běhu 11)
+## 2026-10-21 (run 13, ~18:20–19:30 UTC) – C3+ A2 neck: neck-base anatomy + body.neck_length (schema v4)
 
-**Rozsah:** `scripts/assets/head_builder.gd` (šev, vyhlazení u očí/úst, mezitvary), `scripts/character/skin_layers.gd`
-(body krku), testy `tests/test_neck_seam.gd` (nový, 32), `tests/test_skin.gd`, `character.glb` přeimportováno.
+**Scope:**
+- `scripts/assets/character_assembly.gd`: direction-dependent field raising the neck base.
+- `scripts/assets/head_builder.gd`: blend shape `b_neck_len`, `neck_len_ramp`, `SEAM_Y_TOP` 1.64, robust `loop_hit`.
+- `scripts/character/body_morphs.gd`: `NECK_LEN_RANGE`, `head_links`, `neck_offset`, `scales`/`crown_height`.
+- `face_morphs.gd` (signed coupling + performance), `appearance_resolver.gd`.
+- `character_schema.gd` (v4), `character_codec.gd` (`_v3_to_v4`), `character_randomizer.gd`, `skin_layers.gd` (neck
+  points).
+- Tests: `tests/test_neck_length.gd` (new, 36), `tests/test_neck_seam.gd` (32 → 56), `tests/test_skin.gd`.
+- `character.glb` re-imported.
 
-**a) Self-review** (každý změněný soubor znovu přečten):
-- Přerušený běh nechal `test_neck_seam.gd` s parse errorem: `ArrayMesh` nemá `find_blend_shape_by_name` (to je metoda
-  `MeshInstance3D`) → vlastní `_bs_index()`. Stejná chyba by v `_test_manifest` spadla až za běhu.
-- `test_head` 6 přeložených ploch pod okem: běh 11 změnil vyhlazení okolí očí i úst na tečné s návratem na povrch
-  (kvůli tmavému pásu nad rtem). U očí to rozbilo návaznost řady mřížky na vnější prstenec víček (ten jede s okem
-  0,85 × posun středu). Oprava: tečné vyhlazení + návrat na povrch jen u úst (`Topo.relax_mouth`), u očí plné
-  vyhlazení + `push_out`. Ověřeno přes 4 seedy × 48 kombinací: 0 přeložených ploch, vůle oka 0,71 mm.
-- Šev: detekce smyčky v testu brala i výstřih trička (hranice materiálu je taky okraj sítě) → komponenta okraje
-  s nejvyšším vrcholem. Hlava ve výšce okraje zapadala až 2 mm pod okraj těla. Diagnostika paprsky ukázala tětivu
-  přes 32° mezi vrcholy rukávu (šikmá mřížka spodní stěny krychle) – úhlopříčka čtyřúhelníku vedla vodorovně ve výšce
-  okraje. Oprava: `_seam_alt_diagonal()` (konvexnější úhlopříčka v pásu), cíl švu na Catmull-Rom křivce přes vrcholy
-  smyčky (lineární kombinace → morfy těla přesné). Zkoušené a vrácené: plné přilnutí ploch přes okraj (bez účinku),
-  kompenzace prověšení (zbytečná po úhlopříčkách).
-- Mezitvar `nose_tip_angle` existoval jen pro zápornou stranu (změna vyhlazení u úst shodila kladnou pod práh) →
-  když mezitvar potřebuje jedna strana, dostanou ho obě.
-- `test_skin`: body krku (jizvy/tetování) byly na starém krku (14–25 mm od povrchu) → přeměřeny ve výšce 1,525 m na
-  novém krku; test krku teď počítá se sítí hlavy i těla; počet blend shapes hlavy se kontroluje proti manifestu.
+**Measurements:**
 
-**b) Testy:** `godot_check` 60/60; test_neck_seam **32/32**, test_head 43/43, test_skin 60/60, test_assets 150/150,
-test_body_morphs 62/62, test_character 157/157, test_character_v2 39/39, test_character_net 28/28, test_multiplayer 67/67,
-test_depression 92/92, test_mental_health 95/95, test_reconciliation 58/58, test_player_commands 40/40,
-test_psyche_presentation 19/19, test_net_protocol 34/34; `--test 7` OK (26,1 ms/herní hodinu).
-- Šev: odstup hlava–okraj těla −0,13…+1,38 mm v základu, −0,20…+1,72 mm u 12 náhodných těl a krků, −0,16…+1,42 mm
-  při předklonu 25°, úklonu 20° a otočení 35° (CPU skinning); 0 zvrácených trojúhelníků u 16 kombinací morfů ×
-  ohnutí; normály u smyčky = tělo (≤ 3,8°); „bez límce“ (skok přírůstku poloměru ≤ 2,2 mm na 5 mm výšky).
-- Výkon posuvníku v test_character kolísá 3,6–6,3 ms podle zatížení serveru (při souběžných během testů);
-  samostatně 3,56 ms (limit 4 ms) – otevřený bod pro C6 (aplikovat jen změněnou skupinu).
+| Point | Before | Target | After |
+|---|---|---|---|
+| Jugulum | 1.466 | 0.82 H ✓ | — |
+| C7 | ~1.51–1.52 | 0.868 H = 1.546 | 1.545 |
+| Neck–shoulder point (\|x\| 0.10) | 1.47 | ~1.50 | 1.503 |
+| Trapezius (0.14) | 1.46 | — | 1.475 |
 
-**Vizuální kontrola (Blender Cycles, prohlédnuto okem):** 8 postav × 5 pohledů (výchozí, 2 náhodné, extrém max,
-extrém min, asymetrie, kombinace tuk, kombinace svaly + ramena). GLB přeneseno do Blenderu přes `/doc/` endpoint Godot
-serveru (MD5 ověřeno), arch zpět přes `godot_file_write` (bez tokenů a cizích přístupů). Archy: `docs/images/c3-neck-seam-run12-a.jpg`,
-`-b.jpg`.
-- Šev u výstřihu čistý zepředu, z boku, zezadu i zespodu (dřív zubatá čára).
-- Nový nález z renderu: svalnatá/tlustá postava měla na krku světlý „límec“ → normály pásu se k normálám okraje těla
-  stáčí jen do 12 mm nad smyčkou (dřív celý pás 2 cm se sklonem trapézu) a morfy těla působí na celou trubici krku
-  (`body_weight`, 8 cm, ne na spodek čelisti). Po opravě znovu vyrenderováno – límec pryč, zůstává přirozený kout pod bradou.
-- Nos/philtrum u extrému max: tmavý pás nad rtem už není (oprava vyhlazení u úst z běhu 11 zachována). Světlá ploška
-  pod nosem u náhodné 1 je odlesk hřebene filtra, ne průnik (test rtů a ploch bez nálezu).
-- Zbývá (mimo tento krok): vlasy jako helma/desky (C4b), bez obočí působí obličej prázdně (C4b), rty ploché a oči
-  malé (C3+ část B po C4b), hlava působí u svalnatého těla malá (zvážit vazbu head_size v generátoru), bílé odlesky
-  u ucha v pohledu zespodu (rim světlo, ne geometrie).
+GLB height 1.78 m. The neck was not "long" at the front; rather, the neck base at the back and sides sat 2.5–4 cm too
+low. After the change: chin 1.557, head height 22.3 cm, front neck 9.1 cm = 0.41 of the head height (reference
+~0.36–0.41).
 
-**c) Gemini (3.5-flash přetížený → flash-lite):** 4 nálezy.
-1. „lerp v `_apply_seam` není lineární vůči morfům“ – **neoprávněné**: w a cíl jsou pevné ze základu, takže výsledek
-   je lineární v poloze; morfy těla jsou samostatné blend shapes (výchylka smyčky × váha). Pokryto testem 12 náhodných těl.
-2. „fallback `loop_hit` [0,…] hodí vrchol do počátku“ – **neoprávněné**: `_seam_setup` při s ≤ 0 vrací {} a import
-   selže nahlas (attach_head → {}); tolerance f ±1e-6 kryje paprsek přes vrchol.
-3. „normalizace vah po ořezu na 4“ – **částečně oprávněné**: normalizace tam je, ale při nulových vahách těla by
-   vrchol zůstal bez kosti → pojistka `[[neck, 1]]` + test.
-4. „nulová normála v `_seam_normals`“ – **oprávněné jako pojistka**: kontrola nulové délky přidána (GLB se nezměnil).
+**a) Self-review** (every changed file re-read):
+- **`lift_dir(c)`:** L(1)=4 mm, L(0)=30 mm, L(−1)=46 mm. The derivative a1 + 4·a2·c < 0 over the whole ⟨−1; 1⟩ →
+  monotonic, no overshoot. The neck is still cut by height BEFORE the lift (loop topology unchanged, 16 vertices).
+- **`neck_len_ramp`** is computed from the position after `_apply_seam` (fitting is only radial; y does not change), so
+  it is linear in dl, and in the fully fitted band the ramp is 0 (the neck edge does not move).
+  - Safeguard `bot ≤ top − 1 cm`.
+  - Compression at −1: the smallest height ratio 1 − 0.015·ṙ > 0 (monotonicity test in 12 directions).
+- **`SEAM_Y_TOP`:** 1.60 would have cut off the seam band at the back after the lift (loop 1.544 + 6.5 cm) → 1.64.
+- **`BodyMorphs.weights()`** does NOT carry the neck key (the body mesh does not have it; otherwise the body weight test
+  would fail) → `head_links()`.
+- **Performance:** `FaceMorphs.value()` assembled `Schema.fields("face")` for every field (0.9 ms per character) → a
+  dictionary built once. Slider response 4.2 → 3.7 ms (limit 4 ms); this was the cause of the previously reported
+  3.6–6.3 ms variation.
+- **Own test bugs fixed in `test_neck_seam`:**
+  - the `%.1e` format is not supported by Godot;
+  - the initial value in the ramp test;
+  - the chin is measured with a vertical ray, because the middle mesh row has no vertex between the throat 1.552 and the
+    bottom of the chin 1.566.
 
-**ChatGPT #104/#106:** šev testován v pohybu a při kombinacích morfů těla, normály a zvrácené trojúhelníky, render
-z více úhlů vč. náhodných kombinací – splněno. Stavy podle #106: implementováno ✅ / automaticky testováno ✅ /
-vizuálně ověřeno ✅ (Blender, okem) / integrováno ✅ (GLB ve hře, SimVisual) – C3+ část A uzavřena.
+  The cut test now looks for neck remnants above 1.555 (the loop at the back is now 1.545). The vertex count near the
+  loop for the normal comparison is ≥ 6 (previously 8; different grid-row height, worst deviation 2.0°).
+- **`skin_layers.gd`:** neck points for scars/tattoos re-measured by ray on the new neck (throat 1.535, sides 1.54, nape
+  above C7 1.565).
 
-## 2026-10-21 (běh 10b, ~07:25–08:10 UTC, ruční spuštění) – vizuální kontrola obličeje C3 a opravy podle ní
+**b) Tests:**
+- `godot_check` 60/60.
+- test_neck_length 36/36 (new), test_neck_seam 56/56, test_head 43/43, test_skin 60/60, test_assets 150/150,
+  test_body_morphs 62/62.
+- test_character 157/157 (slider 3.68 ms), test_character_v2 39/39, test_character_net 28/28, test_multiplayer 67/67.
+- test_depression 92/92, test_mental_health 95/95, test_reconciliation 58/58, test_player_commands 40/40,
+  test_psyche_presentation 19/19, test_net_protocol 34/34.
+- `--test 7` OK.
 
-### Jak se kontrolovalo
-- Konektory: Godot ✅, Audio Engine ✅, Blender ✅ (4.0.2 – po 503 opět běží), Gemini ✅, AI room relay ✅.
-- Blender umí vrátit obrázek jen ze scény z primitiv (`blender_render_frame`), vlastní síť přes JSON nepřenese (typ `mesh` → chyba 500).
-- Cesta, která funguje: `tools/raster_preview.gd` vykreslí **skutečný character.glb** (blend shapes + normály sítě), Godot uloží
-  JPG jako base64 do `res://previews/*.b64`, `godot_file_read` velký výstup uloží do souboru v mém prostředí, dekóduji ho
-  a **obrázek si prohlédnu okem** (MD5 base64 ověřené u každého snímku). Hotové snímky jsem poslala i uživatelce.
+**Visual check (Blender Cycles, 6 characters × 5 views, inspected):** default, neck −1, neck +1, muscle+fat, fat + neck
+−1, slim + neck +1 (dark skin).
+- The head no longer "hangs" above the shoulders; the back of the neck and the trapezius rise towards C7.
+- ±1 looks like ordinary adult variation (neither a "giraffe" nor "no neck").
+- Profile: the crown at ±1 moves exactly ±10 px (= ±15 mm).
+- **Finding in the render procedure:** Blender clamps shape key values to 0..1 (`slider_min` = 0), so negative weights
+  used to render as 0 (the "min" rows in the renders of runs 10b–12 were not accurate). Fixed in the render library
+  (`slider_min = -1`) and in docs/asset-pipeline.md.
 
-### Co bylo vidět (nálezy) a co se opravilo
-1. **Chyběla spodní plocha čelisti a úhel brada–krk** (profil: brada plynule klesala do krku pod 45°), krk byl vpředu
-   (hrdlo z = 0,05 m), dolní třetina obličeje krátká (ústa–spodek brady 3 cm). **Opraveno** v `head_builder.gd`:
-   osa krku za středem hlavy (`NECK_ZC −0,012`, plynule k 0 u těla – `neck_zc(y)`), eliptický krk (0,96 × 1,04),
-   hranatější dolní přední část lebky (exponent +1,1), spodek brady níž (`b` 0,112 → 0,119, reliéf brady −0,106),
-   ostřejší přechod hlava–krk (`smax` 0,012 → 0,009). Teď: ústa–spodek brady **4,4 cm**, brada **4,0 cm** před krkem.
-2. **Schod na zátylku** mezi „rukávem“ krku hlavy a krkem těla (po posunu osy) – **opraveno** proměnnou osou krku; schod 8 mm.
-3. **„Zubaté“ světlé skvrny podél linie čelist–krk** (sbíhající se paprsky → úzké plošky s prudce se měnícími normálami) –
-   **opraveno** vyhlazením normál (ne poloh) v pásu čelist–krk, mimo ústa, oči a uši; stejný operátor pro základ i všechny cíle.
-4. **Svislé pruhy ve stínování krku** – **zmírněno**: normály krku = gradient eliptického válce (směr nezávisí na škálování morfy).
-5. **„Balón“ pod čelistí při tuku 1,0** (krk se rozšiřoval jen nahoře) – **zmírněno**: rozšíření po celé délce krku, vpředu
-   slabší, koeficient tuku 0,30 → 0,22. Vzadu u extrémního tuku zůstává výrazný val – přijatelné, sledovat.
-6. **Nezměněno, otevřené:** (a) zubatý šev na spodku krku, kde se protíná rukáv krku hlavy s krkem těla (dvě sítě se
-   protínají; řešení = sdílená topologie krku hlava–tělo, samostatný krok); (b) rty vypadají jako plochá „nálepka“
-   s hranatým obrysem, chybí objem a koutky; (c) oči působí malé a zapadlé; (d) účesy jsou přilba a dvě trubky
-   (C4b); (e) extrémní kombinace (všechna pole −1) dávají propadlý obličej – v mezích, ale editor by měl extrémy tlumit.
-- Testy: `test_skin` +3 kontroly profilu (dolní třetina 4–5 cm, brada ≥ 3 cm před krkem – teď 3,7 cm, zátylek bez schodu ≤ 12 mm – teď 6,1 mm),
-  překalibrované body jizev na bradě a čelisti. **test_skin 60/60, test_head 43/43, test_assets 150/150,
-  test_body_morphs 62/62, test_character 157/157, test_character_net 28/28, `--test 3` OK.**
-- Poučení: chyba parsování ve skriptu testovací scény způsobí **zamrznutí** běhu (ne chybu) – před spuštěním ověřovat
-  `GDScript.reload()`; `godot_check` složku `tests/` nekontroluje.
+**c) Independent audit – Gemini (flash-lite; 3.5-flash overloaded): 4 findings, all rejected with reasons:**
+1. "Missing clamp on neck_length" – `_val()` clamps to the schema range, NaN/type → default; the server also validates
+   strictly (fuzz test with 400 values + 11 invalid types).
+2. "Division by zero in scales()" – b ≥ 1.48 (legs 0.92–1.08), h ≥ 1.45 (clamped); `maxf` safeguards already exist.
+3. "rel.length() ≈ 0 in the ramp" – handled (c = 1). Points on the neck axis are only the cap inside the torso (ramp 0)
+   or the crown (ramp 1), so the result does not depend on the choice of c.
+4. "Migration crashes without body" – `typeof(body) == TYPE_DICTIONARY` is already there; the validator fills in a
+   missing body.
 
-### Audit Gemini (flash-lite) ke změnám hlavy
-1. *KRITICKÁ: váhy vyhlazení normál z polohy cíle* – **oprávněné, opraveno**: váhy (pásmo, krk) se počítají z polohy
-   ZÁKLADU pro všechny cíle (`_normals(pos, faces, wpos)`), takže se stínování při míchání blend shapes nemění skokem.
-2. *KRITICKÁ: nekonvergence iterace průsečíku s krkem* – **oprávněné, opraveno**: měření ukázalo pomalou konvergenci
-   u paprsků mířících šikmo dozadu (residuum elipsy až 12 %); teď až 12 iterací s ukončením při změně < 1 µm → residuum 0,12 %.
-3. *Godot importér přepočítá normály blend shapes* – **neoprávněné**: GLB se načítá za běhu přes GLTFDocument (importér „keep“),
-   normály ze souboru se používají (test_body_morphs ověřuje normály cílů).
-4. *Determinismus importu napříč platformami* – **zdůvodněno**: import běží jednou, hra načítá hotový GLB (determinismus
-   za běhu ověřuje test_head na vahách); pořadí sousedů je dané pořadím ploch.
-5. *Šev krk hlavy × krk těla* – **oprávněné, otevřené** (bod 6a níže).
+**ChatGPT #111:** loop_hit → nearest intersection + a test with a non-star-shaped and a degenerate loop; Catmull-Rom
+invariants over 192 directions (weights sum to 1, finite points, deviation from the polygon ≤ 1.08 mm, order preserved)
+– worked in.
 
-### Stav C3
-Tvar obličeje a krku je po vizuální kontrole věrohodný (přední, ¾, profil, zezadu; typické i extrémní). **C3 uzavírám
-s výhradami** výše (6a–6e), které jsou v otevřených bodech; 6d řeší C4b, 6a samostatný krok „napojení hlavy na tělo“.
+**Grok #113:**
+- The test ±30° bend × neck ±1 × fat/muscle – worked in.
+- "Move the head bone and recompute weights" – done differently, with reasons:
+  - The offset is a head blend shape. The neck under the chin has mixed head/neck weights, so moving the bone would
+    drag the underside of the chin.
+  - The seam edge has body weights and does not move, and the seam holds even when bending (test).
+  - The crown and hair move with the head (test "hair took over b_neck_len", crown +15.00 mm).
+- A skewed randomiser distribution – not adopted: N(0; 0.3) clamped to ±0.8 gives extremes |v| > 0.7 for 1.5 % of
+  characters.
+
+The diff review was sent to the room (#115); no answer yet.
+
+**Open:**
+- The head is ~1 cm lower than the reference (22.3 vs ~23 cm) and looks small on a muscular character (C3+ B); the front
+  neck at 9.1 cm is at the upper edge of the reference.
+- Hair = helmet (C4b).
+- GitHub push does not work (the repository is outside the session's authorised sources) – see DEVLOG.
 
 ---
 
-## 2026-10-21 (běh 10) – uzavření C3 (vizuální kontrola, review Grok 74 / ChatGPT 78) + C4a kůže
+## 2026-10-21 (run 12, ~13:55–15:50 UTC) – C3+ neck and head–body seam (completion of the interrupted run 11)
 
-### Testy
-| Test | Výsledek |
+**Scope:** `scripts/assets/head_builder.gd` (seam, smoothing around the eyes/mouth, in-betweens),
+`scripts/character/skin_layers.gd` (neck points), tests `tests/test_neck_seam.gd` (new, 32) and `tests/test_skin.gd`;
+`character.glb` re-imported.
+
+**a) Self-review** (every changed file re-read):
+- **Parse error left behind.** The interrupted run left `test_neck_seam.gd` with a parse error: `ArrayMesh` has no
+  `find_blend_shape_by_name` (that is a `MeshInstance3D` method) → own `_bs_index()`. The same error would only have
+  crashed `_test_manifest` at runtime.
+- **6 folded faces under the eye (`test_head`).**
+  - Run 11 changed the smoothing around the eyes and mouth to tangential smoothing with a return to the surface
+    (because of a dark band above the lip).
+  - Around the eyes this broke the continuity of a grid row with the outer eyelid ring, which moves with the eye at
+    0.85 × the centre offset.
+  - Fix: tangential smoothing + return to the surface only at the mouth (`Topo.relax_mouth`); around the eyes full
+    smoothing + `push_out`.
+  - Verified over 4 seeds × 48 combinations: 0 folded faces, eye clearance 0.71 mm.
+- **Seam.**
+  - The loop detection in the test also picked up the T-shirt neckline (a material boundary is also a mesh edge) → the
+    edge component with the highest vertex.
+  - The head sank up to 2 mm below the body edge at edge height. Ray diagnostics showed a chord over 32° between sleeve
+    vertices (the slanted grid of the cube's bottom face): the quad diagonal ran horizontally at edge height.
+  - Fix: `_seam_alt_diagonal()` (the more convex diagonal in the band); the seam target lies on a Catmull-Rom curve
+    through the loop vertices (a linear combination, so body morphs are exact).
+  - Tried and reverted: full face fitting across the edge (no effect); sag compensation (unnecessary after the
+    diagonals).
+- **In-between.** The `nose_tip_angle` in-between existed only for the negative side (the smoothing change at the
+  mouth pushed the positive side below the threshold) → when one side needs an in-between, both get one.
+- **`test_skin`.**
+  - The neck points (scars/tattoos) were on the old neck (14–25 mm from the surface) → re-measured at 1.525 m on the new
+    neck.
+  - The neck test now considers both the head and body meshes.
+  - The head blend shape count is checked against the manifest.
+
+**b) Tests:**
+- `godot_check` 60/60.
+- test_neck_seam **32/32**, test_head 43/43, test_skin 60/60, test_assets 150/150, test_body_morphs 62/62.
+- test_character 157/157, test_character_v2 39/39, test_character_net 28/28, test_multiplayer 67/67.
+- test_depression 92/92, test_mental_health 95/95, test_reconciliation 58/58, test_player_commands 40/40,
+  test_psyche_presentation 19/19, test_net_protocol 34/34.
+- `--test 7` OK (26.1 ms per game hour).
+- Seam results:
+  - head–body edge gap −0.13…+1.38 mm in the base;
+  - −0.20…+1.72 mm for 12 random bodies and necks;
+  - −0.16…+1.42 mm with a 25° forward bend, 20° side bend and 35° rotation (CPU skinning);
+  - 0 inverted triangles over 16 combinations of morphs × bending;
+  - normals at the loop = body (≤ 3.8°);
+  - "no collar" (jump in radius increment ≤ 2.2 mm per 5 mm of height).
+- Slider performance in test_character varies 3.6–6.3 ms with server load (tests running concurrently); 3.56 ms on its
+  own (limit 4 ms). Open point for C6: apply only the changed group.
+
+**Visual check (Blender Cycles, inspected by eye):** 8 characters × 5 views (default, 2 random, max extreme, min
+extreme, asymmetry, fat combination, muscle + shoulders combination).
+- The GLB was transferred to Blender through the Godot server's `/doc/` endpoint (MD5 verified), and the sheet came
+  back through `godot_file_write` (no tokens or third-party access). Sheets: `docs/images/c3-neck-seam-run12-a.jpg`,
+  `-b.jpg`.
+- The seam at the neckline is clean from the front, side, back and below (previously a jagged line).
+- **New finding from the render:** a muscular/heavy character had a light "collar" on the neck.
+  - The band normals now turn towards the body edge normals only within 12 mm above the loop (previously the whole 2 cm
+    band, with the trapezius slope).
+  - Body morphs act on the whole neck tube (`body_weight`, 8 cm, not on the bottom of the jaw).
+  - Re-rendered after the fix: the collar is gone, and a natural corner under the chin remains.
+- Nose/philtrum at the max extreme: the dark band above the lip is gone (the run 11 mouth smoothing fix is kept). The
+  light patch under the nose on random character 1 is a highlight on the philtrum ridge, not a penetration (the lip and
+  face tests found nothing).
+- Remaining (outside this step):
+  - hair as a helmet/plates (C4b); without eyebrows the face looks empty (C4b);
+  - flat lips and small eyes (C3+ part B, after C4b);
+  - the head looks small on a muscular body (consider coupling head_size in the generator);
+  - white highlights at the ear in the view from below (rim light, not geometry).
+
+**c) Gemini (3.5-flash overloaded → flash-lite): 4 findings:**
+1. "lerp in `_apply_seam` is not linear with respect to morphs" – **not valid**: w and the target are fixed from the
+   base, so the result is linear in position; body morphs are separate blend shapes (loop displacement × weight).
+   Covered by the 12-random-body test.
+2. "The `loop_hit` fallback [0,…] throws the vertex to the origin" – **not valid**: `_seam_setup` returns {} for s ≤ 0
+   and the import fails loudly (attach_head → {}); the tolerance f ±1e-6 covers a ray through a vertex.
+3. "Weight normalisation after clipping to 4" – **partly valid**: normalisation is there, but with zero body weights a
+   vertex would be left without a bone → safeguard `[[neck, 1]]` + test.
+4. "Zero normal in `_seam_normals`" – **valid as a safeguard**: a zero-length check added (the GLB did not change).
+
+**ChatGPT #104/#106:** the seam was tested in motion and with combinations of body morphs, normals and inverted
+triangles, plus renders from several angles including random combinations – done. Status per #106: implemented ✅ /
+automatically tested ✅ / visually verified ✅ (Blender, by eye) / integrated ✅ (GLB in game, SimVisual). C3+ part A is
+closed.
+
+## 2026-10-21 (run 10b, ~07:25–08:10 UTC, manual start) – visual check of the C3 face and fixes based on it
+
+### How the check was done
+- Connectors: Godot ✅, Audio Engine ✅, Blender ✅ (4.0.2 – running again after a 503), Gemini ✅, AI room relay ✅.
+- Blender can only return an image from a scene built from primitives (`blender_render_frame`); it cannot transfer a
+  custom mesh as JSON (type `mesh` → error 500).
+- The path that works:
+  1. `tools/raster_preview.gd` renders the **real character.glb** (blend shapes + mesh normals).
+  2. Godot saves the JPG as base64 to `res://previews/*.b64`.
+  3. `godot_file_read` saves the large output to a file in my environment, and I decode it.
+  4. I **inspect the image by eye** (the base64 MD5 is verified for every frame).
+
+  The finished frames were also sent to the owner.
+
+### What was visible (findings) and what was fixed
+1. **The underside of the jaw and the chin–neck angle were missing.** In profile, the chin descended smoothly into the
+   neck at under 45°; the neck was at the front (throat z = 0.05 m); the lower third of the face was short (mouth to the
+   bottom of the chin 3 cm).
+   - **Fixed** in `head_builder.gd`:
+     - neck axis behind the centre of the head (`NECK_ZC −0.012`, smoothly to 0 at the body – `neck_zc(y)`);
+     - an elliptical neck (0.96 × 1.04);
+     - a more angular lower front of the skull (exponent +1.1);
+     - the bottom of the chin lower (`b` 0.112 → 0.119, chin relief −0.106);
+     - a sharper head–neck transition (`smax` 0.012 → 0.009).
+   - Now: mouth to the bottom of the chin **4.4 cm**, chin **4.0 cm** in front of the neck.
+2. **A step at the nape** between the head's neck "sleeve" and the body neck (after the axis shift) – **fixed** with a
+   variable neck axis; the step is 8 mm.
+3. **"Jagged" light spots along the jaw–neck line** (converging rays → narrow faces with rapidly changing normals) –
+   **fixed** by smoothing normals (not positions) in the jaw–neck band, away from the mouth, eyes and ears; the same
+   operator is used for the base and all targets.
+4. **Vertical stripes in the neck shading** – **reduced**: neck normals = the gradient of an elliptical cylinder (the
+   direction does not depend on morph scaling).
+5. **A "balloon" under the jaw at fat 1.0** (the neck widened only at the top) – **reduced**: widening along the whole
+   neck length, weaker at the front; fat coefficient 0.30 → 0.22. A pronounced roll remains at the back with extreme fat
+   – acceptable, to be watched.
+6. **Unchanged, open:**
+   - (a) a jagged seam at the bottom of the neck where the head's neck sleeve intersects the body neck (two meshes
+     intersect; the solution is a shared head–body neck topology, a separate step);
+   - (b) the lips look like a flat "sticker" with an angular outline, lacking volume and corners;
+   - (c) the eyes look small and sunken;
+   - (d) the hairstyles are a helmet and two tubes (C4b);
+   - (e) extreme combinations (all fields −1) give a sunken face – within limits, but the editor should dampen
+     extremes.
+- **Tests:**
+  - `test_skin` got 3 profile checks: lower third 4–5 cm; chin ≥ 3 cm in front of the neck (now 3.7 cm); nape without a
+    step ≤ 12 mm (now 6.1 mm). The scar points on the chin and jaw were recalibrated.
+  - **test_skin 60/60, test_head 43/43, test_assets 150/150, test_body_morphs 62/62, test_character 157/157,
+    test_character_net 28/28, `--test 3` OK.**
+- **Lesson:** a parse error in a test scene's script makes the run **freeze** (not error). Verify with
+  `GDScript.reload()` before running; `godot_check` does not check the `tests/` folder.
+
+### Gemini audit (flash-lite) of the head changes
+1. *CRITICAL: normal-smoothing weights from the target position* – **valid, fixed**: the weights (band, neck) are
+   computed from the BASE position for all targets (`_normals(pos, faces, wpos)`), so shading does not jump when blend
+   shapes are mixed.
+2. *CRITICAL: the neck-intersection iteration does not converge* – **valid, fixed**: measurement showed slow
+   convergence for rays pointing obliquely backwards (ellipse residual up to 12 %). Now up to 12 iterations, stopping
+   when the change is < 1 µm → residual 0.12 %.
+3. *The Godot importer recomputes blend shape normals* – **not valid**: the GLB is loaded at runtime through
+   GLTFDocument (importer "keep"), so the normals from the file are used (test_body_morphs verifies target normals).
+4. *Import determinism across platforms* – **explained**: the import runs once and the game loads the finished GLB
+   (runtime determinism is verified by test_head on the weights); neighbour order is given by face order.
+5. *The head neck × body neck seam* – **valid, open** (point 6a below).
+
+### C3 status
+After the visual check, the shape of the face and neck is believable (front, ¾, profile, back; typical and extreme).
+**C3 is closed with the reservations** above (6a–6e), which are among the open points; 6d is handled by C4b, and 6a by
+a separate "head–body connection" step.
+
+---
+
+## 2026-10-21 (run 10) – closing C3 (visual check, Grok 74 / ChatGPT 78 review) + C4a skin
+
+### Tests
+| Test | Result |
 |---|---|
-| `godot_check` | 60/60 skriptů OK (pozn.: nástroj nekontroluje `tests/` – parse chyby testů se ukážou až při běhu, viz níže) |
-| `tests/test_skin.tscn` (nový: SkinModel – spojitost (skok ≤ 0,0011 na 0,001), monotonie, spektrum 0,752 → 0,028 lin. světlosti, 98/100 různých barev, podtón a prokrvení na celém spektru, NaN/±∞, shoda se starými kotvami 0,041, CPU barva = chromofory pro shader (0,0005), **celá mřížka 1 386 kombinací: sytost ≥ 0,19, odstín −3°…43°**; SkinLayers – determinismus i po sdílecím kódu a JSON, kvantizace 1/10000, skryté položky, pevné délky polí, nezávislost na jménu/rodu/identitě, detail_seed mění rozmístění, vrásky s věkem, poškozený snapshot bez NaN, limit 6 jizev; **umístění jizev a tetování na povrchu modelu** (obličej 1,4 mm, krk 8,1, trup ≤ 3,6, končetiny ≤ 7,4 mm); shader se zkompiluje (39 parametrů), každý výstup má parametr, konstanty ze SkinModel; CUSTOM0 = klidové polohy jen u 2 sítí kůže, blend shapes/kosti zachované; SimVisual – vlastní ShaderMaterial na postavu, parametry = resolver, hlava+tělo sdílí materiál, 0,013 ms aplikace, 0,11 ms výpočet; schéma v3 + migrace v2→v3; C3 review – mezitvary mají rodiče, váhy těla kvantované) | **57/57 OK** |
-| `tests/test_character.tscn` | **157/157 OK** (posuvník 3,30–3,80 ms, limit 4 ms) |
-| `tests/test_character_v2.tscn` | **39/39 OK** (migrace v1 teď končí ve v3) |
+| `godot_check` | 60/60 scripts OK (note: the tool does not check `tests/` – test parse errors only show up at runtime, see below) |
+| `tests/test_skin.tscn` | **57/57 OK** (new; contents below the table) |
+| `tests/test_character.tscn` | **157/157 OK** (slider 3.30–3.80 ms, limit 4 ms) |
+| `tests/test_character_v2.tscn` | **39/39 OK** (the v1 migration now ends at v3) |
 | `tests/test_assets.tscn` | **150/150 OK** |
 | `tests/test_head.tscn` | **43/43 OK** |
 | `tests/test_body_morphs.tscn` | **62/62 OK** |
@@ -570,463 +828,731 @@ s výhradami** výše (6a–6e), které jsou v otevřených bodech; 6d řeší C
 | `tests/test_multiplayer.tscn` | **67/67 OK** |
 | `tests/test_depression.tscn` / `test_mental_health` / `test_reconciliation` | **92/92**, **95/95**, **58/58 OK** |
 | `tests/test_player_commands` / `test_psyche_presentation` / `test_net_protocol` | **40/40**, **19/19**, **34/34 OK** |
-| `--test 7` | OK (25,3 ms/herní hodinu, 0 min v kritickém stavu) |
+| `--test 7` | OK (25.3 ms per game hour, 0 min in a critical state) |
 
-### Vizuální kontrola C3 – co šlo a co ne (otevřeně)
-- Blender Space opět **503** → žádný Cycles render.
-- Napsala jsem `tools/raster_preview.gd`: softwarový rasterizér nad **skutečným character.glb** (blend shapes stejnou cestou
-  jako SimVisual, z-buffer, Gouraud). Kontaktní arch 6 obličejů × 5 úhlů (výchozí, 2 typické, všechna pole +1, všechna −1,
-  smíšené extrémy s asymetrií a tukem 1) je uložený v projektu: **`res://previews/c3_face_sheet.png`** (800×960).
-- **Okem jsem ho neviděla**: z Godot serveru nejde obrázek přenést do mého prostředí (výstup nástroje se ořezává
-  a ruční přepis 80 kB base64 by byl nespolehlivý). Prohlédla jsem jen ASCII převzorkování dvou dlaždic (silueta,
-  uši, krk, vlasy bez děr) a automatickou kontrolu „díry v siluetě“ (pozadí uvnitř obrysu ≤ 46 px/dlaždici – mezery
-  ucho–hlava a vlasy–krk, žádné trhliny). **C3 tím vizuálně uzavřené NENÍ** – PNG je připravené pro lidskou kontrolu
-  (uživatelka / ChatGPT), případně zopakovat Blender render, až Space poběží.
+What `test_skin` covers:
+- **SkinModel:**
+  - continuity (jump ≤ 0.0011 per 0.001) and monotonicity;
+  - a spectrum from 0.752 to 0.028 linear lightness, 98/100 distinct colours;
+  - undertone and blood flow across the whole spectrum; NaN/±∞;
+  - agreement with the old anchors (0.041); CPU colour = chromophores for the shader (0.0005);
+  - **the whole grid of 1,386 combinations: saturation ≥ 0.19, hue −3°…43°**.
+- **SkinLayers:**
+  - determinism also after the share code and JSON; quantisation 1/10000;
+  - hidden items; fixed array lengths;
+  - independence from name/gender/identity; detail_seed changes the placement;
+  - wrinkles with age; a corrupted snapshot without NaN; the limit of 6 scars.
+- **Scar and tattoo placement on the model surface:** face 1.4 mm, neck 8.1, torso ≤ 3.6, limbs ≤ 7.4 mm.
+- **Shader:** it compiles (39 parameters), every output has a parameter, and the constants come from SkinModel.
+- **CUSTOM0** = rest positions only on the 2 skin meshes; blend shapes and bones preserved.
+- **SimVisual:** its own ShaderMaterial per character, parameters = resolver, head and body share a material;
+  application 0.013 ms, computation 0.11 ms.
+- Schema v3 + migration v2→v3.
+- C3 review: in-betweens have parents, and body weights are quantised.
 
-### Nálezy z vlastních testů (opraveno)
-- **Body jizev a tetování na trupu ležely 3–5 cm pod povrchem** (odhadnuté souřadnice; tetování by se vůbec
-  nevykreslilo, protože hloubková tolerance je 2 cm). Zkalibrováno nejbližším bodem povrchu výchozí sítě, test hlídá.
-- `SkinModel.chromophores` propouštěl **NaN** (clampf NaN neořízne) → nekonečné/NaN vstupy = výchozí hodnoty.
-- Skryté jizvy/tetování zabíraly místo v limitu shaderu (prvních 6 položek) → počítají se jen viditelné.
-- Godot **parser zamrzl** na dlouhém výrazu s `\` pokračováním řádku v testu (žádná chyba, jen visel) – přepsáno do smyčky.
-- `ArrayMesh` nemá `find_blend_shape_by_name` (je na MeshInstance3D) – oprava testu.
+### Visual check of C3 – what worked and what did not (openly)
+- The Blender Space returned **503** again → no Cycles render.
+- I wrote `tools/raster_preview.gd`, a software rasteriser over the **real character.glb** (blend shapes through the
+  same path as SimVisual, z-buffer, Gouraud).
+  - A contact sheet of 6 faces × 5 angles is saved in the project: **`res://previews/c3_face_sheet.png`** (800×960).
+  - The 6 faces: default, 2 typical, all fields +1, all −1, mixed extremes with asymmetry and fat 1.
+- **I did not see it by eye.** The image cannot be transferred from the Godot server to my environment: the tool output
+  is truncated, and manually transcribing 80 kB of base64 would be unreliable.
+  - I only looked at an ASCII downsampling of two tiles (silhouette, ears, neck, hair without holes).
+  - I also ran an automatic "hole in the silhouette" check: background inside the outline ≤ 46 px per tile (ear–head and
+    hair–neck gaps), no cracks.
+- **So C3 is NOT visually closed.** The PNG is ready for human review (the owner / ChatGPT); alternatively, repeat the
+  Blender render when the Space is running.
 
-### Review Grok 74 / ChatGPT 78 (C3)
-- Mezitvary: ověřeno testem, že každý `*_mid` má rodiče a nelineární morf s mezitvarem ho má pro obě strany
-  (dnes jen délka nosu). Chybějící mezitvar váhu „neztratí“ – lineární tvar se aplikuje dál, mezitvar jen opravuje.
-- Kvantizace vah těla před vazbou na obličej a korekcemi: už platí (BodyMorphs kvantuje 1/1000), test hlídá.
-- Hubnutí v obličeji (Grok 74/4): **zdůvodněno, beze změny** – výchozí hlava je štíhlá, vazba je záměrně jen nárůst
-  (dokumentováno ve FaceMorphs); propadlé tváře přidám s mimikou/stárnutím, aby nevznikla jedna „nemocná“ tvář pro hubená těla.
+### Findings from our own tests (fixed)
+- **Scar and tattoo points on the torso lay 3–5 cm under the surface** (estimated coordinates; a tattoo would not have
+  rendered at all, because the depth tolerance is 2 cm). Calibrated to the nearest point on the default mesh surface,
+  guarded by a test.
+- `SkinModel.chromophores` let **NaN** through (clampf does not clamp NaN) → infinite/NaN inputs = defaults.
+- Hidden scars/tattoos took up space in the shader limit (the first 6 items) → only visible ones count.
+- The Godot **parser froze** on a long expression with a `\` line continuation in a test (no error, it just hung) →
+  rewritten as a loop.
+- `ArrayMesh` has no `find_blend_shape_by_name` (it is on MeshInstance3D) – test fix.
 
-### Audit Gemini (`gemini-3.5-flash-lite`; `3.5-flash` přetížený)
-1. *VYSOKÁ: float nedeterminismus mezi peery* – **zdůvodněno**: všechny vstupy shaderu jsou na CPU kvantované (1/10000)
-   a deterministické (test po sdílecím kódu); rozdíl GPU v posledním bitu šumu je subpixelový a nemá herní dopad.
-2. *VYSOKÁ: výkon fragmentu* – **částečně oprávněné, opraveno**: LOD – jemné detaily (pihy, póry, chloupky, strniště,
-   znaménka, akné) se od 6 m plynule vypínají (i proti mihotání šumu). Smyčky jizev/tetování už končí na skutečném počtu
-   a přeskakují mimo hloubku. Pečení do textury nejde (síť nemá UV) – zvážit v C8 podle profileru.
-3. *VYSOKÁ: Compatibility/web* – **otevřené, neověřitelné headless**: `sss_mode_skin`/`SSS_STRENGTH` Compatibility renderer
-   podle dokumentace ignoruje; CUSTOM0 je podporovaný. Navržený preprocesor Gemini byl nesmyslný. Ověřit ve webovém buildu.
-4. *STŘEDNÍ: DoS přes snapshot* – **neoprávněné**: kód postavy má limity velikosti (8 kB kód, 32 kB JSON, CRC, zip-bomb test),
-   posílá se jednou v hello; seznamy mají limity schématu. Rate-limit změn vzhledu až s převlékáním ve hře (C5).
-5. *STŘEDNÍ: bez UV tetování „plave“* – **neoprávněné**: masky jsou v klidových souřadnicích vrcholu (CUSTOM0), které se
-   nemění animací ani morfy – test ověřuje CUSTOM0 = rest.
-6. *STŘEDNÍ: riziko „mrtvolných“ odstínů* – **oprávněná kontrola, přidán test**: celá mřížka melanin × podtón × prokrvení
-   drží sytost ≥ 0,19 a odstín −3°…43°.
-7. *NÍZKÁ: 33 volání set_shader_parameter* – **zdůvodněno**: jen při změně vzhledu, změřeno 0,013 ms.
+### Grok 74 / ChatGPT 78 review (C3)
+- In-betweens: a test verifies that every `*_mid` has a parent, and that a non-linear morph with an in-between has it
+  for both sides (today only nose length). A missing in-between does not "lose" weight: the linear shape still applies,
+  and the in-between only corrects it.
+- Quantising body weights before coupling them to the face and corrections: already the case (BodyMorphs quantises to
+  1/1000), guarded by a test.
+- Face thinning (Grok 74/4): **explained, unchanged**. The default head is slim, and the coupling is deliberately only an
+  increase (documented in FaceMorphs). Hollow cheeks will be added with expressions/ageing, so that there is no single
+  "sick" face for thin bodies.
 
-### Otevřené body
-- C3: lidská kontrola `res://previews/c3_face_sheet.png` (nebo Blender render), zuby/jazyk/mimika.
-- Kůže ve webovém buildu (Compatibility) neověřena; vizuál shaderu neviděn (headless).
-- Vrásky jen jako ztmavení/AO (síť nemá tangenty pro normal mapu) – C8 / s mimikou.
-- Posuvník vzhledu 3,3–3,8 ms (limit 4) – v editoru (C6) aplikovat jen změněnou skupinu.
+### Gemini audit (`gemini-3.5-flash-lite`; `3.5-flash` overloaded)
+1. *HIGH: float non-determinism between peers* – **explained**: all shader inputs are quantised on the CPU (1/10000) and
+   deterministic (test after the share code); a GPU difference in the last bit of noise is sub-pixel and has no gameplay
+   impact.
+2. *HIGH: fragment performance* – **partly valid, fixed**:
+   - LOD: fine details (freckles, pores, hairs, stubble, moles, acne) fade out smoothly from 6 m, which also prevents
+     noise shimmer.
+   - The scar/tattoo loops already stop at the real count and skip anything outside the depth range.
+   - Baking into a texture is not possible (the mesh has no UVs); consider it in C8 based on the profiler.
+3. *HIGH: Compatibility/web* – **open, cannot be verified headless**: according to the documentation, the Compatibility
+   renderer ignores `sss_mode_skin`/`SSS_STRENGTH`; CUSTOM0 is supported. The preprocessor Gemini proposed was nonsense.
+   Verify in the web build.
+4. *MEDIUM: DoS through the snapshot* – **not valid**: the character code has size limits (8 kB code, 32 kB JSON, CRC,
+   zip-bomb test) and is sent once in hello; lists have schema limits. Rate-limiting appearance changes comes with
+   changing clothes in game (C5).
+5. *MEDIUM: without UVs a tattoo "floats"* – **not valid**: the masks are in the vertex rest coordinates (CUSTOM0), which
+   do not change with animation or morphs; a test verifies CUSTOM0 = rest.
+6. *MEDIUM: risk of "corpse-like" hues* – **a valid check, test added**: the whole melanin × undertone × blood-flow grid
+   keeps saturation ≥ 0.19 and hue −3°…43°.
+7. *LOW: 33 set_shader_parameter calls* – **explained**: only on an appearance change, measured at 0.013 ms.
+
+### Open points
+- C3: human review of `res://previews/c3_face_sheet.png` (or a Blender render); teeth/tongue/expressions.
+- Skin in the web build (Compatibility) not verified; the shader's look not seen (headless).
+- Wrinkles only as darkening/AO (the mesh has no tangents for a normal map) – C8 / with expressions.
+- Appearance slider 3.3–3.8 ms (limit 4) – in the editor (C6), apply only the changed group.
 
 ---
 
-## 2026-10-20 (běh 9) – C3 obličej (procedurální hlava s blend shapes) + review ChatGPT 48/49 + schéma v2
+## 2026-10-20 (run 9) – C3 face (procedural head with blend shapes) + ChatGPT review 48/49 + schema v2
 
-### Testy
-| Test | Výsledek |
+### Tests
+| Test | Result |
 |---|---|
-| `godot_check` | 60/60 skriptů OK |
-| `tests/test_head.tscn` (nový, ~45 s: každé z 32 polí obličeje má morf s účinkem ≥ 0,5 mm; tělo → obličej (tuk, svaly); mezitvary délky nosu; 8 korekčních tvarů; topologie; FaceMorphs – výchozí = 0, ±/pos/neg, korekce = součin vah ve správném kvadrantu, NaN/INF/text → výchozí, ořez, kvantizace, hubnutí nedeformuje, jméno/rod obličej nemění; determinismus (bit po bitu), souměrnost výchozí hlavy 0,0002 mm, souměrné morfy souměrné, každá osa asymetrie souměrnost poruší; **blend shapes ve hře × přesný tvar**: jedno pole ±60 % ≤ 0,61 mm, dlouhý nos + vysoký hřbet 0,00 mm s korekcí (4,32 mm bez), typické obličeje max 1,17 mm / průměr 0,044 mm, extrémy všech 32 polí max 3,89 / průměr 0,20 mm; **průniky** na 48 kombinacích extrémů (rohy oční podprostoru + náhodné): vůle kůže–oko ≥ 0,71 mm, rty se nepřekříží (≥ 0,495 mm), 0 přeložených ploch; GLB – face_spec v manifestu, zúžený krk těla (89 vrcholů), 62 blend shapes = morfy HeadBuilderu, hlava+oči 7 760 tri, vlasy převzaly 20 morfů lebky; **SimVisual: všech 268 hodnot blend shapes hlavy a vlasů = data**; aplikace obličeje 0,17 ms; 20 obličejů server × klient (veřejný snapshot přes JSON) bit po bitu stejné; domácnost má různé obličeje) | **43/43 OK** |
-| `tests/test_character_v2.tscn` (nový: kontrakt `repaired()` – 5 fatálních vstupů → platná výchozí postava + `fatal`; 128bit uid, starší 16hex uid přijato, jiná délka odmítnuta; hranaté závorky v textech + `display_safe` ověřené na skutečném RichTextLabel; **korpus 42 jmen** (perština, urdština, arabština s harakát, hebrejština s niqqud, dévanágarí, bengálština, tamilština, telugština, kannadština, malajálamština, gurmukhí, gudžarátština, thajština, laoština, vietnamština NFC i NFD, gruzínština, arménština, amharština, korejština, japonština, čínština, řečtina, azbuka, turečtina, islandština, jorubština, havajština, irština…) projde, 12 záškodnických (zalgo i arabské, bidi, RLM, ZWJ/ZWNJ, emoji, číslice, _, ∑, VS16) odmítnuto; jizvy/tetování: skryté nejdou ve snapshotu, veřejně jen render klíče, hidden ve snapshotu = chyba, allowlist z poškozených dat editoru; migrace v1 → v2 + server přijme v1 kód; temeno na **6 405 kombinacích výška × nohy × head_size: max 0,0013 mm**; head_size ±6 %; validace tabulky kostí; náhled české gramatiky) | **39/39 OK** |
-| `tests/test_character.tscn` (upraveno: uid 32 hex, 29 morfů + 3 osy asymetrie, fuzz „jiná verze“ = VERSION+1, vnořená data striktně) | **157/157 OK** |
-| `tests/test_character_net.tscn` (+1: server klientovo uid zahodí a přidělí vlastní 128bit) | **28/28 OK** |
-| `tests/test_assets.tscn` (rozpočet postavy 18 000 tri – obličej; uzel `head__face`) | **150/150 OK** |
-| `tests/test_body_morphs.tscn` | **62/62 OK** (posuvník těla 1,06 ms – teď zahrnuje i obličej) |
-| Regrese: test_multiplayer 67, test_depression 92, test_mental_health 95, test_reconciliation 58, test_player_commands 40, test_psyche_presentation 19, test_net_protocol 34 | **vše OK** |
-| `--test 7` | OK (25,8 ms/herní hodinu vč. načtení většího GLB; vztahy v domácnosti dál −45…−58) |
+| `godot_check` | 60/60 scripts OK |
+| `tests/test_head.tscn` | **43/43 OK** (new, ~45 s; contents below the table) |
+| `tests/test_character_v2.tscn` | **39/39 OK** (new; contents below the table) |
+| `tests/test_character.tscn` (adjusted: uid 32 hex, 29 morphs + 3 asymmetry axes, fuzz "other version" = VERSION+1, nested data strictly) | **157/157 OK** |
+| `tests/test_character_net.tscn` (+1: the server discards the client's uid and assigns its own 128-bit one) | **28/28 OK** |
+| `tests/test_assets.tscn` (character budget 18,000 tris – face; node `head__face`) | **150/150 OK** |
+| `tests/test_body_morphs.tscn` | **62/62 OK** (body slider 1.06 ms – now includes the face) |
+| Regression: test_multiplayer 67, test_depression 92, test_mental_health 95, test_reconciliation 58, test_player_commands 40, test_psyche_presentation 19, test_net_protocol 34 | **all OK** |
+| `--test 7` | OK (25.8 ms per game hour including loading the larger GLB; household relationships still −45…−58) |
 
-### Vizuální kontrola
-- **Blender (HF Space) vrací 503** – náhled v Cycles v tomto běhu nešel. Náhradou softwarový rasterizér v Godotu
-  (ortografický pohled zepředu a z boku do ASCII, 64×46): silueta lebky, uši, oči, nos, ústa, brada a krk sedí;
-  nosní profil je spíš decentní. **TODO:** render v Blenderu, až služba poběží (head mesh přenést jako
-  delta-kódovaný blob ~30 kB textu).
+What `test_head` covers:
+- **Morphs:** each of the 32 face fields has a morph with an effect ≥ 0.5 mm; body → face (fat, muscle); nose-length
+  in-betweens; 8 corrective shapes; topology.
+- **FaceMorphs:** default = 0, ±/pos/neg; correction = product of weights in the right quadrant; NaN/INF/text →
+  default; clamping, quantisation; thinning does not deform; name/gender do not change the face.
+- **Determinism and symmetry:** bit-for-bit determinism; default head symmetric to 0.0002 mm; symmetric morphs stay
+  symmetric; every asymmetry axis breaks symmetry.
+- **In-game blend shapes × exact shape:**
+  - a single field at ±60 % ≤ 0.61 mm;
+  - long nose + high bridge 0.00 mm with the correction (4.32 mm without);
+  - typical faces max 1.17 mm / mean 0.044 mm;
+  - extremes of all 32 fields max 3.89 / mean 0.20 mm.
+- **Penetration** over 48 combinations of extremes (corners of the eye subspace + random): skin–eye clearance ≥ 0.71 mm,
+  lips do not cross (≥ 0.495 mm), 0 folded faces.
+- **GLB:**
+  - face_spec in the manifest; narrowed body neck (89 vertices);
+  - 62 blend shapes = HeadBuilder morphs; head + eyes 7,760 tris;
+  - the hair took over 20 skull morphs.
+- **SimVisual:** all 268 head and hair blend shape values = data; applying a face takes 0.17 ms.
+- **Network:** 20 faces server × client (public snapshot through JSON) bit-for-bit identical; the household has
+  different faces.
 
-### Review ChatGPT 48/49 – stav
-| # | Nález | Stav |
+What `test_character_v2` covers:
+- **The `repaired()` contract:** 5 fatal inputs → a valid default character + `fatal`.
+- **UIDs:** 128-bit uid; an older 16-hex uid is accepted, any other length rejected.
+- **Text:** square brackets in texts + `display_safe`, verified on a real RichTextLabel.
+- **Name corpus of 42 names** passes: Persian, Urdu, Arabic with harakat, Hebrew with niqqud, Devanagari, Bengali, Tamil,
+  Telugu, Kannada, Malayalam, Gurmukhi, Gujarati, Thai, Lao, Vietnamese NFC and NFD, Georgian, Armenian, Amharic, Korean,
+  Japanese, Chinese, Greek, Cyrillic, Turkish, Icelandic, Yoruba, Hawaiian, Irish…
+- **12 malicious names are rejected:** zalgo (including Arabic), bidi, RLM, ZWJ/ZWNJ, emoji, digits, _, ∑, VS16.
+- **Scars/tattoos:** hidden ones do not go into the snapshot; publicly only render keys; hidden in a snapshot = error;
+  allowlist from corrupted editor data.
+- **Migration:** v1 → v2, and the server accepts a v1 code.
+- **Crown height** over **6,405 combinations of height × legs × head_size: max 0.0013 mm**; head_size ±6 %.
+- Bone table validation; Czech grammar preview.
+
+### Visual check
+- **Blender (HF Space) returns 503**, so a Cycles preview was not possible in this run.
+- As a substitute, a software rasteriser in Godot (orthographic front and side view into ASCII, 64×46): the skull
+  silhouette, ears, eyes, nose, mouth, chin and neck fit; the nose profile is rather modest.
+- **TODO:** a Blender render when the service runs (transfer the head mesh as a delta-coded blob of ~30 kB of text).
+
+### ChatGPT review 48/49 – status
+| # | Finding | Status |
 |---|---|---|
-| 48.1 | jizvy/tetování vždy veřejně | **opraveno**: per-položka `hidden`, veřejně jen render klíče neskrytých položek |
-| 48.2 | snapshot ze surových dat, set_path_value bez validace | **opraveno**: allowlist ze schématu + `repaired(public_only)`; zápis bez validace zdokumentován (editor), validuje se při exportu/odeslání |
-| 48.3 | 64bit uid, klientské uid jako identita | **opraveno**: 128 bit (Crypto), server přepíše vlastním (test v MP) |
-| 48.4 | `repaired()` vrací `{}` | **opraveno**: `fatal` + bezpečné výchozí, novější verze → výchozí |
-| 48.5 | Unicode jen vybrané bloky | **opraveno**: XID_Start/XID_Continue (`is_valid_unicode_identifier`), run kombinujících 3, korpus 42 jmen |
-| 48.6 | zákaz [ ] v textech | **opraveno**: povoleno, `display_safe()` při vykreslení |
-| 49.A | velikost hlavy vázaná na výšku | **opraveno**: `body.head_size` (±6 %), HEAD_EXP zdokumentován jako heuristika |
-| 49.B | kvantizace temene | **opraveno**: s na 1e-4, hlava dopočtena z kvantovaného s (1e-5); změřeno 6 405 kombinací, max 0,0013 mm |
-| 49.C | záporné váhy, manifest morph_bones | lineární klíče se zápornými vahami pokryté od C2 (normály, skinning); **opraveno**: tabulka kostí – allowlist, konečná čísla, |x| ≤ 0,1 m |
-| 49.D | výkon 8/16/32 postav, exportovaný GLB, ztrátový MP | **otevřené** (C8) |
-| 49 čeština | ono/oni opt-in, neutrální opis, náhled vět | ono/oni jsou volitelné, nikdy výchozí z identity; **přidán** `Grammar.preview()` pro editor; režim „neutrální opis“ (věty bez rodového příčestí) **otevřený do C7** – vyžaduje alternativní šablony všech hlášek |
-| 49 C3 | extrémy × oči, zuby, krk, rig, asymetrie, mimika | oči/rty/krk/asymetrie testovány (viz výše); zuby zatím nejsou (dutina úst je tmavá kapsa), mimika přijde s animacemi obličeje (TODO) |
+| 48.1 | scars/tattoos always public | **fixed**: per-item `hidden`, publicly only render keys of non-hidden items |
+| 48.2 | snapshot from raw data, set_path_value without validation | **fixed**: allowlist from the schema + `repaired(public_only)`; writing without validation documented (editor), validated on export/send |
+| 48.3 | 64-bit uid, client uid as identity | **fixed**: 128 bit (Crypto), the server overwrites it with its own (MP test) |
+| 48.4 | `repaired()` returns `{}` | **fixed**: `fatal` + safe defaults, newer version → default |
+| 48.5 | Unicode only selected blocks | **fixed**: XID_Start/XID_Continue (`is_valid_unicode_identifier`), runs of up to 3 combining marks, corpus of 42 names |
+| 48.6 | ban on [ ] in texts | **fixed**: allowed, `display_safe()` when rendering |
+| 49.A | head size tied to height | **fixed**: `body.head_size` (±6 %), HEAD_EXP documented as a heuristic |
+| 49.B | crown quantisation | **fixed**: s at 1e-4, the head computed from the quantised s (1e-5); measured 6,405 combinations, max 0.0013 mm |
+| 49.C | negative weights, manifest morph_bones | linear keys with negative weights covered since C2 (normals, skinning); **fixed**: bone table – allowlist, finite numbers, \|x\| ≤ 0.1 m |
+| 49.D | performance of 8/16/32 characters, exported GLB, lossy MP | **open** (C8) |
+| 49 Czech | ono/oni opt-in, neutral paraphrase, sentence preview | ono/oni are optional, never a default derived from identity; **added** `Grammar.preview()` for the editor; the "neutral paraphrase" mode (sentences without a gendered participle) is **open until C7** – it needs alternative templates for all messages |
+| 49 C3 | extremes × eyes, teeth, neck, rig, asymmetry, expressions | eyes/lips/neck/asymmetry tested (see above); no teeth yet (the mouth cavity is a dark pocket); expressions come with facial animation (TODO) |
 
-### Audit Gemini (`gemini-3.5-flash`)
-1. *Vysoká: apply_face_shape nepoužívá FaceMorphs.weights* – **neoprávněné**: `look_params["face"]` je už výstup
-   `FaceMorphs.weights()` z AppearanceResolveru (Gemini dostal zkrácený výňatek); test ověřuje všech 268 hodnot.
-2. *Vysoká: prázdný kód postavy obejde přepis uid* – **neoprávněné**: prázdný kód = hráč bez vlastní postavy
-   převezme postavu domácnosti, nic se z klientských dat nespawnuje (test_character_net „B bez kódu“).
-3. *Vysoká: clothing obchází allowlist* – **neoprávněné**: celý snapshot vč. clothing jde přes validátor
-   (`_clothing` – jen známé kategorie a klíče, katalogy, barvy). „deep copy“ byla zkratka v zadání auditu.
-4. *Vysoká: dělení nulou v scales()* – nedosažitelné (výška ořezaná 145–205 cm → s ≈ 0,8–1,2), ale levná
-   pojistka **přidána** (`s = maxf(s, 0.1)`).
-5. *Střední: alokace řetězců v is_combining* – **neoprávněné pro tento rozsah**: validace jen při vstupu
-   (jména ≤ 24, texty ≤ 600 znaků); návrat k ručním blokům je přesně to, co review ChatGPT 48 kritizovalo.
-6. *Střední: zástupné jméno „Bezejmenná“ je rodové* – **oprávněné → opraveno**: `FALLBACK_NAME = "Bez jména"`.
-7. *Nízká: escapování až při vykreslení lze zapomenout* – **vědomé rozhodnutí** (data zůstávají věrná,
-   escapuje se podle konkrétního UI); do C7 (editor/HUD) přidat jediný pomocník pro všechny texty postavy a test,
-   že žádný RichTextLabel nedostane text postavy bez `display_safe`.
+### Gemini audit (`gemini-3.5-flash`)
+1. *High: apply_face_shape does not use FaceMorphs.weights* – **not valid**: `look_params["face"]` already is the output
+   of `FaceMorphs.weights()` from AppearanceResolver (Gemini received a shortened excerpt); a test verifies all 268
+   values.
+2. *High: an empty character code bypasses the uid overwrite* – **not valid**: an empty code means a player without
+   their own character takes over a household character, and nothing is spawned from client data (test_character_net
+   "B without code").
+3. *High: clothing bypasses the allowlist* – **not valid**: the whole snapshot including clothing goes through the
+   validator (`_clothing` – only known categories and keys, catalogues, colours). "deep copy" was shorthand in the audit
+   prompt.
+4. *High: division by zero in scales()* – unreachable (height clamped to 145–205 cm → s ≈ 0.8–1.2), but a cheap
+   safeguard was **added** (`s = maxf(s, 0.1)`).
+5. *Medium: string allocation in is_combining* – **not valid for this scale**: validation happens only on input (names
+   ≤ 24, texts ≤ 600 characters); going back to hand-picked blocks is exactly what ChatGPT review 48 criticised.
+6. *Medium: the placeholder name "Bezejmenná" is gendered* – **valid → fixed**: `FALLBACK_NAME = "Bez jména"`.
+7. *Low: escaping only at render time can be forgotten* – **deliberate decision** (the data stays faithful, and
+   escaping depends on the specific UI). For C7 (editor/HUD): add a single helper for all character texts and a test
+   that no RichTextLabel receives character text without `display_safe`.
 
-### Nálezy z vlastních testů (opraveno)
-- Lineární míchání blend shapes ujelo u kombinace délka nosu × hřbet o 4,3 mm a u délky nosu v polovině o 2,1 mm
-  → **korekční tvary** (8) a **mezitvary** (2); typická chyba teď 0,04 mm průměr / 1,2 mm max.
-- Rozpracovaný kód z přerušeného běhu odkazoval na neexistující soubory (head_ref.py, head_check.py) → komentář opraven.
-- Domácnost neměla data obličeje (všichni stejní) → explicitní obličeje pro Janu, Petra a Elišku.
-- Test: PackedInt32Array v Dictionary je hodnotový typ (append na kopii) – chyba v testu, ne v kódu.
-- Nástroj zápisu souborů převádí `\uXXXX` v obsahu na skutečné znaky → bidi znak v testu shodil parser
-  (Godot to správně odmítá); escapy se v testech teď skládají z kódů.
+### Findings from our own tests (fixed)
+- Linear blending of blend shapes drifted by 4.3 mm for the nose length × bridge combination and by 2.1 mm for nose
+  length at half → **corrective shapes** (8) and **in-betweens** (2); the typical error is now 0.04 mm mean / 1.2 mm max.
+- In-progress code from the interrupted run referred to non-existent files (head_ref.py, head_check.py) → comment fixed.
+- The household had no face data (everyone looked the same) → explicit faces for Jana, Petr and Eliška.
+- Test: a PackedInt32Array in a Dictionary is a value type (append on a copy) – a test bug, not a code bug.
+- The file-writing tool converts `\uXXXX` in content into real characters, so a bidi character in a test broke the
+  parser (Godot correctly rejects it); escapes in tests are now assembled from code points.
 
-### Otevřené body
-- Vizuální kontrola obličeje v Blenderu/enginu (Blender 503, headless Godot nerenderuje).
-- Zuby, jazyk, mimika (blend shapes výrazů) a víčka při mrkání – s animacemi obličeje.
-- Neutrální opis v češtině (C7), jeden pomocník pro escapování textů postavy (C7).
-- Výkon 8/16/32 postav s různými obličeji, export GLB do buildu (C8). GLB postavy 2,6 MB.
-- „Studená válka“ v domácnosti (vztahy −45…−58 po týdnu).
+### Open points
+- Visual check of the face in Blender/the engine (Blender 503, headless Godot does not render).
+- Teeth, tongue, expressions (expression blend shapes) and eyelids when blinking – with facial animation.
+- Neutral paraphrase in Czech (C7), one helper for escaping character texts (C7).
+- Performance with 8/16/32 characters with different faces, exporting the GLB into a build (C8). The character GLB is
+  2.6 MB.
+- "Cold war" in the household (relationships −45…−58 after a week).
 
 ---
 
-## 2026-10-15 (běh 8) – C2 tělo se shape keys: LSX v4, Catmull-Clark, blend shapes, klouby
+## 2026-10-15 (run 8) – C2 body with shape keys: LSX v4, Catmull-Clark, blend shapes, joints
 
-### Testy
-| Test | Výsledek |
+### Tests
+| Test | Result |
 |---|---|
-| `godot_check` | 55/55 skriptů OK |
-| `tests/test_body_morphs.tscn` (nový: Catmull-Clark na krychli – vrcholový bod 5/9, hranový a plošný bod, linearita operátoru, normály ven, váhy kostí = 1, odmítnutí otevřené sítě; LSX v4 – 868 řídicích vrcholů → 6 928 trojúhelníků jako v Blenderu, amplitudy všech 10 morfů = Blender ± rezidua, lokálnost poprsí, normály základu i fat_hi jednotkové a ven; 8 druhů poškozených dat odmítnuto; GLB – jména a pořadí blend shapes, režim NORMALIZED, absolutní cíle, morph_bones v manifestu; mapování – výchozí = 0, extrémy, nesmysly/NaN/Inf → výchozí, fuzz 500 těl v ⟨−1,1⟩, nezávislost na rodu/identitě/jméně, determinismus přes JSON; výška temene = height_cm (max 1,3 mm analyticky, 5,0 mm CPU skinningem), chodidla na zemi; **hodnoty blend shapes na všech 4 částech těla = data**; stehno/hlava/model škálované; posun kloubu ramene; **paže posunutá morfem jen jednou** (CPU skinning, odchylka 0,02 mm); výkon změny těla 0,11 ms) | **62/62 OK** |
-| `tests/test_assets.tscn` (upraveno: složená postava body v4 + character_head v3, LSX v3 stále čitelné, rozpočet postavy ≤ 12 000, jedna neutrální síť, 10 blend shapes) | 145/145 OK |
-| `test_character` / `test_character_net` / `test_multiplayer` / `test_depression` / `test_mental_health` / `test_reconciliation` / `test_player_commands` / `test_psyche_presentation` / `test_net_protocol` | 157, 27, 67, 92, 95, 58, 40, 19, 34 – vše OK |
-| `--test 7` | OK, 19,6 ms/herní hodinu |
-| Ruční běh (offline) | bez chyb |
+| `godot_check` | 55/55 scripts OK |
+| `tests/test_body_morphs.tscn` | **62/62 OK** (new; contents below the table) |
+| `tests/test_assets.tscn` (adjusted: composite character body v4 + character_head v3, LSX v3 still readable, character budget ≤ 12,000, one neutral mesh, 10 blend shapes) | 145/145 OK |
+| `test_character` / `test_character_net` / `test_multiplayer` / `test_depression` / `test_mental_health` / `test_reconciliation` / `test_player_commands` / `test_psyche_presentation` / `test_net_protocol` | 157, 27, 67, 92, 95, 58, 40, 19, 34 – all OK |
+| `--test 7` | OK, 19.6 ms per game hour |
+| Manual run (offline) | no errors |
 
-### Ověření mimo Godot
-- Blender: `cc_matrix()` (numpy) = Blender Subdivision Surface bez limitní plochy, max. chyba 3,6e-7 m.
-- Nejmenší čtverce řídicí sítě: rezidua 0,6–3 mm, u poprsí 11,8 mm (řídicí síť je na lokální lalok hrubá – výsledná
-  výchylka 39 mm místo 51 mm; přijatelné, zlepší jemnější síť v C3/C5).
-- Náhledy z Cycles (5 těl zepředu a z boku: výchozí, obezita, svalnatá, poprsí+boky+útlý pas, štíhlá) prohlédnuty
-  – hladké tvary bez vln.
-- Přenos 7 částí (21,5 kB): CRC každé části ověřeno už při přepisu; v Godotu složeno bez chyby.
+What `test_body_morphs` covers:
+- **Catmull-Clark on a cube:** vertex point 5/9, edge and face points, linearity of the operator, normals pointing
+  outwards, bone weights = 1, rejection of an open mesh.
+- **LSX v4:** 868 control vertices → 6,928 triangles as in Blender; amplitudes of all 10 morphs = Blender ± residuals;
+  locality of the bust; base and fat_hi normals of unit length and pointing outwards; 8 kinds of corrupted data rejected.
+- **GLB:** names and order of blend shapes, NORMALIZED mode, absolute targets, morph_bones in the manifest.
+- **Mapping:** default = 0, extremes, nonsense/NaN/Inf → default; fuzz of 500 bodies in ⟨−1,1⟩; independence from
+  gender/identity/name; determinism through JSON.
+- **Geometry:** crown height = height_cm (max 1.3 mm analytically, 5.0 mm with CPU skinning); feet on the ground.
+- **Blend shape values on all 4 body parts = data;** thigh/head/model scaled; shoulder joint offset.
+- **The arm is moved by the morph only once** (CPU skinning, deviation 0.02 mm).
+- Performance of a body change 0.11 ms.
 
-### Nalezené a opravené chyby (vlastní testy)
-1. `subdiv.gd`: `PackedInt32Array` v poli je hodnotový typ → `append` na kopii se ztrácel (síť se jevila jako
-   otevřená) → pole seznamů jsou `Array`.
-2. Morf ramen/kyčlí by se v póze přičetl dvakrát (shape key posune paži + posun kosti) → SimVisual mění REST kosti
-   a inverzní bind (vlastní kopie Skin); test CPU skinningem.
-3. Godot GLTF export ukládá blend shapes správně jen v režimu NORMALIZED s absolutními cíli (RELATIVE: cíle zapsané
-   jako delty → zdvojení; nulové delty normál rozbije oktaedrická komprese) – ověřeno round-trip testem.
-4. Indexy kostí v importovaném GLB odkazují na bind skinu, ne na kost kostry – test i SimVisual mapují přes Skin.
-5. Krystal nálady a popisek nad hlavou byly ve fixní výšce (u postavy 205 cm by kolidovaly) → podle výšky.
-6. Fallback z primitiv měl účes podle rodu → neutrální.
+### Verification outside Godot
+- Blender: `cc_matrix()` (numpy) = Blender Subdivision Surface without the limit surface, max error 3.6e-7 m.
+- Least squares for the control mesh: residuals 0.6–3 mm, 11.8 mm for the bust. The control mesh is coarse for a local
+  lobe, so the resulting displacement is 39 mm instead of 51 mm; acceptable, and a finer mesh in C3/C5 will improve it.
+- Cycles previews inspected (5 bodies from the front and side: default, obese, muscular, bust+hips+narrow waist, slim):
+  smooth shapes without waves.
+- Transfer of 7 parts (21.5 kB): the CRC of each part was verified while transcribing; assembled in Godot without error.
 
-### Gemini (gemini-3.5-flash-lite; flash přetížený)
-- Oprávněné (drobné): pojistka diskriminantu v `BodyMorphs.scales()` (matematicky je vždy kladný – `_val` ořezává
-  výšku, b > 0) → `maxf`.
-- Zdůvodněno, neopraveno: „přetečení bufferu v decode_morphs“ – délka = nv·3 a rozsah v blobu se už kontrolují
-  (`_range`, test „délka morfu nesedí“); „float drift mezi peery“ – dekódování probíhá jednou při importu, peery sdílejí
-  stejný GLB a váhy jsou kvantované na 1/1000; „server neověřuje váhy“ – váhy se po síti neposílají, klient posílá
-  CharacterData, které server ověřuje striktně (C1), váhy si každý peer spočítá sám; „duplikace Skin za běhu“ –
-  děje se jednou na postavu, dál se mění jen 17 bind matic.
-- Citlivost: potvrzeno – jedna neutrální síť, žádné „mužské/ženské“ šablony.
+### Bugs found and fixed (own tests)
+1. `subdiv.gd`: a `PackedInt32Array` inside an array is a value type, so `append` on a copy was lost (the mesh appeared
+   open) → the arrays of lists are `Array`.
+2. The shoulder/hip morph would have been added twice in a pose (the shape key moves the arm + the bone offset) →
+   SimVisual changes the bone REST and the inverse bind (its own Skin copy); CPU-skinning test.
+3. The Godot GLTF exporter stores blend shapes correctly only in NORMALIZED mode with absolute targets. RELATIVE stores
+   targets as deltas → doubling, and octahedral compression breaks zero normal deltas. Verified by a round-trip test.
+4. Bone indices in the imported GLB refer to the skin bind, not to the skeleton bone – the test and SimVisual map
+   through the Skin.
+5. The mood crystal and the label above the head were at a fixed height (they would collide on a 205 cm character) →
+   by height.
+6. The primitive fallback had a hairstyle by gender → neutral.
+
+### Gemini (gemini-3.5-flash-lite; flash overloaded)
+- Valid (minor): a guard on the discriminant in `BodyMorphs.scales()`. Mathematically it is always positive (`_val`
+  clamps the height, b > 0) → `maxf`.
+- Explained, not fixed:
+  - "buffer overflow in decode_morphs" – the length = nv·3 and the range in the blob are already checked (`_range`, test
+    "morph length does not match");
+  - "float drift between peers" – decoding happens once at import, peers share the same GLB, and weights are quantised
+    to 1/1000;
+  - "the server does not verify weights" – weights are not sent over the network; the client sends CharacterData,
+    which the server verifies strictly (C1), and each peer computes the weights itself;
+  - "duplicating the Skin at runtime" – it happens once per character; afterwards only 17 bind matrices change.
+- Sensitivity: confirmed – one neutral mesh, no "male/female" templates.
 
 ### ChatGPT
-- Plán C2 (zpráva 44) a `body_morphs.gd` k review (zpráva 45) – do konce běhu bez odpovědi; otevřené review 41/42
-  (character_data, validátor) stále bez odpovědi.
+- The C2 plan (message 44) and `body_morphs.gd` for review (message 45): no answer by the end of the run. The open
+  reviews 41/42 (character_data, validator) still have no answer.
 
-### Známé limity
-- Vizuál ve hře ověřen jen numericky a náhledem z Blenderu (headless Godot nerenderuje).
-- Hlava a vlasy jsou zatím v3 (bez morfů) – C3/C4. Oblečení je pořád „namalované“ na těle (C5).
+### Known limits
+- The in-game look has been verified only numerically and with a Blender preview (headless Godot does not render).
+- The head and hair are still v3 (no morphs) – C3/C4. Clothing is still "painted" on the body (C5).
 
 ---
 
-## 2026-10-15 (běh 7) – C1 tvorba postavy: CharacterData, validátor, kodek, síť; review depression.gd
+## 2026-10-15 (run 7) – C1 character creation: CharacterData, validator, codec, network; depression.gd review
 
-### Testy
-| Test | Výsledek |
+### Tests
+| Test | Result |
 |---|---|
-| `godot_check` | 52/52 skriptů OK |
-| `tests/test_character.tscn` (nový: schéma a výchozí hodnoty, žádná volba „rasa“/etnické předvolby; round-trip JSON / sdílecí kód / soubor / Resource .tres pro 60 postav; migrace v0→v1 vč. věrnosti vzhledu (max. odchylka kanálu 0,043) a poškozené v0; filtr jmen – 14 povolených písem světa, 22 druhů odmítnutí (bidi, neviditelné, zalgo, BOM, tag znaky, emoji…); **fuzz 650 nevalidních vstupů / 26 druhů – server odmítl 100 %**, opravný režim vždy platný a idempotentní; kodek: CRC, délka, base64, zip bomba 200 kB, 16 000 úrovní vnoření, JSON ne-objekt, zalomený kód; determinismus vzhledu přes var_to_bytes i JSON; veřejný × soukromý snapshot; generátor: 600 postav platných, výška 170,8 ± 9,3 cm, nezávislost výšky a účesu na rodu, rovnoměrná kůže, predispozice se bez volby nelosují, zámky, determinismus; undo/redo vč. náhody se zámky a slučování tažení posuvníku; gramatika on/ona/ono/oni; nastavení obsahu; výkon změny posuvníku 0,76 ms; integrace – domácnost z CharacterData, přejmenování nemění vzhled) | **157/157 OK** |
-| `tests/test_character_net.tscn` (nový: vstup s vlastní postavou přes ENet, spawn na serveru, bit po bitu stejný vzhled na serveru a 2 klientech, k cizímu klientovi se nedostane identita/orientace/příběh/predispozice/uid, odmítnutí bidi jména, nezletilé postavy, podvrženého CRC a příliš dlouhého kódu s důvodem pro klienta, nastavení obsahu serveru, odchod hráče = despawn u všech) | **27/27 OK** |
-| `tests/test_depression.tscn` (+17 kontrol z review ChatGPT 39) | **92/92 OK** |
-| `tests/test_multiplayer.tscn` | 67/67 OK (hello má nově 3. parametr) |
-| `tests/test_assets.tscn` | 146/146 OK (test vzhledu ze jména nahrazen testem vzhledu ze snapshotu) |
+| `godot_check` | 52/52 scripts OK |
+| `tests/test_character.tscn` | **157/157 OK** (new; contents below the table) |
+| `tests/test_character_net.tscn` | **27/27 OK** (new; contents below the table) |
+| `tests/test_depression.tscn` (+17 checks from ChatGPT review 39) | **92/92 OK** |
+| `tests/test_multiplayer.tscn` | 67/67 OK (hello now has a third parameter) |
+| `tests/test_assets.tscn` | 146/146 OK (the appearance-from-name test was replaced by an appearance-from-snapshot test) |
 | `tests/test_mental_health.tscn` / `test_reconciliation` / `test_player_commands` / `test_psyche_presentation` / `test_net_protocol` | 95/95, 58/58, 40/40, 19/19, 34/34 OK |
-| `--test 7` | OK (0 min v kritickém stavu), 19,8 ms/herní hodinu |
-| Ruční běh `--character LSC1…` | postava „Kim“ se objevila ve světě (4 postavy), bez chyb |
+| `--test 7` | OK (0 min in a critical state), 19.8 ms per game hour |
+| Manual run `--character LSC1…` | the character "Kim" appeared in the world (4 characters), no errors |
 
-Očekávané chyby ve stderr `test_character`: `Decompression failed` – záměrné testy poškozeného kódu a zip bomby.
+What `test_character` covers:
+- **Schema:** defaults; no "race" option or ethnic presets.
+- **Round-trip:** JSON / share code / file / Resource .tres for 60 characters.
+- **Migration v0→v1:** including appearance fidelity (max channel deviation 0.043) and a corrupted v0.
+- **Name filter:** 14 allowed world scripts; 22 kinds of rejection (bidi, invisible characters, zalgo, BOM, tag
+  characters, emoji…).
+- **Fuzz:** 650 invalid inputs of 26 kinds – the server rejected 100 %; repair mode always valid and idempotent.
+- **Codec:** CRC, length, base64, a 200 kB zip bomb, 16,000 nesting levels, JSON that is not an object, a wrapped code.
+- **Determinism and privacy:** appearance determinism through var_to_bytes and JSON; public × private snapshot.
+- **Generator:** 600 characters valid; height 170.8 ± 9.3 cm; height and hairstyle independent of gender; even skin
+  distribution; predispositions not drawn without opting in; locks; determinism.
+- **Undo/redo:** including randomisation with locks and merging of slider drags.
+- **Other:** on/ona/ono/oni grammar; content settings; slider change 0.76 ms.
+- **Integration:** household from CharacterData; renaming does not change the appearance.
 
-### Nálezy z vlastních testů a self-review (opraveno)
-- **Odmítnutý klient nedostal důvod**: `disconnect_peer` hned po `_s2c_notice` zahodilo frontu spolehlivých paketů (týkalo se i staré hlášky o nekompatibilní verzi) → odpojení až po 0,5 s, `pending` se maže hned (další hello neprojde).
-- Hostitel se registroval dřív, než existovala domácnost → mohl zůstat divákem; po spawnu domácnosti dostane volnou postavu (`assign_host_sim`).
-- Opravný režim validátoru hlásil chyby typů jako fatální (import souboru by selhal) → v opravném režimu jsou to varování; fatální jen „není slovník“ a verze.
-- Migrace v0 padala na `bool("ano")`; věrnost starého vzhledu byla 0,2 → hodnoty nalezené prohledáním modelu (odchylka 0,043).
-- `AppearanceResolver` po JSON ignoroval celé číslo uložené jako float → numerické typy se sjednotí.
-- Klientská loutka přebírala rysy ze sítě bez kontroly → jen známá id, max. 5.
-- Nástroj zápisu souborů převádí `\uXXXX` na skutečné znaky → bidi znaky v testech se escapují dodatečně (poučení pro další běhy).
+What `test_character_net` covers:
+- joining with one's own character over ENet; spawning on the server;
+- bit-for-bit identical appearance on the server and 2 clients;
+- identity, orientation, backstory, predispositions and uid never reach another client;
+- rejection, with a reason for the client, of a bidi name, an underage character, a forged CRC and a too-long code;
+- the server's content settings;
+- a player leaving = despawn for everyone.
 
-### Review ChatGPT
-- **Zpráva 39 (depression.gd)** – vše oprávněné a opraveno: A) 2 dny = záměrná herní komprese (komentář), práh epizody podle stavu na začátku kroku (test 1/2/5 min); B) habituace bez stropu (vyprchávající počet) + společný rozpočet úlevy 1/(1+(R/0,02)³), uložení habituace; C) kontakt s kvalitou < 0,2 nic neruší, klesající přínos, ukládá se; D) from_dict – NaN/Inf, záporné n, strop velikosti.
-- **Zpráva 38 (tvorba postavy)** – zásady převzaté do ROADMAP (0) a kódu: uid ≠ jméno, nezávislé osy, bez etnických předvoleb, veřejné jen vykreslení + oslovení, predispozice nezávislé na identitě a vypínatelné, pomůcky jako samostatné volby, BASIC/ADVANCED v editoru (C6), akceptační testy.
-- **Zpráva 37** – založení nové místnosti pro diagnostiku relay **odmítnuto**: mimo rozsah projektu lifesim (zadání uživatelky).
+Expected errors in the `test_character` stderr: `Decompression failed` – deliberate tests of a corrupted code and a zip
+bomb.
 
-### Audit Gemini (`gemini-3.5-flash-lite`)
-1. *HIGH: klient posílá pos/seed/node_name* – **neoprávněné**: klient posílá jen kód postavy; pozici, seed i jméno uzlu určuje server (`_spawn_player_character`).
-2. *HIGH: race při odpojení obchází limit 8 postav* – **neoprávněné**: hello se přijme jen jednou na peer (pending), hráč se maže ze seznamu hned při odpojení, `queue_free` nic neobchází; navíc MAX_CLIENTS 8.
-3. *HIGH: rod generovaný z identity (muž → on 97 %)* – **zamítnuto (designové rozhodnutí)**: týká se jen náhodného generátoru a odpovídá realitě (rod volí člověk podle své identity); hráč může zvolit libovolnou kombinaci, generátor vyrábí všechny 4 rody (test) a tělo, vlasy, hlas i oblečení jsou na identitě nezávislé (testy).
-4. *MED: hluboké vnoření JSON → stack overflow* – **ověřeno testem**: 16 000 úrovní v limitu 32 kB je odmítnuto bez pádu; validátor nerekurzí (pevné schéma), vnořená data v polích odmítá.
-5. *MED: predispozice jako trest* – **zamítnuto**: predispozice podle zadání realisticky ovlivňují prožívání (symptomy), ale nejsou vázané na identitu ani nedávají statistické bonusy/postihy mimo duševní stav; popisy jsou neutrální (test).
-6. *MED: plovoucí čárka vs. determinismus* – **neoprávněné**: kvantizace na 1/1000 + testy shody po var_to_bytes i JSON.
-7. *LOW: mezery uvnitř kódu* – **oprávněné (UX)** → bílé znaky kdekoli v kódu se ignorují + test.
-8. *LOW: chybí kontrola věku 18+* – **neoprávněné**: `body.age` má min. 18 (fuzz i MP test nezletilé postavy).
+### Findings from our own tests and self-review (fixed)
+- **A rejected client did not receive the reason.** `disconnect_peer` right after `_s2c_notice` discarded the queue of
+  reliable packets (this also affected the old incompatible-version message) → disconnect only after 0.5 s; `pending` is
+  cleared immediately, so another hello does not get through.
+- The host registered before the household existed and could remain a spectator; after the household spawns it gets a
+  free character (`assign_host_sim`).
+- The validator's repair mode reported type errors as fatal (a file import would fail) → in repair mode they are
+  warnings; only "not a dictionary" and the version are fatal.
+- The v0 migration crashed on `bool("ano")`, and the fidelity of the old appearance was 0.2 → values found by searching
+  the model (deviation 0.043).
+- After JSON, `AppearanceResolver` ignored an integer stored as a float → numeric types are unified.
+- The client puppet took traits from the network without checking → only known ids, max 5.
+- The file-writing tool converts `\uXXXX` into real characters → bidi characters in tests are escaped afterwards (a
+  lesson for future runs).
 
-### Otevřené body
-- Tvar těla zatím jen měřítka + výběr ze 2 sítí podle atributu `bust` (C2: spojité shape keys); obličejové morfy, kůže (pihy, jizvy, tetování…), účesy, oblečení podle kategorií a make-up se ukládají, ale ještě nevykreslují (C3–C5).
-- Kontrola záměnných znaků (mixed-script / homoglyfy) ve jménech – zatím ne; jména jsou jen zobrazovaná, nikdy klíčem.
-- Neutrální české tvary (ono/oni, „blízká osoba“) – čeká se na názor ChatGPT.
-- Z dřívějška: studená válka v domácnosti, výkon, terapie/léky, export GLB, test MP s latencí, nastavení obsahu serveru u klientů.
+### ChatGPT review
+- **Message 39 (depression.gd)** – all valid and fixed:
+  - A) 2 days = deliberate game compression (comment); the episode threshold uses the state at the start of the step
+    (test 1/2/5 min).
+  - B) habituation without a cap (a decaying count) + a shared relief budget 1/(1+(R/0.02)³); habituation is saved.
+  - C) contact with quality < 0.2 interrupts nothing; diminishing returns; it is saved.
+  - D) from_dict – NaN/Inf, negative n, a size cap.
+- **Message 38 (character creation)** – principles taken into ROADMAP (0) and the code:
+  - uid ≠ name; independent axes; no ethnic presets;
+  - only rendering + forms of address are public;
+  - predispositions independent of identity and switchable off;
+  - accessories as separate options; BASIC/ADVANCED in the editor (C6);
+  - acceptance tests.
+- **Message 37** – creating a new room for relay diagnostics was **declined**: outside the scope of the lifesim project
+  (the owner's brief).
+
+### Gemini audit (`gemini-3.5-flash-lite`)
+1. *HIGH: the client sends pos/seed/node_name* – **not valid**: the client sends only the character code; the server
+   determines the position, seed and node name (`_spawn_player_character`).
+2. *HIGH: a race on disconnect bypasses the 8-character limit* – **not valid**: hello is accepted only once per peer
+   (pending), the player is removed from the list immediately on disconnect, and `queue_free` bypasses nothing; there is
+   also MAX_CLIENTS 8.
+3. *HIGH: grammatical gender generated from identity (man → on 97 %)* – **rejected (design decision)**:
+   - It only concerns the random generator, and it reflects reality (a person chooses their grammatical gender by their
+     identity).
+   - The player can choose any combination, and the generator produces all 4 genders (test).
+   - Body, hair, voice and clothing are independent of identity (tests).
+4. *MED: deep JSON nesting → stack overflow* – **verified by a test**: 16,000 levels within the 32 kB limit are rejected
+   without a crash; the validator does not recurse (fixed schema) and rejects nested data in fields.
+5. *MED: predispositions as a penalty* – **rejected**: as briefed, predispositions realistically affect experience
+   (symptoms), but they are not tied to identity and give no statistical bonuses/penalties outside the mental state;
+   the descriptions are neutral (test).
+6. *MED: floating point vs. determinism* – **not valid**: quantisation to 1/1000 + agreement tests after var_to_bytes
+   and JSON.
+7. *LOW: spaces inside the code* – **valid (UX)** → whitespace anywhere in the code is ignored + test.
+8. *LOW: missing 18+ age check* – **not valid**: `body.age` has a minimum of 18 (fuzz and the MP underage test).
+
+### Open points
+- Body shape is still only scales + a choice between 2 meshes by the `bust` attribute (C2: continuous shape keys).
+  Facial morphs, skin (freckles, scars, tattoos…), hairstyles, clothing by category and make-up are stored but not yet
+  rendered (C3–C5).
+- No check for confusable characters (mixed script / homoglyphs) in names yet; names are display-only, never a key.
+- Neutral Czech forms (ono/oni, "blízká osoba") – waiting for ChatGPT's opinion.
+- From earlier: the household cold war, performance, therapy/medication, GLB export, an MP test with latency, the
+  server's content settings shown to clients.
 
 ---
 
-## 2026-10-14 (běh 6) – Den 6: deprese (wanting/liking/vigour), křivdy, omluva a usmíření
+## 2026-10-14 (run 6) – Day 6: depression (wanting/liking/vigour), grudges, apology and reconciliation
 
-### Testy
-| Test | Výsledek |
+### Tests
+| Test | Result |
 |---|---|
-| `godot_check` | 42/42 skriptů OK |
-| `tests/test_depression.tscn` (nový: 4 oddělené složky; **scénáře ChatGPT 1–6** – nízké očekávání + zachované prožití, vysoké očekávání + malé prožití, zachovaná motivace + nízké prožití, zachované potěšení + velká bariéra, série zklamání není nevratná, spam jedné aktivity „nevyléčí“; nelineární zotavení, epizoda až po trvání + stopa, která mizí; ranní vzorec jen jako individuální volba; strop zátěže při ztlumení/vypnutí; endogenní propady jen u predispozice; myšlenky bez sebevražedných obsahů (kontrola zakázaných slov přes všechny myšlenky); serializace a poškozená data; PsycheFX šeď; ve světě: váhání hráčova příkazu (nikdy neodmítne, zrušitelné, pak provede), AI nikdy neváhá, bariéra/pesimismus mění chuť, anhedonie tlumí moodlet a učí očekávání; regrese spánku) | **75/75 OK** |
-| `tests/test_reconciliation.tscn` (nový: křivdy a vina, vyprchávání podle povahy nezávislé na kroku, upřímnost z chování – opakované a porušené omluvy, „teď ne“, stres, velikost křivdy, přijetí/částečně/odmítnutí/spam/„za co?“, spam ani omluva bez křivdy nikoho nepřeruší, AI se omlouvá z viny tomu správnému, pýcha, cooldown 12 h, čas hojí jen bez živé křivdy, validace serveru) | **58/58 OK** |
-| `tests/test_mental_health.tscn` | 95/95 OK (1 kontrola upravena: Jana má nově predispozici k depresi) |
+| `godot_check` | 42/42 scripts OK |
+| `tests/test_depression.tscn` | **75/75 OK** (new; contents below the table) |
+| `tests/test_reconciliation.tscn` | **58/58 OK** (new; contents below the table) |
+| `tests/test_mental_health.tscn` | 95/95 OK (1 check adjusted: Jana now has a predisposition to depression) |
 | `tests/test_multiplayer.tscn` | 67/67 OK |
 | `tests/test_player_commands.tscn` | 40/40 OK |
 | `tests/test_psyche_presentation.tscn` | 19/19 OK |
 | `tests/test_net_protocol.tscn` | 34/34 OK |
 | `tests/test_assets.tscn` | 145/145 OK |
-| `--test 7`, `--test 14` | OK (0 min v kritickém stavu, AI nevyužívá váhání, zátěž není v saturaci); ~24–29 ms/herní hodinu |
+| `--test 7`, `--test 14` | OK (0 min in a critical state, the AI does not use hesitation, the burden is not saturated); ~24–29 ms per game hour |
 
-### Nálezy z vlastních testů a self-review (opraveno)
-- **AI spamovala omluvy** (26× za týden, většinou „do prázdna“) – odmítnutá omluva nesnižovala vinu → AI cooldown 12 h na stejnou postavu, odmítnutí sníží vinu na 80 %.
-- **Epizoda deprese se zapínala a vypínala každou minutu** (počítadlo trvání se po konci nevynulovalo, stopa vystřelila na max.) → start epizody vyžaduje i aktuální zátěž nad prahem, konec nuluje počítadlo; test „po epizodě slabá stopa“ to chytil.
-- **Spirála nespavosti z osamělosti (latentní bug z Dne 1, odhalený depresí)**: kritická potřeba *společnost* budila ze spánku každých 10 min → nevyspání → stres 100 → zátěž 1,0, hlad 0, 5 388 min v kritickém stavu (`--test 7` selhal). Spánek teď budí jen hlad; přidán regresní test. Psaní zpráv kamarádovi má nižší námahu (0,2) než osobní hovor.
-- Deprese se u nepredisponované postavy rozjela za týden (příliš rychlý růst) → pomalejší zisk ze stresu/izolace, menší dopady událostí, epizoda až po 2 herních dnech nad prahem.
-- Habituace aktivace byla slabá (10× stejná aktivita = 2,7× účinek) → 1/(1+2n), log 12 záznamů.
-- Spam omluv snižoval vinu („odklikání výčitek“) → vinu snižuje jen skutečná (i odmítnutá) omluva, ne spam.
-- `broken` (porušené omluvy) původně vyprchávalo náhodně přes globální `randf()` (nedeterministické, závislé na kroku) → exponenciální vyprchání.
-- Typová chyba (`var vented :=` z netypované `mood.emotion`) – zachycena `godot_check`.
+What `test_depression` covers:
+- The 4 separate components.
+- **ChatGPT scenarios 1–6:**
+  1. low expectation + preserved experience;
+  2. high expectation + little experience;
+  3. preserved motivation + low experience;
+  4. preserved pleasure + a big barrier;
+  5. a series of disappointments is not irreversible;
+  6. spamming one activity does not "cure" it.
+- Non-linear recovery; an episode only after it has lasted, plus a trace that fades.
+- The morning pattern only as an individual choice; the burden cap when muted/off; endogenous dips only with
+  predisposition.
+- Thoughts without suicidal content (forbidden words checked across all thoughts).
+- Serialisation and corrupted data; PsycheFX grey.
+- **In the world:**
+  - hesitation on a player's command (never refuses, cancellable, then carries it out); the AI never hesitates;
+  - barrier/pessimism change appetite; anhedonia dampens the moodlet and teaches expectation;
+  - sleep regression.
 
-### Audit Gemini (`gemini-3.5-flash-lite`)
-1. *HIGH: griefing omluvami (přerušování cizích postav)* – **částečně oprávněné**: server už validoval cíl, spam do 2 h druhého nepřerušoval a postavu plnící příkaz svého hráče nepřeruší nic. Ale omluva „za nic“ (bez křivdy) druhého na 8 min přerušila → **opraveno**: nepřeruší, jen odpoví „Za co? V pohodě.“ + test.
-2. *HIGH: pasivní hojení vztahů obchází omluvy* – **zamítnuto (designové rozhodnutí)**: hojí se jen záporné vztahy *bez živé křivdy* (< 5); dokud křivda trvá, nic se nehojí – omluva je rychlejší cesta, čas pomalejší. Bez toho vztahy jen klesaly (otevřený bod z Dne 4).
-3. *HIGH: klient může spamovat `on_activity`* – **neoprávněné**: klient posílá jen příkaz akce; `on_activity` volá server po skutečném dokončení akce s její délkou; navíc habituace na id a konečný katalog akcí.
-4. *MED: výkon (alokace, exp() každý tick)* – **částečně**: slovníky jsou malé a omezené (log ≤ 12, expect ≤ počet akcí); `--test 7` ale zpomalil z ~17 na ~24–29 ms/herní hodinu → otevřený bod (profilovat, případně počítat pomalé složky po 5 min).
-5. *MED: váhání zamyká hráče* – **neoprávněné**: po vypršení se příkaz provede sám (test „po váhání příkaz provede“), jde zrušit, lehké akce se neváhají.
-6–7. *LOW: pseudokód / dělení nulou* – neoprávněné (review dostal zkrácený přepis; dělitelé jsou konstanty).
-- Obsah: Gemini hodnotí psychologickou hloubku jako dobrou; žádné námitky k myšlenkám ani tónu.
+What `test_reconciliation` covers:
+- grudges and guilt; fading by personality, independent of the step;
+- sincerity from behaviour (repeated and broken apologies, "not now", stress, size of the grudge);
+- acceptance / partial / refusal / spam / "for what?";
+- neither spam nor an apology without a grudge interrupts anyone;
+- the AI apologises out of guilt to the right person; pride; a 12 h cooldown;
+- time heals only without a live grudge; server validation.
 
-### Review ChatGPT
-- Návrh modelu (zpráva 29: wanting/liking/vigour/prediction error + 6 testovacích scénářů) **zapracován 1:1**; ranní zhoršení jen jako individuální vzorec, autonomie hráče zachována (váhání místo odmítnutí).
-- Zpráva 30 (review sim_visual.gd): appearance_seed, teleport flag, export GLB – zapsáno do otevřených bodů na příští vizuální běh.
-- `depression.gd` poslán k review (zpráva 33). Do konce běhu bez odpovědi.
+### Findings from our own tests and self-review (fixed)
+- **The AI spammed apologies** (26× in a week, mostly "into the void"), because a rejected apology did not reduce guilt
+  → an AI cooldown of 12 h per character; a rejection reduces guilt to 80 %.
+- **A depressive episode switched on and off every minute** (the duration counter was not reset after the end, and the
+  trace shot up to max) → starting an episode also requires the current burden to be above the threshold, and the end
+  resets the counter; the test "after an episode, a weak trace" caught it.
+- **An insomnia spiral from loneliness** (a latent bug from Day 1, exposed by depression):
+  - The critical need *social* woke the character every 10 min → sleep deprivation → stress 100 → burden 1.0, hunger 0,
+    5,388 min in a critical state (`--test 7` failed).
+  - Now only hunger wakes a sleeper; a regression test was added.
+  - Texting a friend has a lower effort (0.2) than a face-to-face conversation.
+- Depression took off within a week for a non-predisposed character (growth too fast) → slower gain from stress and
+  isolation, smaller event impacts, an episode only after 2 game days above the threshold.
+- Activation habituation was weak (10× the same activity = 2.7× the effect) → 1/(1+2n), a log of 12 entries.
+- Apology spam reduced guilt ("clicking away remorse") → only a real apology (even a rejected one) reduces guilt, not
+  spam.
+- `broken` (broken apologies) originally faded randomly through a global `randf()` (non-deterministic and
+  step-dependent) → exponential fading.
+- A type error (`var vented :=` from the untyped `mood.emotion`) – caught by `godot_check`.
 
-### Otevřené body
-- Domácnost se dál drží v „studené válce“ (vztahy kolem −45 až −50 po 7–14 dnech): omluvy a hojení fungují, ale hádek je pořád hodně – vyladit pravděpodobnost hádky (chemie, stres, nálada) a přidat pozitivní společné akce.
-- Výkon: ~24–29 ms/herní hodinu (Den 5: ~17) – profilovat MentalState+Depression+RelLedger.
-- Terapie, léky s vedlejšími účinky, klinika (navazuje na město) – deprese teď nemá „odbornou“ cestu, jen aktivitu, kontakt a čas.
-- `hurt_at` / `apologies_from` v RelLedger nemají úklid starých jmen (v MP s mnoha hráči časem roste).
-- Ze Dne 5: appearance_seed místo hashe jména, explicitní teleport flag, export GLB; z dřívějška: latence/ztráta paketů v testu MP, limit paketů ENet, nastavení obsahu serveru u klientů.
+### Gemini audit (`gemini-3.5-flash-lite`)
+1. *HIGH: griefing with apologies (interrupting other people's characters)* – **partly valid**.
+   - Already in place: the server validated the target, spam within 2 h did not interrupt the other character, and
+     nothing interrupts a character carrying out its player's command.
+   - But an apology "for nothing" (no grudge) interrupted the other character for 8 min → **fixed**: it does not
+     interrupt, it only answers "For what? It's fine." + test.
+2. *HIGH: passive healing of relationships bypasses apologies* – **rejected (design decision)**. Only negative
+   relationships *without a live grudge* (< 5) heal; while a grudge lasts nothing heals. An apology is the faster way,
+   time the slower one. Without it relationships only declined (open point from Day 4).
+3. *HIGH: the client can spam `on_activity`* – **not valid**: the client only sends an action command; the server calls
+   `on_activity` after the action actually completes, with its duration; there is also habituation per id and a finite
+   catalogue of actions.
+4. *MED: performance (allocations, exp() every tick)* – **partly**: the dictionaries are small and bounded (log ≤ 12,
+   expect ≤ the number of actions). But `--test 7` slowed from ~17 to ~24–29 ms per game hour → open point (profile, or
+   compute the slow components every 5 min).
+5. *MED: hesitation locks the player* – **not valid**: after it expires the command runs on its own (test "after
+   hesitation the command runs"); it can be cancelled; light actions do not hesitate.
+6–7. *LOW: pseudocode / division by zero* – not valid (the review received a shortened transcript; the divisors are
+   constants).
+- Content: Gemini rates the psychological depth as good; no objections to the thoughts or the tone.
 
----
+### ChatGPT review
+- The model proposal (message 29: wanting/liking/vigour/prediction error + 6 test scenarios) was **implemented 1:1**.
+  Morning worsening is only an individual pattern, and the player's autonomy is preserved (hesitation instead of
+  refusal).
+- Message 30 (sim_visual.gd review): appearance_seed, teleport flag, GLB export – recorded among the open points for the
+  next visual run.
+- `depression.gd` sent for review (message 33). No answer by the end of the run.
 
-## 2026-10-14 (běh 5) – Den 5: 3D assety z Blenderu (Blender bridge, postava s kostrou, nábytek)
-
-### Testy
-| Test | Výsledek |
-|---|---|
-| `godot_check` | 38/38 skriptů OK |
-| `tests/test_assets.tscn` (nový: CRC-32 a skládání částí, odmítnutí poškozených/podvržených dat – špatný base64, jiná verze, odkaz mimo blob, index vrcholu mimo rozsah; zdroje ↔ manifest ↔ GLB, rozpočet ≤ 8 000 trojúhelníků; rozměry nábytku vs. herní půdorysy, stojí na podlaze, orientace předku +Z, winding Godotu, PBR detail, cache; kostra 17 kostí, skin, součet vah = 1, varianty muž/žena, nos +Z; sémantika póz – krok 0,70 m, protipohyb paží, sed s pánví 0,50 m a chodidly na zemi; SimVisual – varianty, vlastní materiály, deterministický vzhled, walk/idle podle rychlosti, teleport ≠ chůze, Ultra 36 m/s při 10 FPS, sit/lie; fallback na primitiva a WorldBuilder se stejnou herní logikou) | **145/145 OK** |
-| `tests/test_multiplayer.tscn` | 67/67 OK (regrese) |
-| `tests/test_mental_health.tscn` | 95/95 OK (regrese) |
-| `tests/test_player_commands.tscn` | 40/40 OK (regrese) |
-| `tests/test_psyche_presentation.tscn` | 19/19 OK (regrese) |
-| `tests/test_net_protocol.tscn` | 34/34 OK (regrese) |
-| `--test 7` | OK (0 min v kritickém stavu, zvuk 156/154/2) |
-| Ruční běh offline (8 s) | bez chyb, „9 interaktivních objektů“ |
-| Vizuální kontrola | náhledy z Blenderu (Cycles, 200×170 / 260×150 JPEG) prohlédnuté – postavy muž/žena, gauč s polštářem, postele, lednice; Godot headless nerenderuje, ve hře neověřeno okem |
-
-Očekávaná chyba ve stderr `test_assets`: `base64_to_raw … b64_decode` – záměrný test nesmyslného vstupu.
-
-### Nálezy z vlastních testů a self-review (opraveno)
-- **Chyba přenosu dat**: při přepisu části 3/5 gauče vypadlo 8 znaků v opakující se sekvenci → **CRC-32 ji zachytilo**,
-  porovnáním CRC po 250 znacích nalezeno místo a opraveno. Ostatních 29 částí prošlo napoprvé.
-- Kódování indexů „vysoké hladiny“ selhalo (bajt mimo rozsah), protože prohození pořadí vrcholů v trojúhelníku
-  (CCW → CW) rozbilo pořadí prvního použití → vrcholy se přečíslují až po prohození.
-- Kontrola pózy přes `Skeleton3D.get_bone_global_pose` vracela zastaralé hodnoty (kostra mimo strom) → test počítá
-  dopřednou kinematiku sám (nezávislé ověření).
-- `Callable` na statickou funkci v `character_anims.gd` → nahrazeno `pose(clip, p)`; dýchání 30/min → 15/min.
-- Svět má 9 (ne 10) interaktivních objektů – test teď porovnává modelovou a primitivní verzi světa.
-
-### Audit Gemini (`gemini-3.5-flash-lite`)
-1. *HIGH: DoS při dekódování (obří `jl`)* – **neoprávněné**: `4 + jl > raw.size()` se kontroluje, dekomprese má strop
-   16 MB a LSX jsou lokální assety projektu, ne data od klientů.
-2. *HIGH: indexy bez kontroly velikosti* – **neoprávněné**: `idx_b.size() == ni * 2` se ověřuje před smyčkou, `vi` mimo
-   rozsah vrací prázdný výsledek (pokryto testem).
-3. *HIGH: null v cache* – **záměr**: negativní cache, aby se chybějící model nečetl pro každou postavu znovu; volající
-   mají fallback na primitiva (pokryto testem), `clear_cache()` existuje.
-4. *MED: `String.hash()` nemusí být deterministický* – **oprávněné (částečně)**: algoritmus engine negarantuje mezi
-   verzemi → vzhled se odvozuje z vlastního CRC-32 z UTF-8 + test.
-5. *MED: únik duplikovaných materiálů* – **neoprávněné**: Resource se uvolňují počítáním referencí s postavou.
-6. *MED: Ultra rychlost při nízkém FPS = „teleport“* – **oprávněné** → práh teleportu `max(3 m, 45 m/s · Δt · 1,5)` + test.
-7. *LOW: `_update_anim` každý snímek* – ponecháno (≤ 8 postav, porovnání StringName); optimalizace při davech NPC.
-- Obsah: odstíny kůže jsou rovnoměrně rozložené podle hashe jména, nevážou se na rysy ani role (žádné stereotypy).
-
-### Review ChatGPT
-- Plán kroku poslán (zpráva 26), kód k review poslán jako soubory. Do konce běhu bez odpovědi.
-
-### Otevřené body
-- Raw `.glb` v `res://` se v exportované hře nezabalí (načítání GLTFDocument z disku) – před exportem přidat filtr
-  `assets/models/*.glb` do exportu, nebo načítat importované scény.
-- Vizuál ve hře (osvětlení, SSS kůže, triplanární detaily) neověřen okem – headless.
-- Animace jsou procedurální a jednoduché (bez IK, chodidla mohou při sedu na nižší židli klouzat); obličej bez mimiky.
-- `--test 7` ~17 ms/herní hodinu (Den 1: ~9 ms) – nárůst hlavně z duševního zdraví (Den 4); profilovat.
-- Ze Dne 4: usmíření ve vztazích, nastavení obsahu serveru u klientů, test s latencí, limit paketů ENet.
-
----
-
-## 2026-10-14 (běh 4) – Den 4: stres, duševní zdraví (úzkost, panická ataka), nastavení obsahu, PsycheFX
-
-### Testy
-| Test | Výsledek |
-|---|---|
-| `godot_check` | 33/33 skriptů OK |
-| `tests/test_mental_health.tscn` (nastavení a cenzura, dynamika 3 složek úzkosti, panická ataka, **matice agency 7 copingů × 4 kontexty – žádná volba není dominantní**, antifarming krátký i dlouhý horizont, vyhýbání a alkohol, expozice a zotavení, myšlenky jako subjektivní, ve světě: ataka nezamyká hráče, svědci pomoc/stigma, svěření, žárlivost, nastavení filtruje události; po review ChatGPT i nedominance v každém kontextu zvlášť, hazard nezávislý na kroku, přerušené svěření, farmení opory) | **95/95 OK** |
-| `tests/test_psyche_presentation.tscn` (PsycheFX vinětace, low-pass hudby, tlukot srdce, vypnutí zkreslení, HUD stavu a myšlenek, varování a menu s 116 123) | **19/19 OK** |
-| `tests/test_player_commands.tscn` | 40/40 OK (regrese) |
-| `tests/test_net_protocol.tscn` | 34/34 OK (regrese) |
-| `tests/test_multiplayer.tscn` (+3 nové: vlastní duševní stav v soukromém detailu, cizí stav ani diagnóza se ke klientovi nedostane, klient nemůže vyvolat ataku ani uklidňovat postavu bez ataky) | **67/67 OK** |
-| `--test 7` a `--test 14` (offline simulace) | OK – 0 min v kritickém stavu, AI pije max. 1×/týden, ataky jen u predispozice, stres se vybíjí |
-| Ruční běh offline (8 s) | bez chyb |
-
-Matice agency (průměr přes kontexty; vyšší = lepší): dýchání [úleva 15.7, citlivost 0, zvládnutelnost +5.4],
-procházka [16.8, +2.4, +2.9, cena energie], deník [7.7, +4.2, +6.4], svěřit se [13.2 – ale odbytí ubližuje,
-potřebuje druhého], doomscrolling [6.5, −3.6, −2.8], schovat se [25.7, −7.6, −23.0], pivo [22.6, −1.9, −7.7,
-nejhorší další den]. Žádná volba není nejlepší ve všech metrikách.
-
-### Nálezy z vlastních testů a self-review (opraveno)
-- **Úpravy přes `godot_run_script` bez `extends` odsadily víceřádkové řetězce** (obalení do `_init`) → 4 soubory
-  měly rozbité odsazení; opraveno, dál jen skripty s `extends SceneTree`.
-- Ataka trvala vždy přesně minimum 5 min (dýchání tak nemělo měřitelný účinek) → realističtější doznívání
-  (typicky ~9 min, s dýcháním/oporou ~5–6 min).
-- Alkoholový rebound byl po 10 h skoro nulový → pomalejší odbourání reboundu (ranní „hangxiety“).
-- Cenzura nechytala „posere“ → doplněné kmeny.
-- Vztahy v domácnosti padaly do nepřátelství za 2 dny (vznětlivost počítaná dvakrát, stres v hádkách už od 0)
-  → upraveno; lidé se navíc vyhýbají nepřátelům a svěřují se jen tomu, komu věří.
-- **Hráč mohl být zamčený**: s plnou frontou příkazů nešlo během ataky zadat dýchání → opraveno a otestováno.
-- **Visící počítadlo pomoci**: pomocníka pozvaného k hovoru `join_social` nesnížilo `_helping_me` → opraveno
-  + pojistka (bez ataky se počítadlo nuluje).
-- Žárlivost se spouštěla při každém hovoru (rychlá eroze vztahů) → max. 1× za 4 h na stejného „soka“.
-
-### Audit Gemini (`gemini-3.5-flash-lite`; `3.5-pro` neexistuje v API, `3.5-flash` přetížený)
-1. *HIGH: nekonzistence paniky server/klient* – **neoprávněné** (MentalState i SimAgent běží jen na serveru,
-   klient vidí jen popisek). Při kontrole ale nalezen **skutečný problém**: po dodýchání se postava vrátí do ataky
-   a svědci by reagovali znovu (dvojí stigma) → **opraveno**: svědci reagují jen jednou za epizodu.
-2. *HIGH: únik detailu jiné postavy přes RPC* – **neoprávněné**: žádné RPC „vyžádej detail“ neexistuje, server
-   posílá soukromý stav jen vlastníkovi; pokryto testem MP.
-3. *HIGH: `fraction` od klienta* – **neoprávněné**: počítá ji server z uplynulé doby akce.
-4. *MED: nedefinované `rate`, záporné `dm`* – **neoprávněné** (lokální proměnná; GameClock posílá jen kladné
-   kroky ≤ 2 min).
-5. *MED: neomezený růst `thoughts`/`coping_log`* – **už ošetřeno** (max 6 myšlenek, 8 záznamů na coping).
-6. *MED: visící `_helping_me`* – **oprávněné** → opraveno (viz výše).
-7. *LOW: magické konstanty* – částečně; klíčové prahy jsou konstanty, ladění vzorců zůstává v kódu.
-8. *Obsah*: stigma i úzkostné interpretace hodnoceny jako realistické a ne karikaturní. Návrh vypnout při
-   „vypnuto“ i stres – **zamítnuto záměrně**: běžný životní stres zůstává i bez témat duševního zdraví.
-
-### Review ChatGPT (AI místnost)
-- Model úzkosti ze 3 složek, nezamčené volby, nelineární zotavení, vyhýbání s dlouhodobou cenou, nastavitelná
-  intenzita myšlenek (zprávy 9, 13) → **zapracováno**; test agency podle návrhu (proveditelnost, nedominance
-  přes sadu kontextů, antifarming v krátkém i delším horizontu, myšlenky jako subjektivní, nastavení filtruje
-  texty i události).
-- Statický review souborů mental_state.gd, game_settings.gd, test_mental_health.gd (zpráva 21) – vše **oprávněné**:
-  1. Odbytí při svěření aplikovalo plný postih i při `fraction = 0` → **opraveno** (úměrně proběhlé části;
-     samotné odmítnutí už nese moodlet a vztah). Test „nedokončené svěření samo nic nezhorší“ by předtím selhal.
-  2. Opora ze svěření obcházela habituaci (farmení) → **opraveno** + test.
-  3. Pravděpodobnost ataky i myšlenek závisela na délce kroku (`p = k·dm`) → **hazard `1 − e^(−λ·dm)`** + test
-     1 min vs 2 min přes 400 seedů.
-  4. Nedominance jen v průměru → **přidána kontrola v každém kontextu zvlášť** (prošla). Další seedy a dlouhé
-     sekvence – otevřené.
-  5. Znění varování: místo kategorického „vždy vede cesta ven“ → „umožňuje hledat podporu a zotavovat se – ne vždy
-     rychle a ne v přímé linii“ → **upraveno**.
-
-### Otevřené body
-- Vztahy se v domácnosti postupně zhoršují a chybí mechanika usmíření/omluvy.
-- Stres a napětí v HUD klienta se obnovují po změně stavu nebo max. po 10 herních minutách.
-- Nastavení obsahu serveru klient nevidí (jen důvod odmítnutí příkazu) – přidat do welcome zprávy.
-- Agency matice: přidat více stavů/seedů a dlouhé sekvence voleb (ChatGPT).
-- Test MP běží v jednom procesu – chybí test s latencí/ztrátou paketů (připomínka ChatGPT).
-- Vizuál PsycheFX ověřen jen numericky (headless nerenderuje obraz).
-- Limit velikosti paketů ENet, opt-out z PvP, únik ~10 objektů při ukončení headless běhu (z Dne 3).
+### Open points
+- The household stays in a "cold war" (relationships around −45 to −50 after 7–14 days). Apologies and healing work, but
+  there are still many arguments → tune the argument probability (chemistry, stress, mood) and add positive shared
+  actions.
+- Performance: ~24–29 ms per game hour (Day 5: ~17) – profile MentalState+Depression+RelLedger.
+- Therapy, medication with side effects, the clinic (follows the city): depression currently has no "professional" path,
+  only activity, contact and time.
+- `hurt_at` / `apologies_from` in RelLedger do not clean up old names (in MP with many players they grow over time).
+- From Day 5: appearance_seed instead of a hash of the name, an explicit teleport flag, GLB export. From earlier:
+  latency/packet loss in the MP test, the ENet packet limit, the server's content settings shown to clients.
 
 ---
 
-## 2026-10-14 – Den 3: multiplayer (autoritativní server)
+## 2026-10-14 (run 5) – Day 5: 3D assets from Blender (Blender bridge, rigged character, furniture)
 
-### Testy
-| Test | Výsledek |
+### Tests
+| Test | Result |
 |---|---|
-| `godot_check` | 27/27 skriptů OK |
-| `tests/test_net_protocol.tscn` (sanitizace, unikátní jména, validace typů, medián rychlosti, rate limiter) | **34/34 OK** |
-| `tests/test_player_commands.tscn` (validace příkazů, fronta, obsazený objekt, probuzení, urážka a následky, ochrana proti griefingu, AI nevybírá akce jen pro hráče, HUD data) | **40/40 OK** |
-| `tests/test_multiplayer.tscn` (dedikovaný server + 4 klienti + „tichý“ klient v jednom procesu přes reálné ENet: spawn, sync, čas, hlasování, nouzová pauza, soukromí, chat, anti-cheat, příkazy, PvP urážka, pozdní připojení, divák, hello timeout, odchod hráče) | **64/64 OK** (~16 s) |
-| `--test 7` (offline simulace 7 dní, zvuk) | OK – 0 min v kritickém stavu, všichni spí, AI nikdy nevybrala urážku, 173/172 zvuků objektů |
-| Ruční běh `--host 24999` a offline (6 s) | bez chyb |
+| `godot_check` | 38/38 scripts OK |
+| `tests/test_assets.tscn` | **145/145 OK** (new; contents below the table) |
+| `tests/test_multiplayer.tscn` | 67/67 OK (regression) |
+| `tests/test_mental_health.tscn` | 95/95 OK (regression) |
+| `tests/test_player_commands.tscn` | 40/40 OK (regression) |
+| `tests/test_psyche_presentation.tscn` | 19/19 OK (regression) |
+| `tests/test_net_protocol.tscn` | 34/34 OK (regression) |
+| `--test 7` | OK (0 min in a critical state, sound 156/154/2) |
+| Manual offline run (8 s) | no errors, "9 interactive objects" |
+| Visual check | Blender previews (Cycles, 200×170 / 260×150 JPEG) inspected – male/female characters, sofa with cushion, beds, fridge; headless Godot does not render, so not verified by eye in game |
 
-Očekávané chyby ve stderr testu MP: `RPC '_s2c_chat'/'_s2c_clock' is not allowed … Mode is "authority"` – to je
-záměrný pokus klienta podvrhnout serverové RPC; Godot ho zahodil (test to ověřuje).
+What `test_assets` covers:
+- **Transfer:** CRC-32 and part assembly; rejection of corrupted/forged data (bad base64, a different version, a
+  reference outside the blob, a vertex index out of range).
+- **Assets:** sources ↔ manifest ↔ GLB; budget ≤ 8,000 triangles.
+- **Furniture:** dimensions vs. in-game footprints; stands on the floor; front orientation +Z; Godot winding; PBR detail;
+  cache.
+- **Skeleton:** 17 bones; skin; weights sum to 1; male/female variants; nose +Z.
+- **Pose semantics:** a 0.70 m step, counter-swing of the arms, sitting with the pelvis at 0.50 m and the feet on the
+  ground.
+- **SimVisual:**
+  - variants, own materials, deterministic appearance;
+  - walk/idle by speed; teleport ≠ walking; Ultra 36 m/s at 10 FPS; sit/lie.
+- **Fallback:** primitives and a WorldBuilder with the same game logic.
 
-### Nálezy z vlastních testů (opraveno)
-- **Server ve výchozím stavu přeposílal pakety mezi klienty** (`SceneMultiplayer.server_relay`) – klient mohl
-  poslat RPC přímo jiným klientům. Opraveno: `server_relay = false`, test to hlídá.
-- **Nepředstavené spojení (před hello) dostávalo spawny, stav postav, čas i roster.** Opraveno: filtr
-  viditelnosti synchronizerů (`add_visibility_filter` → jen registrovaní hráči), roster/chat/čas jen přes
-  `rpc_id` registrovaným hráčům. Test ověřuje, že tichému klientovi nic nespawnulo a po 5 s je odpojen.
-- `valid_id` odmítal `StringName` (jméno uzlu) – sjednoceno.
-- Nový příkaz hráče přebíjel jeho vlastní předchozí příkaz → zaveden `by_player`: hráčovy příkazy se řadí,
-  přebíjí se jen rozhodnutí AI.
-- Obsazený objekt vytvářel nesmyslnou „vzpomínku“ → nahrazeno krátkým moodletem „Obsazeno!“.
-- Test uvázl kvůli chybě skriptu v korutině → `tests/test_base.gd` má watchdog (60 s → selhání místo visu).
+Expected error in the `test_assets` stderr: `base64_to_raw … b64_decode` – a deliberate test of nonsense input.
 
-### Audit Gemini (`gemini-3.5-flash-lite`; `3.5-pro` nedostupný, `3.5-flash` přetížený)
-1. *HIGH: hlas a nouzová pauza nekontrolují registraci hráče* – **neoprávněné**, `_handle_vote` i
-   `_handle_emergency` mají `players.has(id)` (pokryto testem neplatného hlasu).
-2. *HIGH: podvržení `sim_node`* – **neoprávněné**: vlastnictví se porovnává se serverovým záznamem
-   `players[id].sim` a `find_sim` dostane tentýž řetězec; jiná postava se vrátit nemůže (test „cizí postava“).
-3. *MED: hash soukromého stavu každých 0,25 s* – **částečně**: při ≤ 8 hráčích zanedbatelné; dirty flag na
-   SimAgent je lepší a je v ROADMAP jako optimalizace.
-4. *MED: velký řetězec v `clean_text`* – **už ošetřeno** (oříznutí na 4× limit před zpracováním). Otevřené:
-   omezení velikosti paketu na úrovni ENet (zatím jen typové a délkové kontroly).
-5. *Obsah (repliky urážek)* – **OK**: verbální konflikt, žádné nadávky na skutečné skupiny, žádné násilí.
-6. Druhé kolo (logika příkazů a sociálních akcí):
-   - *Visící rezervace při `join_social`* – **neoprávněné** (`_leave_target()` se volá před přepsáním cíle),
-     ale při kontrole jsem našla **skutečný bug**: přerušená akce oběti nevyslala `action_finished`
-     (zvuk objektu doznívá, statistiky nesedí) → **opraveno**.
-   - *Griefing opakovanými urážkami* – **oprávněné** → **opraveno**: (a) postavu plnící příkaz svého hráče
-     nikdo nepřeruší, (b) opakovaná urážka od stejné postavy do 2 herních hodin → oběť odejde, dostane jen
-     moodlet „Obtěžuje mě“ (−6) a vztah klesne o 2. Pokryto testem.
-   - *Nevalidní instance / null `mood`* – neoprávněné (statické objekty, kontrola `is_instance_valid`).
+### Findings from our own tests and self-review (fixed)
+- **A data transfer error**: while transcribing sofa part 3/5, 8 characters dropped out in a repeating sequence → **the
+  CRC-32 caught it**; comparing the CRC every 250 characters found the spot, and it was fixed. The other 29 parts passed
+  first time.
+- The high-water-mark index coding failed (a byte out of range), because swapping the vertex order in a triangle (CCW →
+  CW) broke the first-use order → vertices are renumbered only after the swap.
+- Checking the pose through `Skeleton3D.get_bone_global_pose` returned stale values (skeleton outside the tree) → the
+  test computes the forward kinematics itself (an independent check).
+- A `Callable` to a static function in `character_anims.gd` → replaced with `pose(clip, p)`; breathing 30/min → 15/min.
+- The world has 9 (not 10) interactive objects – the test now compares the model and primitive versions of the world.
 
-### Review ChatGPT (AI místnost)
-- Rychlost času: místo minima **dolní medián hlasů + nouzová pauza** (30 s, cooldown 3 min) → zapracováno, testováno.
-- Soukromí: **veřejný snapshot vs. privátní RPC jen vlastníkovi** → zapracováno (potřeby, pocity, vztahy,
-  vzpomínky jdou jen vlastníkovi; i hostitel vidí v HUD detail jen své postavy). Testováno.
-- Ověřit cesty SimAgent/SimPuppet, pozdní připojení – pokryto testy.
+### Gemini audit (`gemini-3.5-flash-lite`)
+1. *HIGH: DoS during decoding (a huge `jl`)* – **not valid**: `4 + jl > raw.size()` is checked, decompression has a
+   16 MB cap, and LSX files are local project assets, not data from clients.
+2. *HIGH: indices without a size check* – **not valid**: `idx_b.size() == ni * 2` is verified before the loop, and `vi`
+   out of range returns an empty result (covered by a test).
+3. *HIGH: null in the cache* – **intentional**: a negative cache, so a missing model is not re-read for every character;
+   callers have a fallback to primitives (covered by a test), and `clear_cache()` exists.
+4. *MED: `String.hash()` may not be deterministic* – **valid (partly)**: the engine does not guarantee the algorithm
+   across versions → appearance is derived from our own CRC-32 of the UTF-8 + test.
+5. *MED: leaking duplicated materials* – **not valid**: Resources are freed by reference counting together with the
+   character.
+6. *MED: Ultra speed at low FPS = "teleport"* – **valid** → teleport threshold `max(3 m, 45 m/s · Δt · 1.5)` + test.
+7. *LOW: `_update_anim` every frame* – kept (≤ 8 characters, StringName comparison); optimise with crowds of NPCs.
+- Content: skin tones are spread evenly by the name hash and not tied to traits or roles (no stereotypes).
 
-### Otevřené body
-- Změna vlastnictví postavy za běhu (předání postavy jinému hráči) zatím neexistuje; `has_private` loutky se pak musí resetovat.
-- Limit velikosti paketů ENet / ochrana proti zahlcení na úrovni transportu.
-- Opt-out z PvP konfliktů (nastavení serveru) – designová otázka.
-- `net_detail` se na serveru přepočítává jen při změně nebo po 10 herních minutách – moodlety v HUD mohou být mírně zpožděné.
-- Únik ~10–14 objektů při ukončení headless běhu (tweeny/streamy autoloadů) – neškodné, uklidit.
+### ChatGPT review
+- The step plan was sent (message 26), and the code for review was sent as files. No answer by the end of the run.
+
+### Open points
+- Raw `.glb` files in `res://` are not packed in an exported game (GLTFDocument loads them from disk) → before
+  exporting, add an `assets/models/*.glb` filter to the export, or load imported scenes.
+- The in-game look (lighting, skin SSS, triplanar details) not verified by eye – headless.
+- The animations are procedural and simple (no IK; the feet may slide when sitting on a lower chair); the face has no
+  expressions.
+- `--test 7` ~17 ms per game hour (Day 1: ~9 ms) – the increase comes mainly from mental health (Day 4); profile.
+- From Day 4: reconciliation in relationships, the server's content settings shown to clients, a latency test, the ENet
+  packet limit.
+
+---
+
+## 2026-10-14 (run 4) – Day 4: stress, mental health (anxiety, panic attack), content settings, PsycheFX
+
+### Tests
+| Test | Result |
+|---|---|
+| `godot_check` | 33/33 scripts OK |
+| `tests/test_mental_health.tscn` | **95/95 OK** (contents below the table) |
+| `tests/test_psyche_presentation.tscn` (PsycheFX vignetting, music low-pass, heartbeat, turning distortion off, HUD for state and thoughts, warning and menu with 116 123) | **19/19 OK** |
+| `tests/test_player_commands.tscn` | 40/40 OK (regression) |
+| `tests/test_net_protocol.tscn` | 34/34 OK (regression) |
+| `tests/test_multiplayer.tscn` (+3 new: own mental state in the private detail; another character's state or diagnosis never reaches the client; the client cannot trigger an attack or calm a character without an attack) | **67/67 OK** |
+| `--test 7` and `--test 14` (offline simulation) | OK – 0 min in a critical state, the AI drinks at most once a week, attacks only with predisposition, stress is relieved |
+| Manual offline run (8 s) | no errors |
+
+What `test_mental_health` covers:
+- settings and censoring; dynamics of the 3 anxiety components; the panic attack;
+- **an agency matrix of 7 coping strategies × 4 contexts – no option is dominant**;
+- anti-farming over short and long horizons; avoidance and alcohol; exposure and recovery; thoughts as subjective;
+- in the world:
+  - an attack does not lock the player;
+  - witnesses help or stigmatise; confiding; jealousy;
+  - the settings filter events;
+- after ChatGPT's review:
+  - non-dominance in each context separately;
+  - a hazard independent of the step;
+  - interrupted confiding; farming support.
+
+Agency matrix (average over contexts; higher = better). No option is best in every metric.
+
+| Coping | Relief | Sensitivity | Manageability | Notes |
+|---|---|---|---|---|
+| Breathing | 15.7 | 0 | +5.4 | |
+| Walk | 16.8 | +2.4 | +2.9 | costs energy |
+| Journal | 7.7 | +4.2 | +6.4 | |
+| Confide | 13.2 | | | being dismissed hurts; needs another person |
+| Doomscrolling | 6.5 | −3.6 | −2.8 | |
+| Hiding | 25.7 | −7.6 | −23.0 | |
+| Beer | 22.6 | −1.9 | −7.7 | worst the next day |
+
+### Findings from our own tests and self-review (fixed)
+- **Edits through `godot_run_script` without `extends` indented multi-line strings** (wrapping into `_init`), so 4 files
+  had broken indentation → fixed; from now on only scripts with `extends SceneTree`.
+- An attack always lasted exactly the minimum of 5 min, so breathing had no measurable effect → a more realistic
+  fade-out (typically ~9 min; ~5–6 min with breathing/support).
+- The alcohol rebound was almost zero after 10 h → slower breakdown of the rebound (morning "hangxiety").
+- Censoring did not catch "posere" → stems added.
+- Household relationships fell into enmity within 2 days (temper counted twice, stress in arguments from 0) → adjusted.
+  People also now avoid enemies and confide only in those they trust.
+- **The player could be locked out**: with a full command queue, breathing could not be ordered during an attack →
+  fixed and tested.
+- **A dangling help counter**: a helper invited into a conversation via `join_social` did not decrement `_helping_me` →
+  fixed + a safeguard (without an attack the counter is reset).
+- Jealousy triggered on every conversation (rapid erosion of relationships) → at most once per 4 h per "rival".
+
+### Gemini audit (`gemini-3.5-flash-lite`; `3.5-pro` does not exist in the API, `3.5-flash` overloaded)
+1. *HIGH: panic inconsistency between server and client* – **not valid** (MentalState and SimAgent run only on the
+   server; the client only sees a label). But the review found a **real problem**: after breathing, the character
+   returns to the attack and the witnesses would react again (double stigma) → **fixed**: witnesses react only once per
+   episode.
+2. *HIGH: leaking another character's detail through RPC* – **not valid**: there is no "request detail" RPC; the server
+   sends private state only to the owner; covered by the MP test.
+3. *HIGH: `fraction` from the client* – **not valid**: the server computes it from the elapsed time of the action.
+4. *MED: undefined `rate`, negative `dm`* – **not valid** (a local variable; GameClock only sends positive steps ≤ 2 min).
+5. *MED: unbounded growth of `thoughts`/`coping_log`* – **already handled** (max 6 thoughts, 8 entries per coping).
+6. *MED: dangling `_helping_me`* – **valid** → fixed (see above).
+7. *LOW: magic constants* – partly; the key thresholds are constants, and formula tuning stays in the code.
+8. *Content*: stigma and anxious interpretations were rated realistic, not caricatured. A proposal to also turn stress
+   off when the topics are "off" – **deliberately rejected**: ordinary life stress remains even without mental-health
+   topics.
+
+### ChatGPT review (AI room)
+- **Messages 9 and 13** → **worked in**:
+  - an anxiety model of 3 components;
+  - choices that are never locked;
+  - non-linear recovery;
+  - avoidance with a long-term cost;
+  - adjustable thought intensity.
+- The agency test follows the proposal:
+  - feasibility; non-dominance across a set of contexts;
+  - anti-farming over short and longer horizons;
+  - thoughts as subjective;
+  - the settings filter texts and events.
+- Static review of mental_state.gd, game_settings.gd and test_mental_health.gd (message 21) – all **valid**:
+  1. Being dismissed while confiding applied the full penalty even at `fraction = 0` → **fixed** (proportional to the
+     part that took place; the refusal itself already carries a moodlet and a relationship change). The test "an
+     unfinished confiding makes nothing worse by itself" would have failed before.
+  2. Support from confiding bypassed habituation (farming) → **fixed** + test.
+  3. The probability of an attack and of thoughts depended on the step length (`p = k·dm`) → **hazard
+     `1 − e^(−λ·dm)`** + test of 1 min vs 2 min over 400 seeds.
+  4. Non-dominance only on average → **a check in each context separately added** (passed). More seeds and long
+     sequences – open.
+  5. Wording of the warning: instead of the categorical "there is always a way out" → "it allows you to seek support and
+     recover – not always quickly and not in a straight line" → **adjusted**.
+
+### Open points
+- Relationships in the household gradually worsen, and there is no reconciliation/apology mechanic.
+- Stress and tension in the client HUD refresh after a state change or at most every 10 game minutes.
+- The client does not see the server's content settings (only the reason a command was rejected) – add to the welcome
+  message.
+- Agency matrix: add more states/seeds and long sequences of choices (ChatGPT).
+- The MP test runs in one process – a test with latency/packet loss is missing (ChatGPT's comment).
+- The PsycheFX look verified only numerically (headless does not render an image).
+- The ENet packet size limit, PvP opt-out, a leak of ~10 objects when a headless run exits (from Day 3).
+
+---
+
+## 2026-10-14 – Day 3: multiplayer (authoritative server)
+
+### Tests
+| Test | Result |
+|---|---|
+| `godot_check` | 27/27 scripts OK |
+| `tests/test_net_protocol.tscn` (sanitisation, unique names, type validation, speed median, rate limiter) | **34/34 OK** |
+| `tests/test_player_commands.tscn` | **40/40 OK** (contents below the table) |
+| `tests/test_multiplayer.tscn` | **64/64 OK** (~16 s; contents below the table) |
+| `--test 7` (offline simulation of 7 days, sound) | OK – 0 min in a critical state, everyone sleeps, the AI never chose an insult, 173/172 object sounds |
+| Manual run `--host 24999` and offline (6 s) | no errors |
+
+What `test_player_commands` covers: command validation, the queue, an occupied object, waking up, an insult and its
+consequences, griefing protection, the AI not choosing player-only actions, HUD data.
+
+What `test_multiplayer` covers, with a dedicated server + 4 clients + a "silent" client in one process over real ENet:
+- spawning, sync, time, voting, emergency pause;
+- privacy, chat, anti-cheat, commands, PvP insult;
+- late join, spectator, hello timeout, a player leaving.
+
+Expected errors in the MP test stderr: `RPC '_s2c_chat'/'_s2c_clock' is not allowed … Mode is "authority"`. This is a
+deliberate attempt by a client to forge a server RPC; Godot discarded it (the test verifies this).
+
+### Findings from our own tests (fixed)
+- **By default the server relayed packets between clients** (`SceneMultiplayer.server_relay`), so a client could send
+  RPCs directly to other clients. Fixed: `server_relay = false`, guarded by a test.
+- **An unintroduced connection (before hello) received spawns, character state, time and the roster.** Fixed:
+  - a synchroniser visibility filter (`add_visibility_filter` → registered players only);
+  - the roster, chat and time go only through `rpc_id` to registered players.
+
+  The test verifies that nothing spawned for the silent client and that it is disconnected after 5 s.
+- `valid_id` rejected `StringName` (a node name) – unified.
+- A new player command overrode that player's own previous command → introduced `by_player`: the player's commands are
+  queued, and only AI decisions are overridden.
+- An occupied object created a nonsensical "memory" → replaced with a short "Occupied!" moodlet.
+- A test hung because of a script error in a coroutine → `tests/test_base.gd` has a watchdog (60 s → failure instead of
+  hanging).
+
+### Gemini audit (`gemini-3.5-flash-lite`; `3.5-pro` unavailable, `3.5-flash` overloaded)
+1. *HIGH: the vote and the emergency pause do not check player registration* – **not valid**: both `_handle_vote` and
+   `_handle_emergency` have `players.has(id)` (covered by the invalid-vote test).
+2. *HIGH: forging `sim_node`* – **not valid**: ownership is compared with the server record `players[id].sim`, and
+   `find_sim` receives the same string; another character cannot be returned (test "someone else's character").
+3. *MED: hashing private state every 0.25 s* – **partly**: negligible with ≤ 8 players; a dirty flag on SimAgent is
+   better and is in the ROADMAP as an optimisation.
+4. *MED: a large string in `clean_text`* – **already handled** (trimmed to 4× the limit before processing). Open:
+   limiting the packet size at the ENet level (so far only type and length checks).
+5. *Content (insult lines)* – **OK**: verbal conflict, no slurs against real groups, no violence.
+6. Second round (command logic and social actions):
+   - *A dangling reservation on `join_social`* – **not valid** (`_leave_target()` is called before the target is
+     overwritten). But the check found a **real bug**: the victim's interrupted action did not emit `action_finished`
+     (the object sound kept fading out, the statistics did not match) → **fixed**.
+   - *Griefing with repeated insults* – **valid** → **fixed**:
+     - (a) nobody interrupts a character carrying out its player's command;
+     - (b) a repeated insult from the same character within 2 game hours makes the victim walk away; it gets only the
+       moodlet "They are bothering me" (−6), and the relationship drops by 2.
+
+     Covered by a test.
+   - *Invalid instance / null `mood`* – not valid (static objects, an `is_instance_valid` check).
+
+### ChatGPT review (AI room)
+- Time speed: instead of the minimum, **the lower median of votes + an emergency pause** (30 s, cooldown 3 min) →
+  worked in, tested.
+- Privacy: **a public snapshot vs. private RPCs only to the owner** → worked in. Needs, feelings, relationships and
+  memories go only to the owner; even the host sees in the HUD the detail of their own character only. Tested.
+- Verify the SimAgent/SimPuppet paths and late join – covered by tests.
+
+### Open points
+- Changing a character's ownership at runtime (handing a character over to another player) does not exist yet; the
+  puppet's `has_private` would then have to be reset.
+- The ENet packet size limit / flood protection at the transport level.
+- Opting out of PvP conflicts (a server setting) – a design question.
+- `net_detail` is recomputed on the server only on change or every 10 game minutes – moodlets in the HUD may be slightly
+  delayed.
+- A leak of ~10–14 objects when a headless run exits (autoload tweens/streams) – harmless, to be cleaned up.

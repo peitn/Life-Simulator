@@ -78,6 +78,16 @@ func _ready() -> void:
 	add_child(visual)
 
 
+## Public appearance only; never merge full private character data into a puppet.
+func apply_public_look(snapshot: Dictionary) -> void:
+	var checked: Dictionary = Validator.validate(snapshot, {"mode":"strict", "public_only":true})
+	if not checked.get("ok", false):
+		return
+	look = checked["data"].duplicate(true)
+	if is_instance_valid(visual):
+		visual.apply_look(look)
+
+
 func _process(delta: float) -> void:
 	position = position.lerp(net_pos, clampf(delta * FOLLOW_RATE, 0.0, 1.0))
 	rotation.y = lerp_angle(rotation.y, net_rot, clampf(delta * FOLLOW_RATE, 0.0, 1.0))

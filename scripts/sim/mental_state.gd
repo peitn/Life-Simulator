@@ -158,6 +158,9 @@ const THOUGHTS := {
 
 var stress := 15.0
 var arousal := 10.0
+## A bounded, short-lived positive source of the SAME arousal intensity (0..100).
+## At zero, legacy anxiety/panic behavior is unchanged.
+var positive_arousal := 0.0
 var threat := 0.0
 var sensitivity := 0.15
 var mastery := 0.5
@@ -281,6 +284,35 @@ func regulation(energy: float, hunger: float) -> float:
 	return clampf(r, 0.1, 1.0)
 
 
+# ---------------------------------------------------------------- pleasant activation versus threat
+
+## Physiological arousal is not inherently anxiety. A positive event can raise
+## the existing arousal independently of stress, threat or depression.
+func on_positive_stimulus(amount: float) -> void:
+	if is_nan(amount) or is_inf(amount) or amount <= 0.0:
+		return
+	positive_arousal = clampf(positive_arousal + amount, 0.0, 100.0)
+	arousal = clampf(maxf(arousal, 8.0 + positive_arousal), 0.0, 100.0)
+
+
+## Fraction of activation attributable to pleasant stimulation.
+func pleasant_arousal_share() -> float:
+	var negative := maxf(stress - 15.0, 0.0) * 0.45 + threat * 70.0 + rebound * 35.0
+	return clampf(positive_arousal / (positive_arousal + negative + 10.0), 0.0, 1.0)
+
+
+## Emotional valence (-1 negative, 0 neutral, +1 positive) is distinct from
+## arousal intensity and from the broad Mood state covering other needs.
+func arousal_valence() -> float:
+	var negative := maxf(stress - 15.0, 0.0) * 0.45 + threat * 70.0 + rebound * 35.0
+	return clampf((positive_arousal - negative) / (positive_arousal + negative + 10.0), -1.0, 1.0)
+
+
+## Only the aversive part feeds panic, distress, and coping decisions.
+func aversive_arousal() -> float:
+	return clampf(arousal * (1.0 - 0.9 * pleasant_arousal_share()), 0.0, 100.0)
+
+
 # ---------------------------------------------------------------- krok simulace
 
 ## ctx: energy, hunger, needs (Dictionary), sleeping, night, now (min), cfg (Dictionary)
@@ -294,6 +326,7 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	_hour = int(ctx.get("hour", 12))
 	_now = float(ctx.get("now", _now))
 	panic_exhaust = maxf(panic_exhaust - dm, 0.0)
+	positive_arousal *= exp(-maxf(dm, 0.0) / 90.0)  # pleasant excitation dissipates
 
 	# Vnímaná hrozba rychle odeznívá (když se nic neděje, situace se „uklidní“).
 	threat *= exp(-dm / 25.0)
@@ -324,6 +357,9 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	var target := 8.0 + stress * 0.3 + threat * 75.0 * (0.4 + s_eff) + rebound * 30.0
 	target -= support * 18.0
 	target -= (reg - 0.5) * 10.0
+	# An equally high intensity may be pleasant, aversive, or mixed.
+	# Do not double-count both physiological activation sources.
+	target = maxf(target, 8.0 + positive_arousal)
 	if sleeping:
 		target *= 0.6
 	if panic_exhaust > 0.0:
@@ -381,9 +417,9 @@ func tick(dm: float, ctx: Dictionary) -> void:
 		panic_elapsed += dm
 		if (panic_elapsed >= PANIC_MIN_MINUTES and arousal < PANIC_END) or panic_elapsed >= PANIC_MAX_MINUTES:
 			end_panic()
-	elif arousal >= PANIC_THRESHOLD + float(_hk("panic_shift", cfg, 0.0)) and panic_cooldown <= 0.0 and not sleeping and can_panic(cfg):
+	elif aversive_arousal() >= PANIC_THRESHOLD + float(_hk("panic_shift", cfg, 0.0)) and panic_cooldown <= 0.0 and not sleeping and can_panic(cfg):
 		# Hazard nezávislý na délce kroku: p = 1 − e^(−λ·dm).
-		var lam := 0.035 * s_eff * (arousal - PANIC_THRESHOLD - float(_hk("panic_shift", cfg, 0.0)) + 4.0) / 10.0
+		var lam := 0.035 * s_eff * (aversive_arousal() - PANIC_THRESHOLD - float(_hk("panic_shift", cfg, 0.0)) + 4.0) / 10.0
 		if rng.randf() < 1.0 - exp(-lam * dm):
 			_start_panic()
 
@@ -393,10 +429,17 @@ func tick(dm: float, ctx: Dictionary) -> void:
 		_couple_acc += dm
 		while _couple_acc >= 60.0:
 			_couple_acc -= 60.0
-			var st := PsycheModel.couple_step(couples, {"S.stress": stress / 100.0, "S.arousal": arousal / 100.0,
+			# Profile graph S.arousal historically means distress activation.
+			# Feed it only the aversive component, or pure joy could spuriously
+			# increase depression burden via S.arousal -> S.burden.
+			var old_aversive: float = aversive_arousal()
+			var st := PsycheModel.couple_step(couples, {"S.stress": stress / 100.0,
+				"S.arousal": old_aversive / 100.0,
 				"S.threat": threat, "S.burden": dep.burden}, _hk("D", cfg, {}), 1.0)
 			stress = float(st["S.stress"]) * 100.0
-			arousal = float(st["S.arousal"]) * 100.0
+			# Restore the coupled change in aversive activation without erasing
+			# the separate pleasant physiological contribution.
+			arousal = clampf(arousal + float(st["S.arousal"]) * 100.0 - old_aversive, 0.0, 100.0)
 			threat = float(st["S.threat"])
 			dep.burden = float(st["S.burden"])
 
@@ -404,11 +447,11 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	_thought_cd -= dm
 	var rate: float = float(cfg.get("thought_rate", 1.0))
 	if rate > 0.0 and _thought_cd <= 0.0:
-		var level := maxf(arousal - 35.0, 0.0) / 65.0 + maxf(stress - 55.0, 0.0) / 90.0
+		var level := maxf(aversive_arousal() - 35.0, 0.0) / 65.0 + maxf(stress - 55.0, 0.0) / 90.0
 		var dlev: float = dep.thought_level()
 		if level + dlev > 0.0 and rng.randf() < 1.0 - exp(-(level + dlev) * 0.05 * rate * dm):
-			var kind := "body" if arousal > 65.0 else ("night" if bool(ctx.get("night", false)) else "future")
-			if dlev > level and arousal <= 65.0:
+			var kind := "body" if aversive_arousal() > 65.0 else ("night" if bool(ctx.get("night", false)) else "future")
+			if dlev > level and aversive_arousal() <= 65.0:
 				kind = "low_morning" if dep.morning_drag(_hour) > 0.05 else "low"
 			if not bool(cfg.get("episodes", true)):
 				kind = "mild"
@@ -483,7 +526,7 @@ func on_social_completed(positive: bool, arousal_start: float, partner_name: Str
 		dep.on_event(0.01, cfg)
 	# Úzkostná interpretace i po dobrém hovoru (subjektivní, ne pravda).
 	var bias := _cond_param("threat_bias", cfg) + trait_vuln * 0.5
-	if positive and bias > 0.1 and rng.randf() < clampf(bias * (0.25 + arousal / 150.0), 0.0, 0.8):
+	if positive and bias > 0.1 and rng.randf() < clampf(bias * (0.25 + aversive_arousal() / 150.0), 0.0, 0.8):
 		threat = clampf(threat + 0.12, 0.0, 1.0)
 		out = add_thought("after_chat", now, {"name": partner_name, "grammar": Grammar.norm(partner_g) if typeof(partner_g) == TYPE_STRING else ("f" if bool(partner_g) else "m")}, cfg)
 	elif not positive:
@@ -650,9 +693,18 @@ func sleep_quality() -> float:
 
 
 ## Jak náročné jsou teď sociální akce (0 = běžné, 1 = velmi) – nikdy je nezamyká.
+## Sklon vyhnout se dalšímu střetu (0..0,7): vysoký stres a stažení v depresi. Postava se pak
+## spíš vyhne člověku, na kterého má pifku, a výtku občas spolkne, místo aby šla do další hádky
+## (review Groka #169: únikovou cestu z polarizované domácnosti). Nic se nezakazuje.
+func avoidance(cfg: Dictionary = {}) -> float:
+	var st := clampf((stress - 55.0) / 45.0, 0.0, 1.0) * 0.4
+	var w: float = dep.withdrawal() if bool(cfg.get("conditions", true)) else 0.0
+	return clampf(st + w, 0.0, 0.7)
+
+
 func social_difficulty(cfg: Dictionary = {}) -> float:
 	var social := _cond_param("social", cfg) + trait_vuln * 0.5
-	return clampf((arousal / 100.0) * (0.3 + social) + threat * social + float(_hk("social_cost", cfg, 0.0)), 0.0, 1.0)
+	return clampf((aversive_arousal() / 100.0) * (0.3 + social) + threat * social + float(_hk("social_cost", cfg, 0.0)), 0.0, 1.0)
 
 
 ## Chuť na coping (pro utility AI). Nezdravé copingy lákají víc, když je postava vyčerpaná
@@ -661,7 +713,7 @@ func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsi
 	var def: Dictionary = COPINGS.get(id, {})
 	if def.is_empty():
 		return 0.0
-	var need := maxf(arousal - 30.0, 0.0) * 0.55 + maxf(stress - 42.0, 0.0) * 0.35
+	var need := maxf(aversive_arousal() - 30.0, 0.0) * 0.55 + maxf(stress - 42.0, 0.0) * 0.35
 	if need <= 0.0:
 		return 0.0
 	var reg := regulation(energy, hunger)
@@ -684,12 +736,16 @@ func coping_appeal(id: String, energy: float, hunger: float, now: float, impulsi
 ## Moodlety plynoucí z duševního stavu (pro Mood.evaluate).
 func mood_entries() -> Array:
 	var out: Array = []
+	var av := aversive_arousal()
 	if panic_active:
 		out.append({"id": "panika", "label": "Panická ataka", "emotion": "uzkostny", "strength": -32.0, "remaining": -1.0})
-	elif arousal > 55.0:
+	elif arousal > 38.0 and arousal_valence() > 0.20 and pleasant_arousal_share() > 0.55:
+		out.append({"id": "nabuzeni", "label": "Příjemné nabuzení", "emotion": "energicky",
+			"strength": lerpf(5.0, 14.0, clampf((arousal - 38.0) / 62.0, 0.0, 1.0)), "remaining": -1.0})
+	elif av > 55.0:
 		out.append({"id": "uzkost", "label": "Úzkost", "emotion": "uzkostny",
-			"strength": -lerpf(8.0, 24.0, (arousal - 55.0) / 45.0), "remaining": -1.0})
-	elif arousal > 38.0:
+			"strength": -lerpf(8.0, 24.0, (av - 55.0) / 45.0), "remaining": -1.0})
+	elif av > 38.0:
 		out.append({"id": "nervozita", "label": "Nervozita", "emotion": "napjaty", "strength": -6.0, "remaining": -1.0})
 	if stress > 60.0:
 		out.append({"id": "stres", "label": "Ve stresu", "emotion": "napjaty",
@@ -709,11 +765,14 @@ func state_label(cfg: Dictionary = {}) -> String:
 	var anx := ""
 	if panic_active:
 		return "Panická ataka"
-	if arousal > 65.0:
+	var av := aversive_arousal()
+	if arousal > 38.0 and arousal_valence() > 0.20 and pleasant_arousal_share() > 0.55:
+		anx = "Nadšení" if arousal > 65.0 else "Příjemné nabuzení"
+	elif av > 65.0:
 		anx = "Silná úzkost"
-	elif arousal > 45.0:
+	elif av > 45.0:
 		anx = "Úzkost"
-	elif arousal > 30.0 or stress > 55.0:
+	elif av > 30.0 or stress > 55.0:
 		anx = "Nervozita"
 	var low: String = dep.label(cfg)
 	if anx != "" and low != "":
@@ -732,18 +791,25 @@ func detail(cfg: Dictionary = {}) -> Dictionary:
 	if bool(cfg.get("conditions", true)):
 		for id in conditions:
 			conds.append(String(CONDITIONS.get(id, {}).get("label", id)))
-	return {"stress": int(round(stress)), "arousal": int(round(arousal)), "label": state_label(cfg),
+	return {"stress": int(round(stress)), "arousal": int(round(arousal)),
+		"aversive_arousal": int(round(aversive_arousal())), "label": state_label(cfg),
 		"panic": panic_active, "thoughts": th, "conditions": conds,
 		"low": int(round(dep.burden * 100.0)), "anhedonia": dep.hedonic < 0.6,
 		"day": "špatný den" if day_factor < -0.35 else ("dobrý den" if day_factor > 0.35 else "")}
 
 
 func to_dict() -> Dictionary:
-	return {"stress": stress, "arousal": arousal, "threat": threat, "sensitivity": sensitivity,
+	return {"stress": stress, "arousal": arousal, "positive_arousal": positive_arousal,
+		"threat": threat, "sensitivity": sensitivity,
 		"mastery": mastery, "support": support, "conditions": conditions.duplicate(),
 		"trait_vuln": trait_vuln, "day_factor": day_factor, "alcohol": alcohol, "tolerance": tolerance,
 		"rebound": rebound, "panic_cooldown": panic_cooldown, "panic_exhaust": panic_exhaust, "drink_times": drink_times.duplicate(), "coping_log": coping_log.duplicate(true),
-		"last_daily": last_daily.duplicate(), "trait_dep": trait_dep, "dep": dep.to_dict()}
+		"last_daily": last_daily.duplicate(), "trait_dep": trait_dep, "dep": dep.to_dict(),
+		"panic_active": panic_active, "panic_elapsed": panic_elapsed, "panic_count": panic_count,
+		"panic_times": panic_times.duplicate(), "surge_count": surge_count,
+		"now": _now, "thought_cooldown": _thought_cd, "thoughts": thoughts.duplicate(true),
+		"coping_counts": coping_counts.duplicate(true), "couple_acc": _couple_acc,
+		"stress_sources": stress_sources.duplicate(true)}
 
 
 func from_dict(d: Dictionary) -> void:
@@ -751,10 +817,27 @@ func from_dict(d: Dictionary) -> void:
 			"day_factor", "alcohol", "tolerance", "rebound", "panic_cooldown", "panic_exhaust", "trait_dep"]:
 		if d.has(k):
 			set(k, float(d[k]))
+	# Older saves contain only arousal; keep them behaviorally identical.
+	var saved_positive := float(d.get("positive_arousal", 0.0))
+	positive_arousal = clampf(saved_positive, 0.0, 100.0) if not (is_nan(saved_positive) or is_inf(saved_positive)) else 0.0
 	conditions = d.get("conditions", {}).duplicate()
 	coping_log = d.get("coping_log", {}).duplicate(true)
 	last_daily = d.get("last_daily", {}).duplicate()
 	drink_times = (d.get("drink_times", []) as Array).duplicate() if typeof(d.get("drink_times", [])) == TYPE_ARRAY else []
-	panic_active = false
+	panic_active = bool(d.get("panic_active", false))
+	# The last finished episode may legitimately exceed PANIC_MAX_MINUTES by
+	# one GameClock tick (e.g. 24 + 2 = 26). Keep the true elapsed duration
+	# when restoring, rather than silently changing a valid save.
+	var saved_panic_elapsed := float(d.get("panic_elapsed", 0.0))
+	panic_elapsed = clampf(saved_panic_elapsed, 0.0, 1.0e7) if is_finite(saved_panic_elapsed) else 0.0
+	panic_count = clampi(int(d.get("panic_count", 0)), 0, 1000000)
+	surge_count = clampi(int(d.get("surge_count", 0)), 0, 1000000)
+	_now = float(d.get("now", 0.0))
+	_thought_cd = float(d.get("thought_cooldown", 0.0))
+	_couple_acc = clampf(float(d.get("couple_acc", 0.0)), 0.0, 60.0)
+	panic_times = d.get("panic_times", []).duplicate() if typeof(d.get("panic_times")) == TYPE_ARRAY else []
+	thoughts = d.get("thoughts", []).duplicate(true) if typeof(d.get("thoughts")) == TYPE_ARRAY else []
+	coping_counts = d.get("coping_counts", {}).duplicate(true) if typeof(d.get("coping_counts")) == TYPE_DICTIONARY else {}
+	stress_sources = d.get("stress_sources", {}).duplicate(true) if typeof(d.get("stress_sources")) == TYPE_DICTIONARY else {}
 	if typeof(d.get("dep")) == TYPE_DICTIONARY:
 		dep.from_dict(d["dep"])

@@ -16,3 +16,6 @@ previews/
 .DS_Store
 Thumbs.db
 *.tmp
+
+# Local checkpoint backups written by automation runs
+*.bak

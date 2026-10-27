@@ -118,6 +118,8 @@ func _init() -> void:
 
 func reset_stats() -> void:
 	stats = {"talks": 0, "argues": 0, "deescalated": 0, "complaint_talks": 0, "complaint_argues": 0,
+		"outcomes": {"chat": 0, "argue": 0, "awkward": 0, "misunderstanding": 0},
+		"pressure": 0, "pressure_outcomes": {},
 		"friction": {}, "shared": {}, "events": {"good": 0, "bad": 0},
 		"by_mood": {"good": [0, 0], "mid": [0, 0], "bad": [0, 0]}}
 
@@ -250,6 +252,7 @@ func apply_friction(s, o, topic: String, now: float) -> void:
 	var cfg: Dictionary = s.mental_cfg()
 	s.mental.on_stressor("friction", FRICTION_STRESS * Traits.mult_param(s.trait_profile, "stress_gain"), cfg)
 	s.ledger.on_hurt_by(o.sim_name, FRICTION_GRUDGE, now)
+	s.emotions.impulse("friction", o.sim_name)
 	s.mood.add_moodlet("trenice_%s_%s" % [topic, o.name], "Štve mě %s (%s)" % [o.first_name(), COMPLAINT_LABEL[topic]],
 		"nastvany", FRICTION_MOOD, FRICTION_MOOD_MINUTES)
 	s.pending_complaints[o.sim_name] = {"topic": topic, "t": now}
@@ -308,6 +311,9 @@ func _shared_moments(sims: Array, now: float) -> void:
 				x.relationships[y.sim_name] = nv
 				x.last_talk[y.sim_name] = now  # být spolu je taky kontakt (proti „zanedbání“)
 				x.ledger.soften(y.sim_name, SHARED_SOFTEN)
+				x.ledger.record_trust(y.sim_name, "warm", 0.45)
+				x._learn_connection(y)
+				x.emotions.impulse("shared", y.sim_name)
 				x.add_joy_moodlet("spolu_%s_%s" % [kind, y.name], "Chvíle spolu: %s (%s)" % [y.first_name(), kind],
 					"stastny", SHARED_MOOD, SHARED_MOOD_MINUTES)
 				x.note_relationship_change(y, cur, nv)
@@ -338,6 +344,7 @@ func life_event(x, now: float) -> void:
 		x.add_joy_moodlet("udalost_%d" % int(now), label, "stastny", strength, dur)
 	else:
 		x.mood.add_moodlet("udalost_%d" % int(now), label, "stastny" if good else "smutny", strength, dur)
+	x.emotions.impulse("life_good" if good else "life_bad")
 	if not good:
 		x.mental.on_stressor("life", absf(strength) * EVENT_STRESS_SHARE, x.mental_cfg())
 	stats["events"]["good" if good else "bad"] += 1
@@ -354,18 +361,35 @@ static func mood_bucket(avg_mood: float) -> String:
 
 func _on_conversation(_sim, _partner, info: Dictionary) -> void:
 	var ok := bool(info.get("success", true))
+	var argued := bool(info.get("argued", not ok))
+	var outcome := String(info.get("outcome", "chat" if ok else "argue"))
+	# Manipulative events are not ordinary awkward chats or physical fights.
+	# Do not inflate the normal-talk denominator when tracking coercion.
+	if outcome in ["reproach", "guilt_trip", "blame_shift", "emotional_blackmail", "stonewalling"]:
+		stats["pressure"] = int(stats.get("pressure", 0)) + 1
+		# Leave ordinary chat outcomes separate for existing analytics and tests.
+		if typeof(stats.get("pressure_outcomes")) != TYPE_DICTIONARY:
+			stats["pressure_outcomes"] = {}
+		var pressure_hist: Dictionary = stats["pressure_outcomes"]
+		pressure_hist[outcome] = int(pressure_hist.get(outcome, 0)) + 1
+		return
 	stats["talks"] += 1
-	if not ok:
+	# Older save slots did not have an outcomes histogram.
+	if typeof(stats.get("outcomes")) != TYPE_DICTIONARY:
+		stats["outcomes"] = {}
+	var hist: Dictionary = stats["outcomes"]
+	hist[outcome] = int(hist.get(outcome, 0)) + 1
+	if argued:
 		stats["argues"] += 1
 	if bool(info.get("deescalated", false)):
 		stats["deescalated"] += 1
 	if String(info.get("complaint", "")) != "":
 		stats["complaint_talks"] += 1
-		if not ok:
+		if argued:
 			stats["complaint_argues"] += 1
 	var b: Array = stats["by_mood"][mood_bucket(float(info.get("avg_mood", 0.0)))]
 	b[0] += 1
-	if not ok:
+	if argued:
 		b[1] += 1
 
 

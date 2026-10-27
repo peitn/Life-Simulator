@@ -1,0 +1,146 @@
+{
+  "schema": "lifesim.fem.musclefat.3d.v1",
+  "date_utc": "2026-10-27",
+  "solver": "ElmerSolver 26.2",
+  "mesher": "ElmerGrid 14 2 ASCII Gmsh 2.2",
+  "source_script": "tools/elmer/build_muscle_fat_3d_v1.py",
+  "geometry": {
+    "shape": "3D cuboid volumes, muscle x0..0.025m, fat x0.025..0.035m, transverse y0..0.012m, z0..0.010m",
+    "muscle_thickness_m": 0.025,
+    "fat_thickness_m": 0.01,
+    "width_m": 0.012,
+    "depth_m": 0.01,
+    "interface": "shared hexahedral mesh nodes at x=.025m, no contact resistance",
+    "physical_body_ids": {
+      "muscle": 1,
+      "fat": 2
+    },
+    "physical_boundary_ids": {
+      "core": 11,
+      "skin": 12,
+      "insulated_sides": 13
+    }
+  },
+  "thermal": {
+    "k_muscle_W_mK": 0.5,
+    "k_fat_W_mK": 0.2,
+    "rho_muscle_kg_m3": 1050,
+    "rho_fat_kg_m3": 900,
+    "cp_muscle_J_kgK": 3750,
+    "cp_fat_J_kgK": 2300,
+    "fat_heat_source_W_m3": 60,
+    "core_K": 310.15,
+    "air_K": 293.15,
+    "surface_heat_transfer_W_m2K": 10,
+    "volumetric_source_elmer_conversion": "W/m3 input divided by material density to specific W/kg",
+    "analytic_1d_rest_surface_K": 301.89125,
+    "analytic_1d_active_surface_K": 303.235,
+    "analytic_1d_transient_expected": "not closed-form compared; consistent with previous 2D 720s transient 304.685K"
+  },
+  "mechanics": {
+    "type": "3D linear elastic isotropic passive two-material",
+    "E_muscle_pa": 30000,
+    "E_fat_pa": 5000,
+    "poisson": 0.35,
+    "core_fix": "all displacement 1,2,3 = 0 on x=0",
+    "skin_traction": "uniform force1=-100 Pa on x=.035m",
+    "lateral_faces": "traction-free",
+    "not_simulated": "tendons, muscle activation, fat nonlinear viscoelasticity, contact friction or 3D skin anatomy"
+  },
+  "cases": [
+    {
+      "name": "lifesim_mfat_3d_heat_coarse_c11",
+      "mode": "steady_rest",
+      "points": 208,
+      "bulk_hex8": 108,
+      "boundary_quad4": 162,
+      "nm": 8,
+      "nf": 4,
+      "ny": 3,
+      "nz": 3,
+      "source_muscle_W_m3": 700,
+      "min_K": 301.89125,
+      "max_K": 310.15,
+      "filename": "mesh/case3d_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_3d_heat_fine_c11",
+      "mode": "steady_rest_mesh_refinement",
+      "points": 900,
+      "bulk_hex8": 600,
+      "boundary_quad4": 530,
+      "nm": 16,
+      "nf": 8,
+      "ny": 5,
+      "nz": 5,
+      "source_muscle_W_m3": 700,
+      "min_K": 301.89125,
+      "max_K": 310.15,
+      "filename": "mesh/case3d_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_3d_active_c11",
+      "mode": "steady_active",
+      "points": 208,
+      "bulk_hex8": 108,
+      "boundary_quad4": 162,
+      "nm": 8,
+      "nf": 4,
+      "ny": 3,
+      "nz": 3,
+      "source_muscle_W_m3": 5000,
+      "min_K": 303.235,
+      "max_K": 310.264,
+      "filename": "case_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_3d_transient_c11",
+      "mode": "transient_rest_720s",
+      "points": 208,
+      "bulk_hex8": 108,
+      "boundary_quad4": 162,
+      "nm": 8,
+      "nf": 4,
+      "ny": 3,
+      "nz": 3,
+      "source_muscle_W_m3": 700,
+      "min_K": 304.684,
+      "max_K": 310.168,
+      "time_s": 720,
+      "step_s": 60,
+      "bdf_order": 1,
+      "filename": "case_t0001.vtu"
+    },
+    {
+      "name": "lifesim_mfat_3d_mech_c11",
+      "mode": "passive_elastic_compression",
+      "points": 208,
+      "bulk_hex8": 108,
+      "boundary_quad4": 162,
+      "nm": 8,
+      "nf": 4,
+      "ny": 3,
+      "nz": 3,
+      "traction_pa": 100,
+      "max_vector_displacement_m": 0.000282131,
+      "max_vector_components_m": [
+        -0.00027645574,
+        -0.000043772138,
+        -0.000035416756
+      ],
+      "max_von_mises_pa": 136.307,
+      "uniaxial_1d_reference_m": 0.0002833333333333333,
+      "filename": "case_t0001.vtu"
+    }
+  ],
+  "limitations": {
+    "actual_3D_hex8_FEM_solved": true,
+    "actual_anatomy_Blendermodel_geometry_solved": false,
+    "not_clinical": true,
+    "not_pennes_blood_perfusion": true,
+    "not_muscle_activation": true,
+    "not_live_gameplay_physics": true,
+    "not_full_3D_joint_physics": true,
+    "geometry_flat_research_blocks_only": true
+  }
+}

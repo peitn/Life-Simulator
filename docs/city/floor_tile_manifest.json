@@ -1,0 +1,137 @@
+{
+  "asset": "floor_tile_2m",
+  "version": "0.1-prototype",
+  "license": "Original Life Simulator asset; all rights reserved",
+  "source": "tools/blender/city/floor_tile.py",
+  "units": "meters",
+  "axes": "Blender Z-up -> Godot Y-up",
+  "grid_m": 0.5,
+  "pivot_godot": [
+    0,
+    0,
+    0
+  ],
+  "bounds_godot": {
+    "min": [
+      0,
+      -0.2,
+      -2
+    ],
+    "max": [
+      2,
+      0,
+      0
+    ]
+  },
+  "sockets_godot": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      -2
+    ],
+    [
+      2,
+      0,
+      -2
+    ]
+  ],
+  "meshes": 2,
+  "triangles": 216,
+  "materials": [
+    "Foundation concrete",
+    "Muted oak flooring"
+  ],
+  "textures": [],
+  "collision_boxes": [
+    {
+      "center": [
+        1,
+        -0.1,
+        -1
+      ],
+      "size": [
+        2,
+        0.2,
+        2
+      ]
+    }
+  ],
+  "files": {
+    "generator": "tools/blender/city/floor_tile.py",
+    "glb": "assets/city/floor_tile_2m.glb",
+    "scene": "scenes/city/floor_tile_2m.scn",
+    "builder": "scripts/city/build_floor_tile.gd",
+    "validator": "scripts/city/validate_floor_tile.gd",
+    "previews": [
+      "docs/city/floor_top.jpg",
+      "docs/city/floor_edge.jpg",
+      "docs/city/floor_underside.jpg"
+    ]
+  },
+  "sha256": {
+    "generator": "e1e844b27ac24cd8527d5b8f833d573ab159cd0f672d0de5818e0569c07f75fe",
+    "glb": "31d1c6c576c6959a249434fdef6de75326ce4a2e4f93acc32ee4c2fb65a058e6",
+    "scene": "f425df43a1ff7f50b09fa7ddfce56b5c78d546f4ef6334fc97dede4929626c02",
+    "top": "cce715e896d5c110f541753a3f4d5e79bcbbc68d32bf0ed7ae526dc446ab724c",
+    "edge": "f45acbdcee8c17a2143cabdc4d693ca158f9e7a8ca702a82145c980f3282d056",
+    "underside": "382b272e95b0fe29690e3b0f3122e560f502bcffd658f00c11be4dee61def8a0"
+  },
+  "validation": {
+    "blender": {
+      "exit": 0,
+      "triangles": 216,
+      "manifold": true,
+      "uv": true,
+      "unit_normals": true,
+      "renders_inspected": [
+        "top",
+        "edge",
+        "underside"
+      ],
+      "blend_temp": "/tmp/city-fallback-1792899717-141859-floor/floor_tile.blend",
+      "blend_sha256": "41bcfe6b15a911576a13a50f50a5986e22ae9b42c409aa1ad830393d387573f4",
+      "blend_persistent": true,
+      "script_library": "lifesim-city-floor-generator",
+      "blend_library": "lifesim-city-floor-kit",
+      "kit_files": 6,
+      "kit_bytes": 143187,
+      "reopen": "Blender 4.0.2 exit0: 2 meshes, floor_tile_2m root, camera",
+      "library_backup": "pending independent confirmation",
+      "kit_sha256": {
+        "blend": "41bcfe6b15a911576a13a50f50a5986e22ae9b42c409aa1ad830393d387573f4",
+        "glb": "31d1c6c576c6959a249434fdef6de75326ce4a2e4f93acc32ee4c2fb65a058e6",
+        "manifest": "6b70fbde02d74e58589a8bec709607b8af145496f99f7a168623ed0747d33603",
+        "top": "cce715e896d5c110f541753a3f4d5e79bcbbc68d32bf0ed7ae526dc446ab724c",
+        "edge": "f45acbdcee8c17a2143cabdc4d693ca158f9e7a8ca702a82145c980f3282d056",
+        "underside": "382b272e95b0fe29690e3b0f3122e560f502bcffd658f00c11be4dee61def8a0"
+      }
+    },
+    "godot": {
+      "positive": "39/39",
+      "exit": 0,
+      "timeout": false,
+      "negative": "36/39",
+      "negative_exit": 1,
+      "window_regression": "169/169",
+      "syntax": "60/60",
+      "rerun": "39/39 exit0 no timeout, 2026-10-25 04:43 UTC",
+      "numeric_aabb": "51/51 exit0; 12 new numeric source/saved bounds checks, 1mm tolerance; negative in-memory +0.15m oak shift 47/51 exit1 (4 failures), 2026-10-25 05:44 UTC",
+      "window_regression_rerun": "169/169 exit0 no timeout",
+      "syntax_rerun": "60/60"
+    },
+    "gemini": "2026-10-25 skeptical review of full numeric AABB validator: no blockers; audit text mistakenly claimed combined min failure, actual negative log shows combined max failure and combined min PASS. Prior geometry review unchanged.",
+    "last_run_id": "city-fallback-1792906939-147638",
+    "validator_sha256": "eae90fe7fc222f9abc04d59a61d4f29a54e76cbd262f3c1397014278a171debb"
+  },
+  "status": "Godot GLB/scene/physics and three inspected renders verified; editable .blend and six-file binary kit persistent. No navmesh/textures/performance claims."
+}

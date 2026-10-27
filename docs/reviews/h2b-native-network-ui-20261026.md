@@ -1,0 +1,21 @@
+# Native multiplayer character editor — 2026-10-26
+
+Run `main-net-ui-1793033056-235680` on live Godot project `lifesim`. Owner explicitly requested finishing the network editor and investigating a broken web link. Publication restriction remains; **no GitHub push/PR/branch**. Main and city owners coordinated through shared v3 lease. Project/library backup before modifications succeeded.
+
+## New functionality
+- `scripts/net/net_session.gd`: optional 128-bit hex request correlation on authentic server-owned Apply packets and private results. Existing untagged API remains supported. A forged/malformed request ID is rejected; the token only matches transactions and **is not authorization**. Server still derives caller from `multiplayer.get_remote_sender_id()`, rechecks ownership, revision, strict schema, token bucket and byte bounds, and unicasts private ACK while broadcasting only a canonical public-look snapshot.
+- `scripts/ui/character_editor_panel.gd`: owner-only network draft can now Apply. The UI keeps local private changes isolated until Apply, prevents duplicate clicks, waits for a correlated server ACK, then fetches a fresh correlated **private canonical snapshot** before resetting history. Timeouts/denials/conflicts preserve local edits; uncertainty/conflicts require reopening instead of silently retrying stale edits. Cancel disconnects signal handlers so delayed packets cannot reopen a destroyed panel. Network sexuality/identity controls remain locked; private mental traits are edited only by their authenticated owner.
+- `main.gd`: native ENet host/dedicated/client launches enable the authenticated editor gates; synthetic `net_config` tests do not enable the feature unless they opt in. Browser stays offline because ENet is absent from the web build. The listen host may edit its own explicitly created player-character through trusted local authority, but not an unrelated household member. A successful host edit broadcasts the updated public look to clients.
+- `scripts/ui/hud.gd`: authenticated client-owner or listen-host-owner editor entry, with appropriate routing.
+- Added production real ENet two-client editor integration `tests/test_network_editor_live_enet.gd` (owner read, edit, authenticated Apply, duplicate click, exact ACK and readback, spectator public-only view, private isolation, revision-conflict recovery), and `tests/test_host_character_editor.gd/.tscn`.
+
+## Actual execution evidence
+- Real two-client ENet UI integration: **27/27**, exit0, timeout=false. Spectator attempted a private read and got no data; canonical body change reached both public replicas; owner received current private data and fresh revision. Replay with stale revision returned a conflict and did not mutate authority.
+- Existing staged Apply + public replication and late-join/resync real ENet fixture: **97/97**, exit0.
+- Existing network panel lifecycle: **24/24**, exit0; host owner UI: **10/10**, exit0; character-network **70/70**; general multiplayer **67/67** (two intentionally forbidden fake RPCs logged as ERROR by Godot, expected anti-cheat rejection); offline first playable **45/45**; offline character UI **55/55**.
+- Bundled `godot_check`: **60/60**, newly added scripts compiled by executing tests directly. Most test runs emitted historical 18 ObjectDB shutdown warning. Not an asset/mesh repair.
+- HTTP check of https://peiti-godot-mcp.hf.space/play/lifesim/ from the Space backend returned **200 and valid Life Simulator HTML** on 26 October 2026; https://huggingface.co/spaces/peiti/godot-mcp also returned 200. The user's reported client-side "possible typo"/DNS error could not be reproduced with server-side probes; no claim of fixing their client DNS or having tested the Android browser.
+
+## Limits / next verified gate
+- Web Godot has no ENet multiplayer here; the network editor is for the **native** Godot build. Web playable offline only. No live Android/browser interaction or pixel-level inspection in this unit. User-controlled/owner-only network editor is implemented, but wide network soak/rapid reconnect and real graphical click-through are still release QA.
+- H2 remains partial because clothing sleeve deform/bone weights and full visual QA are not repaired by this change. H4 multiplayer persistence and full city/game release work remain separate.

@@ -1,0 +1,19 @@
+# H2b staged network panel review
+
+## 26 October 2026 — H2b staged HUD/network draft panel
+Run main-1792969248-200533; v3 acquired and history verified, owns/hash checks before edits, heartbeat renewed. Prebackup115600KB.
+Actual implementation: scripts/ui/character_editor_panel.gd now opens a staged private owner draft using fresh128-bit correlation, loading/error/timeout status, local undo/redo and preview; scoped Cancel disconnects handlers synchronously before queue_free, late replies cannot reopen; disconnect, reassignment and destroyed transport close session. Both disabled button AND handler prevent network Apply. scripts/ui/hud.gd dispatches owner-only CLIENT selection to that panel when net.character_edit_read_ui_enabled is explicitly true. scripts/net/net_session.gd adds this independent flag default FALSE; Apply flag remains FALSE. No automatic general rollout or host/private-NPC bypass.
+Tests: new tests/test_character_network_panel.gd24/24; enhanced tests/test_character_edit_read_enet.gd53/53 includes actual HUD->panel->real ENet owner reply, private marker isolation, Cancel freeing UI and actual6s server-denied timeout; existing offline editor55/55. Total132 final assertions exit0, no timeout. Initial new fixture failed parse because Panel shadows native class; renamed EditorPanel and reran. Existing18 ObjectDB warnings.
+Actual Xvfb/Mesa llvmpipe renders captured and inspected at960x720 and390x720: previews/main-1792969248-200533-960.jpg and -390.jpg. Header/status/buttons visible and narrow text wraps; body scrolls. Renderer reported missing optional xkb/dbus, unsupported VSync/SSAA/SSS warnings but renderexit0 and JPEGsaveOK. OPEN VISUAL ISSUE: picker reports cat hoodie while model appears plain blue; fixture directly changed top only, so cause (palette vs authored mesh/material refresh) NOT established. These screenshots prove layout, NOT exact garment appearance. No Blender assets changed.
+Gemini gave3 real source reviews with relevant panel/HUD/test and server ownership contracts. First overclaimed no private RPC/test execution/token authorization; corrected. Subsequent hypothetical wrong-owner race rejected by strict synchronous server_can_edit_character and real forged-target tests. Final invalid-transport lifecycle concern accepted as hardening: panel now closes when Net is freed, regression passes. Alleged simultaneous half-initialization race rejected: synchronous main-thread callbacks without await; queue_free guarded. Permanent _network_read intentionally applies to disposable panel, reopen creates a new node (tested), not deadlock. No Gemini-executed tests. Review docs/reviews/h2b-network-panel-20261026.md.
+H2b PARTIAL: staged read/preview now wired; asynchronous Apply acknowledgement/canonical readback and full network mutation E2E still missing. NEXT SINGLE STEP: reproduce and fix/characterize cat-hoodie preview discrepancy in actual authored-model renderer before enabling staged UI by default; retain existing read/Cancel transport and both default-off gates.
+No GitHub commit/push/PR, AI-room message, city or main-psychology edits. Final backup and release recorded in run history.
+
+Verified source SHA256:
+- panel 0ef95a519fd648fd9a3cec1f7ca931b9f3f44c5d22802ffe61a5adc6facc180f
+- HUD c6e7dd8a171ead4f2db8ce213195528b256e6bfa72f019f1c58cd61c2a60ed7c
+- net 8a704a00dbc244cda64a224f375fd1842880e62d0ba856ea5500a381909ff3d8
+- fixture 2ebe2b856f83af62c16de51ce932792acac26604de3089e4626f1967107f32cf
+- ENet 422e0b8c4aee11e76810274628e5e875887023a97d1e40d051bd722375a7e14d
+
+Private CharacterData flows server to authenticated owner only; panel sends no edited candidate. Random token correlates UI lifetime and is not an ownership credential. Transport denial is silent and becomes local timeout; already-received data cannot be unlearned. Full ownership reassignment protocol/remote Apply remains future work.

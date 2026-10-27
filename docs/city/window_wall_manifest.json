@@ -1,0 +1,155 @@
+{
+  "asset": "wall_window_2m",
+  "axes": "Blender Z-up -> Godot Y-up",
+  "collision_boxes": [
+    {
+      "center": [
+        0.2,
+        1.4,
+        0.0
+      ],
+      "size": [
+        0.4,
+        2.8,
+        0.2
+      ]
+    },
+    {
+      "center": [
+        1.8,
+        1.4,
+        0.0
+      ],
+      "size": [
+        0.4,
+        2.8,
+        0.2
+      ]
+    },
+    {
+      "center": [
+        1.0,
+        0.45,
+        0.0
+      ],
+      "size": [
+        1.2,
+        0.9,
+        0.2
+      ]
+    },
+    {
+      "center": [
+        1.0,
+        2.45,
+        0.0
+      ],
+      "size": [
+        1.2,
+        0.7,
+        0.2
+      ]
+    }
+  ],
+  "core_depth_m": 0.2,
+  "grid_m": 0.5,
+  "hashes": {
+    "blend_temp": "8b5c7989888ab05477e2a7eef75b1e4905676f826e8b4711e71e3cc967b22eb7",
+    "glb": "a70f5b8f32f3b144f603faf5882a2271588f26ca29f0aecbfbcaec79f81d9966",
+    "scene": "8c7bd5735373d63ecd63d089ea5ff8302c1a128a275b6a168b339bca821033b3",
+    "source_blender": "8f9f6b269b47bcfe89185cd7e01be31146c6d41363ff74f43885aa532e20880b"
+  },
+  "height_m": 2.8,
+  "license": "Original Life Simulator asset; all rights reserved",
+  "materials": [
+    "Warm plaster",
+    "Painted door trim"
+  ],
+  "mesh_count": 14.0,
+  "pivot": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "sockets": [
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      2.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "source": "tools/blender/city/window_wall.py",
+  "textures": [],
+  "triangles": 1512.0,
+  "units": "meters",
+  "validation": {
+    "blender": {
+      "blend_generated": "/tmp/city-fallback-1792885508-136007-window/window_wall.blend",
+      "blend_library_kit": "lifesim-city-window-wall-kit",
+      "blend_open_exit": 0,
+      "blend_opened_mesh_count": 14,
+      "blend_persisted": true,
+      "blend_sha_verified": true,
+      "exit": 0.0,
+      "manifold": 14.0,
+      "positive_faces": true,
+      "timeout": false,
+      "triangles": 1512.0,
+      "unit_normals": true,
+      "version": "4.0.2"
+    },
+    "gemini": "review-window-wall-20261025.md; two initial HIGH findings retracted after coordinate proofs and tests",
+    "godot": {
+      "corner": 36.0,
+      "doorway": 31.0,
+      "exit": 0.0,
+      "failed": 0.0,
+      "negative_disabled_left_collider": {
+        "exit": 1.0,
+        "failed": 1.0,
+        "passed": 168.0
+      },
+      "solid": 37.0,
+      "source_scene_physics": 169.0,
+      "timeout": false,
+      "total_positive": 273.0,
+      "version": "4.7.2"
+    },
+    "last_run_id": "city-fallback-1792888885-139751",
+    "library_kit": {
+      "backup": "server periodic private backup pending verification",
+      "blend_sha256": "8b5c7989888ab05477e2a7eef75b1e4905676f826e8b4711e71e3cc967b22eb7",
+      "bytes": 252980,
+      "files": 6,
+      "glb_sha256": "a70f5b8f32f3b144f603faf5882a2271588f26ca29f0aecbfbcaec79f81d9966",
+      "name": "lifesim-city-window-wall-kit",
+      "verified_via_library_get": true
+    },
+    "renders": {
+      "back": "window_back.jpg",
+      "front": "window_front.jpg",
+      "inspected": true,
+      "size_px": [
+        320.0,
+        320.0
+      ],
+      "stored_in_project": true,
+      "top": "window_top.jpg"
+    },
+    "run_id": "city-fallback-1792885508-136007",
+    "status": "Blender .blend/GLB/manifest/3 previews persisted and SHA-verified; M1 remains incomplete: no glass/navmesh/textures/floor/large-scene FPS"
+  },
+  "version": "0.1-prototype",
+  "width_m": 2.0,
+  "window_opening": {
+    "x_max": 1.6,
+    "x_min": 0.4,
+    "y_max": 2.1,
+    "y_min": 0.9
+  }
+}

@@ -16,11 +16,11 @@ like, with a new one written in the spirit of the night track.
 
 | id | title | key | tempo | character |
 |---|---|---|---|---|
-| `rano` | Mlhavé ráno (new in v3) | F Lydian / D minor: Fmaj7 – Am7 – Dm7 – Cadd9 – Fmaj7 – Em7 – Dm7 – Gsus4 | 70 | like the night track (sparse bell melody, long bass, no drums, lots of reverb) with a brighter pad and a slow e-piano arpeggio; the loop ends on an unresolved sus chord |
+| `rano` | Mlhavé ráno – Misty morning (new in v3) | F Lydian / D minor: Fmaj7 – Am7 – Dm7 – Cadd9 – Fmaj7 – Em7 – Dm7 – Gsus4 | 70 | like the night track (sparse bell melody, long bass, no drums, lots of reverb) with a brighter pad and a slow e-piano arpeggio; the loop ends on an unresolved sus chord |
 | `den` | Odpoledne na dvorku | G major | 104 | v1 (flute, plucked arpeggio, light drums); only the title changed |
-| `vecer` | Večer u gauče | B♭ major, jazz | 84 | v1 (e-piano comping, walking bass, brushes) |
-| `noc` | Noční ticho | A minor | 66 | v1, **tone reference** (`TONE_REFERENCE`): bell melody, dark pad, long bass, no drums |
-| `melancholie` | Když se nedaří | E minor | 70 | v1 (e-piano, dark pad, slow arpeggio) |
+| `vecer` | Večer u gauče – Evening by the sofa | B♭ major, jazz | 84 | v1 (e-piano comping, walking bass, brushes) |
+| `noc` | Noční ticho – Night silence | A minor | 66 | v1, **tone reference** (`TONE_REFERENCE`): bell melody, dark pad, long bass, no drums |
+| `melancholie` | Když se nedaří – When things go wrong | E minor | 70 | v1 (e-piano, dark pad, slow arpeggio) |
 
 The v2 instruments (`felt`, `cello`, `drone`, `pluck_muted`), tape effects (`wow`, `texture`) and `duck_range` stay
 in `synth.gd` for sound recipes; no music track uses them. The v2 track data is archived outside the repository

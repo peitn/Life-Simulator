@@ -28,6 +28,7 @@ a dobré i špatné dny. Hra umožňuje hledat podporu a zotavovat se – ne vž
 linii, ale ta možnost se nikdy neuzavře. Hra neodměňuje sebeubližování
 a sebevražda není hratelná akce.
 
+Volitelná intimita dospělých je zobrazována bez explicitních sexuálních scén a vyžaduje dobrovolný souhlas.
 Všechna citlivá témata můžeš kdykoli ztlumit nebo vypnout v Nastavení (Esc)."""
 
 ## Režimy témat duševního zdraví.
@@ -50,6 +51,8 @@ const DEFAULTS := {
 	## Sebepoškozování a poruchy příjmu potravy – zatím se ve hře nevyskytují; až přibudou,
 	## budou se zobrazovat jen přes emoce, vztahy a důsledky. Výchozí stav: skrýt.
 	"sh_ed_topics": false,
+	## Adult sexual content: private and non-graphic, opt-in OFF by default.
+	"adult_intimacy": false,
 	"warning_ack": false,
 }
 
@@ -175,6 +178,8 @@ func allows_content(tag: String) -> bool:
 			return allows_conditions()
 		"sh_ed":
 			return bool(values["sh_ed_topics"])
+		"adult_intimacy":
+			return bool(values["adult_intimacy"])
 	return true
 
 

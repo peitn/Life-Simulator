@@ -1,0 +1,3 @@
+# Saved roof demo audit — 2026-10-25
+Gemini received actual scene, full render script, old-validator extension and contracts, plus executed test results. One actual response, no concrete findings. It did not independently execute tests; its deterministic/reproducibility claim is not additional evidence.
+Godot executed dynamic54/54,saved55/55; injected gap44pass11fail exit1 expected. Two640x480 actual Xvfb Compatibility captures visually inspected. No obvious roof seam gap/missing underside at this scale. Open diagnostic assembly, not enclosed house. No new asset geometry or Blender export, no FPS/navigation/texture claim. Known optional graphics-library and ObjectDB warnings documented in checkpoint.

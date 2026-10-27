@@ -1,0 +1,15 @@
+# H2b sleeve skin-weight contamination baseline — 2026-10-26
+
+Run: `main-fallback-1793009852-213745`. Scope: diagnostic only; **NO garment geometry, weights, Blender assets or runtime production code corrected**. Previous main completed 08:41:19 UTC; this fallback acquired v3 at 10:17:32 UTC, atomically archived an expired city lock after coordinator found no other Godot processes. Pre-edit backup 115810 KB.
+
+## Reproducible evidence
+New `tests/test_cat_sleeve_weights.gd` reads actual C5 wardrobe meshes for `mikina` and `kawaii_kocici_mikina`, both sleeve sides, upper/lower 14-vertex rings, four bind weights per vertex. Skin bind map was independently inspected from live avatar: 0=hips, 8=thigh_l, 14=thigh_r, 5/6=upper_arm_l/forearm_l, 11/12=upper_arm_r/forearm_r. Lower rings are sleeve cuffs (authored Blender z=0.875), NOT garment hem.
+
+For BOTH styles, lower-ring hip+leg weight average: sleeve_-1=0.7042017, sleeve_1=1.00000003; specifically thigh weights 0.2187675 / 0.3422969. Upper-ring hip/leg and thigh weights=0.0. Max per-vertex weight-sum deviation ~3e-8. Strong evidence of **incorrect arm garment rigging**, not evidence that the defect has been fixed. The arm sleeve's wrist ring should not be driven by thigh joints. The original generator `tools/blender/clothing_c5.py` uses nearest-four `cloth_shirt` KDTree transfer in `make_mesh`; `long_sleeves` passes no `bone_override`. This is a plausible mechanism, not yet independently validated against pre-export Blender weights. Prior actual rest/bent pose renders show visible disconnection, but this test does not quantify dynamic causal effect.
+
+Final new Godot headless test: **19/19 checks**, child exit=0, timeout=false. Godot syntax checker: 60/60. Only existing ObjectDB cleanup warnings (18) observed. No new graphical capture: diagnostic-only test, previous actual pose captures already exist. This test deliberately asserts that the defect is reproducible; it must be updated to an absence-of-contamination regression after a real fix.
+
+## Skeptical Gemini audit and dispositions
+Two actual Gemini source/contract audits performed; neither executed tests or saw the project. Accepted: hardcoded Skin bind IDs are fragile if the skeleton changes; pre-export Blender weights and dynamic pose response still need verification. Gemini suggested a hem/hips explanation, but the geometry is explicitly an arm sleeve at x≈±0.30, so that is not a convincing justification for 22–34% thigh influence. Gemini also claimed normalization was not tested: rejected by executed `max_sum_error < 0.0001` assertion. Its warning about cached exported LSX is valid as a provenance limitation, not a test failure.
+
+**Next single step:** instrument the Blender C5 generator to inspect wrist-ring bone influences immediately after KDTree transfer and before export; then author a scoped arm-only weight correction in Blender, regenerate the asset and verify rest/bent pose renders plus regression. Do not infer that the current diagnostic repaired H2b. H5 seed4 hygiene failure and remote Apply default OFF remain unchanged. No city-owned files, GitHub publication, or AI room writes.
