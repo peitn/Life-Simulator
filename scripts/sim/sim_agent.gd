@@ -388,6 +388,8 @@ func sim_tick(dm: float) -> void:
 	# Napětí vyčerpává.
 	suppress = suppress.duplicate()
 	suppress["energy"] = float(suppress.get("energy", 1.0)) * mental.energy_drain_mult()
+	if not psy.mood.is_empty():
+		suppress["energy"] = float(suppress["energy"]) * psy.mood.energy_mult(psy.k())
 	needs.tick(dm, suppress)
 	mood.tick(dm)
 	sensory.tick(dm)
@@ -464,6 +466,7 @@ func _extra_moodlets() -> Array:
 	var out: Array = mental.mood_entries()
 	if psy != null and not psy.is_neutral() and _clock != null:
 		out.append_array(psy.neuro.mood_entries(now(), psy.k()))
+		out.append_array(psy.mood.mood_entries(psy.k(), mental.stress))
 	var gname := ""
 	var gmax := 0.0
 	for n in ledger.guilt:
@@ -922,6 +925,8 @@ func _act(dm: float) -> void:
 		needs.add(k, dv)
 	var rate: Dictionary = current_action.get("rate", {})
 	var sq: float = mental.sleep_quality() if current_action.get("tags", []).has("sleep") else 1.0
+	if sq != 1.0 and not psy.mood.is_empty():
+		sq *= psy.mood.sleep_rate_mult(psy.k())  # zvýšená fáze: méně spánku stačí
 	for k in rate:
 		needs.add(k, float(rate[k]) * dm / 60.0 * (sq if k == "energy" else 1.0))
 	# Panická ataka končí, když odezní aktivace (řídí MentalState).
@@ -1155,6 +1160,9 @@ func _start_social(partner: Node3D) -> void:
 	psy.memory.cue(memory_key(partner), now())
 	if partner.get("psy") != null:
 		partner.psy.memory.cue(memory_key(self), now())
+	# Zvýšená fáze: rychlá, překotná řeč (jen replika, nic se nevynucuje).
+	if not psy.mood.is_empty() and psy.mood.elevation() > 0.35 and psy.rng.randf() < psy.mood.elevation():
+		say(psy.mood.LINES_UP[psy.rng.randi_range(0, psy.mood.LINES_UP.size() - 1)])
 	# A sexual encounter is possible ONLY with two independent, current, freely
 	# given offers. The check also binds adult age to server CharacterData.
 	if social_id == "adult_consensual_sex":
@@ -1324,6 +1332,9 @@ func talk_success_chance(partner: Node3D, complaint := "") -> float:
 	var pp = partner.get("psy")
 	if pp != null and not pp.is_neutral():
 		p += pp.neuro.talk_bias(float(partner.relationships.get(sim_name, 0.0)), pp.k())
+		p += pp.mood.talk_bias(float(partner.mental.stress), pp.k())
+	if not psy.is_neutral():
+		p += psy.mood.talk_bias(mental.stress, psy.k())
 	# Sociální paměť obou: dobré zkušenosti spolu trochu pomáhají, křivdy trochu brzdí (±0,04 každý).
 	p += psy.memory.talk_bias(memory_key(partner))
 	if pp != null:
@@ -1738,8 +1749,11 @@ func _psyche_tick(dm: float) -> void:
 	psy.memory.tick(dm)
 	if int(now() / 60.0) != hour_before:
 		_update_memory_views()
+	mental.dep.chronic_floor = psy.mood.chronic_floor(psy.k())
 	if psy.is_neutral():
 		return
+	if not psy.mood.is_empty():
+		_mood_cycle_tick(dm)
 	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
 	var res: Dictionary = psy.neuro.tick(dm, {"sleeping": _is_sleeping(), "social": social_partner != null,
 		"quiet": tags.has("quiet") or tags.has("rest"), "stress": mental.stress}, psy.k(), psy.rng)
@@ -1748,6 +1762,27 @@ func _psyche_tick(dm: float) -> void:
 		_psyche_stress("overload", add)
 	if bool(res.get("tic", false)):
 		_on_tic()
+
+
+## Průběh nálady: epizody, spánkový dluh, vazba depresivní fáze na existující depresivní zátěž.
+func _mood_cycle_tick(dm: float) -> void:
+	var kk: float = psy.k()
+	var was: String = psy.mood.phase
+	psy.mood.tick(dm, {"sleeping": _is_sleeping(), "night": _clock.is_night() if _clock != null else false,
+		"stress": mental.stress, "support": mental.support}, kk, psy.rng)
+	var d: float = psy.mood.depressive()
+	if d > 0.0 and kk > 0.0:
+		# Depresivní fáze tlačí zátěž k (nebo přes) práh epizody – stávající deprese pak nese stažení i zotavení.
+		var tgt := 0.45 + 0.4 * d
+		if mental.dep.burden < tgt:
+			mental.dep.burden = minf(mental.dep.burden + (tgt - mental.dep.burden) * (1.0 - exp(-dm / 720.0)), mental.dep._cap(mental_cfg()))
+	var e: float = psy.mood.elevation()
+	if e > 0.0:
+		mental.dep.burden = maxf(mental.dep.burden - 0.00004 * e * dm, 0.0)
+	if was != psy.mood.phase:
+		_detail_dirty = true
+		if psy.mood.phase in ["hypomanic", "manic"]:
+			remember("Mám v sobě nějak moc energie")
 
 
 ## Stres z rozšíření psychiky (s měkkým stropem MentalState a zápisem zdroje). Záporné = úleva.
@@ -1813,7 +1848,9 @@ func _psyche_after_finish(_id: String, interrupted: bool, cop: String) -> void:
 func psyche_private_lines() -> PackedStringArray:
 	if psy == null or psy.is_neutral():
 		return PackedStringArray()
-	return psy.neuro.private_lines(psy.k())
+	var out: PackedStringArray = psy.neuro.private_lines(psy.k())
+	out.append_array(psy.mood.private_lines(psy.k()))
+	return out
 
 
 ## Obnova z uložené hry (GameSave). Nevalidní data se ignorují (validace proběhla předem).

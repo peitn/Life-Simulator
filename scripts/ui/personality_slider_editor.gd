@@ -76,6 +76,11 @@ func _build() -> void:
 	var mem: Dictionary = mind.get("memory", {})
 	for id in Schema.MEMORY_SLIDERS:
 		_row("memory", String(id), String(Schema.MEMORY_SLIDERS[id]), float(mem.get(id, 0.5)), 0.0, 1.0)
+	_section("Průběh nálady v čase (0 = bez sklonu, 1 = výrazně)")
+	_note("Kombinací os vzniká různý průběh (např. jen hypomanie, i mánie, rychlé střídání, dlouhodobě nízká nálada) – bez nálepky. Nálada se posuzuje vůči obvyklému já postavy.")
+	var md: Dictionary = mind.get("mood", {})
+	for id in Schema.MOOD_SLIDERS:
+		_row("mood", String(id), String(Schema.MOOD_SLIDERS[id]), float(md.get(id, 0.0)), 0.0, 1.0)
 	_section("Náchylnost k psychickým obtížím (0 = žádná, 1 = výrazná)")
 	for id in Schema.PREDISPOSITIONS:
 		var preds: Dictionary = mind.get("predispositions", {})

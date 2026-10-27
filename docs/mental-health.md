@@ -424,3 +424,39 @@ Because memory runs for every character, the default household is no longer bit-
 the household suites stay within their unchanged bounds (see testing.md).
 
 Tests: `tests/test_social_memory.gd` (41 checks).
+
+### C. Mood course over time: bipolar spectrum and persistent low mood (schema v11)
+
+`scripts/sim/mood_cycle.gd` (`SimAgent.psy.mood`) models the course of mood. There is no "bipolar I/II"
+switch: `mind.mood` has five 0..1 sliders and the familiar patterns emerge from their combination.
+
+| Slider | Meaning |
+|---|---|
+| `bipolar_tendency` | Susceptibility to episodes up and down (episode hazard `1 − e^(−λ·dm)`). |
+| `elevation_ceiling` | How high an elevated phase can go: low = hypomania only (type-II-like), high = mania possible (type-I-like). |
+| `cycling` | Faster, shallower and more frequent swings (cyclothymia-like): shorter episodes, lower ceiling. |
+| `chronic_low` | Persistent low mood without episodes (dysthymia-like): a floor of depressive burden below the episode threshold. |
+| `sleep_sensitivity` | How strongly sleep loss shakes the mood. |
+
+The state `pole` (−1..1) is measured against the character's **own normal**, not a population average.
+Phases with hysteresis and confirmation time (half a game day above the boundary; mania one more day):
+depressive ↔ euthymic ↔ hypomanic ↔ manic. Triggers: sleep debt (awake at night) raises the hazard and
+pushes towards elevation, high stress raises the hazard and pushes down. An episode has a duration of a
+few game days (the same compression as depression), shortened by support and sleep, lengthened by sleep
+debt; then the mood returns to the character's normal.
+
+Effects of an elevated phase (bounded multipliers): less tiredness and a reduced need for sleep (sleep
+refreshes faster, weaker pull to bed at night), more appetite for people, fun and exercise, more pull to
+risky quick relief (drinking, doomscrolling), faster, overflowing speech lines, and irritability that grows
+with stress and lowers the chance of a good conversation. A depressive phase pushes the existing
+depressive burden towards and past the episode threshold, so withdrawal, anhedonia, the HUD wording and
+recovery of the existing depression model apply. `chronic_low` sets `Depression.chronic_floor`: the burden
+stays near a floor below the episode threshold ("Skleslost / Sklíčenost"), never an episode by itself.
+
+Distinction from ADHD-like hyperactivity and from a naturally energetic person: without mood sliders
+there is no episode at all, and a character with strong ADHD-like axes and a very high energy baseline
+stays euthymic (tested). Modes: muted caps elevation at mild hypomania (no mania) and weakens depth and
+the chronic floor; off removes everything. The player is never locked out (sending an elevated character
+to sleep works). Private word lines only ("Nálada a energie jsou výš než moje obvyklé já…").
+
+Tests: `tests/test_mood_cycle.gd` (38 checks).

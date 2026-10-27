@@ -71,6 +71,9 @@ var scar := 0.0
 var vuln := 0.0
 ## Volitelný individuální vzorec: ráno je nejhorší (ne univerzální příznak).
 var morning_pattern := false
+## Dlouhodobě nízká nálada (dystymní průběh, MoodCycle.chronic_floor): podlaha zátěže pod prahem epizody.
+## Odvozené z CharacterData při každé konfiguraci (neukládá se); 0 = beze změny.
+var chronic_floor := 0.0
 var episode_active := false
 var episode_count := 0
 ## Aktuální závažnost epizody 0 = bez epizody, 1 mírná, 2 středně těžká, 3 těžká.
@@ -132,6 +135,10 @@ func tick(dm: float, ctx: Dictionary) -> void:
 	rec *= SEV_RECOVERY[severity]
 	burden += (gain - rec * (0.3 + burden)) * dm
 	burden = clampf(burden, 0.0, _cap(cfg))
+	# Dlouhodobě nízká nálada: zátěž se drží u své podlahy (pod prahem epizody), zotavení ji pod ni nestáhne.
+	var cf := minf(chronic_floor, _cap(cfg))
+	if cf > 0.0 and burden < cf:
+		burden += (cf - burden) * (1.0 - exp(-dm / 1440.0))
 	rumination *= exp(-dm / 240.0)
 
 	# Pomalé složky sledují zátěž se zpožděním (ne okamžitě – deprese se „rozjíždí“ i odeznívá).

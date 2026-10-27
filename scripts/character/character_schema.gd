@@ -50,7 +50,9 @@ extends RefCounted
 ##     a mind.interest_focus (oblast hlubokého zájmu). Soukromé. Migrace v8 → v9 doplní {} a výchozí zájem.
 ## v10 (psychika B): mind.memory – schopnosti sociální a afektivní paměti (retention / precision /
 ##     emotional_weight, 0..1, chybějící = 0,5 = průměr). Soukromé. Migrace v9 → v10 doplní {}.
-const VERSION := 10
+## v11 (psychika C): mind.mood – průběh nálady (bipolární spektrum, cyklotymní a dystymní průběh) jako
+##     spojité posuvníky 0..1 (chybějící = 0 = bez sklonu). Soukromé. Migrace v10 → v11 doplní {}.
+const VERSION := 11
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -202,6 +204,14 @@ const MEMORY_SLIDERS := {
 	"retention": "Paměť: jak dlouho si věci pamatuje",
 	"precision": "Paměť: jak přesně si vybaví, co se stalo",
 	"emotional_weight": "Paměť: jak silně si nese emoce z minulých událostí",
+}
+## Průběh nálady (v11): predispozice, ne diagnóza. Typ „I / II / cyklotymie / dystymie“ vzniká kombinací os.
+const MOOD_SLIDERS := {
+	"bipolar_tendency": "Sklon k výkyvům nálady (epizody nahoru i dolů)",
+	"elevation_ceiling": "Jak vysoko může zvýšená fáze vystoupat (hypomanie → mánie)",
+	"cycling": "Rychlé a mělčí střídání nálad",
+	"chronic_low": "Dlouhodobě nízká nálada (bez epizod)",
+	"sleep_sensitivity": "Jak moc nálada reaguje na nedostatek spánku",
 }
 ## Oblast hlubokého zájmu (hloubka zájmu je posuvník; tady jen kam směřuje).
 const INTEREST_FOCUS := {
@@ -365,6 +375,7 @@ const GROUPS := {
 		"neuro": ["axes", NEURO_SLIDERS, 0.0, 1.0],        # v9: neurodivergentní profil (0 = bez odlišnosti)
 		"interest_focus": ["e", INTEREST_FOCUS, "reading"], # v9: kam směřuje hluboký zájem
 		"memory": ["axes", MEMORY_SLIDERS, 0.0, 1.0],      # v10: schopnosti paměti (0,5 = průměr)
+		"mood": ["axes", MOOD_SLIDERS, 0.0, 1.0],          # v11: průběh nálady (0 = bez sklonu)
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},
