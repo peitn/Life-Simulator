@@ -5,6 +5,7 @@ extends RefCounted
 ##   neuro  – neurodivergentní profil (psychika A)
 ##   memory – sociální a afektivní paměť se schopnostmi paměti (psychika B)
 ##   mood   – průběh nálady v čase: epizody nahoru/dolů, dlouhodobě nízká nálada (psychika C)
+##   voice  – vnitřní hlas: smyčky ruminace a naděje z dat (psychika I); běží u každého s tématy zapnutými
 ##
 ## Společné zásady (konvence projektu):
 ##   - diagnóza = predispozice nad dimenzemi, žádné nálepky ani šablony; dvě stejné nálepky ≠ stejné chování;
@@ -17,7 +18,8 @@ extends RefCounted
 const NeuroProfile := preload("res://scripts/sim/neuro_profile.gd")
 const SocialMemory := preload("res://scripts/sim/social_memory.gd")
 const MoodCycle := preload("res://scripts/sim/mood_cycle.gd")
-const SAVE_KEYS := ["neuro", "memory", "mood", "rng_state", "mode"]
+const InnerVoice := preload("res://scripts/sim/inner_voice.gd")
+const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "rng_state", "mode"]
 
 var neuro = NeuroProfile.new()
 ## Sociální a afektivní paměť (psychika B) – běží u každé postavy (je to běžné poznávání, ne téma
@@ -26,6 +28,8 @@ var memory = SocialMemory.new()
 var _memory_cfg := {}
 ## Průběh nálady (psychika C): bipolární spektrum, cyklotymní a dystymní průběh.
 var mood = MoodCycle.new()
+## Vnitřní hlas (psychika I): ruminace, starosti, sebekritika, naděje; opt-in pasivní beznaděj.
+var voice = InnerVoice.new()
 var rng := RandomNumberGenerator.new()
 ## Poslední známý režim obsahu ("full" / "muted" / "off").
 var mode := "full"
@@ -56,6 +60,9 @@ func configure(mind: Dictionary, _d: Dictionary, seed: int, keep_state: bool) ->
 		memory = SocialMemory.new()
 		memory.configure(_memory_cfg, k())
 	mood.configure(mind.get("mood", {}), keep_state)
+	if not keep_state:
+		voice = InnerVoice.new()
+	voice.configure(mind.get("thoughts", {}))
 	var explicit = mind.get("dispositions", {})
 	neuro.configure(mind.get("neuro", {}), mind.get("interest_focus", "reading"),
 		explicit if typeof(explicit) == TYPE_DICTIONARY else {}, keep_state)
@@ -77,7 +84,7 @@ func action_weight(act: Dictionary, hour: int) -> float:
 	var kk := k()
 	if kk <= 0.0:
 		return 1.0
-	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk), 0.3, 2.5)
+	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk) * voice.action_weight(act, kk), 0.3, 2.5)
 
 
 ## Výběr partnera: neuro (maskování) × sociální paměť (jen chat a svěření).
@@ -93,7 +100,7 @@ func target_weight(rel: float, act: Dictionary, who_uid: String = "") -> float:
 
 
 func to_dict() -> Dictionary:
-	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "rng_state": rng.state, "mode": mode}
+	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "rng_state": rng.state, "mode": mode}
 
 
 static func validate_snapshot(d: Variant) -> bool:
@@ -107,6 +114,8 @@ static func validate_snapshot(d: Variant) -> bool:
 	if d.has("memory") and not SocialMemory.validate_snapshot(d["memory"]):
 		return false
 	if d.has("mood") and not MoodCycle.validate_snapshot(d["mood"]):
+		return false
+	if d.has("voice") and not InnerVoice.validate_snapshot(d["voice"]):
 		return false
 	if d.has("rng_state") and typeof(d["rng_state"]) != TYPE_INT:
 		return false
@@ -124,6 +133,8 @@ func from_dict(d: Variant) -> bool:
 		memory.from_dict(d["memory"])
 	if d.has("mood"):
 		mood.from_dict(d["mood"])
+	if d.has("voice"):
+		voice.from_dict(d["voice"])
 	if d.has("rng_state"):
 		rng.state = int(d["rng_state"])
 	if d.has("mode"):

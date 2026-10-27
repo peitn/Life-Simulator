@@ -52,7 +52,9 @@ extends RefCounted
 ##     emotional_weight, 0..1, chybějící = 0,5 = průměr). Soukromé. Migrace v9 → v10 doplní {}.
 ## v11 (psychika C): mind.mood – průběh nálady (bipolární spektrum, cyklotymní a dystymní průběh) jako
 ##     spojité posuvníky 0..1 (chybějící = 0 = bez sklonu). Soukromé. Migrace v10 → v11 doplní {}.
-const VERSION := 11
+## v12 (psychika I): mind.thoughts – styl vnitřního hlasu (sklon k ruminaci, ke starostem, k nadějným
+##     myšlenkám), 0..1, chybějící = 0,5 = průměr. Soukromé. Migrace v11 → v12 doplní {}.
+const VERSION := 12
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -212,6 +214,12 @@ const MOOD_SLIDERS := {
 	"cycling": "Rychlé a mělčí střídání nálad",
 	"chronic_low": "Dlouhodobě nízká nálada (bez epizod)",
 	"sleep_sensitivity": "Jak moc nálada reaguje na nedostatek spánku",
+}
+## Vnitřní hlas (v12): 0,5 = průměr. Myšlenky vznikají z událostí a stavu; posuvníky mění jen jejich sílu.
+const THOUGHT_SLIDERS := {
+	"rumination": "Sklon přemítat dokola (ruminace)",
+	"worry": "Sklon k starostem o budoucnost",
+	"hope": "Nadějné a vlídné myšlenky",
 }
 ## Oblast hlubokého zájmu (hloubka zájmu je posuvník; tady jen kam směřuje).
 const INTEREST_FOCUS := {
@@ -376,6 +384,7 @@ const GROUPS := {
 		"interest_focus": ["e", INTEREST_FOCUS, "reading"], # v9: kam směřuje hluboký zájem
 		"memory": ["axes", MEMORY_SLIDERS, 0.0, 1.0],      # v10: schopnosti paměti (0,5 = průměr)
 		"mood": ["axes", MOOD_SLIDERS, 0.0, 1.0],          # v11: průběh nálady (0 = bez sklonu)
+		"thoughts": ["axes", THOUGHT_SLIDERS, 0.0, 1.0],   # v12: styl vnitřního hlasu (0,5 = průměr)
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},

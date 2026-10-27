@@ -324,6 +324,7 @@ func _shared_moments(sims: Array, now: float) -> void:
 				x.emotions.impulse("shared", y.sim_name)
 				if x.has_method("remember_social"):
 					x.remember_social(y, "shared_moment", 0.4)
+					x.inner_positive("warm", y)
 				x.add_joy_moodlet("spolu_%s_%s" % [kind, y.name], "Chvíle spolu: %s (%s)" % [y.first_name(), kind],
 					"stastny", SHARED_MOOD, SHARED_MOOD_MINUTES)
 				x.note_relationship_change(y, cur, nv)

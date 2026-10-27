@@ -460,3 +460,41 @@ the chronic floor; off removes everything. The player is never locked out (sendi
 to sleep works). Private word lines only ("Nálada a energie jsou výš než moje obvyklé já…").
 
 Tests: `tests/test_mood_cycle.gd` (38 checks).
+
+### I. Inner voice: rumination, worry, self-criticism, hope (schema v12)
+
+`scripts/sim/inner_voice.gd` (`SimAgent.psy.voice`) builds a private thought stream on top of the
+existing intrusive thoughts (`MentalState.thoughts`) and rumination (`Depression.rumination`). A thought
+is never random filler: it comes from an appraised event (insult, argument, breach of trust, rejected
+apology, humiliation, a better-than-expected experience, support, reconciliation, a shared moment), from
+the state (worry appears from high stress or perceived threat, once per game hour) or from traits (the
+stable `self_defectiveness` belief turns failure and rejection into self-critical thoughts). Templates
+are chosen by topic; the name is only the label of the person the thought is about.
+
+Rumination loops (at most four: grievance about a person, failure, worry, self-criticism) have a
+strength that grows while idle, in quiet activities and especially awake at night, and fades with
+distraction (fun, exercise, people, reading, cooking), support, sleep and problem-solving (an accepted
+apology releases the loop about that person for both sides, journaling and seeking help release all a
+little). Costs: worse sleep quality, faster energy drain, feeding the existing depressive rumination, a
+mood entry ("Pořád na to myslím", "Starosti se točí dokola", "Vnitřní kritik nedá pokoj"). Effects on
+choice are bounded (×0.5–2.5): confiding, journaling, a walk and seeking help become more appealing.
+Hopeful and warm thoughts come from data too (support, reconciliation, shared moments). The sliders in
+`mind.thoughts` (rumination, worry, hope; 0.5 = average) only scale how strongly thoughts return.
+
+New action `seek_help` ("Vyhledá odbornou pomoc", off-screen helpline/counselling, coping with support,
+mastery and habituation): the player can always command it; the AI chooses it only with a reason
+(`psyche_gate`: strong rumination or hopelessness; later also addiction and psychotic states).
+
+**Passive hopelessness.** Represented ONLY as a private, non-graphic thought state, and only when the
+existing opt-in sensitive-content setting (`sh_ed_topics`, default off) is on and mental-health topics are
+full. Intensity comes from severe depressive burden, the self-defectiveness belief, rejection distress,
+strong rumination and very high stress, reduced by support; it fades with support, sleep, lower stress and
+recovery, and switching the setting off clears it immediately. It never produces an action or autonomous
+behaviour (no such action exists), never enters `mental.thoughts`/`net_detail`, and is never visible to
+other characters or players. It raises the utility of confiding and seeking help. When it appears the
+owning player sees, in the offline HUD only, a notice and the crisis lines from `GameSettings.CRISIS_LINES`
+(116 123, findahelpline.com). Texts contain no methods, plans or numbers.
+
+Modes: full; muted = weaker loops and no hopelessness; off = nothing.
+
+Tests: `tests/test_inner_voice.gd` (46 checks).

@@ -168,6 +168,8 @@ static func migrate(d) -> Dictionary:
 		data = _v9_to_v10(data)
 	if v <= 10:
 		data = _v10_to_v11(data)
+	if v <= 11:
+		data = _v11_to_v12(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -305,6 +307,16 @@ static func _v10_to_v11(src: Dictionary) -> Dictionary:
 	var mind = d.get("mind", null)
 	if typeof(mind) == TYPE_DICTIONARY and not mind.has("mood"):
 		mind["mood"] = {}
+	return d
+
+
+## v11 → v12 (psychika I): styl vnitřního hlasu. {} = průměr.
+static func _v11_to_v12(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 12
+	var mind = d.get("mind", null)
+	if typeof(mind) == TYPE_DICTIONARY and not mind.has("thoughts"):
+		mind["thoughts"] = {}
 	return d
 
 

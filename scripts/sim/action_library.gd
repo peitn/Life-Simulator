@@ -168,6 +168,13 @@ const ACTIONS: Array = [
 		"effects": {"hunger": 4.0, "fun": 6.0}, "tags": ["coping", "coping_unhealthy", "alcohol", "solo"],
 		"posture": "stand", "coping": "drink", "base_appeal": 0.0, "content": "addiction", "effort": 0.1,
 	},
+	# Vyhledat odbornou pomoc (linka, poradna, terapie – mimo záběr). Hráč ji může zadat vždy; AI jen
+	# s důvodem (psyche_gate: ruminace, beznaděj, později závislost či psychotické prožívání).
+	{
+		"id": "seek_help", "label": "Vyhledá odbornou pomoc", "object": "", "duration": 30.0,
+		"effects": {"comfort": 4.0}, "tags": ["coping", "support_seeking", "solo"], "posture": "stand",
+		"coping": "seek_help", "base_appeal": 0.0, "effort": 0.3, "content": "mental_health", "psyche_gate": "help",
+	},
 	# --- vztahy: cesta zpět z konfliktu
 	{
 		"id": "apologize", "label": "Omlouvá se", "object": "sim", "duration": 15.0,

@@ -66,6 +66,8 @@ const COPINGS := {
 		"peak_eff": 0.7, "healthy": false},
 	"hide": {"label": "Schovat se pod peřinu", "arousal": -26.0, "stress": -6.0, "sens": 0.012, "mastery": -0.03,
 		"peak_eff": 1.0, "healthy": false},
+	"seek_help": {"label": "Vyhledat odbornou pomoc", "arousal": -8.0, "stress": -10.0, "sens": -0.006, "mastery": 0.012,
+		"peak_eff": 0.7, "healthy": true, "support": 0.3, "daily": true},
 	"drink": {"label": "Pivo na nervy", "arousal": -22.0, "stress": -7.0, "sens": 0.003, "mastery": -0.01,
 		"peak_eff": 1.0, "healthy": false, "alcohol": 0.25},
 }
@@ -589,6 +591,11 @@ func apply_coping(id: String, fraction: float, ctx: Dictionary) -> Dictionary:
 			support = clampf(support + sup, 0.0, 1.0)
 			res["support"] = sup
 			dep.on_connection(clampf(trust, 0.0, 1.0) * frac, now)
+	elif def.has("support"):
+		# Odborná pomoc: opora i bez konkrétního člověka v domácnosti (také s habituací).
+		var sup2: float = float(def["support"]) * clampf(fraction, 0.0, 1.0) * habituation(id, now)
+		support = clampf(support + sup2, 0.0, 1.0)
+		res["support"] = sup2
 	# Vyhýbání a doomscrolling krátce uleví, ale roztáčí ruminaci (deprese).
 	if id == "hide" or id == "doomscroll":
 		dep.on_rumination((1.0 if id == "hide" else 0.5) * clampf(fraction, 0.0, 1.0))

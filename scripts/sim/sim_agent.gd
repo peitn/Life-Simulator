@@ -390,6 +390,8 @@ func sim_tick(dm: float) -> void:
 	suppress["energy"] = float(suppress.get("energy", 1.0)) * mental.energy_drain_mult()
 	if not psy.mood.is_empty():
 		suppress["energy"] = float(suppress["energy"]) * psy.mood.energy_mult(psy.k())
+	if not psy.voice.loops.is_empty():
+		suppress["energy"] = float(suppress["energy"]) * psy.voice.energy_drain_mult()
 	needs.tick(dm, suppress)
 	mood.tick(dm)
 	sensory.tick(dm)
@@ -467,6 +469,8 @@ func _extra_moodlets() -> Array:
 	if psy != null and not psy.is_neutral() and _clock != null:
 		out.append_array(psy.neuro.mood_entries(now(), psy.k()))
 		out.append_array(psy.mood.mood_entries(psy.k(), mental.stress))
+	if psy != null and not psy.voice.loops.is_empty():
+		out.append_array(psy.voice.mood_entries(psy.k()))
 	var gname := ""
 	var gmax := 0.0
 	for n in ledger.guilt:
@@ -624,6 +628,7 @@ func _alert_witnesses() -> void:
 			ledger.on_hurt_by(o.sim_name, 10.0, now())
 			o.ledger.on_hurt_other(sim_name, 3.0)  # často si ani neuvědomí, jak moc ublížil/a
 			remember_social(o, "humiliation", 0.6, "self", interpret_intent(0.3))
+			inner_trigger("failure", o, 0.35)
 			remember("%s mi řekl%s, ať nedělám scény" % [o.sim_name, Grammar.past(o.grammar)])
 		elif not helper_found and rng.randf() < help_p and o.state != State.WALKING:
 			if o.state == State.ACTING:
@@ -647,6 +652,7 @@ func receive_support_from(helper: Node3D) -> void:
 	add_joy_moodlet("pomoc_" + String(helper.name), "Někdo při mně stál", "spokojeny", 8.0, 600.0)
 	ledger.record_trust(helper.sim_name, "support", 9.0)
 	remember_social(helper, "support", 0.8)
+	inner_positive("warm", helper)
 	emotions.impulse("helped", helper.sim_name)
 	helper.emotions.impulse("comforted_other", sim_name)
 	remember("%s mi pomohl%s při panické atace" % [helper.sim_name, Grammar.past(helper.grammar)])
@@ -927,6 +933,8 @@ func _act(dm: float) -> void:
 	var sq: float = mental.sleep_quality() if current_action.get("tags", []).has("sleep") else 1.0
 	if sq != 1.0 and not psy.mood.is_empty():
 		sq *= psy.mood.sleep_rate_mult(psy.k())  # zvýšená fáze: méně spánku stačí
+	if sq != 1.0 and (not psy.voice.loops.is_empty() or psy.voice.hopelessness > 0.0):
+		sq *= psy.voice.sleep_quality_mult()  # přemítání a beznaděj zhoršují spánek
 	for k in rate:
 		needs.add(k, float(rate[k]) * dm / 60.0 * (sq if k == "energy" else 1.0))
 	# Panická ataka končí, když odezní aktivace (řídí MentalState).
@@ -1007,6 +1015,13 @@ func _finish(interrupted: bool) -> void:
 			cctx["dismissed"] = _confide_dismissed
 		last_coping_result = mental.apply_coping(cop, frac, cctx)
 		last_coping_result["id"] = cop
+		# Řešení přemítání: deník je jedna z cest, odborná pomoc uleví i beznaději.
+		if cop == "journal" and frac > 0.5:
+			psy.voice.resolve("", 0.3)
+		elif cop == "seek_help" and frac > 0.5:
+			psy.voice.resolve("", 0.3)
+			psy.voice.hopelessness *= 0.6
+			inner_positive("hope", null)
 		_detail_dirty = true
 	if bool(current_action.get("involuntary", false)) and not interrupted:
 		mental.end_panic()
@@ -1068,6 +1083,7 @@ func _experience_finished() -> void:
 		relief = mental.dep.on_activity(id, eff, float(res.get("surprise", 0.0)), now())
 	if float(res.get("surprise", 0.0)) > 3.0 and mental.dep.pessimism > 0.3:
 		mood.add_moodlet("lepsi_nez_cekal", gendered("Bylo to lepší, než jsem čekal(a)"), "spokojeny", 5.0, 180.0)
+		inner_positive("hope", null)
 	if float(res.get("surprise", 0.0)) < -4.0:
 		emotions.impulse("activity_bad", "", 0.5)
 	last_experience = res.duplicate()
@@ -1425,6 +1441,7 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		ledger.on_hurt_by(partner.sim_name, 8.0, now())
 		ledger.record_trust(partner.sim_name, "dismissed", -9.0)
 		remember_social(partner, "trust_breach", 0.6, "self", interpret_intent(0.5))
+		inner_trigger("grievance", partner, 0.35)
 		remember("Svěřil(a) jsem se a %s to odbyl%s" % [partner.sim_name, Grammar.past(partner.grammar)])
 		_social_positive = false
 		_on_rejection_cue("dismissed", partner)
@@ -1441,6 +1458,8 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		ledger.record_trust(partner.sim_name, "support", 8.0)
 		remember_social(partner, "support", 0.5)
 		_share_memory_with(partner)
+		psy.voice.resolve("", 0.25)
+		inner_positive("warm", partner)
 		emotions.impulse("confided", partner.sim_name)
 		partner.emotions.impulse("comforted_other", sim_name, 0.7)
 		_learn_connection(partner)
@@ -1478,10 +1497,16 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 	match outcome:
 		"accepted":
 			partner.remember_social(self, "apology", 0.6)
+			# Řešení: omluva uvolní přemítání o tom člověku u obou.
+			psy.voice.resolve(memory_key(partner), 0.5)
+			partner.psy.voice.resolve(memory_key(self), 0.5)
+			inner_positive("relief", partner)
 		"partial":
 			partner.remember_social(self, "apology", 0.3)
+			psy.voice.resolve(memory_key(partner), 0.25)
 		"rejected":
 			remember_social(partner, "rejection", 0.5, "self", "none")
+			inner_trigger("failure", partner, 0.4)
 	var g := Grammar.past(grammar)
 	var reply := ActionLibrary.random_line("apology_" + outcome, partner.rng).replace("(a)", g)
 	say(ActionLibrary.random_line("apology", rng))
@@ -1634,6 +1659,7 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 				a.remember_social(b, "pleasant_talk", 0.15)
 			"argue":
 				a.remember_social(b, "grievance", 0.4, "self", a.interpret_intent(0.5))
+				a.inner_trigger("grievance", b, 0.3)
 			"awkward":
 				a.remember_social(b, "misunderstanding", 0.15, "self", "unclear")
 			"misunderstanding":
@@ -1641,6 +1667,7 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 			"insult":
 				if a != self:
 					a.remember_social(b, "insult", 0.8, "self", "intended")
+					a.inner_trigger("grievance", b, 0.5)
 		# Social comparison is distinct from jealousy over losing a relationship.
 		# Only a noticeably happier conversation partner while the observer is
 		# already distressed may evoke a *small*, person-directed envy response.
@@ -1656,7 +1683,7 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 
 ## Násobič chuti na akci z rozšíření psychiky (utility AI). Neutrální postava → přesně 1,0.
 func psyche_action_weight(a: Dictionary) -> float:
-	if psy == null or psy.is_neutral():
+	if psy == null or (psy.is_neutral() and psy.voice.loops.is_empty() and psy.voice.hopelessness <= 0.0):
 		return 1.0
 	return psy.action_weight(a, _clock.get_hour() if _clock != null else 12)
 
@@ -1750,6 +1777,7 @@ func _psyche_tick(dm: float) -> void:
 	if int(now() / 60.0) != hour_before:
 		_update_memory_views()
 	mental.dep.chronic_floor = psy.mood.chronic_floor(psy.k())
+	_inner_tick(dm)
 	if psy.is_neutral():
 		return
 	if not psy.mood.is_empty():
@@ -1762,6 +1790,89 @@ func _psyche_tick(dm: float) -> void:
 		_psyche_stress("overload", add)
 	if bool(res.get("tic", false)):
 		_on_tic()
+
+
+## Vnitřní hlas: zapíše myšlenku do soukromého proudu (stejná cesta jako rušivé myšlenky, respektuje
+## nastavení „rušivé myšlenky“). Beznaděj sem NIKDY nejde (ta je jen v offline soukromém popisu).
+func _push_thought(text: String, kind: String, other_grammar: String = "m") -> void:
+	if text == "" or mental == null:
+		return
+	var cfg := mental_cfg()
+	if float(cfg.get("thought_rate", 1.0)) <= 0.0:
+		return
+	var t := Grammar.form(text, grammar).replace("{ng}", Grammar.past(other_grammar))
+	if not mental.thoughts.is_empty() and String(mental.thoughts[-1]["text"]) == t:
+		return
+	mental.thoughts.append({"t": now(), "text": t, "kind": kind})
+	while mental.thoughts.size() > mental.MAX_THOUGHTS:
+		mental.thoughts.pop_front()
+	_detail_dirty = true
+
+
+## Událost → smyčka myšlenek (vyhodnocení z dat: kdo, co, jak silně).
+func inner_trigger(topic: String, other: Node3D, amount: float) -> void:
+	if psy == null or _clock == null:
+		return
+	var nm := String(other.sim_name) if other != null else ""
+	var txt: String = psy.voice.trigger(topic, memory_key(other) if other != null else "", nm, amount, now(), psy.k(),
+		self_defectiveness_belief)
+	_push_thought(txt, "inner_" + topic, String(other.grammar) if other != null else "m")
+
+
+## Dobrá zkušenost → naděje / vděk / úleva (taky z dat, ne náhodná výplň).
+func inner_positive(kind: String, other: Node3D) -> void:
+	if psy == null or _clock == null:
+		return
+	var nm := String(other.sim_name) if other != null else ""
+	var txt: String = psy.voice.positive(kind, memory_key(other) if other != null else "", nm, now(), psy.k())
+	_push_thought(txt, "inner_" + kind, String(other.grammar) if other != null else "m")
+
+
+## Brána autonomních akcí rozšíření (např. „vyhledat pomoc“): bez důvodu je AI nevolí, hráč může vždy.
+func psyche_gate(kind: String) -> float:
+	if psy == null:
+		return 0.0
+	match kind:
+		"help":
+			return psy.voice.help_need()
+	return 0.0
+
+
+func _inner_tick(dm: float) -> void:
+	var kk: float = psy.k()
+	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
+	var distraction := 0.0
+	if state == State.ACTING:
+		if tags.has("fun") or tags.has("exercise") or tags.has("social") or tags.has("reading") or tags.has("cooking"):
+			distraction = 0.8
+		elif not tags.has("quiet") and not tags.has("rest") and not tags.has("sleep"):
+			distraction = 0.3
+	var night: bool = _clock.is_night() if _clock != null else false
+	var sleeping := _is_sleeping()
+	var v = psy.voice
+	# Starost vzniká ze stavu (vysoký stres, vnímaná hrozba), jednou za herní hodinu, ne náhodně.
+	if kk > 0.0 and int(now() / 60.0) != int((now() - dm) / 60.0) and not sleeping:
+		var worry := maxf(mental.stress - 60.0, 0.0) / 80.0 + maxf(mental.threat - 0.35, 0.0) * 0.6
+		if worry > 0.05:
+			_push_thought(v.trigger("worry", "", "", worry * v.worry_k, now(), kk, 0.0), "inner_worry")
+	var was_hopeless: float = v.hopelessness
+	v.tick(dm, {"idle": state == State.IDLE, "quiet": tags.has("quiet") or tags.has("rest"),
+		"night_awake": night and not sleeping, "sleeping": sleeping, "distraction": distraction,
+		"stress": mental.stress, "burden": mental.dep.burden, "support": mental.support,
+		"rejection": float(rejection.distress), "self_belief": self_defectiveness_belief,
+		"allow_hopeless": _allows_rejection_risk()}, kk)
+	if not v.loops.is_empty():
+		mental.dep.on_rumination(v.rumination_feed() * dm / 60.0)
+	# Krizová pomoc vlastníkovi: jen offline lokální HUD, nikdy po síti a nikdy jiným postavám.
+	if v.hopelessness >= v.HOPELESS_SHOW and not v.crisis_shown:
+		v.crisis_shown = true
+		_detail_dirty = true
+		if world != null and is_instance_valid(world) and world.get("net") != null and not world.net.is_networked() \
+				and world.get("hud") != null and world.hud.has_method("show_notice"):
+			world.hud.show_notice("Postava prožívá beznaděj. Pomáhá blízký člověk nebo odborná pomoc – "
+				+ "Linka první psychické pomoci 116 123 (nonstop, zdarma), findahelpline.com.")
+	if was_hopeless < v.HOPELESS_SHOW and v.hopelessness >= v.HOPELESS_SHOW:
+		remember("Bylo mi hodně těžko")
 
 
 ## Průběh nálady: epizody, spánkový dluh, vazba depresivní fáze na existující depresivní zátěž.
@@ -1846,10 +1957,12 @@ func _psyche_after_finish(_id: String, interrupted: bool, cop: String) -> void:
 
 ## Soukromé slovní řádky pro vlastníka (offline HUD). Žádná čísla ani diagnózy.
 func psyche_private_lines() -> PackedStringArray:
-	if psy == null or psy.is_neutral():
+	if psy == null:
 		return PackedStringArray()
 	var out: PackedStringArray = psy.neuro.private_lines(psy.k())
 	out.append_array(psy.mood.private_lines(psy.k()))
+	var gs := get_node_or_null("/root/GameSettings") if is_inside_tree() else null
+	out.append_array(psy.voice.private_lines(psy.k(), gs.CRISIS_LINES if gs != null else []))
 	return out
 
 

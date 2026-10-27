@@ -85,6 +85,9 @@ static func expected_effects(a: Dictionary) -> Dictionary:
 
 
 static func score_action(sim, a: Dictionary, hour: int) -> float:
+	# Akce rozšíření psychiky s bránou (např. vyhledat pomoc): AI je volí jen s důvodem; hráč vždy může.
+	if a.has("psyche_gate") and (not sim.has_method("psyche_gate") or float(sim.psyche_gate(String(a["psyche_gate"]))) <= 0.0):
+		return 0.0
 	var eff := expected_effects(a)
 	var gain := 0.0
 	for k in eff:
