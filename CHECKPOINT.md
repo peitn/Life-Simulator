@@ -594,3 +594,10 @@ Run `main-claude-chat-1793081190` (main lock acquired and released through tools
 - Local regression on the full snapshot: depression 106, mental_health 95, psyche 93, emotional_state 52, crowded_household 50, full_playable_slice 48, personality_sliders 32, withdrawal_avoidance 22, household_matrix 118 – all pass. test_household_dynamics 79/80: the open seed-13 low-argument outlier (6 % < 8 %) is identical on the unchanged project (all 16 seeds have identical numbers), so it is pre-existing and left open as agreed (#197/#198). On the server after integration: withdrawal_avoidance 22, depression 106, mental_health 95, godot_check 60/60.
 - Documentation: AUDIT.md, DEVLOG.md (runs 1–23), ROADMAP.md, WEB.md and tools/blender/README.md translated to English; Czech UI labels quoted in docs got English glosses; docs/mental-health.md (severity thresholds corrected to 0.82 / half a day / 0.76, new section on withdrawal and avoidance) and docs/testing.md updated. Code comments and in-game texts remain Czech.
 - Next: H2b sleeve weights and the remaining H-sequence as planned; the seed-13 outlier stays open.
+
+## 27 October 2026 — Claude (main chat): Audio Engine sounds and music
+- Rendered 16 sounds with the Audio Engine connector (Surge XT and its built-in synth) into `audio/engine/` (mono 22 050 Hz): wood/grass footsteps, reading, phone, journaling, fridge, bottle, duvet, night clock and a creator/editor theme in the night track's spirit.
+- New `scripts/audio/engine_sfx.gd` (EngineSfx under AudioManager): speed-based footsteps by surface, action loops/one-shots, night clock ambience; creator/editor music switches immediately.
+- Door slam now depends on stress and temperament (`slam_chance`, 5–75 %) – closes the open audio item.
+- Existing five music tracks unchanged. `.gitignore` keeps `audio/engine/*.wav`.
+- Tests: new test_audio_engine_sfx 164/164, test_audio_tone 222/222, full_playable_slice 48/48 (server); locally also psyche_presentation 19, crowded_household 50, multiplayer 67.

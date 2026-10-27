@@ -14,8 +14,12 @@ extends Node
 ##   HÁDKY slyšet: zvýšené hlasy u postav (formantové, nesrozumitelné; výška podle
 ##   voice.pitch z CharacterData), tlumené vzdáleností jako přes zeď, občas bouchnutí dveří.
 ##   Vše je jen kosmetika na tomto peeru – žádný vliv na simulaci ani síť.
+## - zvuky z konektoru Audio Engine (EngineSfx, res://audio/engine/): kroky podle povrchu,
+##   listování/telefon/deník, lednice a lahev, peřina, noční hodiny, hudba editoru postavy;
+##   bouchnutí dveří podle stresu a temperamentu (slam_chance).
 
 const WavLoader := preload("res://scripts/audio/wav_loader.gd")
+const EngineSfx := preload("res://scripts/audio/engine_sfx.gd")
 const MUSIC_DIR := "res://audio/music/"
 const SFX_DIR := "res://audio/sfx/"
 const CROSSFADE := 3.0
@@ -32,6 +36,9 @@ const CONFLICT_HEAR_DIST := 16.0
 const VOICE_COOLDOWN := 5.0
 const MAX_VOICES := 3
 const SLAM_CHANCE := 0.3
+## Rozsah šance na bouchnutí dveří (slam_chance): klidná postava skoro nikdy, vznětlivá ve stresu často.
+const SLAM_CHANCE_MIN := 0.05
+const SLAM_CHANCE_MAX := 0.75
 
 var main: Node = null
 var current_track := ""
@@ -70,6 +77,7 @@ var _now := 0.0            # reálný čas AudioManageru (s), krokovatelný v te
 var _arng := RandomNumberGenerator.new()
 var _music_bus := -1
 var _music_db_set := 1000.0
+var engine: Node = null
 
 
 func _ready() -> void:
@@ -111,6 +119,10 @@ func _ready() -> void:
 	add_child(_tension_player)
 	if _tension_player.stream != null:
 		_tension_player.play()
+	engine = EngineSfx.new()
+	engine.name = "EngineSfx"
+	engine.am = self
+	add_child(engine)
 
 
 func _setup_buses() -> void:
@@ -168,6 +180,8 @@ func register_sim(sim: Node) -> void:
 		return
 	sim.action_started.connect(_on_action_started)
 	sim.action_finished.connect(_on_action_finished)
+	if engine != null:
+		engine.register_sim(sim)
 	if sim.has_signal("social_event"):
 		sim.social_event.connect(_on_social_event)
 
@@ -175,6 +189,8 @@ func register_sim(sim: Node) -> void:
 # ---------------------------------------------------------------- hudba
 
 func choose_track() -> String:
+	if engine != null and engine.editor_open():
+		return EngineSfx.CREATOR_TRACK
 	var sim = main.get_selected_sim() if main != null else null
 	if sim != null:
 		# Hystereze – melancholie začne pod −20, skončí až nad −5.
@@ -197,7 +213,8 @@ func choose_track() -> String:
 
 
 func play_music(id: String) -> void:
-	var stream := WavLoader.load_wav(MUSIC_DIR + id + ".wav", true)
+	var file := EngineSfx.path("music_creator") if id == EngineSfx.CREATOR_TRACK else MUSIC_DIR + id + ".wav"
+	var stream := WavLoader.load_wav(file, true)
 	if stream == null:
 		push_warning("Chybí hudba: " + id + " (spusť tools/build_audio.gd)")
 		return
@@ -276,9 +293,13 @@ func _process(delta: float) -> void:
 	if _decide <= 0.0:
 		_decide = 1.0
 		var t := choose_track()
-		if t != current_track and (current_track == "" or _track_time > MIN_TRACK_TIME):
+		# Editor postavy hudbu přepne hned (a po zavření se hned vrátí).
+		var editor_switch := t == EngineSfx.CREATOR_TRACK or current_track == EngineSfx.CREATOR_TRACK
+		if t != current_track and (current_track == "" or _track_time > MIN_TRACK_TIME or editor_switch):
 			play_music(t)
 	_update_ambience(delta)
+	if engine != null:
+		engine.update(delta, _clock.day_fraction() * 24.0, speed_index)
 
 
 # ---------------------------------------------------------------- ambience
@@ -465,7 +486,7 @@ func _on_conflict(sim: Node3D) -> void:
 				_voice_last.erase(k)
 	_voice_last[sim] = _now
 	stats["voices"] += 1
-	if _arng.randf() < SLAM_CHANCE and is_inside_tree():
+	if _arng.randf() < slam_chance(sim) and is_inside_tree():
 		var where := sim.global_position
 		var parent := sim.get_parent()
 		get_tree().create_timer(_arng.randf_range(3.5, 6.0)).timeout.connect(_play_slam.bind(parent, where))
@@ -495,6 +516,35 @@ func _play_slam(parent, where: Vector3) -> void:
 	p.play()
 	p.finished.connect(p.queue_free)
 	stats["slams"] += 1
+
+
+## Šance na bouchnutí dveří při hádce: roste se stresem postavy a s výbušným temperamentem
+## (Vznětlivý, Impulzivní, Bručoun); Samotář spíš potichu odejde. Bez dat = SLAM_CHANCE.
+static func slam_chance(sim: Object) -> float:
+	if sim == null:
+		return SLAM_CHANCE
+	var known := false
+	var c := 0.12
+	var m = sim.get("mental")
+	if m != null:
+		var st = m.get("stress")
+		if st is float or st is int:
+			c += 0.38 * smoothstep(35.0, 90.0, float(st))
+			known = true
+	var traits = sim.get("trait_ids")
+	if traits is Array:
+		known = true
+		if traits.has("vznetlivy"):
+			c += 0.25
+		if traits.has("impulzivni"):
+			c += 0.12
+		if traits.has("brucoun"):
+			c += 0.08
+		if traits.has("samotar"):
+			c -= 0.06
+	if not known:
+		return SLAM_CHANCE
+	return clampf(c, SLAM_CHANCE_MIN, SLAM_CHANCE_MAX)
 
 
 ## Hlasové parametry postavy z veřejného snapshotu (CharacterData.voice), s výchozími hodnotami.

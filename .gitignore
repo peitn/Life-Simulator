@@ -7,6 +7,8 @@ export_credentials.cfg
 
 # Generated audio (render with: godot --headless -s res://tools/build_audio.gd)
 audio/**/*.wav
+# Audio Engine renders cannot be regenerated locally – keep them in git
+!audio/engine/*.wav
 
 # Temporary transfer parts and preview renders
 assets/src/*.part
