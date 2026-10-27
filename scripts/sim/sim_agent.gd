@@ -397,6 +397,8 @@ func sim_tick(dm: float) -> void:
 		suppress["energy"] = float(suppress["energy"]) * psy.mood.energy_mult(psy.k())
 	if not psy.voice.loops.is_empty():
 		suppress["energy"] = float(suppress["energy"]) * psy.voice.energy_drain_mult()
+	if psy.eating.food_anxiety > 0.0:
+		suppress["energy"] = float(suppress["energy"]) * psy.eating.energy_mult()
 	needs.tick(dm, suppress)
 	mood.tick(dm)
 	sensory.tick(dm)
@@ -480,6 +482,8 @@ func _extra_moodlets() -> Array:
 		out.append_array(psy.accents.mood_entries(float(needs.values["social"])))
 	if psy != null and not psy.ocd.is_empty() and _clock != null:
 		out.append_array(psy.ocd.mood_entries(psy.k(), now()))
+	if psy != null and psy.eating.active():
+		out.append_array(psy.eating.mood_entries())
 	if psy != null and not psy.subs.is_empty() and _clock != null:
 		out.append_array(psy.subs.mood_entries(now(), psy.sub_withdrawal, psy.sub_withdrawal_id, _subs_k()))
 	var gname := ""
@@ -1077,6 +1081,17 @@ func _finish(interrupted: bool) -> void:
 	_psyche_after_finish(id, interrupted, cop)
 	if not psy.ocd.is_empty():
 		_ocd_after_finish(id, interrupted)
+	if psy.eating.active() and not interrupted and (current_action.get("tags", []) as Array).has("food"):
+		var g: float = psy.eating.after_meal(now())
+		if g < 0.0:
+			mood.add_moodlet("ed_vycitky", "Výčitky po jídle", "smutny", g, 180.0)
+			if psy.eating.body_image > 0.5 and world != null:
+				for o in world.get_sims():
+					if o != self and o.has_method("command") and float(o.relationships.get(sim_name, 0.0)) >= 25.0 \
+							and o.global_position.distance_to(global_position) < 6.0 and not o._is_sleeping():
+						o.mood.add_moodlet("ed_obava_" + String(name), "Bojím se o: " + first_name(), "uzkostny", -3.0, 240.0)
+	if psy.eating.active() and not interrupted and (cop == "confide" and not _confide_dismissed or cop == "seek_help"):
+		psy.eating.on_support(1.0 if cop == "seek_help" else 0.6)
 	if id == "drink" or id == "cut_down" or String(current_action.get("substance", "")) != "":
 		_substance_after_finish(id, interrupted)
 	_leave_target()
@@ -1709,10 +1724,13 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 
 ## Násobič chuti na akci z rozšíření psychiky (utility AI). Neutrální postava → přesně 1,0.
 func psyche_action_weight(a: Dictionary) -> float:
-	if psy == null or (psy.is_neutral() and psy.voice.loops.is_empty() and psy.voice.hopelessness <= 0.0):
+	if psy == null or (psy.is_neutral() and psy.voice.loops.is_empty() and psy.voice.hopelessness <= 0.0 and not psy.eating.active()):
 		return 1.0
 	psy._mastery = mental.mastery
 	psy._support = mental.support
+	if psy.eating.food_anxiety > 0.0 and (a.get("tags", []) as Array).has("food"):
+		return psy.action_weight(a, _clock.get_hour() if _clock != null else 12) \
+			* psy.eating.food_weight(_others_near(4.0), float(needs.values["hunger"]))
 	var sid := "alcohol" if String(a.get("id", "")) == "drink" else String(a.get("substance", ""))
 	if sid != "" and not psy.subs.is_empty():
 		var kk := _subs_k()
@@ -1813,6 +1831,7 @@ func _psyche_tick(dm: float) -> void:
 		_update_memory_views()
 	mental.dep.chronic_floor = psy.mood.chronic_floor(psy.k())
 	_inner_tick(dm)
+	_eating_tick(dm)
 	if psy.is_neutral():
 		return
 	if not psy.mood.is_empty():
@@ -1873,7 +1892,8 @@ func psyche_gate(kind: String) -> float:
 		return 0.0
 	match kind:
 		"help":
-			return maxf(psy.voice.help_need(), clampf(psy.subs.max_dependence() - 0.5, 0.0, 1.0) * _subs_k())
+			return maxf(maxf(psy.voice.help_need(), clampf(psy.subs.max_dependence() - 0.5, 0.0, 1.0) * _subs_k()),
+				psy.eating.help_need())
 		"ocd_ritual":
 			return psy.ocd.gate("ritual") * psy.k()
 		"ocd_resist":
@@ -1920,6 +1940,26 @@ func _inner_tick(dm: float) -> void:
 				+ "Linka první psychické pomoci 116 123 (nonstop, zdarma), findahelpline.com.")
 	if was_hopeless < v.HOPELESS_SHOW and v.hopelessness >= v.HOPELESS_SHOW:
 		remember("Bylo mi hodně těžko")
+
+
+## Potíže s jídlem a tělem: vzniká jen z dat a jen při opt-in citlivém obsahu (sh_ed) + plných tématech.
+func _eating_tick(dm: float) -> void:
+	var allow := _allows_rejection_risk()
+	if not allow and not psy.eating.active():
+		return
+	psy.eating.tick(dm, {"allow": allow, "self_belief": self_defectiveness_belief,
+		"perfectionism": psy.accents.a("perfectionism"), "envy": emotions.level("envy"),
+		"rejection": float(rejection.distress), "stress": mental.stress, "support": mental.support})
+
+
+func _others_near(dist: float) -> int:
+	var n := 0
+	if world == null:
+		return 0
+	for o in world.get_sims():
+		if o != self and o.has_method("command") and not o._is_sleeping() and o.global_position.distance_to(global_position) < dist:
+			n += 1
+	return n
 
 
 ## Návykové látky a činnosti: k = režim obsahu × povolená témata závislostí.
@@ -2147,6 +2187,8 @@ func psyche_private_lines() -> PackedStringArray:
 	out.append_array(psy.voice.private_lines(psy.k(), gs.CRISIS_LINES if gs != null else []))
 	out.append_array(psy.accents.private_lines())
 	out.append_array(psy.ocd.private_lines(psy.k()))
+	if psy.eating.active():
+		out.append_array(psy.eating.private_lines(gs.CRISIS_LINES if gs != null else []))
 	if _clock != null:
 		out.append_array(psy.subs.private_lines(now(), _subs_k()))
 	return out

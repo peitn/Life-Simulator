@@ -596,3 +596,23 @@ dynamics; mental-health muted halves the dynamics. Substance actions appear in t
 characters with a habit or craving.
 
 Tests: `tests/test_substances.gd` (40 checks).
+
+### G. Eating and body-image difficulties (opt-in only)
+
+`scripts/sim/eating_distress.gd` (`SimAgent.psy.eating`) follows the established content rules strictly:
+depicted only through emotions, thoughts and consequences; no numbers (no calories, weights, BMI or
+durations), no methods, no instructions, no restricting action and no reward for one. It is **not
+selectable at character creation** (no predisposition, no slider — the existing `test_character` rule is
+kept) and exists only when the opt-in sensitive-content setting (`sh_ed_topics`, default off) is on and
+mental-health topics are full; switching either off clears it immediately.
+
+The state only emerges from data: body-image distress grows from the stable self-defectiveness belief,
+the perfectionism accent, social comparison (envy) and rejection distress, scaled by stress and reduced
+by support; food-related anxiety follows it. Consequences: eating in front of others is less appealing
+(avoiding shared meals, ×0.6–1.0; hunger always wins, the effect vanishes when hungry), guilt after
+eating (an emotion, not a number, at most every few hours), a little less energy, and close people who
+eat together feel worry. Recovery: confiding (when heard) and seeking help relieve it, support speeds
+recovery, and `seek_help` opens when it is strong. The owner sees only a gentle private sentence offline
+(with the crisis lines when it is strong); nothing enters the thought stream, `net_detail` or snapshots.
+
+Tests: `tests/test_eating_distress.gd` (21 checks).
