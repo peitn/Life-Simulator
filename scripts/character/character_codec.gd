@@ -172,6 +172,8 @@ static func migrate(d) -> Dictionary:
 		data = _v11_to_v12(data)
 	if v <= 12:
 		data = _v12_to_v13(data)
+	if v <= 13:
+		data = _v13_to_v14(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -332,6 +334,16 @@ static func _v12_to_v13(src: Dictionary) -> Dictionary:
 			mind["accents"] = {}
 		if not mind.has("accent_labels"):
 			mind["accent_labels"] = false
+	return d
+
+
+## v13 → v14 (psychika E): téma obsedantní pochybnosti (výchozí kontrolování; bez predispozice nic nedělá).
+static func _v13_to_v14(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 14
+	var mind = d.get("mind", null)
+	if typeof(mind) == TYPE_DICTIONARY and not mind.has("ocd_theme"):
+		mind["ocd_theme"] = "checking"
 	return d
 
 

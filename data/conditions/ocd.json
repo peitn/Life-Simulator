@@ -1,0 +1,16 @@
+{
+	"id": "ocd",
+	"label_cs": "Obsedantně-kompulzivní porucha",
+	"desc_cs": "Vtíravá pochybnost nebo obava, která nejde pustit z hlavy, a nutkání ji něčím „vyřešit“ – úleva ale trvá jen chvíli.",
+	"effects_cs": "Obsese → nutkavá činnost → krátká úleva → posílení smyčky; pomáhá postupné odolávání nutkání, opora a klid.",
+	"content_tag": "mental_health",
+	"severity": [0.0, 1.0],
+	"modulations": [
+		{"target": "D.predictability_need", "op": "add", "amount": 0.2, "scale": "severity",
+			"why": "Nejistota je těžko snesitelná, víc záleží na tom mít jistotu."},
+		{"target": "D.threat_sensitivity", "op": "add", "amount": 0.12, "scale": "severity",
+			"why": "Drobná možná chyba se snáz čte jako velké riziko."},
+		{"target": "D.cognitive_flexibility", "op": "add", "amount": -0.15, "scale": "severity",
+			"why": "Myšlenka se zasekne a nejde ji přepnout."}
+	]
+}

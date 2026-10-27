@@ -539,6 +539,11 @@ func _rebuild_commands(sim) -> void:
 			_add_cmd("Soukromá intimní chvíle: " + other.sim_name, ["adult_consensual_sex", String(other.name)])
 	for a in ActionLibrary.ACTIONS:
 		if a.get("object", "") == "" and _cmd_allowed(a, gs):
+			# Akce rozšíření psychiky s bránou (např. odolat nutkání) jen tam, kde dávají smysl;
+			# „vyhledat pomoc“ je dostupné vždy.
+			if a.has("psyche_gate") and String(a["id"]) != "seek_help" \
+					and (not sim.has_method("psyche_gate") or float(sim.psyche_gate(String(a["psyche_gate"]))) <= 0.0):
+				continue
 			_add_cmd(a["label"] + heavy_hint(a, heavy), [a["id"], ""])
 
 

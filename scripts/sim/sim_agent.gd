@@ -478,6 +478,8 @@ func _extra_moodlets() -> Array:
 		out.append_array(psy.voice.mood_entries(psy.k()))
 	if psy != null and not psy.accents.is_empty():
 		out.append_array(psy.accents.mood_entries(float(needs.values["social"])))
+	if psy != null and not psy.ocd.is_empty() and _clock != null:
+		out.append_array(psy.ocd.mood_entries(psy.k(), now()))
 	var gname := ""
 	var gmax := 0.0
 	for n in ledger.guilt:
@@ -693,6 +695,9 @@ func _decide() -> void:
 
 
 func start_plan(action: Dictionary, tgt: Node3D) -> void:
+	if String(action.get("id", "")) == "compulsion" and not psy.ocd.is_empty():
+		action = action.duplicate(true)
+		action["label"] = psy.ocd.COMPULSION_LABEL.get(psy.ocd.theme, action["label"])
 	# Hyperfokus / časová slepota / pracovní paměť natáhnou jen AUTONOMNÍ akci (hráčův příkaz se nemění).
 	if not by_player and not psy.is_neutral():
 		var dmul: float = psy.neuro.duration_mult(action, false, psy.k())
@@ -1038,6 +1043,10 @@ func _finish(interrupted: bool) -> void:
 			and current_action.get("tags", []).has("social") and cop == "":
 		var th: String = mental.on_social_completed(_social_positive, _social_arousal_start,
 			social_partner.sim_name, social_partner.grammar, now(), mental_cfg())
+		if psy.social_anxiety > 0.0:
+			# Přehrávání rozhovoru: z dat (proběhl rozhovor s někým), ne náhodná výplň.
+			_push_thought(psy.voice.trigger("worry", memory_key(social_partner), social_partner.sim_name,
+				0.25 * psy.social_anxiety * (0.6 if _social_positive else 1.2), now(), psy.k()), "inner_worry")
 		if th != "":
 			_detail_dirty = true
 		# Perceived rejection is independent of intrusive-thought PRESENTATION settings.
@@ -1062,6 +1071,8 @@ func _finish(interrupted: bool) -> void:
 			if mem != null and float(ml[3]) * scale >= MEMORABLE_STRENGTH:
 				remember(String(mem))
 	_psyche_after_finish(id, interrupted, cop)
+	if not psy.ocd.is_empty():
+		_ocd_after_finish(id, interrupted)
 	_leave_target()
 	var partner := social_partner
 	social_partner = null
@@ -1183,6 +1194,7 @@ func _start_social(partner: Node3D) -> void:
 	psy.memory.cue(memory_key(partner), now())
 	if partner.get("psy") != null:
 		partner.psy.memory.cue(memory_key(self), now())
+	_social_anxiety_before(partner)
 	# Zvýšená fáze: rychlá, překotná řeč (jen replika, nic se nevynucuje).
 	if not psy.mood.is_empty() and psy.mood.elevation() > 0.35 and psy.rng.randf() < psy.mood.elevation():
 		say(psy.mood.LINES_UP[psy.rng.randi_range(0, psy.mood.LINES_UP.size() - 1)])
@@ -1692,6 +1704,8 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 func psyche_action_weight(a: Dictionary) -> float:
 	if psy == null or (psy.is_neutral() and psy.voice.loops.is_empty() and psy.voice.hopelessness <= 0.0):
 		return 1.0
+	psy._mastery = mental.mastery
+	psy._support = mental.support
 	return psy.action_weight(a, _clock.get_hour() if _clock != null else 12)
 
 
@@ -1790,6 +1804,8 @@ func _psyche_tick(dm: float) -> void:
 		return
 	if not psy.mood.is_empty():
 		_mood_cycle_tick(dm)
+	if not psy.ocd.is_empty():
+		_ocd_tick(dm)
 	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
 	var res: Dictionary = psy.neuro.tick(dm, {"sleeping": _is_sleeping(), "social": social_partner != null,
 		"quiet": tags.has("quiet") or tags.has("rest"), "stress": mental.stress}, psy.k(), psy.rng)
@@ -1843,6 +1859,10 @@ func psyche_gate(kind: String) -> float:
 	match kind:
 		"help":
 			return psy.voice.help_need()
+		"ocd_ritual":
+			return psy.ocd.gate("ritual") * psy.k()
+		"ocd_resist":
+			return psy.ocd.gate("resist") * psy.k()
 	return 0.0
 
 
@@ -1881,6 +1901,58 @@ func _inner_tick(dm: float) -> void:
 				+ "Linka první psychické pomoci 116 123 (nonstop, zdarma), findahelpline.com.")
 	if was_hopeless < v.HOPELESS_SHOW and v.hopelessness >= v.HOPELESS_SHOW:
 		remember("Bylo mi hodně těžko")
+
+
+## OCD smyčka: spouštěče z dat (dokončená akce, večer), nevyřešená obsese stojí stres.
+func _ocd_tick(dm: float) -> void:
+	var kk: float = psy.k()
+	var o = psy.ocd
+	var tags: Array = current_action.get("tags", []) if state == State.ACTING else []
+	var busy := 0.8 if (tags.has("fun") or tags.has("social") or tags.has("exercise") or tags.has("reading")) else 0.0
+	var add: float = o.tick(dm, {"sleeping": _is_sleeping(), "distraction": busy, "stress": mental.stress,
+		"threat": mental.threat}, kk)
+	if add > 0.0:
+		_psyche_stress("ocd", add)
+	if _clock != null and not _is_sleeping():
+		var th: String = o.evening(_clock.get_day(), _clock.get_hour(), kk, psy.rng)
+		_push_thought(th, "inner_ocd")
+
+
+## Po dokončené akci: OCD spouštěč podle tématu, rituál (úleva + posílení) a odolání (napětí + oslabení).
+func _ocd_after_finish(id: String, interrupted: bool) -> void:
+	var kk: float = psy.k()
+	var o = psy.ocd
+	if id == "compulsion" and not interrupted:
+		_psyche_stress("ocd_ritual", o.on_ritual(now(), kk))
+		if o.rituals_today(now()) >= 4 and world != null:
+			for x in world.get_sims():
+				if x != self and x.has_method("command") and x.global_position.distance_to(global_position) < 5.0 and not x._is_sleeping():
+					mood.add_moodlet("ocd_stud", "Stydím se, že to dělám znovu", "nesvuj", -4.0 * kk, 120.0)
+					break
+		return
+	if id == "resist_urge":
+		if not interrupted:
+			_psyche_stress("ocd_resist", o.on_resist(kk))
+			mental.mastery = clampf(mental.mastery + 0.01 * kk, 0.0, 1.0)
+			mood.add_moodlet("ocd_odolal", gendered("Odolal(a) jsem nutkání"), "spokojeny", 4.0 * kk, 180.0)
+			inner_positive("hope", null)
+		return
+	if interrupted:
+		return
+	var amt: float = o.trigger_for_action(id, current_action.get("tags", []))
+	if amt > 0.0:
+		_push_thought(o.trigger(amt, kk, psy.rng), "inner_ocd")
+
+
+## Sociální úzkost: napětí PŘED setkáním s méně blízkým člověkem (expozice: když to dopadne dobře,
+## existující učení zvládnutí snižuje citlivost); po rozhovoru krátké přehrávání.
+func _social_anxiety_before(partner: Node3D) -> void:
+	var sev: float = psy.social_anxiety * psy.k()
+	if sev <= 0.0 or partner == null:
+		return
+	var closeness := clampf(float(relationships.get(partner.sim_name, 0.0)) / 60.0, 0.0, 1.0)
+	mental.arousal = clampf(mental.arousal + 22.0 * sev * (1.0 - closeness), 0.0, 100.0)
+	mental.threat = clampf(mental.threat + 0.15 * sev * (1.0 - closeness), 0.0, 1.0)
 
 
 ## Osobnostní akcenty: váhy acc_* do profilu rysů (existující parametry chemie, zášti, pýchy …) a háčky
@@ -2003,6 +2075,7 @@ func psyche_private_lines() -> PackedStringArray:
 	var gs := get_node_or_null("/root/GameSettings") if is_inside_tree() else null
 	out.append_array(psy.voice.private_lines(psy.k(), gs.CRISIS_LINES if gs != null else []))
 	out.append_array(psy.accents.private_lines())
+	out.append_array(psy.ocd.private_lines(psy.k()))
 	return out
 
 

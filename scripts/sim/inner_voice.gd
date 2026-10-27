@@ -34,7 +34,7 @@ const TEXT := {
 	"failure": ["Zase jsem to nezvládl{g}.", "Kdybych to udělal{g} jinak…", "Tohle jsem fakt pokazil{g}."],
 	"worry": ["Co když se to zítra pokazí?", "Pořád mám pocit, že na něco zapomínám.", "Nevím, jak to všechno stihnu."],
 	"self_critical": ["Jsem prostě nedostatečn{y}.", "Ostatní to zvládají líp než já.", "Zase jsem ten problém já."],
-	"hope": ["Možná to nakonec dobře dopadne.", "Dneska to bylo lepší, než jsem čekal{g}.", "Nejsem v tom sám{a}."],
+	"hope": ["Možná to nakonec dobře dopadne.", "Dneska to bylo lepší, než jsem čekal{g}.", "Nejsem v tom úplně bez lidí."],
 	"warm": ["{name} mi dneska fakt pomohl{ng}.", "S {name} mi bylo dobře.", "Jsem rád{a}, že {name} je tady."],
 	"relief": ["Dobře, že jsme si to vyříkali.", "Už to tolik nebolí."],
 	"hopeless": ["Nevidím, jak by to mohlo být lepší.", "Kéž bych tu chvíli nemusel{g} být.", "Je toho na mě moc."],

@@ -53,7 +53,8 @@ static func my(g) -> String:
 
 ## Nahradí značky v textu: „(a)“ a „{g}“ → koncovka příčestí, „{y}“ → koncovka přídavného jména.
 static func form(text: String, g) -> String:
-	return text.replace("(a)", past(g)).replace("{g}", past(g)).replace("{y}", adj(g))
+	# {a} = stejná koncovka jako {g} (starší šablony myšlenek ji používají, dřív zůstávala doslova).
+	return text.replace("(a)", past(g)).replace("{g}", past(g)).replace("{a}", past(g)).replace("{y}", adj(g))
 
 
 ## Ukázkové věty pro náhled v editoru (review ChatGPT 49: hráč má vidět, jak bude čeština o postavě mluvit,

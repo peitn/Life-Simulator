@@ -168,6 +168,17 @@ const ACTIONS: Array = [
 		"effects": {"hunger": 4.0, "fun": 6.0}, "tags": ["coping", "coping_unhealthy", "alcohol", "solo"],
 		"posture": "stand", "coping": "drink", "base_appeal": 0.0, "content": "addiction", "effort": 0.1,
 	},
+	# OCD (psychika E): nutkavá činnost (AI jen s obsesí; popisek podle tématu) a odolání nutkání.
+	{
+		"id": "compulsion", "label": "Nutkavě něco kontroluje", "object": "", "duration": 12.0,
+		"effects": {}, "tags": ["compulsion", "solo"], "posture": "stand",
+		"base_appeal": 4.0, "effort": 0.0, "content": "mental_health", "psyche_gate": "ocd_ritual",
+	},
+	{
+		"id": "resist_urge", "label": "Odolává nutkání", "object": "", "duration": 20.0,
+		"effects": {"comfort": -2.0}, "tags": ["coping", "quiet", "solo"], "posture": "stand",
+		"base_appeal": 1.0, "effort": 0.4, "content": "mental_health", "psyche_gate": "ocd_resist",
+	},
 	# Vyhledat odbornou pomoc (linka, poradna, terapie – mimo záběr). Hráč ji může zadat vždy; AI jen
 	# s důvodem (psyche_gate: ruminace, beznaděj, později závislost či psychotické prožívání).
 	{

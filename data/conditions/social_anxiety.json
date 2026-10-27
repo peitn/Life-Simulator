@@ -1,0 +1,16 @@
+{
+	"id": "social_anxiety",
+	"label_cs": "Sociální úzkostná porucha",
+	"desc_cs": "Strach z posuzování a odmítnutí: setkání s lidmi se předem prožívají a potom se v hlavě přehrávají.",
+	"effects_cs": "Napětí před setkáním s méně blízkými lidmi, přehrávání rozhovorů a citlivost na odmítnutí; pomáhá postupná zkušenost, že to šlo, a opora blízkých.",
+	"content_tag": "mental_health",
+	"severity": [0.0, 1.0],
+	"modulations": [
+		{"target": "D.social_threat", "op": "add", "amount": 0.25, "scale": "severity",
+			"why": "Postava čeká, že ji druzí posoudí nebo odmítnou."},
+		{"target": "D.rejection_reactivity", "op": "add", "amount": 0.15, "scale": "severity",
+			"why": "Skutečné i domnělé odmítnutí zasáhne víc (strach z odmítnutí a opuštění)."},
+		{"target": "D.threat_sensitivity", "op": "add", "amount": 0.05, "scale": "severity",
+			"why": "Nejasná reakce druhého se snáz čte jako nesouhlas."}
+	]
+}

@@ -528,3 +528,35 @@ switched on in the editor, and it never changes behaviour. Without accents the t
 hooks are exactly unchanged. Muted halves the accents, off removes them.
 
 Tests: `tests/test_personality_accents.gd` (36 checks).
+
+### E. OCD loop and social anxiety (schema v14)
+
+Two new predispositions in `mind.predispositions`, both as condition profiles over the shared
+dimensions (`data/conditions/ocd.json`, `social_anxiety.json`, no legacy block, so they act through the
+residual hooks and the dispositions used by vigilance, rejection and emotions):
+- `ocd`: more need for certainty (`predictability_need`), more threat reading, less cognitive flexibility;
+- `social_anxiety`: higher expected rejection (`social_threat`), stronger reaction to real or perceived
+  rejection and abandonment (`rejection_reactivity`), slightly more threat reading.
+
+**OCD loop** (`scripts/sim/ocd_loop.gd`, theme `mind.ocd_theme`: checking, contamination, order — the
+theme only says what the doubt is about). An obsession (0..1) is triggered by data: the stove after
+cooking or the evening check (checking), eating and contact with people (contamination), cooking and
+social disorder (order), plus stress and perceived threat; it returns by itself while idle, faster the
+stronger the learned habit, and fades with distraction and sleep. Unresolved, it costs stress. The AI may
+choose the compulsion (`compulsion`, labelled by theme, gated so that it is never chosen without an
+obsession): short relief, but the habit grows (reinforcement). `resist_urge` (exposure and response
+prevention, available to the player, chosen by the AI more often with mastery and support) costs brief
+tension now and weakens the habit; it is acknowledged with "Odolal(a) jsem nutkání". Many rituals in a
+day near others bring shame. Nothing is forced: the player can cancel a ritual or command resisting at
+any time; no option dominates. Private thoughts follow the theme ("Vypnul jsem ten sporák?").
+
+**Social anxiety**: before a conversation with a less close person arousal and perceived threat rise
+(more for strangers, almost nothing with close people); a conversation that goes well then feeds the
+existing exposure learning (mastery up, sensitivity down). After conversations the character briefly
+replays them (a worry loop about that person). Less close partners are slightly less likely to be
+chosen (×0.7–1.0); the player can always send the character to talk.
+
+Modes: muted halves the loop, off removes everything (the validator also drops the predispositions).
+`Grammar.form` now also replaces `{a}` (older thought templates displayed it literally).
+
+Tests: `tests/test_ocd_social_anxiety.gd` (35 checks).

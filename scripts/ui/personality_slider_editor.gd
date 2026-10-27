@@ -97,6 +97,7 @@ func _build() -> void:
 		var preds: Dictionary = mind.get("predispositions", {})
 		var label_text := String(Schema.PREDISPOSITIONS[id]["label"])
 		_row("predispositions", String(id), label_text, float(preds.get(id, 0.0)), 0.0, 1.0)
+	_enum_row("ocd_theme", "Čeho se týká obsedantní pochybnost (jen při náchylnosti k OCD)", Schema.OCD_THEMES, String(mind.get("ocd_theme", "checking")))
 	_readout = Label.new()
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_readout.text = "Intenzita vyjadřuje predispozici v simulaci, ne diagnózu ani předpověď chování."

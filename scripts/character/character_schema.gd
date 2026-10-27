@@ -56,7 +56,9 @@ extends RefCounted
 ##     myšlenkám), 0..1, chybějící = 0,5 = průměr. Soukromé. Migrace v11 → v12 doplní {}.
 ## v13 (psychika D): mind.accents – zvýrazněné osobnostní rysy (0..1, 0 = bez akcentu) a mind.accent_labels
 ##     (volitelný soukromý výklad názvem). Soukromé. Migrace v12 → v13 doplní {} a false.
-const VERSION := 13
+## v14 (psychika E): predispozice ocd a social_anxiety (katalog) a mind.ocd_theme (čeho se pochybnost
+##     týká). Soukromé. Migrace v13 → v14 doplní výchozí téma.
+const VERSION := 14
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -278,7 +280,14 @@ const PREDISPOSITIONS := {
 		"effects": "Citlivější reakce na stres a spouštěče, možné panické ataky; pomáhá dýchání, opora a postupná expozice."},
 	"depression": {"label": "Depresivní porucha", "content": "mental_health",
 		"effects": "Sklon k obdobím skleslosti: méně radosti a energie začít; pomáhá aktivita, kontakt, spánek a čas."},
+	"ocd": {"label": "Obsedantně-kompulzivní porucha", "content": "mental_health",
+		"effects": "Vtíravá pochybnost a nutkavá činnost s krátkou úlevou; smyčku zmírňuje postupné odolávání nutkání a opora."},
+	"social_anxiety": {"label": "Sociální úzkostná porucha", "content": "mental_health",
+		"effects": "Strach z posuzování a odmítnutí, napětí před setkáním a přehrávání rozhovorů; pomáhá zkušenost, že to šlo, a blízcí lidé."},
 }
+## Téma obsedantní pochybnosti (v14).
+const OCD_THEMES := {"checking": "Kontrolování (sporák, dveře)", "contamination": "Čistota a znečištění",
+	"order": "Pořádek a souměrnost"}
 ## Traumata v příběhu postavy (dopady přibudou se systémem paměti a spouštěčů – PTSD).
 const TRAUMAS := {
 	"ztrata_blizkeho": {"label": "Ztráta blízkého člověka", "content": "mental_health"},
@@ -400,6 +409,7 @@ const GROUPS := {
 		"thoughts": ["axes", THOUGHT_SLIDERS, 0.0, 1.0],   # v12: styl vnitřního hlasu (0,5 = průměr)
 		"accents": ["axes", ACCENT_SLIDERS, 0.0, 1.0],     # v13: osobnostní akcenty (0 = bez akcentu)
 		"accent_labels": ["b", false],                     # v13: ukazovat soukromě i výkladový název
+		"ocd_theme": ["e", OCD_THEMES, "checking"],         # v14: čeho se obsedantní pochybnost týká
 		"traumas": ["set", TRAUMAS, MAX_TRAUMAS],
 		"morning_worse": ["b", false],
 	}},
