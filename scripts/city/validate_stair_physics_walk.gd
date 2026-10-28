@@ -11,6 +11,7 @@ class Walker extends CharacterBody3D:
 	var max_y := 0.0
 	var max_tick_distance := 0.0
 	var floor_ticks := 0
+	var ascent_min_dy := 0.0
 	func _physics_process(delta: float) -> void:
 		if finished: return
 		ticks += 1
@@ -29,14 +30,24 @@ class Walker extends CharacterBody3D:
 				# For this centered 1.6m capsule, foot is origin.y - 0.8m.
 				# Avoid repeat lift when prospective support is not 8cm above current foot.
 				if test_move(ahead,Vector3(0,-.24,0),support) and support.get_normal().dot(Vector3.UP) > .7 and support.get_position().y > global_position.y - .8 + .08:
-					move_and_collide(Vector3(0,.22,0))
-					lifts += 1
+					# Prospective capsule center from whole-shape sweep, not contact point.
+					var destination := raised
+					destination.origin += horizontal.normalized()*.20
+					var landing := KinematicCollision3D.new()
+					if test_move(destination,Vector3(0,-.24,0),landing):
+						var lift := clampf(.22 + landing.get_travel().y + .001,.001,.22)
+						var target := global_transform
+						target.origin.y += lift
+						if not test_move(global_transform,Vector3(0,lift,0)) and not test_move(target,horizontal):
+							move_and_collide(Vector3(0,lift,0))
+							lifts += 1
 		velocity.x = 0
 		velocity.z = direction*1.5
 		velocity.y = -0.1 if grounded else velocity.y-9.8*delta
 		move_and_slide()
 		apply_floor_snap()
 		if is_on_floor(): floor_ticks += 1
+		if phase == 0: ascent_min_dy = min(ascent_min_dy,global_position.y-start.y)
 		max_y = max(max_y,global_position.y)
 		max_tick_distance = max(max_tick_distance,start.distance_to(global_position))
 		if phase == 0 and global_position.z < -5.2 and is_on_floor():
@@ -96,6 +107,7 @@ func run() -> void:
 	check(walker.max_tick_distance < .26,"no teleport-sized per-tick motion")
 	check(abs(walker.position.x-.5)<.005,"no lateral escape")
 	check(walker.floor_ticks > walker.ticks*.8,"grounded for majority of traversal")
-	print("PHYSICS_STAIR ",passed,"/",passed+failed," failed=",failed," ticks=",walker.ticks," lifts=",walker.lifts," floor_ticks=",walker.floor_ticks," max_tick_m=",walker.max_tick_distance," final=",walker.position," top=",walker.reached_top)
+	print("PHYSICS_STAIR ",passed,"/",passed+failed," failed=",failed," ticks=",walker.ticks," lifts=",walker.lifts," floor_ticks=",walker.floor_ticks," max_tick_m=",walker.max_tick_distance," final=",walker.position," top=",walker.reached_top," ascent_min_dy=",walker.ascent_min_dy)
 	demo.free()
 	quit(0 if failed==0 else 1)
+

@@ -669,3 +669,13 @@ hodnoty".
   speech line), which is the only way others learn it.
 
 Tests: `tests/test_worldview.gd` (27 checks).
+
+## Crying and compounded distress (28 October 2026)
+
+Crying is an expression of the 19-axis emotional model (hysteresis on sadness), not a 20th emotion and not the
+private, stable `mind.self_defectiveness` belief. Its onset raises a local `crying_changed` signal that the audio layer
+may voice offline (see [audio.md](audio.md)); it is never serialised or replicated. A regression in
+`test_withdrawal_avoidance` combines maximal inner defectiveness, a severe depressive episode, stress 95, high threat
+and a recent hurt: social initiative drops (chat score 32.7 → 17.0) but never to zero, confiding remains possible, and
+rumination opens a voluntary professional-help option. High distress never creates an automatic dangerous action;
+self-harm and suicide remain non-playable.

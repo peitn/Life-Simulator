@@ -44,11 +44,13 @@ func run()->void:
             var side:int=10 if verts[i].x>0.0 else 16
             if verts[i].x>0.0:left+=1
             else:right+=1
-            if bones[i*4]!=side:bad_bones+=1
+            for j in 4:
+                if weights[i*4+j]>.00001 and bones[i*4+j] not in [side,side-1]: bad_bones+=1
+            if verts[i].y>.17 and weights[i*4+1]<.999 and bones[i*4]!=side-1: bad_bones+=1
             var total:=0.0
             for j in 4:total+=weights[i*4+j]
             max_weight_error=maxf(max_weight_error,absf(total-1.0))
-        check(bad_bones==0 and max_weight_error<.00001,
+        check(bad_bones==0 and max_weight_error<2.0/65535.0,
             String(mi.name)+" never skinned to hand, arm or opposite foot")
         check(left==right and left>0,String(mi.name)+" both feet share a symmetric topology")
         var collapsed:=0

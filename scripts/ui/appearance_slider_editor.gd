@@ -16,7 +16,7 @@ const BODY_LABELS := {
     "frame":"Tělesná stavba", "muscle":"Svalstvo", "body_fat":"Tělesný tuk",
     "shoulders":"Šířka ramen", "chest":"Hrudník", "bust":"Poprsí",
     "waist":"Pas", "hips":"Boky", "leg_length":"Délka nohou",
-    "head_size":"Velikost hlavy", "neck_length":"Délka krku"}
+    "hand_size":"Velikost rukou", "head_size":"Velikost hlavy", "neck_length":"Délka krku"}
 const SKIN_LABELS := {
     "tone":"Pigmentace pleti", "undertone":"Podtón (studený – teplý)",
     "redness":"Prokrvení", "freckles":"Pihy", "moles":"Znaménka",

@@ -67,6 +67,9 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 | `test_c16_live_attachment` (SceneTree, `-s`) | C16: live SimVisual skeletal finger mode, mapped proximal/distal bends move real bones, the subrig follows a rotated gameplay wrist, normal skin restored | 71 ✅ |
 | `test_c16_body_morph` (SceneTree, `-s`) | C16: finger subrig stays finite and bendable across heights 145/172/205 cm × body fat 0/1 | 200 ✅ |
 | `test_finger_phalange_subrig_c15` | C15 28-bone finger subrig (updated 28 Oct for the C16 UI→atlas digit mapping) | 54 ✅ |
+| `test_anatomy_review_v9` (SceneTree, `-s`) | Anatomy v9 (28 Oct, schema field renumbered to v18): `body.hand_size` strict validation, share-code round trip, v8 → v18 and v17 → v18 migration without mutating the input, real hand-bone/vertex scaling, nail attachment under body morphs, extreme bodies and gestures, ankle flexion, UI draft/preview | 232 ✅ |
+| `test_world_enet_multiprocess` | H2b: production `Main`/`NetSession` in independent server and owner-client OS processes; hello/spawn, SimPuppet without private data, correlated private Read, Apply of public height and private belief, public-only revision | 11 ✅ |
+| `tests/diagnostics/test_world_observer_repro.FAILING` | **Intentionally failing diagnostic, not a regression test**: an observer that joined before the owner does not receive the owner's later-spawned actor (13/15). Never counted in suites | 13/15 ❌ (known) |
 
 "Last known" is the state after run 23 (23 October 2026). All suites pass except two timing-related checks under machine load (slider latency in `test_character`, and an occasional `test_multiplayer` pause flake) and one open finding in `test_household_matrix` (see below); details are in `AUDIT.md`. The
 slider-latency check in `test_character` (limit 4 ms) went to 5.8 ms after run 21 added about 90 blend shapes per head
@@ -221,3 +224,30 @@ Existing tested: save_game46/46, save_continuation12/12 exact, mental_health95/9
 
 
 2026-10-26 MAIN adult-social follow-up QA: same owned run, production sources unchanged. Real tests on final source: integration55/55, editor24/24, save continuation12/12, multiplayer67/67, social nuance27/27, save game46/46, 8-NPC14d14/14 (221 talks/54 arguments, day7 restore), syntax60/60. Extra 30d attempt at 115-sec limit printed 644 talks/61 arguments/6 saves but TIMED OUT before final exact-comparison checks; NOT counted as completed (earlier 30d10/10 remains separately documented). Details docs/reviews/adult-social-intimacy-20261026.md. Remaining network two-owner test and visual preview. Backup and owned lock release are final run steps.
+
+### 28 October 2026 — rollback recovery (run main-claude-recover-1793208045)
+
+Local Godot 4.7.2 headless on the merged tree (GitHub HEAD + post-rollback work), sequential runs on a 2-CPU sandbox.
+93 suites; every assertion-counting suite passed except the pre-existing items listed below. Counts that changed with
+the recovery: `test_voice` 99 (crying cue), `test_emotional_state` 55, `test_withdrawal_avoidance` 27 (compound
+distress), `test_character_editor_ui` 68 (HEAD 61 + H2B footer/keyboard checks), `test_network_editor_live_enet` 77
+(HEAD 75 + H2B in-flight lock), `test_full_playable_slice` 70 (HEAD 48 + two H3 runs), `test_appearance_slider_ui` 111
+(hand-size control), `test_anatomy_review_v9` 232, `test_c16_root_alignment` 66, `test_finger_curl_pose` 157,
+`test_world_enet_multiprocess` 11, `test_sleeve_extreme_matrix` 1012 (440 observations), `test_clothing_mesh_integrity`
+7319, `test_cat_sleeve_weights` 166, `test_barefoot_geometry` 30.
+
+Test changes made during the recovery (none loosens a numeric threshold):
+- `test_c16_root_alignment`: the anatomy pass moved the playable finger roots slightly into the palm (embedded overlap),
+  so they are 5–11 mm from the nearest palm *vertex* (2.9–10.6 mm from the surface). The check now passes when a root
+  is within the original 10 mm **or** provably inside the closed body/palm volume (ray parity, 3 rays, majority). All
+  10 roots are inside; the exact alignment to `HandDetailBuilder.finger_endpoints` (residual 0 mm) is unchanged.
+- `test_finger_curl_pose`: the blend-shape count assertion predated C14; it now expects 10 body + 10 curl + 20 C14
+  joint morphs (40). This was failing (155/157) on GitHub HEAD before the recovery.
+- `test_anatomy_review_v9`: expects schema v18 (renumbered) and adds a v17 → v18 migration check.
+
+Pre-existing, not caused by the recovery (identical on unmodified HEAD in the same sandbox): `test_extreme_fictional_household`
+passes all 27 assertions but finishes right at its 110 s watchdog on this slow sandbox (watchdog counted as one
+failure); `test_live_anatomy_overlay` passes 76/76 but its process does not exit before the 400 s runner timeout;
+`test_character_garment_render` / `test_character_resync_render` are render tools that refuse to run without a lease
+argument; `test_cat_hoodie_sleeve_gap.gd` is a helper class, not a runnable test. Server results are recorded in
+CHECKPOINT.

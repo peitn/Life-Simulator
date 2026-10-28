@@ -1,0 +1,98 @@
+{
+  "entries": {
+    "bed_double": {
+      "bounds_max": [
+        0.870000004768372,
+        1.00128996372223,
+        1.04999983310699
+      ],
+      "bounds_min": [
+        -0.870000004768372,
+        0.0,
+        -1.07000005245209
+      ],
+      "capacity": 2,
+      "collision": "conservative single body box; walking/navmesh integration under M6",
+      "pose_convention": "floor-level actor origin; posture animation sets pelvis height",
+      "scene": "scenes/city/m2_bed_double.tscn",
+      "scene_sha256": "55523773c3a37b412e74f57303c5c2e5eabfa9eafe627751919dd2d582f5732d",
+      "source": "assets/models/bed_double.glb",
+      "source_sha256": "d1b54a340f97fd15e6d594ea8b5fd6c4cfc748d65127ac070953fe2843c605ac",
+      "surface_heights_m": [
+        0.49003791809082,
+        0.49003791809082
+      ],
+      "triangles": 4200
+    },
+    "bed_single": {
+      "bounds_max": [
+        0.5,
+        0.894999980926514,
+        1.04999995231628
+      ],
+      "bounds_min": [
+        -0.5,
+        0.0,
+        -1.04999995231628
+      ],
+      "capacity": 1,
+      "collision": "conservative single body box; walking/navmesh integration under M6",
+      "pose_convention": "floor-level actor origin; posture animation sets pelvis height",
+      "scene": "scenes/city/m2_bed_single.tscn",
+      "scene_sha256": "10f30272bee7ec72c4ec6ddc513388fe02b9a5a4b671ab4e752090dbaeec503d",
+      "source": "assets/models/bed_single.glb",
+      "source_sha256": "3c2b2f6e445b1279db6c391e50cb28701003834e56bb7d57664dad213038e90f",
+      "surface_heights_m": [
+        0.490039706230164
+      ],
+      "triangles": 2472
+    },
+    "fridge": {
+      "bounds_max": [
+        0.340000003576279,
+        1.87000000476837,
+        0.356000006198883
+      ],
+      "bounds_min": [
+        -0.340000003576279,
+        0.0,
+        -0.349999994039536
+      ],
+      "capacity": 1,
+      "collision": "conservative single body box; walking/navmesh integration under M6",
+      "pose_convention": "floor-level actor origin; posture animation sets pelvis height",
+      "scene": "scenes/city/m2_fridge.tscn",
+      "scene_sha256": "21045c39a884b4d262a28c00801648eb5da42f0f9774fc7420c34f672d6f847f",
+      "source": "assets/models/fridge.glb",
+      "source_sha256": "89e075c41f1def3cb3942056f333b779dee169b2fc6477abc51488c5850b291f",
+      "surface_heights_m": [],
+      "triangles": 868
+    },
+    "sofa": {
+      "bounds_max": [
+        1.10000002384186,
+        0.824999988079071,
+        0.439999997615814
+      ],
+      "bounds_min": [
+        -1.10000002384186,
+        0.0,
+        -0.449999988079071
+      ],
+      "capacity": 2,
+      "collision": "conservative single body box; walking/navmesh integration under M6",
+      "pose_convention": "floor-level actor origin; posture animation sets pelvis height",
+      "scene": "scenes/city/m2_sofa.tscn",
+      "scene_sha256": "1d2dd3ccfccce8cc13447bbfaa30358201a248f2f4fb2ebf81ce2715a3b6d76f",
+      "source": "assets/models/sofa.glb",
+      "source_sha256": "bbcc3a6ed228e58dcd3ea2c35cc6b47ae562f77c3bfc2f24ef955ff6d8511d64",
+      "surface_heights_m": [
+        0.435344576835632,
+        0.435344099998474
+      ],
+      "triangles": 2896
+    }
+  },
+  "run_id": "city-m2-furniture-1793197261",
+  "version": "1.0"
+}

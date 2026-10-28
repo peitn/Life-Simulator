@@ -37,6 +37,8 @@ signal panic_changed(sim: Node3D, active: bool)
 ## Běžný rozhovor skončil (ne urážka/omluva/svěření): info = {success, avg_mood, complaint,
 ## deescalated, p} – statistiky domácnosti (HouseholdDynamics) a později HUD.
 signal conversation(sim: Node3D, partner: Node3D, info: Dictionary)
+## Offline local audio presentation only; NEVER serialized or replicated as private emotions.
+signal crying_changed(sim: Node3D, active: bool)
 ## Locally-authorized, opt-in non-graphic notice, NEVER an RPC/public snapshot.
 signal private_sensitive_event_notice(text: String)
 
@@ -135,6 +137,9 @@ var rejection = RejectionResponse.new()
 var emotions = EmotionalState.new()
 ## Stable self-belief (0..1), privately sourced from CharacterData.mind; NOT an emotion meter.
 var self_defectiveness_belief := 0.0
+## Tracks only edge-triggered audible expression; restored emotional saves need no sound on load.
+var _crying_last := false
+var _crying_edge_ready := false
 ## Rozšíření psychiky (neuro profil a další osy, scripts/sim/psyche_ext.gd). Soukromé, vlastní RNG.
 var psy = PsycheExt.new()
 ## Stabilní interní uid postavy (z CharacterData; klíč sociální paměti, nikdy jméno). Soukromé.
@@ -415,6 +420,12 @@ func sim_tick(dm: float) -> void:
 		"regulation": mental.regulation(float(needs.values["energy"]), float(needs.values["hunger"])),
 		"support": mental.support, "sleeping": _is_sleeping(),
 		"social_drive": Traits.weight(trait_profile, "spolecensky")})
+	if not _crying_edge_ready:
+		_crying_last = emotions.crying
+		_crying_edge_ready = true
+	elif _crying_last != emotions.crying:
+		_crying_last = emotions.crying
+		crying_changed.emit(self, _crying_last)
 	intimacy.tick(dm, {"safety": emotions.level("safety") / 100.0,
 		"stress": mental.stress, "energy": needs.values["energy"], "now": now()})
 	if speech != "" and _clock.total_minutes > speech_until:

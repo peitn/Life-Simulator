@@ -111,7 +111,7 @@ static func scales(body: Dictionary) -> Dictionary:
 	# kost hlavy: absolutní velikost = s · head; z rovnice s kvantovaným s → temeno přesně v h.
 	s = maxf(s, 0.1)   # pojistka (audit Gemini): _val ořezává výšku, takže s ≈ 0,8–1,2 – nula nenastane
 	var head := roundf((h - s * b) / (s * c) * Q_HEAD) / Q_HEAD
-	return {"height_scale": s, "head_scale": head, "leg_scale": ls, "lift": lift, "neck": nk}
+	return {"hand_scale": _q(1.0 + .20 * _val(body, "hand_size")), "height_scale": s, "head_scale": head, "leg_scale": ls, "lift": lift, "neck": nk}
 
 
 ## Výška temene (m) pro dané parametry – kontrola v testech.

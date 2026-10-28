@@ -1,0 +1,111 @@
+{
+  "version": "1.0",
+  "license": "Original Life Simulator assets; all rights reserved",
+  "units": "meters",
+  "modules": {
+    "foundation_2m": {
+      "triangles": 12,
+      "parts": 1,
+      "pivot": "front left top",
+      "glb_sha256": "0c54495383f139620b913af5a67fa06a14e5af4cb8e54f53be38e9990c9814c8"
+    },
+    "roof_flat_2m": {
+      "triangles": 12,
+      "parts": 1,
+      "pivot": "front left base",
+      "glb_sha256": "2a63b057d95879447730f52e6c60b8b997c3296a22f258bf21ac76823207f333"
+    },
+    "door_leaf_1m": {
+      "triangles": 60,
+      "parts": 5,
+      "pivot": "hinge bottom",
+      "glb_sha256": "92d4caf666b8be04741757f3ec655f1cc2ce7415d42fa6d53523015f07d40dfe"
+    }
+  },
+  "materials": {
+    "plaster": {
+      "maps": [
+        "plaster_albedo.png",
+        "plaster_normal.png",
+        "plaster_roughness.png"
+      ],
+      "size": [
+        128,
+        128
+      ],
+      "tile_m": 1,
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "brick": {
+      "maps": [
+        "brick_albedo.png",
+        "brick_normal.png",
+        "brick_roughness.png"
+      ],
+      "size": [
+        128,
+        128
+      ],
+      "tile_m": 1,
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "concrete": {
+      "maps": [
+        "concrete_albedo.png",
+        "concrete_normal.png",
+        "concrete_roughness.png"
+      ],
+      "size": [
+        128,
+        128
+      ],
+      "tile_m": 1,
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "wood": {
+      "maps": [
+        "wood_albedo.png",
+        "wood_normal.png",
+        "wood_roughness.png"
+      ],
+      "size": [
+        128,
+        128
+      ],
+      "tile_m": 1,
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "tile": {
+      "maps": [
+        "tile_albedo.png",
+        "tile_normal.png",
+        "tile_roughness.png"
+      ],
+      "size": [
+        128,
+        128
+      ],
+      "tile_m": 1,
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "roof": {
+      "maps": [
+        "roof_albedo.png",
+        "roof_normal.png",
+        "roof_roughness.png"
+      ],
+      "size": [
+        128,
+        128
+      ],
+      "tile_m": 1,
+      "normal": "OpenGL +Y",
+      "original": true
+    }
+  }
+}

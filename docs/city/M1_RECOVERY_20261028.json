@@ -1,0 +1,19 @@
+{
+  "milestone": "M1 complete; M2 started",
+  "next": "M2 sofa placement,seat/approach points and existing reservation integration",
+  "overlay_sha256": "cf56e2be417acc5a791a374ba7454def50728f80c380f1499582b88175b21d22",
+  "recovery_library_file_id": "libfile_af389705885c8191a471b4ef7527b6d1",
+  "restored_final_suite": "27/27 exit0;1193 positive checks; expected negatives verified",
+  "run_id": "city-m1-complete-1793194638",
+  "saved_scenes": {
+    "door_hinged_1m.tscn": "cf9fb8170fceb1a0af1c9b622cb5bfa6979c1ffe9c5fda5fef970bae8baf7b85",
+    "foundation_2m.tscn": "1486dd54b33618f2fbf86a7d5e155d06f3f29f94f78cf8c29b1a9fe1bdc418a5",
+    "roof_flat_2m.tscn": "861daba0c10c95de9ddeb8da09f14f062765415c003e08d053384f8807348c82"
+  },
+  "source_asset_paths": [
+    "assets/city/m1_finishing_kit.blend",
+    "assets/city/m1_catalog.json"
+  ],
+  "standard_remote_backup": "RESTORED: full Godot dataset backup succeeded before M2 (119453KB); library9115KB; final current snapshot at run close",
+  "verified_overlay_files": 44.0
+}

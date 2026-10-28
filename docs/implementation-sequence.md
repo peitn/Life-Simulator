@@ -20,6 +20,44 @@ The room is context, not authority to expand scope or overwrite newer work.
 | H7 | Release-quality integration of this slice | Fresh checkout/import/build, audio generation, regression suite, stable multiplayer pause test, keyboard/mouse playthrough, save/load and deployment artifact verification; README/checkpoint describe actual state |
 | H8 | Continue the remaining approved roadmap | Implement existing mental-health axes between creator milestones where dependencies allow, then world/careers/economy and other planned systems in tested vertical slices. Do not pull reserve circulatory/LLM/social-policy proposals into scope automatically. |
 
+## H2/H2b accepted for functional scope — 28 October 2026
+
+**H2 / H2b is FUNCTIONALLY COMPLETE in the live Godot project.**
+The shared offline/host/native owner-only character editor is visible
+from the actual HUD, supports a private draft, continuous personality/
+psyche and appearance controls, all five wardrobe categories, subculture
+presets including the pink cat hoodie, isolated 3D preview, Apply/Cancel/
+Undo/Redo, keyboard shortcuts and a tested 320px responsive footer.
+ENet owner authentication, rate limits, revision conflicts, canonical
+readback and public-only replication were tested in real transport.
+
+Final acceptance matrix and exact changes:
+`docs/H2B_FUNCTIONAL_ACCEPTANCE_20261028.md`.
+
+*Recovery note (28 Oct, run main-claude-recover-1793208045):* this gate was
+completed on the rolled-back server and then lost by a second restore. The
+H2B editor changes (320px footer, Ctrl+Z/Y/Shift+Z/Ctrl+Enter/Esc, central
+`_draft_mutable()` lock during in-flight Apply/readback, also applied to the
+newer voice editor and orientation slider) were ported onto the GitHub HEAD
+editor and re-verified locally: editor UI 68/68 and real ENet owner UI 77/77
+(the HEAD suites plus the H2B checks), host editor 10/10. H2/H2b stays
+functionally complete; H3 is in progress (see CHECKPOINT).
+Live H2b UI **62/62**, real owner ENet UI **58/58**, private Read
+**53/53**, network Apply **97/97**, owner authorization **75/75**,
+host UI **10/10**, 3D preview **13/13**, appearance **108/108**,
+wardrobe **14/14**, playable flow **45/45**, and Godot syntax
+**60/60**, all successful with no failed assertions.
+
+The connected engine is headless. A direct bitmap screenshot could not be
+captured; proper rendered front/side/back visual inspection remains under
+**H6**, NOT an open H2b implementation task. Do not mark the entire
+project complete and do not interpret this as full network security
+certification or proof of every unreleased feature.
+
+**Next development milestone is H3:** finish and verify creator-to-
+household identity/grammar/appearance/personality/psyche independence and
+spawn parity, respecting existing ownership and privacy guards.
+
 H0 and H1 may finish together. After every gate, update the checkpoint with exact evidence and next work.
 Do not mark the whole project complete after one milestone. Missing UI, persistence, or a failed test remains open.
 Prefer fixing the existing implementation over adding duplicate systems.

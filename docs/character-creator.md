@@ -420,3 +420,29 @@ editable and audible:
   the voice heard in game are bit-identical because both use the canonical 0.001 values.
 
 Test: `tests/test_voice.tscn` (86 checks).
+
+## Hand size (schema v18, 28 October 2026)
+
+`body.hand_size` (−1..1, default 0, public) scales both hand bones from 0.8× to 1.2× around their joints, so the palm,
+the procedural fingers and the nails change together while forearm length stays independent. It is exposed in the
+schema-generated body category as **Velikost rukou**; the randomizer appends its draw after all earlier fields so
+existing seeds keep their previous values; identity never determines it. The anatomy run that introduced it on the
+rolled-back server called it "schema v9"; because psyche slice A already used v9 (and HEAD was at v17), the recovery
+renumbered it to **v18**, chained after v17 (`CharacterCodec._v17_to_v18` fills 0 without mutating the input). Every
+older save (v1 … v17) migrates to v18. The same anatomy pass (28 Oct) also: made the digits and feet share the palm's
+skin ShaderMaterial (CUSTOM0 rest positions), fixed digit order/lengths (index, middle, ring, little, thumb; middle
+longest) and moved both thumbs to the medial palm edge, sampled one rigid palm displacement per digit so nails cannot
+shear off under body morphs, replaced intersecting ankle/sole cylinders with one continuous heel–ankle mesh, and pulled
+each legacy sleeve's upper ring 90 % onto the shirt shell (440-observation sleeve matrix: worst median 1.76 mm, worst
+maximum 2.77 mm). Finger roots now sit slightly inside the palm volume; the C16 subrig still aligns exactly to
+`HandDetailBuilder.finger_endpoints`. Review: `docs/reviews/character-anatomy-hands-sleeves-20261028.md`.
+
+## Editor: narrow screens, keyboard, in-flight lock (H2B finish, 28 October 2026)
+
+The live/owner character editor (`scripts/ui/character_editor_panel.gd`) reflows its footer into two rows below 640 px
+(tested at 320×600, Apply and Cancel stay on screen), lets the body scroll horizontally instead of widening the modal,
+and supports **Ctrl+Z** (undo), **Ctrl+Y** / **Ctrl+Shift+Z** (redo), **Ctrl+Enter** (apply) and **Esc** (cancel).
+A central `_draft_mutable()` check blocks every draft change – sliders, voice, appearance, outfits, styles,
+private-sexuality controls, Undo/Redo – while an authenticated network Apply or its canonical readback is in flight,
+after a conflict or owner change, or when the network mode switched since the editor opened. See
+`docs/H2B_FUNCTIONAL_ACCEPTANCE_20261028.md`.

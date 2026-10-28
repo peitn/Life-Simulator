@@ -145,7 +145,7 @@ func _build_hand_details() -> void:
 		skeleton.add_child(mi)
 		mi.skeleton = NodePath("..")
 		mi.skin = source.skin
-		mi.material_override = _hand_skin_material if label == "skin" else _hand_nail_material
+		mi.material_override = _mats.get("skin_body", _hand_skin_material) if label == "skin" else _hand_nail_material
 		_hand_detail_nodes.append(mi)
 
 
@@ -393,7 +393,7 @@ func _build_foot_details() -> void:
 		skeleton.add_child(mi)
 		mi.skeleton = NodePath("..")
 		mi.skin = source.skin
-		mi.material_override = _foot_skin_material if label == "skin" else _foot_nail_material
+		mi.material_override = _mats.get("skin_body", _foot_skin_material) if label == "skin" else _foot_nail_material
 		mi.visible = false
 		_foot_detail_nodes.append(mi)
 
@@ -908,6 +908,10 @@ func apply_body_shape(lp: Dictionary) -> int:
 			var bi := skel.find_bone(bone)
 			if bi >= 0:
 				skel.set_bone_pose_scale(bi, Vector3(1.0, ls, 1.0))
+		for hand in ["hand_l", "hand_r"]:
+			var hi := skel.find_bone(hand)
+			if hi >= 0:
+				skel.set_bone_pose_scale(hi, Vector3.ONE * float(lp.get("hand_scale", 1.0)))
 		var hb := skel.find_bone("head")
 		if hb >= 0:
 			skel.set_bone_pose_scale(hb, Vector3.ONE * float(lp.get("head_scale", 1.0)))

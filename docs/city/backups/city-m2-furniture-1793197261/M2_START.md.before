@@ -1,0 +1,27 @@
+# M2 started — furniture and fixtures
+
+Prerequisite: M1 asset kit accepted in `M1_ACCEPTANCE_20261028.md`.
+This inventory is the transition into M2, not a finished furniture system.
+
+Existing original models were checked in the live Godot project on
+28 October 2026; reuse these instead of creating duplicates.
+
+| Asset | Existing path | SHA-256 |
+| --- | --- | --- |
+| Sofa | assets/models/sofa.glb | bbcc3a6ed228e58dcd3ea2c35cc6b47ae562f77c3bfc2f24ef955ff6d8511d64 |
+| Single bed | assets/models/bed_single.glb | 3c2b2f6e445b1279db6c391e50cb28701003834e56bb7d57664dad213038e90f |
+| Double bed | assets/models/bed_double.glb | d1b54a340f97fd15e6d594ea8b5fd6c4cfc748d65127ac070953fe2843c605ac |
+| Fridge | assets/models/fridge.glb | 89e075c41f1def3cb3942056f333b779dee169b2fc6477abc51488c5850b291f |
+
+Next single implementation: inspect the current `scripts/world` and
+`scripts/sim` object/action and reservation interfaces, then adapt the sofa
+into a city-owned reusable scene with measured bounds, placement clearance,
+seat points and reachable approach points. Verify occupied-seat rejection
+and scene transformations. Main runtime integration is coordinated through
+HANDOFF; do not create a second reservation or agent action system.
+
+Continue with bed/sleep points and fridge/access points, matching the existing
+models and simulation. Add compatible variants only when required by the
+approved M2 scope. Keep meters, 0.5m placement grid and v3 lease/backup/test/
+audit/real-render practice. M3 roads/terrain and later milestones remain in
+the ordered queue.

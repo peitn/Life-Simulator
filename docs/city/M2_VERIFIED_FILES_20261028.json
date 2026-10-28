@@ -1,0 +1,30 @@
+{
+  "files": {
+    "assets/city/m2_catalog.json": "a59c36e63b14905fc85b2ab349e62f0266a49d6eafee00692e07066549f37906",
+    "docs/city/CHECKPOINT.md": "71f92287b0efde99510ee3afe6f21beaa82651188faafb7872ccd064d9d3425c",
+    "docs/city/HANDOFF.md": "e5d561b84fa0e7e49a843fb03af60fe9079c40ff1c354d700639fc23d24d8206",
+    "docs/city/M2_FURNITURE_SLICE_20261028.md": "d3cae76eff28657bb01fd39b560d1c9a1f34e1f74fc2acb5ac6cd67f7c8030f6",
+    "docs/city/M2_START.md": "286152fb5fcd25d557db8648e9596287d106768ff82c799450ed878b6b6e1a70",
+    "docs/city/PLAN.md": "0bfa0823d606ffe85b0f4e4affb78b4fd96a603fc02471ed676c3a040a4e5c78",
+    "docs/city/m2-final-tests-20261028.json": "144fce058407cd6b352869e8a70abdb6f62731b88ad12594342b14234aa16454",
+    "docs/city/m2_furniture_manifest.json": "bf6e6de8b665b77fd735436e21a677fd68dbc53cb6de4cda866ed2342f1b2658",
+    "scenes/city/m2_bed_double.tscn": "55523773c3a37b412e74f57303c5c2e5eabfa9eafe627751919dd2d582f5732d",
+    "scenes/city/m2_bed_single.tscn": "10f30272bee7ec72c4ec6ddc513388fe02b9a5a4b671ab4e752090dbaeec503d",
+    "scenes/city/m2_fridge.tscn": "21045c39a884b4d262a28c00801648eb5da42f0f9774fc7420c34f672d6f847f",
+    "scenes/city/m2_showcase.tscn": "0a75e278f0c4a2195ce1676866c4bc65b14851c2afea12bcad902fda83653d04",
+    "scenes/city/m2_sofa.tscn": "1d2dd3ccfccce8cc13447bbfaa30358201a248f2f4fb2ebf81ce2715a3b6d76f",
+    "scripts/city/build_m2_furniture.gd": "90f3c262c4037058794d678e6bbdd3cf725590057ca50f49bdcb093943b45ae0",
+    "scripts/city/m2_furniture.gd": "5c9173126545bf6eb2067dff90546fdd972a4260debf0bef3951a43ad3dd3436",
+    "scripts/city/m2_showcase.gd": "39b82df81dbdf1b062184f3db19bdcefc8854c55e3bf1021a334e07c34c15972",
+    "scripts/city/render_m2_furniture.gd": "1186525112d20639a251eaf90ebde8d895637775d9cc1dba88e85b453951effb",
+    "scripts/city/validate_m2_agents.gd": "5bbcf19ef87fd6b367a20cb31b9d4a48f19293af22f55781818465b9608a30b8",
+    "scripts/city/validate_m2_furniture.gd": "bdf8e29141fd964cd430a2d94f5056609db704ab25e0ba1a1d92c790faee2100",
+    "scripts/city/validate_m2_lifecycle.gd": "7f1fe6f5296b978a4527c2617377f66ab7fb43692a1f1c32eff7f79ebd04a303"
+  },
+  "positive_assertions": 888,
+  "retention": "existing fixed-path snapshot + periodic squash; unchanged",
+  "run_id": "city-m2-furniture-1793197261",
+  "snapshot_mode": "complete current Godot projects + NPC state; complete library via backup_now",
+  "stage": "M2 in progress; four original furniture adapters verified",
+  "syntax": "60/60"
+}

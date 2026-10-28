@@ -30,7 +30,9 @@ func run() -> void:
     for part in [skin,nail]:
         var label:String=String(part.name)
         var mesh:Mesh=part.mesh
-        check(mesh.get_blend_shape_count()==20,label+" includes original ten body morphs plus 10 curls")
+        # C14 (27 Oct) added 20 independent proximal/distal joint morphs per finger set:
+        # 10 body morphs + 10 curls + 20 joint channels = 40 (this assertion predated C14).
+        check(mesh.get_blend_shape_count()==40,label+" includes ten body morphs, 10 curls and 20 C14 joint morphs")
         var source:PackedVector3Array=mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
         var morphs:Array=mesh.surface_get_blend_shape_arrays(0)
         var chunk:int=51 if part==skin else 9

@@ -1,0 +1,70 @@
+{
+  "version": "1.0",
+  "current_milestone": "M2",
+  "completed": [
+    "M0",
+    "M1"
+  ],
+  "units": "meters",
+  "grid_m": 0.5,
+  "modules": [
+    {
+      "name": "wall_solid_2m",
+      "scene": "scenes/city/wall_solid_2m.scn"
+    },
+    {
+      "name": "wall_corner_2m",
+      "scene": "scenes/city/wall_corner_2m.scn"
+    },
+    {
+      "name": "wall_window_2m",
+      "scene": "scenes/city/wall_window_2m.scn"
+    },
+    {
+      "name": "wall_doorway_2m",
+      "scene": "scenes/city/wall_doorway_2m.scn"
+    },
+    {
+      "name": "door_hinged_1m",
+      "scene": "scenes/city/door_hinged_1m.tscn"
+    },
+    {
+      "name": "floor_tile_2m",
+      "scene": "scenes/city/floor_tile_2m.scn"
+    },
+    {
+      "name": "ceiling_tile_2m",
+      "scene": "scenes/city/ceiling_tile_2m.scn"
+    },
+    {
+      "name": "foundation_2m",
+      "scene": "scenes/city/foundation_2m.tscn"
+    },
+    {
+      "name": "staircase_straight_3m",
+      "scene": "scenes/city/staircase_straight_3m.scn"
+    },
+    {
+      "name": "roof_gable_2m",
+      "scene": "scenes/city/roof_gable_2m.scn"
+    },
+    {
+      "name": "gable_infill_2m",
+      "scene": "scenes/city/gable_infill_2m.scn"
+    },
+    {
+      "name": "roof_flat_2m",
+      "scene": "scenes/city/roof_flat_2m.tscn"
+    }
+  ],
+  "materials": [
+    "plaster",
+    "brick",
+    "concrete",
+    "wood",
+    "tile",
+    "roof"
+  ],
+  "acceptance": "docs/city/M1_ACCEPTANCE_20261028.md",
+  "next": "docs/city/M2_START.md"
+}

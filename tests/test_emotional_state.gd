@@ -175,6 +175,21 @@ func _run() -> void:
 		and raven.emotional_action_weight("confide", ["social"]) > 0.0,
 		"bounded emotional factors feed the actual AI without forced action")
 
+	section("Real SimAgent crying onset/stop sends local edge events")
+	var cry_edges: Array = []
+	raven.emotions.shift("sadness", -100.0)
+	raven.sim_tick(0.1)  # initialize edge tracker in a non-crying baseline
+	raven.crying_changed.connect(func(_sim: Node3D, active: bool): cry_edges.append(active))
+	raven.emotions.shift("sadness", 100.0)
+	raven.sim_tick(0.1)
+	check(cry_edges == [true] and raven.emotions.crying,
+		"real simulated NPC emits a single on-transition")
+	raven.sim_tick(0.1)
+	check(cry_edges == [true], "ongoing crying does not repeat an audio event")
+	raven.emotions.shift("sadness", -100.0)
+	raven.sim_tick(0.1)
+	check(cry_edges == [true, false] and not raven.emotions.crying,
+		"real simulated NPC emits stop-transition without a spurious cue")
 	var saved: Dictionary = SaveGame.capture(w)
 	check(bool(saved.get("ok", false)) and SaveGame.validate_data(saved["data"], w).get("ok", false),
 		"new emotional state is inside strict H4 offline save schema")
@@ -226,5 +241,3 @@ func _run() -> void:
 	clock.running = false
 	gs.reset()
 	finish("test_emotional_state")
-
-

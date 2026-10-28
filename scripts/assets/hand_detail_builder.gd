@@ -1,7 +1,7 @@
 extends RefCounted
 ## H2b anatomical hand pass: five actual fingers per hand (four digits and a
 ## splayed thumb), shaped nail plates, skinned to EXISTING hand bones.
-## Explicitly NOT independent phalange rigs or finger animation yet.
+## Ten independent curl morphs; existing hand bones, no phalange skeleton.
 ## Geometry is built once from the exact 10 torso morphs of the authored skin
 ## mesh, then reused by every actor. No identity/sex/age assumptions.
 static var _skin_mesh: ArrayMesh
@@ -14,7 +14,8 @@ const SKIN_PER_DIGIT := 51
 const NAIL_PER_DIGIT := 9
 const RINGS := [0.0, 0.24, 0.5, 0.77, 0.92]
 const RADII := [0.95, 1.0, 0.94, 0.78, 0.53]
-const DIGIT_LENGTHS := [0.048, 0.060, 0.065, 0.056]
+const DIGIT_LENGTHS := [0.060, 0.065, 0.060, 0.048]
+const DIGIT_Y := [0.824, 0.817, 0.817, 0.824]
 const DIGIT_X := [-0.015, -0.005, 0.006, 0.016]
 const DIGIT_RADIUS := [0.0054, 0.0057, 0.0059, 0.0051]
 
@@ -39,21 +40,14 @@ static func build(source: MeshInstance3D) -> Dictionary:
     var nail_data:=_blank()
     var digits:=0
     for side in SIDES:
-        var center_x: float = side * 0.307
         var bind: int = 7 if side>0.0 else 13
-        for finger in 4:
-            var origin:=Vector3(center_x+side*DIGIT_X[finger], 0.815, -0.004)
-            var tip:=Vector3(origin.x+side*(float(finger)-1.5)*0.00075,
-                origin.y-DIGIT_LENGTHS[finger],origin.z+0.0015)
-            _finger(skin_data,nail_data,origin,tip,DIGIT_RADIUS[finger],
-                bind,side,false)
+        var offset: int = 5 if side>0.0 else 0
+        for finger in 5:
+            var endpoints: Dictionary = finger_endpoints(offset+finger)
+            _finger(skin_data,nail_data,endpoints["root"],endpoints["tip"],
+                DIGIT_RADIUS[finger] if finger<4 else .0062,
+                bind,side,finger==4)
             digits+=1
-        # Independent thumb sweeps outward from the thenar area.
-        var thumb_origin:=Vector3(center_x+side*0.020,0.838,-0.008)
-        var thumb_tip:=Vector3(center_x+side*0.043,0.802,0.008)
-        _finger(skin_data,nail_data,thumb_origin,thumb_tip,0.0062,
-            bind,side,true)
-        digits+=1
     if digits!=10:
         return {}
     var faces_mesh:ArrayMesh=_bake(skin_data,ref,original,blends)
@@ -188,7 +182,12 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
     # Only use nearby *skin hand region* vertices on the correct side.
     # Weighted 4-neighbor displacement respects published body morphs while
     # extending geometry slightly beyond the original rounded palm ends.
-    for vtx in vertices:
+    var chunk: int = SKIN_PER_DIGIT if n==DIGIT_COUNT*SKIN_PER_DIGIT else NAIL_PER_DIGIT
+    for vertex_id in vertices.size():
+        var vtx: Vector3 = vertices[vertex_id]
+        # One rigid palm displacement per digit: bending and morphing commute,
+        # nails and distal skin cannot sample unrelated nearest-body vertices.
+        var anchor: Vector3 = finger_endpoints(vertex_id/chunk)["root"] if region=="hand" else vtx
         var near:Array=[]
         for i in original.size():
             var ref:Vector3=original[i]
@@ -214,7 +213,7 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
                     continue
             else:
                 return null
-            var dis:float=vtx.distance_squared_to(ref)
+            var dis:float=anchor.distance_squared_to(ref)
             if near.size()<4:
                 near.append([dis,i])
                 near.sort_custom(func(a,b):return a[0]<b[0])
@@ -288,7 +287,17 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
                 segment_shape[Mesh.ARRAY_VERTEX]=segment_vertices
                 segment_shape[Mesh.ARRAY_NORMAL]=segment_normals
                 morphs.append(segment_shape)
-    output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays,morphs)
+    # Rest positions for the SAME skin shader as the palm and forearm.
+    var rest := PackedFloat32Array()
+    rest.resize(n*4)
+    for i in n:
+        rest[i*4]=vertices[i].x
+        rest[i*4+1]=vertices[i].y
+        rest[i*4+2]=vertices[i].z
+        rest[i*4+3]=1.0
+    arrays[Mesh.ARRAY_CUSTOM0]=rest
+    output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays,morphs,{},
+        Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
     return output
 
 ## C14 paired independent visual hinges for real GPU skin and nail meshes.
@@ -333,10 +342,10 @@ static func finger_endpoints(digit:int) -> Dictionary:
     var cx:float=side*.307
     if local==4:
         return {
-            "root":Vector3(cx+side*.020,.838,-.008),
-            "tip":Vector3(cx+side*.043,.802,.008)
+            "root":Vector3(cx-side*.021,.848,.006),
+            "tip":Vector3(cx-side*.043,.808,.014)
         }
-    var origin:=Vector3(cx+side*DIGIT_X[local],.815,-.004)
+    var origin:=Vector3(cx+side*DIGIT_X[local],DIGIT_Y[local],.005)
     return {
         "root":origin,
         "tip":Vector3(origin.x+side*(float(local)-1.5)*.00075,

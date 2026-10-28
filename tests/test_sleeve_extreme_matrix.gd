@@ -97,7 +97,7 @@ func run() -> void:
                     # Some extreme anatomies remain visibly imperfect, yet must
                     # not reintroduce a detached 45+ mm cuff or wrong-arm bind.
                     var raised: bool = float(pose["raise"]) > 0.0
-                    check(median < (.035 if raised else .019) and maximum < (.052 if raised else .029),
+                    check(median < .003 and maximum < .004,
                         str(case.id)+"/"+style+"/"+side+"/"+str(pose["name"])+" pose bounded gap")
                     tested += 1
     # Repeated loading must not mutate any public authored mesh.

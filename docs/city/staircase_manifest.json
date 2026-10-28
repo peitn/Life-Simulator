@@ -82,16 +82,6 @@
     "sha256": "e8a8864661f467f04cf4536a4c3bd966a69f9499451ded12741ba0e4a58f3333",
     "wall_negative": "7/11 exit1 expected,900ticks,blocked"
   },
-  "contact_height_experiment": {
-    "audit": "two Gemini reviews; rejection confirmed",
-    "backup": "remote project quota exceeded; local before/final copies",
-    "baseline": "unchanged lateral27/27 exit0",
-    "center": "11/11 exit0,16lifts,4.461cm max ascent drop",
-    "lateral": "25/27 exit1;19lifts at both side offsets exceeds18",
-    "run_id": "city-1793075706-312558",
-    "status": "rejected; isolated scripts only",
-    "wall": "7/11 exit1 expected"
-  },
   "geometry": {
     "manifold": true,
     "polygon_faces": 34.0,
@@ -101,26 +91,7 @@
   },
   "glb_sha256": "c95be43b353806414742735e7fb06bf805e62c7258f036178fe70e99fdf855cb",
   "grid_m": 0.5,
-  "lateral_offset_regression_20261027": {
-    "gemini": "actual skeptical review; max_y and watchdog added, false top-check allegation rejected; Gemini did not run tests",
-    "limitations": "fixed staircase/capsule, no vertical smoothing, no new render, no production integration",
-    "positive": "27/27 exit0 no timeout; x=.23 498ticks/17lifts/438floor, x=.50 496/15/434, x=.77 499/17/439",
-    "regressions": "physics11/11, demo41/41, stairs93/93 exit0; wall-negative7/11 exit1 expected; syntax60/60",
-    "run_id": "city-fallback-1793069048-296191",
-    "sha256": "57bdeb194ccb59f2297ff616174533d22f552bc2ba020c808a3b1bcff6b57036",
-    "validator": "scripts/city/validate_stair_lateral_offsets.gd"
-  },
   "license": "Original Life Simulator asset; all rights reserved",
-  "lift_height_ablation_20261027": {
-    "baseline": "0.22m,11/11 exit0,496ticks,15lifts,434floor,max ascent drop 0.06430m",
-    "candidate_205": "11/11 exit0,499ticks,17lifts,437floor,max drop 0.05024m",
-    "candidate_210": "11/11 exit0,497ticks,16lifts,435floor,max drop 0.05445m; wall negative7/11 exit1 expected; two-roundtrip11/11 exit0",
-    "decision": "test-only candidates removed; original controller unchanged; no new render",
-    "gemini": "actual skeptical audit; recommended no merge pending wider clearance and robustness",
-    "next": "contact-driven vertical correction retaining .22m clearance; lateral offsets, wall and repeat-trip checks",
-    "report": "docs/city/review-stair-lift-height-20261027.md",
-    "run_id": "city-fallback-1793065446-292636"
-  },
   "limitations": [
     "No handrail",
     "No ceiling opening or overhead clearance matrix",
@@ -139,7 +110,26 @@
     "name": "Warm stone",
     "roughness": 0.8
   },
-  "next": "Test capsule-sweep travel-based target center and actual-height forward clearance; lateral/wall/repeat acceptance before merge.",
+  "lift_height_ablation_20261027": {
+    "run_id": "city-fallback-1793065446-292636",
+    "report": "docs/city/review-stair-lift-height-20261027.md",
+    "baseline": "0.22m,11/11 exit0,496ticks,15lifts,434floor,max ascent drop 0.06430m",
+    "candidate_210": "11/11 exit0,497ticks,16lifts,435floor,max drop 0.05445m; wall negative7/11 exit1 expected; two-roundtrip11/11 exit0",
+    "candidate_205": "11/11 exit0,499ticks,17lifts,437floor,max drop 0.05024m",
+    "gemini": "actual skeptical audit; recommended no merge pending wider clearance and robustness",
+    "decision": "test-only candidates removed; original controller unchanged; no new render",
+    "next": "contact-driven vertical correction retaining .22m clearance; lateral offsets, wall and repeat-trip checks"
+  },
+  "lateral_offset_regression_20261027": {
+    "run_id": "city-fallback-1793069048-296191",
+    "validator": "scripts/city/validate_stair_lateral_offsets.gd",
+    "sha256": "57bdeb194ccb59f2297ff616174533d22f552bc2ba020c808a3b1bcff6b57036",
+    "positive": "27/27 exit0 no timeout; x=.23 498ticks/17lifts/438floor, x=.50 496/15/434, x=.77 499/17/439",
+    "regressions": "physics11/11, demo41/41, stairs93/93 exit0; wall-negative7/11 exit1 expected; syntax60/60",
+    "gemini": "actual skeptical review; max_y and watchdog added, false top-check allegation rejected; Gemini did not run tests",
+    "limitations": "fixed staircase/capsule, no vertical smoothing, no new render, no production integration"
+  },
+  "next": "Test contact-driven vertical correction retaining .22m clearance; verify lateral offsets, wall and repeated trips.",
   "normals": "Flat outward",
   "paths": {
     "builder": "scripts/city/build_staircase.gd",
@@ -208,11 +198,11 @@
   },
   "trajectory_capture_20261026": {
     "audit": "two actual Gemini reviews; findings verified in CHECKPOINT/HANDOFF",
-    "descent_rise_ticks_above_5mm": 0.0,
-    "floor_ticks": 434.0,
+    "descent_rise_ticks_above_5mm": 0,
+    "floor_ticks": 434,
     "inspected": true,
     "largest_ascent_drop_m": 0.06429857,
-    "lifts": 15.0,
+    "lifts": 15,
     "limitation": "Static trajectory, residual snap jitter; no smoothness/FPS certification",
     "renders": [
       "docs/city/trajectory-city-1793057445-289586-side.jpg",
@@ -220,7 +210,7 @@
     ],
     "run_id": "city-1793057445-289586",
     "source": "scripts/city/capture_stair_trajectory.gd",
-    "ticks": 496.0,
+    "ticks": 496,
     "trace": "docs/city/trajectory-city-1793057445-289586.json"
   },
   "tread_m": 0.3,

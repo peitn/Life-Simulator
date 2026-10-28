@@ -88,8 +88,8 @@ func run():
             # These bounds describe the corrected upper-ring surface in actual
             # idle and 90-degree elbow-bend poses. They reject the old 21mm
             # median rest gap without claiming a watertight seam.
-            var median_limit:float=.012 if angle==0 else .018
-            var max_limit:float=.024 if angle==0 else .035
+            var median_limit:float=.003
+            var max_limit:float=.004
             check(gaps[gaps.size()/2]<median_limit,"corrected triangle median seam "+side+" pose "+str(angle))
             check(gaps.back()<max_limit,"corrected triangle worst seam "+side+" pose "+str(angle))
             print("METRIC angle=",angle," side=",side," min=",gaps.front()," median=",gaps[gaps.size()/2]," max=",gaps.back())

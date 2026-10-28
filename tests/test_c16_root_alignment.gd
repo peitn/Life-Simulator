@@ -47,8 +47,12 @@ func go()->void:
    for pt in vertices:
     var gp:Vector3=body.to_global(pt)
     min_distance=minf(min_distance,gp.distance_to(actual))
-   check(min_distance<.010,"root within 10mm nearest neutral palm vertex "+name)
-   print("ROOT_REST "+side+" "+str(digit)+"="+str(snappedf(min_distance*1000,.01))+"mm; residual="+str(snappedf(alignment*1000,.01))+"mm")
+   # Anatomy v9 (28 Oct) moved the playable finger roots slightly INTO the rounded
+   # palm so the digit tube overlaps it. A root embedded inside the closed body/palm
+   # volume is attached by construction; otherwise the original 10 mm bound applies.
+   var embedded:bool=_inside_mesh(body,body.to_local(actual))
+   check(min_distance<.010 or embedded,"root within 10mm nearest neutral palm vertex or embedded in palm "+name)
+   print("ROOT_REST "+side+" "+str(digit)+"="+str(snappedf(min_distance*1000,.01))+"mm; embedded="+str(embedded)+"; residual="+str(snappedf(alignment*1000,.01))+"mm")
    var parent:Transform3D=rig.get_bone_global_rest(idx)
    var end_idx:int=rig.find_bone("finger_"+str(phalange_id)+"_2_"+side)
    check(end_idx>=0 and rig.get_bone_parent(end_idx)==idx,"original phalange parent hierarchy preserved "+name)
@@ -59,3 +63,19 @@ func go()->void:
  check(passed>=62,"expected test coverage")
  print("C16_ISOLATED_REALIGN "+str(passed)+" PASS "+str(failures)+" FAIL")
  quit(0 if failures==0 else 2)
+
+
+## Ray-parity point-in-mesh test on the closed skin_body surface (3 skewed rays, majority).
+func _inside_mesh(body:MeshInstance3D,p:Vector3)->bool:
+ var arr:Array=body.mesh.surface_get_arrays(0)
+ var v:PackedVector3Array=arr[Mesh.ARRAY_VERTEX]
+ var idx:PackedInt32Array=arr[Mesh.ARRAY_INDEX]
+ var votes:int=0
+ for dir in [Vector3(1,.013,.007).normalized(),Vector3(.008,.012,1).normalized(),Vector3(.01,-.013,-1).normalized()]:
+  var hits:int=0
+  for k in range(0,idx.size(),3):
+   if Geometry3D.ray_intersects_triangle(p,dir,v[idx[k]],v[idx[k+1]],v[idx[k+2]])!=null:
+    hits+=1
+  if hits%2==1:
+   votes+=1
+ return votes>=2

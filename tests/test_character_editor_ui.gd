@@ -36,6 +36,26 @@ func run() -> void:
         return
     var session = editor.get("_session")
     check(session.is_open(), "isolated edit session opened")
+    var action_grid: GridContainer = editor.get("_actions")
+    var old_size: Vector2i = get_viewport().size
+    get_viewport().size = Vector2i(1024, 768)
+    await get_tree().process_frame
+    check(action_grid != null and action_grid.columns == 4, "desktop footer has four accessible actions")
+    get_viewport().size = Vector2i(320, 600)
+    await get_tree().process_frame
+    await get_tree().process_frame
+    var apply_narrow: Button = action_grid.get_node_or_null("Apply")
+    var cancel_narrow: Button = action_grid.get_node_or_null("Cancel")
+    check(action_grid.columns == 2, "320px viewport reflows actions into two rows")
+    check(apply_narrow != null and cancel_narrow != null
+        and apply_narrow.get_global_rect().end.x <= 320.5
+        and cancel_narrow.get_global_rect().end.x <= 320.5,
+        "Apply and Cancel stay reachable in a real 320px window")
+    get_viewport().size = Vector2i(1024, 768)
+    await get_tree().process_frame
+    check(action_grid.columns == 4, "desktop viewport restores four-column footer")
+    get_viewport().size = old_size
+    await get_tree().process_frame
     var preview = editor.get("_visual_preview")
     check(preview != null and preview.visual != sim.visual, "draft uses a separate visual instance")
     check(preview.viewport.world_3d != world.get_viewport().world_3d, "preview has an isolated 3D world")
@@ -60,10 +80,22 @@ func run() -> void:
         check(session.draft()["personality"]["hexaco"] == original["personality"]["hexaco"], "trait slider preserves other personality groups")
         check(world.read_character_edit(key)["data"] == original, "slider does not mutate live character")
         check(session.can_undo(), "slider change supports undo")
-        editor.call("_on_undo")
-        check(not session.is_dirty(), "undo restores original draft")
-        editor.call("_on_redo")
-        check(session.is_dirty(), "redo restores edited draft")
+        var shortcut := InputEventKey.new()
+        shortcut.pressed = true
+        shortcut.ctrl_pressed = true
+        shortcut.keycode = KEY_Z
+        editor._unhandled_key_input(shortcut)
+        check(not session.is_dirty(), "Ctrl+Z restores original draft")
+        shortcut.keycode = KEY_Y
+        editor._unhandled_key_input(shortcut)
+        check(session.is_dirty(), "Ctrl+Y restores edited draft")
+        shortcut.keycode = KEY_Z
+        shortcut.shift_pressed = false
+        editor._unhandled_key_input(shortcut)
+        check(not session.is_dirty(), "Ctrl+Z after Ctrl+Y undoes again")
+        shortcut.shift_pressed = true
+        editor._unhandled_key_input(shortcut)
+        check(session.is_dirty(), "Ctrl+Shift+Z restores redo state")
     var garments: Dictionary = editor.get("_item_buttons")
     check(garments.size() == 3, "individual garment selectors exist")
     var category: OptionButton = editor.get("_slot")
@@ -141,7 +173,7 @@ func run() -> void:
         check(preview.public_snapshot()["clothing"] == original["clothing"], "undo refreshes preview clothing")
         editor.call("_on_redo")
         check(preview.visual.look_params["outfit_top"] == "kawaii_kocici_mikina", "redo refreshes preview clothing")
-    var cancel: Button = editor.get_node("PanelContainer/VBoxContainer/HBoxContainer/Cancel") if editor.has_node("PanelContainer/VBoxContainer/HBoxContainer/Cancel") else null
+    var cancel: Button = editor.get_node_or_null("PanelContainer/VBoxContainer/EditorActions/Cancel")
     if cancel != null:
         cancel.pressed.emit()
     else:
@@ -179,7 +211,11 @@ func run() -> void:
             editor.call("_on_redo")
             check(absf(float(session.draft()["mind"]["self_defectiveness"]) - 0.81) < 0.001,
                 "Redo restores the belief slider value")
-        editor.call("_on_apply")
+        var apply_key := InputEventKey.new()
+        apply_key.pressed = true
+        apply_key.ctrl_pressed = true
+        apply_key.keycode = KEY_ENTER
+        editor._unhandled_key_input(apply_key)
         var applied: Dictionary = world.read_character_edit(key)
         check(applied["revision"]==1, "Apply increments authoritative revision")
         check(absf(float(applied["data"]["mind"]["self_defectiveness"]) - 0.81) < 0.001
@@ -207,7 +243,11 @@ func run() -> void:
         world.net.mode = world.net.Mode.OFFLINE
         check(world.read_character_edit(key) == applied_snapshot, "network mode switch blocks stale offline editor Apply")
         check(session.is_dirty(), "rejected network Apply preserves editable draft")
-        editor.call("_on_cancel")
+        var escape_key := InputEventKey.new()
+        escape_key.keycode = KEY_ESCAPE
+        escape_key.pressed = true
+        editor._unhandled_key_input(escape_key)
+        check(editor.is_queued_for_deletion(), "Esc closes editor without committing stale draft")
         await get_tree().process_frame
     world.net.mode=world.net.Mode.HOST
     check(not world.read_character_edit(key)["ok"], "network private edit denied")

@@ -52,12 +52,15 @@ const CHAT_VOICE_SR := 16000
 const CHAT_VARIANTS := 3
 const CHAT_CACHE_MAX := 24
 const CHAT_MAX_JOBS := 4
+## Cry onset is one brief private-local sad vocal cue (not a synthesized sob),
+## with a real-time cooldown so game-time acceleration never creates a flood.
+const CRY_VOICE_COOLDOWN := 35.0
 
 var main: Node = null
 var current_track := ""
 var melancholy := false
 var stats := {"track_changes": 0, "object_starts": 0, "object_stops": 0, "ui": 0, "voices": 0, "slams": 0,
-	"chat_voices": 0, "chat_renders": 0, "chat_cache_hits": 0}
+	"chat_voices": 0, "chat_renders": 0, "chat_cache_hits": 0, "cry_voices": 0}
 ## Úroveň napětí 0..1 (vyhlazená) a její složky – čte test a HUD/debug.
 var tension := 0.0
 var conflict_env := 0.0
@@ -96,6 +99,7 @@ var _chat_cache := {}       # klíč VoiceSynth.cache_key → AudioStreamWAV
 var _chat_order: Array = [] # LRU pořadí klíčů
 var _chat_last := {}        # Sim -> čas poslední repliky (s)
 var _chat_variant := {}     # Sim -> další varianta věty
+var _cry_last := {}         # Sim -> last crying-onset cue (real seconds)
 var _chat_jobs: Array = []  # [{"task": int, "key": String, "out": Array, "sim": Node, "delay": float}]
 
 
@@ -205,6 +209,8 @@ func register_sim(sim: Node) -> void:
 		sim.social_event.connect(_on_social_event)
 	if sim.has_signal("conversation") and not sim.conversation.is_connected(_on_conversation):
 		sim.conversation.connect(_on_conversation)
+	if sim.has_signal("crying_changed") and not sim.crying_changed.is_connected(_on_crying_changed):
+		sim.crying_changed.connect(_on_crying_changed)
 
 
 # ---------------------------------------------------------------- hudba
@@ -514,6 +520,32 @@ func _on_conflict(sim: Node3D) -> void:
 		get_tree().create_timer(_arng.randf_range(3.5, 6.0)).timeout.connect(_play_slam.bind(parent, where))
 
 
+# ---------------------------------------------------------------- pláč -> hlas (lokální, bez síťových soukromých dat)
+## Reuse the same asynchronous, voice-profile-only formant synthesis as dialog.
+## This is a SAD VOCAL CUE prototype, not realistic recorded sobbing or tears.
+func _on_crying_changed(who: Node3D, active: bool) -> void:
+	if not active or main == null or who == null or not is_instance_valid(who) or not who.is_inside_tree():
+		return
+	# Never read or expose private NPC emotion state on a connected host/client.
+	var net = main.get("net")
+	if net != null and net.has_method("is_networked") and net.is_networked():
+		return
+	if speed_index >= 3 or not _within_hearing(who) or active_voices() >= MAX_VOICES:
+		return
+	if _now - float(_cry_last.get(who, -10000.0)) < CRY_VOICE_COOLDOWN:
+		return
+	if _chat_jobs.size() >= CHAT_MAX_JOBS:
+		return
+	_cry_last[who] = _now
+	_chat_last[who] = _now  # do not layer cheerful chat over crying
+	stats["cry_voices"] += 1
+	request_chat_voice(who, "smutne", 0.0, true)
+	# Bound dead-node references even when fewer than 32 actors have cried.
+	for key in _cry_last.keys():
+		if not is_instance_valid(key):
+			_cry_last.erase(key)
+
+
 # ---------------------------------------------------------------- hlasy v rozhovoru
 
 ## Běžný rozhovor (ne hádka – ta má vlastní hlasy v _on_conflict): obě postavy promluví
@@ -569,7 +601,7 @@ static func chat_voice_of(sim: Object) -> Dictionary:
 
 
 ## Replika postavy: z cache hned, jinak syntéza na pozadí a přehrání po dokončení.
-func request_chat_voice(who: Node3D, style: String, delay := 0.0) -> void:
+func request_chat_voice(who: Node3D, style: String, delay := 0.0, cry_cue: bool = false) -> void:
 	var voice := chat_voice_of(who)
 	var variant: int = int(_chat_variant.get(who, 0))
 	_chat_variant[who] = (variant + 1) % CHAT_VARIANTS
@@ -584,13 +616,21 @@ func request_chat_voice(who: Node3D, style: String, delay := 0.0) -> void:
 		return
 	var out: Array = []
 	var task := WorkerThreadPool.add_task(_render_chat_job.bind(voice, style, variant, out), false, "voice")
-	_chat_jobs.append({"task": task, "key": key, "out": out, "sim": who, "delay": delay})
+	_chat_jobs.append({"task": task, "key": key, "out": out, "sim": who, "delay": delay,
+		"cry_cue": cry_cue, "queued_at": _now})
 
 
 ## Běží ve vlákně: jen čistá statická syntéza + zakódování do vlastního pole, žádný přístup
 ## ke scéně. Hlavní vlákno pole čte až po is_task_completed + wait_for_task_completion.
 static func _render_chat_job(voice: Dictionary, style: String, variant: int, out: Array) -> void:
 	out.append(VoiceSynth.to_stream(VoiceSynth.render(voice, style, variant, CHAT_VOICE_SECONDS, CHAT_VOICE_SR), CHAT_VOICE_SR))
+
+
+## Late cry cues are skipped after speed-up or prolonged render backlog.
+## Regular dialog still follows its preexisting behavior.
+func _chat_job_still_relevant(job: Dictionary) -> bool:
+	return not bool(job.get("cry_cue", false)) or (speed_index < 3 and
+		_now - float(job.get("queued_at", _now)) <= 4.0)
 
 
 func _poll_chat_jobs() -> void:
@@ -614,7 +654,7 @@ func _poll_chat_jobs() -> void:
 		while _chat_order.size() > CHAT_CACHE_MAX:
 			_chat_cache.erase(_chat_order.pop_front())
 		var who = job["sim"]
-		if is_instance_valid(who) and who.is_inside_tree():
+		if is_instance_valid(who) and who.is_inside_tree() and _chat_job_still_relevant(job):
 			_play_chat_stream(who, stream, float(job["delay"]))
 	_chat_jobs = still
 
@@ -636,7 +676,7 @@ func flush_chat_jobs_for_test() -> void:
 		while _chat_order.size() > CHAT_CACHE_MAX:
 			_chat_cache.erase(_chat_order.pop_front())
 		var who = job["sim"]
-		if is_instance_valid(who) and who.is_inside_tree():
+		if is_instance_valid(who) and who.is_inside_tree() and _chat_job_still_relevant(job):
 			_play_chat_stream(who, stream, float(job["delay"]))
 
 

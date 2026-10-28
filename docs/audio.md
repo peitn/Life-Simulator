@@ -111,6 +111,16 @@ cooldown per character, only within 12 m of the selected character, no lines at 
 syntheses and the shared limit of 3 voices. Argument voices keep their pre-rendered files. Everything is local
 cosmetics on each peer; nothing is sent over the network.
 
+## Crying vocal cue (28 October 2026)
+
+When a character **starts** crying (`SimAgent.crying_changed`, an edge event driven by the emotional model's
+hysteresis: sadness ≥ 70 starts, ≤ 55 stops), AudioManager plays one short synthetic sad vocal cue in that character's
+own voice through the same asynchronous VoiceSynth pipeline (`smutne` style). It is a cue, not realistic sobbing.
+Limits: offline only (a connected host or client never voices private emotions), 35 s real-time cooldown per
+character, hearing distance and the shared 3-voice cap, nothing at speed ≥ 3, and queued cue renders are dropped
+after a speed-up or more than 4 s of backlog. Restoring a save never fakes a new onset. Tests: `test_voice`
+(99 checks) and `test_emotional_state` (55).
+
 ## Tests
 
 `tests/test_audio_tone.tscn` – 222 checks: song data (all five tracks, known instruments, ranges, no v2

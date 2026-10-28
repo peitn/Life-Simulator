@@ -40,6 +40,7 @@ func _run() -> void:
 	_test_avoidance_levels()
 	_test_planner()
 	_test_swallow()
+	_test_compound_distress()
 	finish("test_withdrawal_avoidance")
 
 
@@ -167,4 +168,46 @@ func _test_swallow() -> void:
 	check(jana.mental.dep.rumination > rum0, "spolknutá výtka se vrací v myšlenkách (není zadarmo)")
 	check(jana.mood.has_moodlet("spolknuta_" + petr.name), "nálada: Radši jsem mlčel(a)")
 	check(jana.maybe_swallow("", petr) == "", "bez výtky nic")
+	_reset(jana)
+
+
+func _test_compound_distress() -> void:
+	section("Kombinace vnitřní nedostatečnosti, stažení, úzkosti a vyhledání pomoci")
+	var jana = _sim("Jana Nováková")
+	var petr = _sim("Petr Dvořák")
+	if jana == null or petr == null:
+		check(false, "two actual household NPCs must exist")
+		return
+	_reset(jana)
+	var chat: Dictionary = ActionLibrary.get_action("chat")
+	var confide: Dictionary = ActionLibrary.get_action("confide")
+	var help: Dictionary = ActionLibrary.get_action("seek_help")
+	var ordinary: float = Planner.score_action(jana, chat, 14)
+	jana.self_defectiveness_belief = 1.0
+	jana.mental.stress = 95.0
+	jana.mental.threat = 0.85
+	jana.mental.dep.burden = 0.92
+	jana.mental.dep.episode_active = true
+	jana.mental.dep.severity = 3
+	jana.mental.arousal = 90.0
+	jana.ledger.on_hurt_by(petr.sim_name, 30.0, clock.total_minutes)
+	jana.pending_complaints[petr.sim_name] = {"topic": "dishes", "t": float(clock.total_minutes)}
+	var strained: float = Planner.score_action(jana, chat, 14)
+	var confide_score: float = Planner.score_action(jana, confide, 14)
+	var target: float = Planner.avoidance_weight(jana, petr, confide) * jana.emotional_target_weight(petr.sim_name, "confide")
+	print("COMPOUND_SOCIAL ",JSON.stringify({"baseline_chat":ordinary,"strained_chat":strained,"confide":confide_score,"target_weight":target}))
+	check(ordinary > 0.0 and strained > 0.0 and strained < ordinary,
+		"withdrawal and social anxiety lower social initiative without forbidding conversation")
+	check(confide_score > 0.0 and target > 0.0 and confide_score * target > 0.01,
+		"helpful disclosure remains numerically available under compounded difficulties")
+	check(jana.self_defectiveness_belief == 1.0 and jana.emotions.levels.size() == 19,
+		"inner conviction remains private stable data, not a twentieth emotion")
+	for _i in 6:
+		jana.inner_trigger("failure", null, 0.9)
+	var help_gate: float = jana.psyche_gate("help")
+	var help_score: float = Planner.score_action(jana, help, 14)
+	print("COMPOUND_HELP ",JSON.stringify({"gate":help_gate,"score":help_score}))
+	check(help_gate > 0.0 and help_score > 0.0, "rumination enables a voluntary professional-help option")
+	check(ActionLibrary.get_action("self_harm").is_empty() and ActionLibrary.get_action("suicide").is_empty(),
+		"no automatic dangerous action is created by high distress")
 	_reset(jana)

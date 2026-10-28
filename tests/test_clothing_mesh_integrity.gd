@@ -27,7 +27,7 @@ func _valid_float(x: float) -> bool:
 
 func run() -> void:
     var inventories := [
-        ["top", Schema.TOPS, []],
+        ["top", Schema.TOPS, ["zadne"]],
         ["bottom", Schema.BOTTOMS, ["zadne"]],
         ["shoes", Schema.SHOES, ["bosy"]]
     ]
@@ -53,7 +53,7 @@ func run() -> void:
             for shoes in Schema.SHOES:
                 var lp := {"outfit_top":top,"outfit_bottom":bottom,"outfit_shoes":shoes}
                 var parts: Array = Wardrobe.active_parts(lp)
-                check(not parts.is_empty(), "nonempty outfit "+top+"/"+bottom+"/"+shoes)
+                check(parts.is_empty() if top=="zadne" and bottom=="zadne" and shoes=="bosy" else not parts.is_empty(), "intentional nude or nonempty outfit "+top+"/"+bottom+"/"+shoes)
                 composition += 1
     print("GARMENT_INTEGRITY inventory=",inspected," vertices=",vertices_inspected,
         " triangles=",triangles_inspected," degenerate=",degenerates,

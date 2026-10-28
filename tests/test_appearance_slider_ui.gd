@@ -56,6 +56,11 @@ func _run() -> void:
         "creator's numeric age/height input cannot leave canonical strict ranges")
     var initial:Dictionary=creator._session.draft()
     var living:int=world.sims.size()
+    check(a.slider("body","hand_size")!=null,"hand size has a real schema-backed control")
+    a.slider("body","hand_size").value=.73
+    check(is_equal_approx(float(creator._session.draft()["body"]["hand_size"]),.73)
+        and is_equal_approx(float(creator._visual_preview.public_snapshot()["body"]["hand_size"]),.73),
+        "hand size slider updates isolated character and public preview")
     a.slider("body","shoulders").value=.91
     check(is_equal_approx(float(creator._session.draft()["body"]["shoulders"]),.91),
         "body shoulder slider edits live draft field")

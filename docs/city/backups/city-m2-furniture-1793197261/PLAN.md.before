@@ -1,0 +1,39 @@
+# City implementation plan
+Updated 28 October 2026. Current milestone: **M2 furniture and fixtures**.
+M0 and M1 are complete in the city asset scope. Evidence and exact limits:
+`M1_ACCEPTANCE_20261028.md`. M2 inventory and next step: `M2_START.md`.
+
+## Standards and ownership
+Meters, Godot Y-up / Blender Z-up with glTF conversion; 0.5m placement grid.
+Wall width2m, height2.8m, depth.2m; left-floor endpoint origin, width+X.
+Floor/ceiling/foundation/flat-roof footprint2x2m, depth-Z.
+Door opening1x2.1m. Bounds are separate from snap dimensions.
+Retain generators, editable native source, GLB, manifests and inspected
+multi-angle renders. Validate imported dimensions, pivots, normals, UVs and
+collisions. Simple modules stay below3000triangles. Six actual repeating PBR
+materials are available; do not describe solid colors as completed texture art.
+
+Mutate only tools/blender/city,assets/city,scripts/city,scenes/city,docs/city.
+Use the shared atomic protocol-v3 lease and check ownership before writes.
+Preserve newer sources and main-task ownership. GitHub publication remains
+restricted for this city task; no push, PR or alternate publication route.
+Record full remote-backup failure honestly and retain the recovery overlay.
+
+## Ordered queue
+| Milestone | Scope | Status |
+| --- | --- | --- |
+| M0 | Inventory, conventions, first verified Blender-to-Godot doorway | Complete |
+| M1 | Solid/corner/window/door walls, working hinged door, floors, ceilings, foundation, stairs/landings, pitched and flat roof variants; plaster/brick/concrete/wood/tile/roof maps | Complete in asset scope;1193positive checks, actual captures, native source |
+| M2 | Furniture/fixtures, compatible variants and interaction points; reuse existing sofa,beds,fridge | Started: inventory verified; sofa adaptation next |
+| M3 | Lots,terrain,sidewalks,curbs,roads/intersections/crossings,fences/gates | Pending |
+| M4 | Grass,flowers,shrubs,trees and instancing | Pending |
+| M5 | Modular houses,apartment blocks,shops/public buildings,demo district | Pending |
+| M6 | Navmesh,entrances,cutaway,lighting,measured runtime performance | Pending |
+| M7 | Catalogue,placement preview,snap/rotate,validation,delete/undo,save/load;main runtime/UI through HANDOFF | Pending |
+
+After these: lamps,benches,bins,signs,stops,parks and stylistic variants.
+
+M1 completion is not full game/world completion. Residual stair snap and
+final locomotion behavior, main-game door interaction/persistence/network
+authority, distant texture aliasing and final art polish retain their later
+integration gates; none is silently represented as tested gameplay.

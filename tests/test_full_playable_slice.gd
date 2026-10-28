@@ -103,6 +103,16 @@ func _run() -> void:
     if belief_slider != null:
         belief_slider.value = 0.77
         check(absf(float(creator._session.draft()["mind"]["self_defectiveness"]) - 0.77) < 0.001, "creator slider changes draft")
+    # H3: private psyche and continuous traits must survive the creator-to-household path.
+    # Body proportions and gender/grammar remain independent of each other.
+    var isolated: Dictionary = creator._session.draft()
+    isolated["body"]["bust"] = 0.13
+    isolated["personality"]["trait_levels"] = {"uzkostlivy": 0.73}
+    isolated["mind"]["predispositions"] = {"anxiety": 0.65}
+    isolated["mind"]["morning_worse"] = true
+    check(creator._session.replace_draft(isolated, "H3 independent axes"),
+        "creator accepts independent body, continuous trait and private psyche draft")
+    creator._refresh()
     var data: Dictionary = creator._session.draft()
     var before_uid: String = String(data["uid"])
     var public_draft: Dictionary = creator._visual_preview.public_snapshot()
@@ -133,6 +143,21 @@ func _run() -> void:
         and stored["data"]["identity"]["grammar"] == "f", "identity axes survive authoritative spawn")
     check(absf(float(stored["data"]["mind"]["self_defectiveness"]) - 0.77) < 0.001 and absf(selected.self_defectiveness_belief - 0.77) < 0.001, "creator commits private inner belief into live agent")
     check(selected.look == public_draft, "spawned appearance exactly matches creator's preview")
+    check(is_equal_approx(float(stored["data"]["body"]["bust"]), 0.13),
+        "body proportion survives creation independently of grammar and identity")
+    check(is_equal_approx(float(stored["data"]["personality"]["trait_levels"]["uzkostlivy"]), 0.73),
+        "authoritative CharacterData retains continuous trait weight")
+    check(is_equal_approx(float(stored["data"]["mind"]["predispositions"]["anxiety"]), 0.65)
+        and bool(stored["data"]["mind"]["morning_worse"]),
+        "private psyche predisposition and pattern survive authoritative creation")
+    check(selected.grammar == "f" and selected.trait_profile is Dictionary
+        and is_equal_approx(float(selected.trait_profile.get("uzkostlivy", -1.0)), 0.73),
+        "live SimAgent uses independent grammar and continuous personality")
+    var public_personality: Dictionary = selected.look.get("personality", {})
+    check(not selected.look.has("mind") and not selected.look.has("uid")
+        and public_personality.has("traits") and not public_personality.has("trait_levels")
+        and not public_personality.has("hexaco") and not public_personality.has("aspirations"),
+        "public legacy trait labels retained; private continuous traits, psyche and UID excluded")
     check(selected.look.get("mind", {}).is_empty() and not selected.look.has("uid"),
         "spawn distributes no private mind/UID")
     check(not is_instance_valid(creator), "committed creator UI is freed")
@@ -140,6 +165,67 @@ func _run() -> void:
     check(not world.create_offline_character(duplicate).get("ok", false),
         "second character with same display name cannot collide in relationship keys")
     check(world.sims.size() == before_count + 1, "rejected duplicate leaves roster untouched")
+
+    section("Second creator and private resident isolation")
+    hud._create_button.pressed.emit()
+    var second_creator = hud._character_creator
+    check(second_creator != null and is_instance_valid(second_creator) and second_creator.is_inside_tree(),
+        "creator reopens for a second independent resident")
+    if second_creator == null or not is_instance_valid(second_creator):
+        finish("test_full_playable_slice")
+        return
+    var second_draft: Dictionary = second_creator._session.draft()
+    second_draft["identity"]["first_name"] = "Mira"
+    second_draft["identity"]["last_name"] = "Druhá"
+    second_draft["body"]["bust"] = 0.61
+    second_draft["personality"]["trait_levels"] = {"uzkostlivy": 0.21}
+    second_draft["mind"]["predispositions"] = {"anxiety": 0.18}
+    second_draft["mind"]["morning_worse"] = false
+    check(second_creator._session.replace_draft(second_draft, "H3 second resident"),
+        "second resident draft is independently validated")
+    second_creator._on_create()
+    await get_tree().process_frame
+    check(world.sims.size() == before_count + 2, "second creator adds exactly one additional resident")
+    var second_sim = world.get_selected_sim()
+    check(second_sim != null and second_sim.sim_name == "Mira Druhá",
+        "second creation selects a distinct resident")
+    if second_sim == null:
+        finish("test_full_playable_slice")
+        return
+    var second_node_name: String = String(second_sim.name)
+    var second_private: Dictionary = world.read_character_edit(second_node_name)
+    var first_private: Dictionary = world.read_character_edit(node_name)
+    check(second_private.get("ok", false) and first_private.get("ok", false)
+        and second_private["data"]["uid"] != first_private["data"]["uid"],
+        "two residents have separate authoritative identities")
+    check(is_equal_approx(float(second_private["data"]["mind"]["predispositions"]["anxiety"]), 0.18)
+        and is_equal_approx(float(first_private["data"]["mind"]["predispositions"]["anxiety"]), 0.65)
+        and is_equal_approx(float(second_private["data"]["personality"]["trait_levels"]["uzkostlivy"]), 0.21)
+        and is_equal_approx(float(first_private["data"]["personality"]["trait_levels"]["uzkostlivy"]), 0.73),
+        "second resident cannot inherit first resident's private psyche or continuous traits")
+    check(not second_sim.look.has("mind") and not second_sim.look.has("uid")
+        and not second_sim.look.get("personality", {}).has("trait_levels"),
+        "second resident public look excludes both residents' private data")
+    second_private["data"]["mind"]["predispositions"]["anxiety"] = 0.99
+    second_private["data"]["body"]["bust"] = 0.99
+    second_private["data"]["personality"]["trait_levels"]["uzkostlivy"] = 0.99
+    check(is_equal_approx(float(world.read_character_edit(second_node_name)["data"]["mind"]["predispositions"]["anxiety"]), 0.18)
+        and is_equal_approx(float(world.read_character_edit(node_name)["data"]["mind"]["predispositions"]["anxiety"]), 0.65)
+        and is_equal_approx(float(world.read_character_edit(second_node_name)["data"]["body"]["bust"]), 0.61)
+        and is_equal_approx(float(world.read_character_edit(second_node_name)["data"]["personality"]["trait_levels"]["uzkostlivy"]), 0.21),
+        "mutating nested readback data cannot alias either authoritative private record")
+    first_private["data"]["mind"]["predispositions"]["anxiety"] = 0.42
+    check(is_equal_approx(float(world.read_character_edit(node_name)["data"]["mind"]["predispositions"]["anxiety"]), 0.65)
+        and is_equal_approx(float(world.read_character_edit(second_node_name)["data"]["mind"]["predispositions"]["anxiety"]), 0.18),
+        "reverse readback mutation cannot affect either resident")
+    var original_index: int = world.sims.find(selected)
+    check(original_index >= 0, "first resident still belongs to the household")
+    if original_index < 0:
+        finish("test_full_playable_slice")
+        return
+    world.selected = original_index
+    check(world.get_selected_sim() == selected, "original player selection restored after second creation")
+
 
     section("Actual play command and save/load continuation")
     var tv := -1
@@ -159,8 +245,19 @@ func _run() -> void:
     var future: Dictionary = SaveGame.capture(world)
     var restore: Dictionary = world.load_game("manual")
     check(restore.get("ok", false), "saved custom household loads from disk", str(restore))
-    check(world.sims.size() == before_count + 1, "load restores same resident count")
+    check(world.sims.size() == before_count + 2, "load restores both custom residents")
     check(String(world.get_selected_sim().name) == node_name, "load preserves selected player character")
+    var reloaded_private: Dictionary = world.read_character_edit(node_name)
+    check(reloaded_private.get("ok", false)
+        and is_equal_approx(float(reloaded_private["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.73)
+        and is_equal_approx(float(reloaded_private["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.65),
+        "disk reload preserves private psyche and continuous trait values")
+    var second_reloaded: Dictionary = world.read_character_edit(second_node_name)
+    check(second_reloaded.get("ok", false)
+        and is_equal_approx(float(second_reloaded["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.18)
+        and is_equal_approx(float(second_reloaded["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.21)
+        and is_equal_approx(float(reloaded_private["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.65),
+        "disk reload preserves separate private mind and trait values for both residents")
     var restored: Dictionary = SaveGame.capture(world)
     check(restored.get("ok", false) and restored.get("data") == baseline.get("data"),
         "immediate post-load snapshot matches before-save simulation exactly")
@@ -180,8 +277,23 @@ func _run() -> void:
         "audio":false,"autoload":true,"autosave":true,"save_directory":persisted_directory}
     add_child(world)
     await get_tree().process_frame
+    var restarted_private: Dictionary = world.read_character_edit(node_name)
+    check(restarted_private.get("ok", false)
+        and bool(restarted_private["data"]["mind"]["morning_worse"])
+        and is_equal_approx(float(restarted_private["data"]["body"]["bust"]), 0.13)
+        and is_equal_approx(float(restarted_private["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.73),
+        "cold-start autosave resume preserves independent body, trait and psyche axes")
+    check(not world.get_selected_sim().look.has("mind")
+        and not world.get_selected_sim().look.has("uid"),
+        "cold-start public appearance remains private-data-free")
+    var second_restarted: Dictionary = world.read_character_edit(second_node_name)
+    check(second_restarted.get("ok", false)
+        and is_equal_approx(float(second_restarted["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.18)
+        and is_equal_approx(float(second_restarted["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.21)
+        and is_equal_approx(float(restarted_private["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.65),
+        "cold-start autosave keeps the two residents' private state independent")
     var restart: Dictionary = SaveGame.capture(world)
-    check(world.sims.size() == before_count + 1, "new game instance auto-restores custom household")
+    check(world.sims.size() == before_count + 2, "new game instance auto-restores both custom residents")
     check(restart.get("ok", false) and restart.get("data") == expected.get("data"),
         "cold start autoload restores exactly the persisted simulation")
     check(String(world.get_selected_sim().name) == node_name,

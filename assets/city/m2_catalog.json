@@ -1,0 +1,44 @@
+{
+  "entries": [
+    {
+      "actions": [
+        "relax",
+        "sleep_sofa"
+      ],
+      "kind": "sofa",
+      "scene": "scenes/city/m2_sofa.tscn",
+      "seated_capacity": 2,
+      "sleep_exclusive": true
+    },
+    {
+      "actions": [
+        "sleep"
+      ],
+      "capacity": 1,
+      "kind": "bed_single",
+      "scene": "scenes/city/m2_bed_single.tscn"
+    },
+    {
+      "actions": [
+        "sleep"
+      ],
+      "capacity": 2,
+      "kind": "bed_double",
+      "scene": "scenes/city/m2_bed_double.tscn"
+    },
+    {
+      "actions": [
+        "snack"
+      ],
+      "capacity": 1,
+      "kind": "fridge",
+      "scene": "scenes/city/m2_fridge.tscn"
+    }
+  ],
+  "installed_in_starter_world": false,
+  "next": "stove/cook fixture; then remaining kitchen/bathroom fixtures",
+  "scope_report": "docs/city/M2_FURNITURE_SLICE_20261028.md",
+  "source_manifest": "docs/city/m2_furniture_manifest.json",
+  "stage": "M2 in progress",
+  "version": "1.0"
+}

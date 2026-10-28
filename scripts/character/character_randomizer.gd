@@ -97,6 +97,8 @@ static func generate(rng: RandomNumberGenerator, base: Dictionary = {}, locks: A
 	# v8: the complete personality uses independent continuous intensities; legacy trait
 	# labels only seed a tendency, they no longer define all-or-nothing behaviour.
 	_trait_sliders(rng, d)
+	# v18 (anatomy hand_size) draw appended: existing seeds retain all previous fields.
+	d["body"]["hand_size"] = _n(rng, 0.0, 0.35, -1.0, 1.0)
 	# Zámky: převzít hodnoty z base (celé skupiny nebo jednotlivá pole).
 	for lk in locks:
 		var p := String(lk).split(".")

@@ -211,6 +211,21 @@ func run() -> void:
     panel._on_apply()
     panel._on_apply()
     check(not panel._apply_token.is_empty() and panel._apply_button.disabled,"one correlated Apply in flight")
+    # The footer remains visible while the private server transaction is
+    # outstanding. All draft-mutating callbacks must be inert until readback.
+    var during_apply: Dictionary = panel._session.draft()
+    check(panel._undo_button.disabled and panel._redo_button.disabled
+        and not panel._body_scroll.visible, "in-flight owner editor locks footer and scroll")
+    panel._on_undo()
+    panel._on_redo()
+    panel._on_slider_changed("trait_levels", "extraversion", 0.8)
+    panel._on_appearance_changed("body", "height_cm", 196.0)
+    panel._on_slot_selected(3)
+    panel._on_item_selected(0, "top")
+    panel._on_style_selected(1)
+    check(panel._session.draft() == during_apply and
+        worlds[0]._character_records["Actor"].body["height_cm"] != 196.0,
+        "in-flight Undo, Redo, sliders, garments and style cannot mutate draft or authority")
     check(await drain(),"server accepted Apply and sent private ACK")
     check(await drain(),"fresh private readback delivered after ACK")
     check(worlds[0].received_count==1 and worlds[0]._character_revisions["Actor"]==2,

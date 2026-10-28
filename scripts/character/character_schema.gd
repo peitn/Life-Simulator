@@ -65,7 +65,11 @@ extends RefCounted
 ## v17 (psychika J): personality.worldview (postoje k obecným tématům −1..1), personality.values (hodnoty 0..1),
 ##     personality.opinion_certainty (jistota názorů) a personality.voice_opinions (říkat názory nahlas).
 ##     Soukromé (kromě toho, co postava sama řekne). Migrace v16 → v17 doplní výchozí hodnoty.
-const VERSION := 17
+## v18 (28. 10. 2026, anatomy v9 renumbered during the rollback recovery): body.hand_size −1..1
+##     scales palms, digits and nails together (±20 % at the hand joint, 0 = neutral). Public (visible).
+##     Migrace v17 → v18 doplní 0; the anatomy run originally shipped this as "v9" on the rolled-back
+##     server, which collided with psyche A's v9, so it is chained after v17 here.
+const VERSION := 18
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -372,6 +376,7 @@ const GROUPS := {
 		"hips": ["f", 0.0, 1.0, 0.5],
 		"leg_length": ["f", 0.0, 1.0, 0.5],
 		"head_size": ["f", -1.0, 1.0, 0.0],     # velikost hlavy vůči proporční výchozí (±6 %), nezávislá na výšce
+		"hand_size": ["f", -1.0, 1.0, 0.0],     # v18: velikost rukou (±20 % v zápěstí), nezávislá na identitě
 		"neck_length": ["f", -1.0, 1.0, 0.0],   # délka krku (±15 mm ≈ ±17 %), nezávislá na výšce, rodu i identitě
 	}},
 	"face": {"public": true, "fields": {}},   # doplní se z FACE_MORPHS (−1..1) + asymmetry

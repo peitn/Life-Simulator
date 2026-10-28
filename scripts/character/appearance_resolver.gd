@@ -168,6 +168,7 @@ static func resolve(snap: Dictionary) -> Dictionary:
 		"outfit_shoes": String(outfit.get("shoes", "tenisky")),
 		"height_scale": sc["height_scale"],
 		"head_scale": sc["head_scale"],
+		"hand_scale": sc["hand_scale"],
 		"leg_scale": sc["leg_scale"],
 		"lift": sc["lift"],
 		"width_scale": _q(w),

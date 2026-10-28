@@ -180,6 +180,8 @@ static func migrate(d) -> Dictionary:
 		data = _v15_to_v16(data)
 	if v <= 16:
 		data = _v16_to_v17(data)
+	if v <= 17:
+		data = _v17_to_v18(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -382,6 +384,17 @@ static func _v16_to_v17(src: Dictionary) -> Dictionary:
 		for pair in [["worldview", {}], ["values", {}], ["opinion_certainty", 0.5], ["voice_opinions", false]]:
 			if not pers.has(pair[0]):
 				pers[pair[0]] = pair[1]
+	return d
+
+
+## v18 (anatomy v9, renumbered): neutral hand size for older characters. Preserves old
+## proportions and never mutates the imported source dictionary.
+static func _v17_to_v18(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 18
+	var body = d.get("body", null)
+	if body is Dictionary and not body.has("hand_size"):
+		body["hand_size"] = 0.0
 	return d
 
 

@@ -207,9 +207,93 @@ static func _repair_legacy_waist_chain(arrays: Array, blends: Array) -> void:
 		_rebuild_vertex_normals(shape, arrays[Mesh.ARRAY_INDEX])
 
 
+## Bring the sleeve rim into the matching shirt cross-section. Interpolate the
+## SAME triangle's morphs and skin weights, so the seam follows torso motion.
+## Retain 10% original rim spacing: no collapsed edge at a shell triangle corner.
+static func _stitch_sleeve(arrays: Array, blends: Array, shell: ArrayMesh) -> void:
+	if shell==null or shell.get_surface_count()!=1:
+		return
+	var points: PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+	if points.size()!=70 or blends.size()!=shell.get_blend_shape_count():
+		return
+	var src: Array=shell.surface_get_arrays(0)
+	var sv: PackedVector3Array=src[Mesh.ARRAY_VERTEX]
+	var si: PackedInt32Array=src[Mesh.ARRAY_INDEX]
+	var sb: PackedInt32Array=src[Mesh.ARRAY_BONES]
+	var sw: PackedFloat32Array=src[Mesh.ARRAY_WEIGHTS]
+	var targets: Array=shell.surface_get_blend_shape_arrays(0)
+	var bones: PackedInt32Array=arrays[Mesh.ARRAY_BONES]
+	var weights: PackedFloat32Array=arrays[Mesh.ARRAY_WEIGHTS]
+	var rim: Array=[]
+	for i in points.size():
+		if absf(points[i].y-1.209)<.001: rim.append(i)
+	if rim.size()!=14: return
+	for vi in rim:
+		var p: Vector3=points[vi]
+		var best: float=INF
+		var tri: Array=[]
+		var bary:=Vector3.ZERO
+		for t in range(0,si.size(),3):
+			var ids: Array=[si[t],si[t+1],si[t+2]]
+			var cross_points: Array=[]
+			var cross_bary: Array=[]
+			for k in 3:
+				var a: Vector3=sv[ids[k]]
+				var b: Vector3=sv[ids[(k+1)%3]]
+				if absf(b.y-a.y)<.000001: continue
+				var f: float=(p.y-a.y)/(b.y-a.y)
+				if f<0.0 or f>1.0: continue
+				var w:=Vector3.ZERO
+				w[k]=1.0-f
+				w[(k+1)%3]=f
+				cross_points.append(a.lerp(b,f))
+				cross_bary.append(w)
+			if cross_points.size()<2: continue
+			var edge: Vector3=cross_points[1]-cross_points[0]
+			if edge.length_squared()<1e-12: continue
+			var f: float=clampf((p-cross_points[0]).dot(edge)/edge.length_squared(),0.0,1.0)
+			var q: Vector3=cross_points[0]+edge*f
+			var dist: float=p.distance_squared_to(q)
+			if dist<best:
+				best=dist
+				tri=ids
+				bary=(cross_bary[0] as Vector3).lerp(cross_bary[1],f)
+		if tri.is_empty() or best>.08*.08: continue
+		var q:=Vector3.ZERO
+		for k in 3: q+=sv[tri[k]]*bary[k]
+		points[vi]=p.lerp(q,.9)
+		for j in blends.size():
+			var v: PackedVector3Array=blends[j][Mesh.ARRAY_VERTEX]
+			var tv: PackedVector3Array=targets[j][Mesh.ARRAY_VERTEX]
+			var projected:=Vector3.ZERO
+			for k in 3: projected+=tv[tri[k]]*bary[k]
+			v[vi]=v[vi].lerp(projected,.9)
+			blends[j][Mesh.ARRAY_VERTEX]=v
+		var influences: Dictionary={}
+		for k in 4:
+			var id: int=bones[vi*4+k]
+			influences[id]=float(influences.get(id,0.0))+.1*weights[vi*4+k]
+		for k in 3:
+			for j in 4:
+				var id: int=C5_TO_CHARACTER_BIND[sb[tri[k]*4+j]]
+				influences[id]=float(influences.get(id,0.0))+.9*bary[k]*sw[tri[k]*4+j]
+		var ids: Array=influences.keys()
+		ids.sort_custom(func(a,b):return influences[a]>influences[b])
+		var total:=0.0
+		for k in mini(4,ids.size()): total+=influences[ids[k]]
+		for k in 4:
+			bones[vi*4+k]=int(ids[k]) if k<ids.size() else 0
+			weights[vi*4+k]=float(influences[ids[k]])/total if k<ids.size() else 0.0
+	arrays[Mesh.ARRAY_VERTEX]=points
+	arrays[Mesh.ARRAY_BONES]=bones
+	arrays[Mesh.ARRAY_WEIGHTS]=weights
+	_rebuild_vertex_normals(arrays)
+	for target in blends: _rebuild_vertex_normals(target,arrays[Mesh.ARRAY_INDEX])
+
+
 ## The compact LSX stores mesh geometry but not UVs. Add deterministic world-oriented
 ## UV coordinates and approximate tangent frame without changing any blend shape or skin weights.
-static func _textured_mesh(source: ArrayMesh, mat_name: String, piece: String = "") -> ArrayMesh:
+static func _textured_mesh(source: ArrayMesh, mat_name: String, piece: String = "", shell: ArrayMesh = null) -> ArrayMesh:
 	if source == null or source.get_surface_count() == 0:
 		return null
 	var m := ArrayMesh.new()
@@ -232,6 +316,9 @@ static func _textured_mesh(source: ArrayMesh, mat_name: String, piece: String = 
 			if src_index >= 0 and src_index < C5_TO_CHARACTER_BIND.size():
 				bones[j] = C5_TO_CHARACTER_BIND[src_index]
 		arrays[Mesh.ARRAY_BONES] = bones
+		if piece.begins_with("sleeve_"):
+			_stitch_sleeve(arrays, blend, shell)
+		verts = arrays[Mesh.ARRAY_VERTEX]
 		var norm: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 		var uv := PackedVector2Array()
 		var tangents := PackedFloat32Array()
@@ -267,6 +354,10 @@ static func _load(kind: String) -> void:
 	if scene == null:
 		push_warning("C5: nelze sestavit model oblečení " + path)
 		return
+	var shells: Dictionary={}
+	for o in scene.find_children("*", "MeshInstance3D", true, false):
+		var tokens:=String(o.name).split("__")
+		if tokens.size()>=6 and tokens[4]=="shell": shells[tokens[3]]=o.mesh
 	for o in scene.find_children("*", "MeshInstance3D", true, false):
 		var mi := o as MeshInstance3D
 		# "<group>__C5__<part>__<style>__<piece>__<material>"
@@ -275,7 +366,7 @@ static func _load(kind: String) -> void:
 			continue
 		var style := String(tokens[3])
 		var mat_name := String(tokens[-1])
-		var mesh := _textured_mesh(mi.mesh as ArrayMesh, mat_name, String(tokens[4]))
+		var mesh := _textured_mesh(mi.mesh as ArrayMesh, mat_name, String(tokens[4]), shells.get(style))
 		if mesh == null:
 			continue
 		if not _loaded[kind].has(style):

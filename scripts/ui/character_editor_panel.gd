@@ -36,6 +36,7 @@ var _body_scroll: ScrollContainer
 var _title: Label
 var _help: Label
 var _apply_button: Button
+var _actions: GridContainer
 var _apply_token := ""
 var _apply_deadline_ms := 0
 var _await_readback := false
@@ -74,7 +75,10 @@ func _ready() -> void:
     _body_scroll = body_scroll
     body_scroll.name = "EditorBody"
     body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    # On narrow windows a long garment/label must scroll instead of widening
+    # the entire modal and pushing Apply/Cancel offscreen.
+    body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     layout.add_child(body_scroll)
     var body := VBoxContainer.new()
     body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -218,27 +222,86 @@ func _ready() -> void:
     _status = Label.new()
     _status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     layout.add_child(_status)
-    var buttons := HBoxContainer.new()
+    var buttons := GridContainer.new()
+    buttons.name = "EditorActions"
+    _actions = buttons
+    buttons.columns = 4
+    buttons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     layout.add_child(buttons)
+    get_viewport().size_changed.connect(_update_action_columns)
+    _update_action_columns()
     _undo_button = Button.new()
     _undo_button.text = "Zpět"
     _undo_button.pressed.connect(_on_undo)
+    _undo_button.tooltip_text = "Zpět (Ctrl+Z)"
+    _undo_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     buttons.add_child(_undo_button)
     _redo_button = Button.new()
     _redo_button.text = "Znovu"
     _redo_button.pressed.connect(_on_redo)
+    _redo_button.tooltip_text = "Znovu (Ctrl+Y nebo Ctrl+Shift+Z)"
+    _redo_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     buttons.add_child(_redo_button)
     var apply_button := Button.new()
     _apply_button = apply_button
     apply_button.name = "Apply"
     apply_button.text = "Použít"
     apply_button.pressed.connect(_on_apply)
+    apply_button.tooltip_text = "Použít (Ctrl+Enter)"
+    apply_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     buttons.add_child(apply_button)
     var cancel_button := Button.new()
     cancel_button.name = "Cancel"
     cancel_button.text = "Zrušit"
     cancel_button.pressed.connect(_on_cancel)
+    cancel_button.tooltip_text = "Zrušit (Esc)"
+    cancel_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     buttons.add_child(cancel_button)
+
+
+## A two-row action grid keeps all controls reachable on 320px displays.
+func _update_action_columns() -> void:
+    if _actions != null:
+        var columns := 2 if get_viewport_rect().size.x < 640.0 else 4
+        if _actions.columns != columns:
+            _actions.columns = columns
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+    if not _session.is_open() and not _network_read:
+        return
+    var key := event as InputEventKey
+    if key == null or not key.pressed or key.echo:
+        return
+    if key.keycode == KEY_ESCAPE:
+        _on_cancel()
+    elif key.ctrl_pressed and key.keycode == KEY_Z and key.shift_pressed:
+        _on_redo()
+    elif key.ctrl_pressed and key.keycode == KEY_Y:
+        _on_redo()
+    elif key.ctrl_pressed and key.keycode == KEY_Z:
+        _on_undo()
+    elif key.ctrl_pressed and key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+        _on_apply()
+    else:
+        return
+    get_viewport().set_input_as_handled()
+
+
+func _draft_mutable() -> bool:
+    if not _session.is_open() or main == null or main.net == null:
+        return false
+    if _network_read:
+        # An owner may inspect/undo a local draft even when Apply is feature-
+        # gated, but never during a pending request, conflict or reassignment.
+        return is_instance_valid(_read_net) and _read_net.mode == _read_net.Mode.CLIENT \
+            and _read_net.my_sim == _target and _read_net.character_edit_read_ui_enabled \
+            and not _reopen_required and _read_token.is_empty() \
+            and _apply_token.is_empty() and not _await_readback
+    if _host_session:
+        return main.net.mode == main.net.Mode.HOST and main.net.character_edit_apply_rpc_enabled and main.net.server_can_edit_character(1, _target)
+    return main.net.mode == main.net.Mode.OFFLINE
+
 
 func open_character(sim_node: String) -> bool:
     if main == null or not is_inside_tree() or _session.is_open():
@@ -373,7 +436,9 @@ func _refresh() -> void:
     _sliders.load_character(cd)
     _appearance.load_data(data)
     _voice.load_data(data)
-    _voice.set_editable(not (_network_read and (not _network_can_apply() or not _apply_token.is_empty() or _await_readback)))
+    # Same central H2B gate as every other draft control (in-flight Apply/readback,
+    # conflict, owner change or a switched network mode all lock the voice sliders).
+    _voice.set_editable(_draft_mutable())
     var sexual: Dictionary = data.get("identity", {})
     for key in ["asexual", "aromantic"]:
         (_sexuality_controls[key] as CheckBox).set_pressed_no_signal(bool(sexual.get(key, false)))
@@ -426,12 +491,13 @@ func _refresh() -> void:
         data.get("identity", {}).get("first_name", ""),
         data.get("identity", {}).get("last_name", ""),
         active, look.get("top", ""), look.get("bottom", ""), look.get("shoes", "")]
-    _undo_button.disabled = not _session.can_undo()
-    _redo_button.disabled = not _session.can_redo()
-    _apply_button.disabled = (_network_read and (not _network_can_apply() or not _apply_token.is_empty() or _await_readback))
+    var can_mutate := _draft_mutable()
+    _undo_button.disabled = not can_mutate or not _session.can_undo()
+    _redo_button.disabled = not can_mutate or not _session.can_redo()
+    _apply_button.disabled = not can_mutate or (_network_read and not _network_can_apply())
 
 func _on_appearance_changed(group: String, key: String, value: Variant) -> void:
-    if not _session.is_open() or (_network_read and (not _network_can_apply() or not _apply_token.is_empty() or _await_readback)):
+    if not _draft_mutable():
         return
     if group not in AppearanceEditor.GROUP_ORDER or not Schema.fields(group).has(key):
         return
@@ -449,7 +515,7 @@ func _on_appearance_changed(group: String, key: String, value: Variant) -> void:
 ## Hlas je veřejná skupina: v multiplayeru ji server znovu celou validuje (strict) a
 ## replikuje jen jako součást veřejného vzhledu. Stejné hradlo jako u vzhledu.
 func _on_voice_changed(key: String, value: float) -> void:
-    if not _session.is_open() or (_network_read and (not _network_can_apply() or not _apply_token.is_empty() or _await_readback)):
+    if not _draft_mutable():
         return
     if not Schema.fields("voice").has(key) or not is_finite(value):
         return
@@ -461,7 +527,7 @@ func _on_voice_changed(key: String, value: float) -> void:
 
 
 func _on_slider_changed(group: String, _key: String, _value: float) -> void:
-    if not _session.is_open():
+    if not _draft_mutable():
         return
     var draft: Dictionary = _session.draft()
     var section := "personality" if group in ["trait_levels", "hexaco", "worldview", "values", "pers_scalar"] else "mind"
@@ -479,7 +545,7 @@ func _on_slider_changed(group: String, _key: String, _value: float) -> void:
     _redo_button.disabled = not _session.can_redo()
 
 func _on_sexual_bool(on: bool, field: String) -> void:
-    if _network_read or not _session.is_open() or field not in ["asexual", "aromantic"]:
+    if not _draft_mutable() or _host_session or field not in ["asexual", "aromantic"]:
         return
     var draft: Dictionary = _session.draft()
     draft["identity"][field] = on
@@ -488,7 +554,7 @@ func _on_sexual_bool(on: bool, field: String) -> void:
 
 
 func _on_sexual_value(value: float, field: String) -> void:
-    if _network_read or not _session.is_open() or field not in ["libido", "drive_dysregulation"] or not is_finite(value):
+    if not _draft_mutable() or _host_session or field not in ["libido", "drive_dysregulation"] or not is_finite(value):
         return
     var draft: Dictionary = _session.draft()
     draft["identity"][field] = clampf(value, 0.0, 1.0)
@@ -499,7 +565,7 @@ func _on_sexual_value(value: float, field: String) -> void:
 ## Slider chooses the three common binary spectrum presets, but does not
 ## overwrite independent nonbinary attraction or romantic/asexual identity.
 func _on_orientation_spectrum(value: float) -> void:
-    if _network_read or _host_session or not _session.is_open() or not is_finite(value):
+    if not _draft_mutable() or _host_session or not is_finite(value):
         return
     var draft: Dictionary = _session.draft()
     var gender := String(draft["identity"].get("gender_identity", "neuvedeno"))
@@ -527,7 +593,7 @@ func _on_orientation_spectrum(value: float) -> void:
 
 
 func _on_sexual_target(on: bool, group: String) -> void:
-    if _network_read or not _session.is_open() or not Schema.ATTRACTION.has(group):
+    if not _draft_mutable() or _host_session or not Schema.ATTRACTION.has(group):
         return
     var draft: Dictionary = _session.draft()
     var selected: Array = (draft["identity"].get("sexual_attracted_to", []) as Array).duplicate()
@@ -546,7 +612,7 @@ func _on_sexual_target(on: bool, group: String) -> void:
 
 
 func _on_slot_selected(index: int) -> void:
-    if not _session.is_open() or index < 0 or index >= _slot.item_count:
+    if not _draft_mutable() or index < 0 or index >= _slot.item_count:
         return
     var slot := _slot.get_item_text(index)
     if not Schema.OUTFIT_CATEGORIES.has(slot):
@@ -557,7 +623,7 @@ func _on_slot_selected(index: int) -> void:
     _refresh()
 
 func _on_item_selected(index: int, field: String) -> void:
-    if not _session.is_open() or not _item_buttons.has(field) or _slot.selected < 0:
+    if not _draft_mutable() or not _item_buttons.has(field) or _slot.selected < 0:
         return
     var picker: OptionButton = _item_buttons[field]
     if index < 0 or index >= picker.item_count:
@@ -584,7 +650,7 @@ func _on_item_selected(index: int, field: String) -> void:
     _refresh()
 
 func _on_style_selected(index: int) -> void:
-    if not _session.is_open() or index <= 0 or index >= _style.item_count or _slot.selected < 0:
+    if not _draft_mutable() or index <= 0 or index >= _style.item_count or _slot.selected < 0:
         return
     var metadata: Variant = _style.get_item_metadata(index)
     if typeof(metadata) != TYPE_STRING or not Wardrobe.STYLES.has(String(metadata)):
@@ -597,10 +663,14 @@ func _on_style_selected(index: int) -> void:
     _refresh()
 
 func _on_undo() -> void:
+    if not _draft_mutable():
+        return
     _session.undo()
     _refresh()
 
 func _on_redo() -> void:
+    if not _draft_mutable():
+        return
     _session.redo()
     _refresh()
 
@@ -648,6 +718,8 @@ func _on_network_apply() -> void:
     _apply_deadline_ms = Time.get_ticks_msec() + 9000
     _body_scroll.hide()
     _apply_button.disabled = true
+    _undo_button.disabled = true
+    _redo_button.disabled = true
     _status.text = "Čekám na potvrzení změn od serveru…"
 
 
@@ -655,7 +727,7 @@ func _on_apply() -> void:
     if _network_read:
         _on_network_apply()
         return
-    if not _session.is_open() or main == null:
+    if not _draft_mutable():
         return
     # Fresh authority/revision/strict-validation checks occur in Main.
     var result: Dictionary = main.apply_character_edit(_target, _session.draft(), _revision)

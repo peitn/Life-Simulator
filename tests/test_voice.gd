@@ -18,12 +18,14 @@ class FakeSim extends Node3D:
 	signal action_finished(sim: Node3D, action_id: String, interrupted: bool)
 	signal social_event(sim: Node3D, positive: bool, milestone: bool)
 	signal conversation(sim: Node3D, partner: Node3D, info: Dictionary)
+	signal crying_changed(sim: Node3D, active: bool)
 	var look := {}
 	var grammar := "m"
 	var target = null
 	var mental = null
 
 class FakeMain extends Node:
+	var net = null
 	var selected: Node3D
 	func get_selected_sim():
 		return selected
@@ -477,6 +479,7 @@ func _test_chat_voices() -> void:
 	for s in [a, b, far]:
 		am.register_sim(s)
 	check(a.conversation.is_connected(am._on_conversation), "AudioManager poslouchá rozhovory postav")
+	check(a.crying_changed.is_connected(am._on_crying_changed), "Crying signal connected to local audio")
 	am.step_for_test(30.0)
 	var s0: Dictionary = am.stats.duplicate()
 	a.conversation.emit(a, b, {"success": true, "argued": false, "avg_mood": 40.0})
@@ -512,6 +515,68 @@ func _test_chat_voices() -> void:
 	check(am.chat_style(40.0) == "vesele" and am.chat_style(-40.0) == "smutne" and am.chat_style(0.0) == "klidne" and am.chat_style(NAN) == "klidne",
 		"styl repliky podle nálady rozhovoru (NaN → klidně)")
 	check(am.chat_cache_size() <= am.CHAT_CACHE_MAX, "cache replik je omezená")
+	# A previous dialog has filled the bounded three-voice pool.
+	# Drain it before independently testing crying onset.
+	for player in am._voices:
+		if is_instance_valid(player):
+			player.queue_free()
+	await get_tree().process_frame
+	check(am.active_voices() == 0, "previous conversation voices drained before cry test")
+	section("Smutek a hlas: jednání na začátku pláče")
+	am.step_for_test(40.0)
+	var cried_before: int = int(am.stats["cry_voices"])
+	a.crying_changed.emit(a, false)
+	check(int(am.stats["cry_voices"]) == cried_before, "cry stop is silent")
+	a.crying_changed.emit(a, true)
+	am.flush_chat_jobs_for_test()
+	check(int(am.stats["cry_voices"]) == cried_before + 1, "cry start produces a sad voice cue")
+	check(am.chat_cache_size() <= am.CHAT_CACHE_MAX, "cry cue uses bounded voice synth cache")
+	a.crying_changed.emit(a, true)
+	check(int(am.stats["cry_voices"]) == cried_before + 1, "cry onset has a cooldown")
+	am.step_for_test(am.CRY_VOICE_COOLDOWN + 1.0)
+	am.speed_index = 3
+	a.crying_changed.emit(a, true)
+	check(int(am.stats["cry_voices"]) == cried_before + 1, "high speed suppresses emotional voice")
+	am.speed_index = 1
+	far.crying_changed.emit(far, true)
+	check(int(am.stats["cry_voices"]) == cried_before + 1, "cry beyond hearing range is muted")
+	am.main = world
+	var saved_mode = world.net.mode
+	world.net.mode = world.net.Mode.HOST
+	a.crying_changed.emit(a, true)
+	check(int(am.stats["cry_voices"]) == cried_before + 1, "network host does not expose private emotion via audio")
+	world.net.mode = saved_mode
+	am.main = fm
+	section("Delayed crying voice jobs respect speed changes")
+	for player in am._voices:
+		if is_instance_valid(player):
+			player.queue_free()
+	await get_tree().process_frame
+	am._chat_cache.clear()
+	am._chat_order.clear()
+	var voices_before: int = int(am.stats["chat_voices"])
+	var cues_before: int = int(am.stats["cry_voices"])
+	a.crying_changed.emit(a, true)
+	check(am._chat_jobs.size() > 0 and bool(am._chat_jobs[-1].get("cry_cue", false)),
+		"cry onset schedules an asynchronous marked job")
+	am.speed_index = 3
+	am.flush_chat_jobs_for_test()
+	check(int(am.stats["chat_voices"]) == voices_before and int(am.stats["cry_voices"]) == cues_before + 1,
+		"voice job queued at normal speed is not played after speed-up")
+	am.speed_index = 1
+	am.step_for_test(am.CRY_VOICE_COOLDOWN + 1.0)
+	am._chat_cache.clear()
+	am._chat_order.clear()
+	var stale_voices_before: int = int(am.stats["chat_voices"])
+	a.crying_changed.emit(a, true)
+	check(am._chat_jobs.size() > 0, "stale-cue test has an actual queued render")
+	am.step_for_test(5.0)
+	am.flush_chat_jobs_for_test()
+	check(int(am.stats["chat_voices"]) == stale_voices_before,
+		"cry voice delayed beyond four real seconds is dropped even at normal speed")
+
+
+
 	am.main = old_main
 	for s in [a, b, far]:
 		s.queue_free()
