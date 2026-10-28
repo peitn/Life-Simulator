@@ -39,6 +39,9 @@ signal panic_changed(sim: Node3D, active: bool)
 signal conversation(sim: Node3D, partner: Node3D, info: Dictionary)
 ## Offline local audio presentation only; NEVER serialized or replicated as private emotions.
 signal crying_changed(sim: Node3D, active: bool)
+## A new public speech-bubble line (the same text other players see via net_speech). Local
+## presentation only (character voices / TTS); carries no private state.
+signal speech_started(sim: Node3D, text: String)
 ## Locally-authorized, opt-in non-graphic notice, NEVER an RPC/public snapshot.
 signal private_sensitive_event_notice(text: String)
 
@@ -1227,6 +1230,8 @@ func join_social(partner: Node3D, action: Dictionary) -> void:
 func say(text: String) -> void:
 	speech = gendered(text)
 	speech_until = _clock.total_minutes + SPEECH_MINUTES
+	if speech != "":
+		speech_started.emit(self, speech)
 
 
 func _start_social(partner: Node3D) -> void:

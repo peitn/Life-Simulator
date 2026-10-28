@@ -11,6 +11,8 @@ const Validator := preload("res://scripts/character/character_validator.gd")
 
 signal action_started(sim: Node3D, action: Dictionary)
 signal action_finished(sim: Node3D, action_id: String, interrupted: bool)
+## Same public speech event as SimAgent.speech_started, raised when the replicated line changes.
+signal speech_started(sim: Node3D, text: String)
 
 ## Vzdálenost, nad kterou se loutka teleportuje (např. vstává z postele).
 const SNAP_DIST := 2.5
@@ -47,7 +49,12 @@ var net_action := "":
 		if v != net_action:
 			_on_net_action(net_action, v)
 		net_action = v
-var net_speech := ""
+var net_speech := "":
+	set(v):
+		var changed: bool = v != net_speech
+		net_speech = v
+		if changed and v != "":
+			speech_started.emit(self, v)
 ## Soukromý stav – dostává jen vlastník postavy (NetSession._s2c_private).
 var net_needs := PackedByteArray()
 var net_detail := {}

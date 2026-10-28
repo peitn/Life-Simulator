@@ -121,6 +121,68 @@ character, hearing distance and the shared 3-voice cap, nothing at speed ≥ 3, 
 after a speed-up or more than 4 s of backlog. Restoring a save never fakes a new onset. Tests: `test_voice`
 (99 checks) and `test_emotional_state` (55).
 
+## Czech text-to-speech: characters speak their speech-bubble lines (28 October 2026)
+
+Characters can now **say the actual line shown in their speech bubble** (the public `speech` text) in their own voice.
+Everything is self-contained: no network, no external engine, no recorded speech.
+
+- **`scripts/audio/czech_g2p.gd`** – rule-based Czech grapheme-to-phoneme conversion. Normalises the text (lower case,
+  NFD → composed letters, foreign letters folded, emoji/symbols/control characters dropped, length cap 200 characters,
+  digits spelled as Czech number words 0–9999, longer digit runs read digit by digit). Rules: ch → x; y/ý → i/í;
+  ů → ú; w → v, q → kv, x → ks; bě/pě/vě/fě → bje…, mě → mňe, dě/tě/ně → ďe/ťe/ňe; di/ti/ni/dí/tí/ní → ďi/ťi/ňi
+  (dy/ty/ny stay hard); ř (voiced trill-fricative, devoiced after/before voiceless and finally: *tři* [tř̊i]); long
+  vowels á é í ó ú; diphthongs ou (always), au (word-initially), eu (not in the ne- prefix); dž; n before k/g → ŋ;
+  regressive voicing assimilation in obstruent clusters, also across word boundaries inside a phrase (*kde* [gde],
+  *led byl* [led bil]); v is a target but never a trigger (*tvůj* stays [tvúj]); v → f before voiceless (*všechno*
+  [fšexno]); sh → sx; final devoicing before a pause, vowel or sonorant (*led* [let], *obchod* [opxot]); one-consonant
+  prepositions k s v z are glued to the next word (*v lese* [vlese], *v pokoji* [fpokoji]). Syllables use vowel nuclei
+  plus syllabic r / l (*vlk*, *krk*) and final m (*sedm*).
+- **Prosody** – fixed stress on the first syllable of every stress unit: monosyllabic prepositions take the stress of
+  the following word (*NA stole*), enclitics (se, si, je, jsem, by, mi, ti, …) are unstressed. Phrases come from
+  punctuation: statement (`.`) final fall; yes/no question (`?` without a question word) low last stressed syllable and
+  a rise to the end; wh-question (kdo, co, kde, kdy, proč, jak, kam, odkud, kolik, který/á/é, čí, …) high start and
+  falling end; exclamation (`!`) 1.5× range and stronger accents; comma/semicolon/colon slight rise and a short pause;
+  ellipsis trailing low with fade. F0 declines across the utterance; the contour is bounded to −10…+8 semitones around
+  the speaker's own base. Durations: short vowel 72 ms, long vowels 1.72×, diphthongs 150 ms, stressed nuclei +6 %,
+  phrase-final lengthening ×1.45 (×1.9 in a trailing ellipsis), all divided by the speaking rate (voice.tempo ×
+  style).
+- **Synthesis (`scripts/audio/czech_tts.gd`)** – the same source–filter model as the wordless voice (Rosenberg glottal
+  pulse with jitter/shimmer/period doubling from `voice.roughness`, breath noise, spectral tilt), four formant
+  resonators with 13 ms coarticulated transitions and gliding diphthongs; fricatives as 4th-order band-limited noise
+  (s ≈ 5.6 kHz, š ≈ 2.9 kHz, f broad, x ≈ 1.5 kHz; voiced z ž v mix voicing), h as breathy glottal noise, plosives as
+  closure (+ voice bar for b d ď g) and a 13 ms burst with formant onsets pulled to the place locus (no aspiration),
+  affricates c č dz dž, nasals m n ň ŋ, l, r as a single tap (short) or ~28 Hz trill, ř as trill + fricative noise, j.
+  Per-phoneme output levels are calibrated against vowels (sonorants ≈ −6 dB, sibilants ≈ −10 dB). `voice.pitch` sets
+  the base F0 (≈ 77–331 Hz), `voice.timbre` the formant (tract) scale, `voice.roughness` jitter/shimmer/subharmonics;
+  styles klidně, vesele, naštvaně, smutně, unaveně (TTS only) and šeptem scale mean F0, range, accent, rate, energy and
+  breathiness. Nothing is derived from gender, identity, grammatical gender, name or body. Same input → identical
+  bytes (own FNV-1a hash and RNG). Peak normalisation with soft saturation, never clipping.
+- **API** – `VoiceSynth.speak(text, voice, style, sr) -> AudioStreamWAV`, `speak_buffer`, `tts_phonemes`,
+  `tts_transcription`, `tts_plan` (segments, syllables with stress, phrases, F0 every 5 ms), `tts_f0_contour`,
+  `tts_cache_key`, `tts_style_for_emotion`.
+- **In game** – `SimAgent.say()` and `SimPuppet.net_speech` emit `speech_started(sim, text)`. In the **Řeč z textu**
+  mode AudioManager speaks the line (after the profanity filter, exactly as displayed) with the speaker's public
+  `look.voice` and a style from the **displayed** emotion (naštvaný → angry, smutný → sad, unavený → tired, šťastný →
+  cheerful, otherwise calm). Synthesis runs in `WorkerThreadPool` at 16 kHz into the shared 24-entry LRU cache; 2.5 s
+  real-time cooldown per character, the 12 m hearing distance and 3-voice cap of conversation lines, at most 4 pending
+  jobs, nothing at speed ≥ 3 and jobs older than 4 s or overtaken by a speed-up are dropped. Arguments keep the
+  recorded `vox_argue_*` takes: a line whose speaker has just started an argument voice is not spoken as well (raised
+  voices from formant TTS were not judged convincing). In multiplayer every peer synthesises locally from public data
+  only (bubble text, look.voice, net_emotion); no private state is read and nothing extra is sent.
+- **Setting** – `GameSettings.character_voices` (persisted in `user://settings.cfg`), menu **Hlasy postav: Beze slov /
+  Řeč z textu / Vypnuto**, default **Řeč z textu**. *Beze slov* keeps the previous wordless conversation lines and no
+  TTS; *Vypnuto* silences conversation lines, TTS, the crying cue and argument voices (door slams and the tension layer
+  stay).
+- **Creator / editor** – the Hlas section has a **Zkusit větu** field (default "Ahoj, jak se máš? Dneska je hezky."),
+  **▶ Zkusit větu** and **Otázka** ("Půjdeš se mnou zítra ven?") to hear the draft voice speak; rendered off the main
+  thread, cached with the other previews.
+- **Quality and limits (honest)** – contours, timing, levels and spectra were checked on rendered samples (spectrogram
+  and measured-vs-planned F0 plots); the measured F0 follows the planned contour, fricatives are band-limited and no
+  sample clips. Intelligibility has **not** been verified by a listener or a speech recogniser in this run: it is a
+  compact rule-based formant synthesiser and will sound robotic; unusual words, loanwords, abbreviations, prefix
+  boundaries (po-učit vs. pouze) and homographs follow the rules above and may be mispronounced. If the owner finds it
+  unpleasant, switch the default in `GameSettings.DEFAULTS` to `wordless`.
+
 ## Tests
 
 `tests/test_audio_tone.tscn` – 222 checks: song data (all five tracks, known instruments, ranges, no v2

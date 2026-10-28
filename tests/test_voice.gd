@@ -459,6 +459,10 @@ func _test_live_editor_apply() -> void:
 func _test_chat_voices() -> void:
 	section("Hlasy v běžném rozhovoru (AudioManager)")
 	var am = get_node("/root/AudioManager")
+	# Wordless conversation lines belong to the "Beze slov" voice mode (TTS is tested in test_tts).
+	var gs = get_node("/root/GameSettings")
+	gs.persist = false
+	gs.set_value("character_voices", "wordless", false)
 	var fm := FakeMain.new()
 	add_child(fm)
 	var old_main = am.main

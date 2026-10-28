@@ -15,6 +15,7 @@ var _fx: CheckBox
 var _fx_strength: HSlider
 var _addiction: CheckBox
 var _profanity: CheckBox
+var _voices: OptionButton
 var _sh_ed: CheckBox
 var _adult_intimacy: CheckBox
 var _syncing := false
@@ -161,6 +162,8 @@ func _build_menu() -> void:
 	v.add_child(row)
 	_addiction = _check(v, "Závislosti (alkohol, později hazard)")
 	_addiction.toggled.connect(func(on: bool): _apply("addiction", on))
+	_voices = _option(v, "Hlasy postav", ["Beze slov", "Řeč z textu (česky, z bublin)", "Vypnuto"])
+	_voices.item_selected.connect(func(i: int): _apply("character_voices", ["wordless", "tts", "off"][i]))
 	_profanity = _check(v, "Sprostá mluva v dialozích (vypnuto = cenzura k***a)")
 	_profanity.toggled.connect(func(on: bool): _apply("profanity", on))
 	_sh_ed = _check(v, "Sebepoškozování a poruchy příjmu potravy (jen přes emoce a vztahy; zatím ve hře nejsou)")
@@ -227,6 +230,8 @@ func _sync_from_settings() -> void:
 	_fx_strength.value = float(_settings.get_value("distortion_strength"))
 	_addiction.button_pressed = bool(_settings.get_value("addiction"))
 	_profanity.button_pressed = bool(_settings.get_value("profanity"))
+	if _voices != null:
+		_voices.select(maxi(["wordless", "tts", "off"].find(String(_settings.get_value("character_voices"))), 0))
 	_sh_ed.button_pressed = bool(_settings.get_value("sh_ed_topics"))
 	_adult_intimacy.button_pressed = bool(_settings.get_value("adult_intimacy"))
 	_syncing = false

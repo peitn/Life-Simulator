@@ -27,6 +27,9 @@ const WORDS := {
 const PREVIEW_SECONDS := 2.2
 ## Kolik ukázek si editor pamatuje (kvantizovaný klíč → stream); malá LRU cache.
 const CACHE_MAX := 12
+## "Zkusit větu": real Czech TTS with the current draft voice (default sentence + a question).
+const SAMPLE_SENTENCE := "Ahoj, jak se máš? Dneska je hezky."
+const SAMPLE_QUESTION := "Půjdeš se mnou zítra ven?"
 
 var auto_preview := true
 var _controls: Dictionary = {}
@@ -53,6 +56,14 @@ var _want_play := false
 var last_render_ms := 0.0
 var renders := 0
 var plays := 0
+var sentence_plays := 0
+var sentence_renders := 0
+var _sentence: LineEdit
+var _say: Button
+var _question: Button
+var _tts_job := -1
+var _tts_out: Array = []
+var _tts_want := false
 
 
 func _ready() -> void:
@@ -102,6 +113,34 @@ func _ready() -> void:
 	_auto.toggled.connect(func(on: bool) -> void: auto_preview = on)
 	row.add_child(_auto)
 	_style.item_selected.connect(func(_i: int) -> void: play_preview())
+	var tts_row := HFlowContainer.new()
+	tts_row.name = "VoiceSentenceRow"
+	tts_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(tts_row)
+	_sentence = LineEdit.new()
+	_sentence.name = "VoiceSentence"
+	_sentence.text = SAMPLE_SENTENCE
+	_sentence.max_length = 200
+	_sentence.placeholder_text = "Napiš větu, kterou má postava říct"
+	_sentence.tooltip_text = "Věta pro ukázku řeči z textu (česky, max. 200 znaků)"
+	_sentence.custom_minimum_size.x = 120
+	_sentence.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sentence.text_submitted.connect(func(_t: String) -> void: play_sentence())
+	tts_row.add_child(_sentence)
+	_say = Button.new()
+	_say.name = "VoiceSay"
+	_say.text = "▶ Zkusit větu"
+	_say.tooltip_text = "Postava řekne větu svým hlasem (řeč z textu)"
+	_say.pressed.connect(play_sentence)
+	tts_row.add_child(_say)
+	_question = Button.new()
+	_question.name = "VoiceQuestion"
+	_question.text = "Otázka"
+	_question.tooltip_text = "Ukázková otázka – stoupající intonace na konci"
+	_question.pressed.connect(func() -> void:
+		_sentence.text = SAMPLE_QUESTION
+		play_sentence())
+	tts_row.add_child(_question)
 	_player = AudioStreamPlayer.new()
 	_player.name = "VoicePreviewPlayer"
 	# Sběrnice UI existuje, když běží AudioManager; jinak zůstane Master.
@@ -276,7 +315,77 @@ func play_preview() -> void:
 
 
 func is_rendering() -> bool:
-	return _job >= 0
+	return _job >= 0 or _tts_job >= 0
+
+
+func sentence_text() -> String:
+	return _sentence.text if _sentence != null else SAMPLE_SENTENCE
+
+
+func sentence_edit() -> LineEdit:
+	return _sentence
+
+
+func _sentence_key() -> String:
+	return VoiceSynth.tts_cache_key(sentence_text(), VoiceSynth.quantized(_voice), current_style(), VoiceSynth.SR)
+
+
+## TTS stream of the sentence for the current draft voice – SYNCHRONOUS (API/tests).
+func sentence_stream() -> AudioStreamWAV:
+	var key := _sentence_key()
+	if _cache.has(key):
+		return _cache[key]
+	var stream := VoiceSynth.speak(sentence_text(), VoiceSynth.quantized(_voice), current_style(), VoiceSynth.SR)
+	sentence_renders += 1
+	_store(key, stream)
+	return stream
+
+
+## Speaks the sentence: from cache immediately, otherwise rendered in WorkerThreadPool.
+func play_sentence() -> void:
+	if _player == null:
+		return
+	var key := _sentence_key()
+	if _cache.has(key):
+		_start_player(_cache[key])
+		sentence_plays += 1
+		return
+	_tts_want = true
+	if _tts_job < 0:
+		_tts_out = []
+		_tts_job = WorkerThreadPool.add_task(_render_tts.bind(sentence_text(), VoiceSynth.quantized(_voice),
+			current_style(), key, _tts_out), false, "voice sentence")
+
+
+static func _render_tts(text: String, voice: Dictionary, style: String, key: String, out: Array) -> void:
+	out.append([key, VoiceSynth.speak(text, voice, style, VoiceSynth.SR)])
+
+
+func _store(key: String, stream: AudioStreamWAV) -> void:
+	_cache[key] = stream
+	_cache_order.erase(key)
+	_cache_order.append(key)
+	while _cache_order.size() > CACHE_MAX:
+		_cache.erase(_cache_order.pop_front())
+
+
+func _poll_tts() -> void:
+	if _tts_job < 0 or not WorkerThreadPool.is_task_completed(_tts_job):
+		return
+	WorkerThreadPool.wait_for_task_completion(_tts_job)
+	_tts_job = -1
+	if not _tts_out.is_empty():
+		sentence_renders += 1
+		_store(String(_tts_out[0][0]), _tts_out[0][1])
+	if not _tts_want:
+		return
+	var key := _sentence_key()
+	if _cache.has(key):
+		_tts_want = false
+		_start_player(_cache[key])
+		sentence_plays += 1
+	else:
+		play_sentence()
 
 
 func _start_job() -> void:
@@ -292,6 +401,7 @@ static func _render_job(voice: Dictionary, style: String, variant: int, key: Str
 
 
 func _process(_delta: float) -> void:
+	_poll_tts()
 	if _job < 0 or not WorkerThreadPool.is_task_completed(_job):
 		return
 	WorkerThreadPool.wait_for_task_completion(_job)
@@ -328,6 +438,9 @@ func _exit_tree() -> void:
 	if _job >= 0:
 		WorkerThreadPool.wait_for_task_completion(_job)
 		_job = -1
+	if _tts_job >= 0:
+		WorkerThreadPool.wait_for_task_completion(_tts_job)
+		_tts_job = -1
 
 
 func slider(key: String) -> HSlider:

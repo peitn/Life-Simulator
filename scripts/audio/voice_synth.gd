@@ -20,6 +20,12 @@ extends RefCounted
 ## Výstup je mono PackedFloat32Array; to_stream() udělá 16bit AudioStreamWAV.
 
 const SR := 22050
+## Czech text-to-speech (rule-based G2P + formant synthesis + prosody), see czech_tts.gd.
+const CzechTTS := preload("res://scripts/audio/czech_tts.gd")
+## Speech styles available to TTS: the five wordless styles plus "unavene" (tired).
+const TTS_STYLES := ["klidne", "vesele", "nastvane", "smutne", "unavene", "septem"]
+## Public displayed emotion (Mood.emotion / net_emotion) → speaking style. Never private state.
+const EMOTION_STYLE := {"nastvany": "nastvane", "smutny": "smutne", "unaveny": "unavene", "stastny": "vesele"}
 ## Výchozí (neutrální) základní frekvence – uprostřed lidského rozsahu, bez vazby na rod.
 const BASE_F0 := 160.0
 ## pitch −1..1 → ±1,05 oktávy (≈ 77–331 Hz): od basu po vysoký hlas.
@@ -440,3 +446,53 @@ static func to_stream(buf: PackedFloat32Array, sr: int = SR) -> AudioStreamWAV:
 	s.loop_mode = AudioStreamWAV.LOOP_DISABLED
 	s.data = data
 	return s
+
+
+# ------------------------------------------------------------------ řeč z textu (TTS)
+
+## Czech text-to-speech: speaks `text` (≤ 200 characters are used) in the given public voice and
+## style. Deterministic (same input → identical bytes), offline, never crashes on odd input.
+static func speak(text: Variant, voice: Variant = {}, style: Variant = "klidne", sr: int = CzechTTS.SR) -> AudioStreamWAV:
+	var rate := clampi(sr, 8000, 48000)
+	return to_stream(CzechTTS.render(text, voice, tts_style_or_default(style), rate), rate)
+
+
+static func speak_buffer(text: Variant, voice: Variant = {}, style: Variant = "klidne", sr: int = CzechTTS.SR) -> PackedFloat32Array:
+	return CzechTTS.render(text, voice, tts_style_or_default(style), clampi(sr, 8000, 48000))
+
+
+static func tts_style_or_default(style: Variant) -> String:
+	return CzechTTS.style_or_default(style)
+
+
+## Phoneme sequence with "|" word boundaries and punctuation tokens (for tests and tools).
+static func tts_phonemes(text: Variant) -> Array:
+	return CzechTTS.G2P.phonemes(text)
+
+
+## Readable phonetic transcription, e.g. "led" → "let", "obchod" → "opxot".
+static func tts_transcription(text: Variant) -> String:
+	return CzechTTS.G2P.transcribe(text)
+
+
+## Timed plan (segments, syllables with stress, phrases, F0 track every CzechTTS.F0_STEP s).
+static func tts_plan(text: Variant, voice: Variant = {}, style: Variant = "klidne") -> Dictionary:
+	return CzechTTS.plan(text, voice, tts_style_or_default(style))
+
+
+static func tts_f0_contour(text: Variant, voice: Variant = {}, style: Variant = "klidne") -> Dictionary:
+	return CzechTTS.f0_contour(text, voice, tts_style_or_default(style))
+
+
+## Cache key: quantised voice (0.02 like cache_key) + style + hash of the spoken text + rate.
+static func tts_cache_key(text: Variant, voice: Variant, style: Variant, sr: int = CzechTTS.SR) -> String:
+	var n := quantized(voice)
+	var clean := CzechTTS.G2P.normalize(CzechTTS.clean_text(text))
+	return "tts|%d|%d|%d|%d|%s|%d|%d|%d" % [roundi(n["pitch"] * 50.0), roundi(n["timbre"] * 50.0),
+		roundi(n["tempo"] * 50.0), roundi(n["roughness"] * 50.0), tts_style_or_default(style),
+		CzechTTS.text_hash(clean), clean.length(), clampi(sr, 8000, 48000)]
+
+
+static func tts_style_for_emotion(emotion: Variant) -> String:
+	return String(EMOTION_STYLE.get(String(emotion) if typeof(emotion) == TYPE_STRING else "", "klidne"))
+

@@ -40,6 +40,13 @@ const MH_LABELS := {"full": "Plně", "muted": "Ztlumeně", "off": "Vypnuto"}
 ## Intenzita rušivých myšlenek: 0 vypnuto … 3 silná.
 const THOUGHT_LABELS := ["Vypnuto", "Jemně", "Normálně", "Silně"]
 const THOUGHT_RATE := [0.0, 0.4, 1.0, 1.6]
+## Character voices (presentation only, per player): wordless formant "speech", Czech
+## text-to-speech of the visible speech-bubble lines, or no character voices at all.
+const VOICE_WORDLESS := "wordless"
+const VOICE_TTS := "tts"
+const VOICE_OFF := "off"
+const VOICE_MODES := [VOICE_WORDLESS, VOICE_TTS, VOICE_OFF]
+const VOICE_LABELS := {"wordless": "Beze slov", "tts": "Řeč z textu", "off": "Vypnuto"}
 
 const DEFAULTS := {
 	"mental_health": "full",
@@ -54,6 +61,7 @@ const DEFAULTS := {
 	## Adult sexual content: private and non-graphic, opt-in OFF by default.
 	"adult_intimacy": false,
 	"warning_ack": false,
+	"character_voices": "tts",
 }
 
 ## Sprostá slova pro cenzuru (kmeny; porovnává se začátek slova bez diakritiky na malých písmenech).
@@ -99,6 +107,10 @@ func set_value(key: String, v: Variant, save := true) -> bool:
 			if typeof(v) != TYPE_STRING or not MH_MODES.has(String(v)):
 				return false
 			nv = String(v)
+		"character_voices":
+			if typeof(v) != TYPE_STRING or not VOICE_MODES.has(String(v)):
+				return false
+			nv = String(v)
 		"intrusive_thoughts":
 			if typeof(v) != TYPE_INT and typeof(v) != TYPE_FLOAT:
 				return false
@@ -116,6 +128,10 @@ func set_value(key: String, v: Variant, save := true) -> bool:
 	if save:
 		save_settings()
 	return true
+
+
+func character_voice_mode() -> String:
+	return String(get_value("character_voices"))
 
 
 func get_value(key: String) -> Variant:

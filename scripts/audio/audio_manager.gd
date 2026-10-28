@@ -55,12 +55,18 @@ const CHAT_MAX_JOBS := 4
 ## Cry onset is one brief private-local sad vocal cue (not a synthesized sob),
 ## with a real-time cooldown so game-time acceleration never creates a flood.
 const CRY_VOICE_COOLDOWN := 35.0
+## Řeč z textu (TTS): characters speak their public speech-bubble line in their own voice.
+## Real-time cooldown per character, same hearing distance / voice cap / job cap as chat lines,
+## rendered in WorkerThreadPool and dropped at speed ≥ 3 or after TTS_MAX_AGE s of backlog.
+const TTS_COOLDOWN := 2.5
+const TTS_MAX_AGE := 4.0
 
 var main: Node = null
 var current_track := ""
 var melancholy := false
 var stats := {"track_changes": 0, "object_starts": 0, "object_stops": 0, "ui": 0, "voices": 0, "slams": 0,
-	"chat_voices": 0, "chat_renders": 0, "chat_cache_hits": 0, "cry_voices": 0}
+	"chat_voices": 0, "chat_renders": 0, "chat_cache_hits": 0, "cry_voices": 0,
+	"tts_requests": 0, "tts_renders": 0, "tts_voices": 0, "tts_dropped": 0}
 ## Úroveň napětí 0..1 (vyhlazená) a její složky – čte test a HUD/debug.
 var tension := 0.0
 var conflict_env := 0.0
@@ -99,6 +105,7 @@ var _chat_cache := {}       # klíč VoiceSynth.cache_key → AudioStreamWAV
 var _chat_order: Array = [] # LRU pořadí klíčů
 var _chat_last := {}        # Sim -> čas poslední repliky (s)
 var _chat_variant := {}     # Sim -> další varianta věty
+var _tts_last := {}         # Sim -> last spoken TTS line (real seconds)
 var _cry_last := {}         # Sim -> last crying-onset cue (real seconds)
 var _chat_jobs: Array = []  # [{"task": int, "key": String, "out": Array, "sim": Node, "delay": float}]
 
@@ -211,6 +218,8 @@ func register_sim(sim: Node) -> void:
 		sim.conversation.connect(_on_conversation)
 	if sim.has_signal("crying_changed") and not sim.crying_changed.is_connected(_on_crying_changed):
 		sim.crying_changed.connect(_on_crying_changed)
+	if sim.has_signal("speech_started") and not sim.speech_started.is_connected(_on_speech):
+		sim.speech_started.connect(_on_speech)
 
 
 # ---------------------------------------------------------------- hudba
@@ -471,7 +480,7 @@ func _on_conflict(sim: Node3D) -> void:
 		hear = clampf(1.0 - d / CONFLICT_HEAR_DIST, 0.0, 1.0)
 	conflict_env = maxf(conflict_env, hear)
 	# Při rychlém čase hlasy vynecháme (byla by to kakofonie), napětí zůstává.
-	if speed_index >= 3:
+	if speed_index >= 3 or voice_mode() == "off":
 		return
 	if _now - float(_voice_last.get(sim, -100.0)) < VOICE_COOLDOWN:
 		return
@@ -526,6 +535,8 @@ func _on_conflict(sim: Node3D) -> void:
 func _on_crying_changed(who: Node3D, active: bool) -> void:
 	if not active or main == null or who == null or not is_instance_valid(who) or not who.is_inside_tree():
 		return
+	if voice_mode() == "off":
+		return
 	# Never read or expose private NPC emotion state on a connected host/client.
 	var net = main.get("net")
 	if net != null and net.has_method("is_networked") and net.is_networked():
@@ -552,6 +563,9 @@ func _on_crying_changed(who: Node3D, active: bool) -> void:
 ## svým hlasem. Jen v doslechu vybrané postavy, ne při rychlém čase, s odstupem a limitem.
 func _on_conversation(sim: Node3D, partner: Node3D, info: Dictionary) -> void:
 	if not bool(info.get("success", false)) or bool(info.get("argued", false)):
+		return
+	# Wordless chat lines only in the "Beze slov" mode; with TTS the spoken bubble line is the voice.
+	if voice_mode() != "wordless":
 		return
 	if speed_index >= 3:
 		return
@@ -626,11 +640,109 @@ static func _render_chat_job(voice: Dictionary, style: String, variant: int, out
 	out.append(VoiceSynth.to_stream(VoiceSynth.render(voice, style, variant, CHAT_VOICE_SECONDS, CHAT_VOICE_SR), CHAT_VOICE_SR))
 
 
+## Character voice mode from GameSettings ("wordless" / "tts" / "off"); presentation only.
+func voice_mode() -> String:
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs != null and gs.has_method("character_voice_mode"):
+		var m := String(gs.character_voice_mode())
+		if m in ["wordless", "tts", "off"]:
+			return m
+	return "tts"
+
+
+## Public speech line → spoken with Czech TTS in the character's own public voice. Reads only
+## public data (the visible speech text, look.voice and the displayed emotion), so it works the
+## same on a host and on clients (SimPuppet), never from private state.
+func _on_speech(who: Node3D, text: String) -> void:
+	if voice_mode() != "tts" or main == null or who == null or not is_instance_valid(who) or not who.is_inside_tree():
+		return
+	if speed_index >= 3 or typeof(text) != TYPE_STRING or text.strip_edges() == "":
+		return
+	if not _within_hearing(who) or active_voices() >= MAX_VOICES or _chat_jobs.size() >= CHAT_MAX_JOBS:
+		return
+	if _now - float(_tts_last.get(who, -100.0)) < TTS_COOLDOWN:
+		return
+	_tts_last[who] = _now
+	_chat_last[who] = _now
+	var line := text
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs != null and gs.has_method("filter_profanity"):
+		line = String(gs.filter_profanity(line))
+	request_tts_voice(who, line, VoiceSynth.tts_style_for_emotion(public_emotion_of(who)))
+	if _tts_last.size() > 32:
+		for k in _tts_last.keys():
+			if not is_instance_valid(k):
+				_tts_last.erase(k)
+
+
+## Displayed (public) emotion only: SimAgent.get_emotion() is what the bubble/HUD shows and what is
+## replicated as net_emotion; puppets carry net_emotion.
+static func public_emotion_of(who: Object) -> String:
+	if who == null:
+		return ""
+	if who.has_method("get_emotion"):
+		return String(who.get_emotion())
+	var e = who.get("net_emotion")
+	return String(e) if typeof(e) == TYPE_STRING else ""
+
+
+func request_tts_voice(who: Node3D, text: String, style: String) -> void:
+	var voice := chat_voice_of(who)
+	var key := VoiceSynth.tts_cache_key(text, voice, style, CHAT_VOICE_SR)
+	stats["tts_requests"] += 1
+	if _chat_cache.has(key):
+		stats["chat_cache_hits"] += 1
+		_chat_order.erase(key)
+		_chat_order.append(key)
+		var before := active_voices()
+		_play_chat_stream(who, _chat_cache[key], 0.0, "SpeechVoice")
+		if active_voices() > before:
+			stats["tts_voices"] += 1
+		return
+	if _chat_jobs.size() >= CHAT_MAX_JOBS:
+		stats["tts_dropped"] += 1
+		return
+	var out: Array = []
+	var task := WorkerThreadPool.add_task(_render_tts_job.bind(text, voice, style, out), false, "tts")
+	_chat_jobs.append({"task": task, "key": key, "out": out, "sim": who, "delay": 0.0,
+		"tts": true, "queued_at": _now})
+
+
+static func _render_tts_job(text: String, voice: Dictionary, style: String, out: Array) -> void:
+	out.append(VoiceSynth.speak(text, voice, style, CHAT_VOICE_SR))
+
+
 ## Late cry cues are skipped after speed-up or prolonged render backlog.
 ## Regular dialog still follows its preexisting behavior.
 func _chat_job_still_relevant(job: Dictionary) -> bool:
+	if bool(job.get("tts", false)):
+		var who = job.get("sim")
+		# Raised voices stay on the recorded vox_argue_* takes: a line whose speaker just started an
+		# argument voice is not additionally spoken.
+		var arguing: bool = is_instance_valid(who) and _now - float(_voice_last.get(who, -100.0)) < VOICE_COOLDOWN
+		return speed_index < 3 and voice_mode() == "tts" and not arguing \
+			and _now - float(job.get("queued_at", _now)) <= TTS_MAX_AGE
 	return not bool(job.get("cry_cue", false)) or (speed_index < 3 and
 		_now - float(job.get("queued_at", _now)) <= 4.0)
+
+
+func _finish_job(job: Dictionary, stream: AudioStreamWAV) -> void:
+	var tts := bool(job.get("tts", false))
+	stats["tts_renders" if tts else "chat_renders"] += 1
+	var key := String(job["key"])
+	_chat_cache[key] = stream
+	_chat_order.erase(key)
+	_chat_order.append(key)
+	while _chat_order.size() > CHAT_CACHE_MAX:
+		_chat_cache.erase(_chat_order.pop_front())
+	var who = job["sim"]
+	if is_instance_valid(who) and who.is_inside_tree() and _chat_job_still_relevant(job):
+		var before := active_voices()
+		_play_chat_stream(who, stream, float(job["delay"]), "SpeechVoice" if tts else "ChatVoice")
+		if tts and active_voices() > before:
+			stats["tts_voices"] += 1
+	elif tts:
+		stats["tts_dropped"] += 1
 
 
 func _poll_chat_jobs() -> void:
@@ -645,17 +757,7 @@ func _poll_chat_jobs() -> void:
 		var out: Array = job["out"]
 		if out.is_empty():
 			continue
-		var stream: AudioStreamWAV = out[0]
-		stats["chat_renders"] += 1
-		var key := String(job["key"])
-		_chat_cache[key] = stream
-		_chat_order.erase(key)
-		_chat_order.append(key)
-		while _chat_order.size() > CHAT_CACHE_MAX:
-			_chat_cache.erase(_chat_order.pop_front())
-		var who = job["sim"]
-		if is_instance_valid(who) and who.is_inside_tree() and _chat_job_still_relevant(job):
-			_play_chat_stream(who, stream, float(job["delay"]))
+		_finish_job(job, out[0])
 	_chat_jobs = still
 
 
@@ -669,26 +771,18 @@ func flush_chat_jobs_for_test() -> void:
 		var out: Array = job["out"]
 		if out.is_empty():
 			continue
-		var stream: AudioStreamWAV = out[0]
-		stats["chat_renders"] += 1
-		_chat_cache[String(job["key"])] = stream
-		_chat_order.append(String(job["key"]))
-		while _chat_order.size() > CHAT_CACHE_MAX:
-			_chat_cache.erase(_chat_order.pop_front())
-		var who = job["sim"]
-		if is_instance_valid(who) and who.is_inside_tree() and _chat_job_still_relevant(job):
-			_play_chat_stream(who, stream, float(job["delay"]))
+		_finish_job(job, out[0])
 
 
 func chat_cache_size() -> int:
 	return _chat_cache.size()
 
 
-func _play_chat_stream(who: Node3D, stream: AudioStreamWAV, delay: float) -> void:
+func _play_chat_stream(who: Node3D, stream: AudioStreamWAV, delay: float, node_name: String = "ChatVoice") -> void:
 	if active_voices() >= MAX_VOICES:
 		return
 	var p := AudioStreamPlayer3D.new()
-	p.name = "ChatVoice"
+	p.name = node_name
 	p.stream = stream
 	p.bus = "SFX"
 	p.unit_size = 3.0
@@ -704,7 +798,8 @@ func _play_chat_stream(who: Node3D, stream: AudioStreamWAV, delay: float) -> voi
 		p.play()
 	p.finished.connect(p.queue_free)
 	_voices.append(p)
-	stats["chat_voices"] += 1
+	if node_name == "ChatVoice":
+		stats["chat_voices"] += 1
 
 
 func _exit_tree() -> void:

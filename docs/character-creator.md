@@ -446,3 +446,11 @@ A central `_draft_mutable()` check blocks every draft change – sliders, voice,
 private-sexuality controls, Undo/Redo – while an authenticated network Apply or its canonical readback is in flight,
 after a conflict or owner change, or when the network mode switched since the editor opened. See
 `docs/H2B_FUNCTIONAL_ACCEPTANCE_20261028.md`.
+
+## Voice preview: Zkusit větu (28 October 2026)
+
+The Hlas (voice) section of the creator and the live editor now also speaks a real sentence with the current draft voice
+through the Czech TTS (see [audio.md](audio.md)): a text field (max. 200 characters, default "Ahoj, jak se máš? Dneska
+je hezky."), **▶ Zkusit větu** (or Enter) and **Otázka**, which loads "Půjdeš se mnou zítra ven?" to hear the rising
+question melody. The selected style applies. Synthesis runs in `WorkerThreadPool`; previews are cached. Nothing is sent
+over the network.
