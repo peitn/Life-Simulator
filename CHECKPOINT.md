@@ -831,3 +831,4 @@ Run `main-claude-c16-1793180300` (v3 main lock). Integrated ChatGPT's tested C16
 - Regressions on the server: C14 independent finger joints 35/35, torso/fingers C12 63/63, character editor UI 61/61, full playable slice 48/48.
 - `docs/implementation-sequence.md`: the 24 October publication restriction is replaced by the owner's 27 October authorization and mirror rules (push without force, fast-forward `ccr-b3bd69c5-br6eut`). `docs/testing.md` rows added.
 - Still open: visual bent-pose render QA of the retargeted fingers; Grok's notes (#264): network only morph parameters, clothing checks at 145/205 cm.
+- GitHub: mirrored to `main` as f7fb01f (C16 + overnight fallback work: worldview validation, ENet fence/bootstrap tests, .uid files), `ccr-b3bd69c5-br6eut` fast-forwarded. Lock released.
