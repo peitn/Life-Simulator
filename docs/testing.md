@@ -249,5 +249,9 @@ Pre-existing, not caused by the recovery (identical on unmodified HEAD in the sa
 passes all 27 assertions but finishes right at its 110 s watchdog on this slow sandbox (watchdog counted as one
 failure); `test_live_anatomy_overlay` passes 76/76 but its process does not exit before the 400 s runner timeout;
 `test_character_garment_render` / `test_character_resync_render` are render tools that refuse to run without a lease
-argument; `test_cat_hoodie_sleeve_gap.gd` is a helper class, not a runnable test. Server results are recorded in
-CHECKPOINT.
+argument; `test_cat_hoodie_sleeve_gap.gd` is a helper class, not a runnable test. The local household-matrix shards
+passed every simulation check (42/42 per size) but could not write their report (no `previews/testlogs` in the clone).
+
+On the live server after upload: all listed suites pass with exit 0, including the household matrix **43/43 for each
+size 4, 6 and 8** (4 seeds × 30 days). `test_extreme_fictional_household` still hits its 110 s watchdog on the server
+(open, pre-existing on HEAD; see CHECKPOINT).
