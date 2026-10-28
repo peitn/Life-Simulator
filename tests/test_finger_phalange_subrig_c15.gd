@@ -68,6 +68,7 @@ func _run()->void:
     var left:Skeleton3D=l.get_node("PhalangeRig")
     var r:BoneAttachment3D=anchors["r"]
     var right:Skeleton3D=r.get_node("PhalangeRig")
+    # C16: UI digit 0 = index finger = Blender atlas finger_2 (thumb is UI digit 4).
     var index:int=left.find_bone("finger_2_1_l")
     var middle:int=left.find_bone("finger_2_2_l")
     var other:int=left.find_bone("finger_3_1_l")
@@ -75,7 +76,7 @@ func _run()->void:
     var initial_left:Transform3D=left.get_bone_global_pose(middle)
     var initial_right:Transform3D=right.get_bone_global_pose(right_index)
     var other_before:Quaternion=left.get_bone_pose_rotation(other)
-    check(v.set_finger_joint_bend("l",1,"proximal",.8),
+    check(v.set_finger_joint_bend("l",0,"proximal",.8),
         "same real character public visual API drives skeletal base phalanx")
     check(not left.get_bone_global_pose(middle).is_equal_approx(initial_left),
         "middle segment moves in transformed coordinates when parent bone rotates")
@@ -83,28 +84,28 @@ func _run()->void:
         "other finger retains its prior skeletal angle despite index rotation")
     check(right.get_bone_global_pose(right_index).is_equal_approx(initial_right),
         "right hand skeleton unaffected by left index bend")
-    check(v.set_finger_joint_bend("l",1,"distal",.25),
+    check(v.set_finger_joint_bend("l",0,"distal",.25),
         "a second independently oriented actual skeletal segment responds")
     check(not left.get_bone_pose_rotation(middle).is_equal_approx(Quaternion.IDENTITY),
         "distal actual phalanx bone rotates separately, not just a GPU morph")
     section("C15 combined-to-independent transition synchronizes real bones")
-    check(v.set_finger_curl("l",1,.8),"combined curl prepares both skeletal segments")
+    check(v.set_finger_curl("l",0,.8),"combined curl prepares both skeletal segments")
     check(not left.get_bone_pose_rotation(middle).is_equal_approx(Quaternion.IDENTITY),
         "combined curl bends distal skeletal phalanx")
-    check(v.set_finger_joint_bend("l",1,"proximal",.3),
+    check(v.set_finger_joint_bend("l",0,"proximal",.3),
         "switch from combined curl to independent proximal control")
     check(left.get_bone_pose_rotation(middle).is_equal_approx(Quaternion.IDENTITY),
         "switch to independent control clears stale distal skeleton pose")
     check(left.get_bone_pose_rotation(index).is_equal_approx(Quaternion(Vector3.RIGHT,.74*.3)),
         "new proximal angle matches the GPU joint value")
-    check(v.set_finger_joint_bend("l",1,"distal",.4),
+    check(v.set_finger_joint_bend("l",0,"distal",.4),
         "independent distal change accepted after transition")
     check(left.get_bone_pose_rotation(index).is_equal_approx(Quaternion(Vector3.RIGHT,.74*.3)) and
         left.get_bone_pose_rotation(middle).is_equal_approx(Quaternion(Vector3.RIGHT,.66*.4)),
         "independent distal update preserves proximal angle")
     check(right.get_bone_global_pose(right_index).is_equal_approx(initial_right),
         "combined-to-joint transition does not mutate opposite hand")
-    check(v.set_finger_curl("l",1,0.0) and
+    check(v.set_finger_curl("l",0,0.0) and
         left.get_bone_pose_rotation(index).is_equal_approx(Quaternion.IDENTITY) and
         left.get_bone_pose_rotation(middle).is_equal_approx(Quaternion.IDENTITY),
         "return to open hand resets both skeletal angles")
@@ -142,7 +143,7 @@ func _run()->void:
     preview._toggle_real_finger_skeleton()
     check(preview.visual.finger_skeletal_view(),"preview button activates real 28-bone rig")
     var prig:Skeleton3D=preview.visual.get("_finger_skeletal_anchors")["l"].get_node("PhalangeRig")
-    var a:int=prig.find_bone("finger_1_1_l")
+    var a:int=prig.find_bone("finger_2_1_l")
     preview._on_finger_joint_changed(.72,"l",0,"proximal")
     check(not prig.get_bone_pose_rotation(a).is_equal_approx(Quaternion.IDENTITY),
         "preview advanced slider directly rotates a real articulated bone")

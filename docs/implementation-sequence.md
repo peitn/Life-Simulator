@@ -24,11 +24,15 @@ H0 and H1 may finish together. After every gate, update the checkpoint with exac
 Do not mark the whole project complete after one milestone. Missing UI, persistence, or a failed test remains open.
 Prefer fixing the existing implementation over adding duplicate systems.
 
-## Temporary publication restriction (24 October 2026)
+## GitHub publication (updated 28 October 2026)
 
-Automatic approval review rejected publishing local commit `752543562decc55e1e76b0cf305ac3d093645e29` to GitHub main. The 63 changed files are already in Godot and were verified byte-for-byte. GitHub remains at the old baseline. Do not publish these sources/assets or subsequent changes through another branch, PR, connector or command until the owner explicitly approves publication after being told of this block. H0 publication is deferred; continue H2 and later independent work on Godot/Blender instead of retrying the blocked push.
+The owner authorized GitHub publication on 27 October 2026. The earlier temporary restriction (24 October, rejected push of `752543562d…`) is **lifted**. GitHub `peitn/Life-Simulator` branch `main` is the published mirror of the live Godot project; the default branch `ccr-b3bd69c5-br6eut` is kept fast-forwarded to `main` until the owner switches the default to `main` in the repository settings.
 
-Until publication is approved, the Godot copies of this plan and CHECKPOINT are authoritative. This restriction overrides the GitHub-write steps below. Coordinate GPT writes with atomic `DirAccess.make_dir_absolute("res://previews/gpt-development.lock")`; proceed only on OK, store owner.json with run ID and heartbeat, and release only your own lock. Do not remove an existing lock based only on its age. Verify the previous run has stopped, or stay read-only and report the block. GitHub is read-only during this restriction.
+Rules for every writer (GPT, Claude, Grok):
+- The live Godot project remains the working source of truth; the v3 server lock (`tools/automation_lock.gd`, `docs/automation-lock.md`) still coordinates all Godot writes.
+- After a verified unit, mirror exactly the files you changed (byte-identical, verify hashes) to GitHub `main` and push **without force**; fast-forward `ccr-b3bd69c5-br6eut` to the same commit. Never rewrite or reset remote history; on a conflict, fetch, reconcile and record the blocker.
+- Never publish secrets, tokens, keys, private save files (`user://saves`) or previews/backups; respect `.gitignore`.
+- If a run has no GitHub access, record that in CHECKPOINT with the local commit/file list so the next run with access can mirror it.
 
 ## Run protocol
 
@@ -37,7 +41,7 @@ Until publication is approved, the Godot copies of this plan and CHECKPOINT are 
 3. Read the room for other active work. Work from the newest verified sources; compare file hashes before applying server patches. Do not overwrite a changed file or force-push over another contributor. The lease coordinates GPT runs only; it does not lock Claude/Grok.
 4. Back up before mutations. Complete one bounded, meaningful unit; refresh the lease before expiry. Prefer a short run that leaves a clean checkpoint to an unbounded refactor.
 5. Run meaningful tests. Inspect stderr as well as exit code; timeout is not success. Visual changes need actual rendered inspection. Existing engine leak warnings must be distinguished from newly introduced errors.
-6. Commit verified changes and push without force, preserving concurrent work. Synchronize only the files changed by this run back to Godot/Blender and verify hashes. On a conflict, reconcile or record an exact blocker; never reset remote work.
+6. Commit verified changes to GitHub `main` and push without force (then fast-forward `ccr-b3bd69c5-br6eut`), preserving concurrent work. Synchronize only the files changed by this run back to Godot/Blender and verify hashes. On a conflict, reconcile or record an exact blocker; never reset remote work.
 7. Update `CHECKPOINT.md` and the development log: completed work, changed files, tests/results, known gaps, exact next step and commit. Release the lease using compare-and-swap only if still its owner. Back up the verified server project.
 8. Report concise factual progress to the user. Read the AI room as context; do not send room messages unless the user separately authorizes them.
 

@@ -80,6 +80,28 @@ func _test_schema() -> void:
 	c.set_from_dict(Validator.validate(d)["data"])
 	check(not U.contains_key(c.public_snapshot(), ["worldview", "values", "opinion_certainty"]), "veřejný snapshot bez názorů")
 	check(Validator.validate(d, {"mental_health": "off"})["data"]["personality"]["worldview"].size() == 2, "nejde o téma duševního zdraví (off ho nemaže)")
+	section("Neporušenost uložených názorů")
+	var good_snapshot := {"stance":{"family":0.4}, "certainty":{"family":0.0}, "shifts":2.0}
+	check(Worldview.validate_snapshot(good_snapshot), "celé číslo z JSON jako float je platné")
+	check(Worldview.validate_snapshot({"shifts":2.0}), "starší snapshot může vynechat volitelné mapy")
+	check(Worldview.validate_snapshot({"shifts":9007199254740991.0}), "největší přesné JSON celé číslo je platné")
+	check(not Worldview.validate_snapshot({"shifts":9007199254740992.0}), "nepřesné JSON celé číslo se odmítne")
+	check(not Worldview.validate_snapshot({"shifts":2.000000000000001}), "zlomková část těsně nad celým číslem se odmítne")
+	for bad_shifts in [NAN, INF, -1.0, 1.5, "2"]:
+		var bad_snapshot: Dictionary = good_snapshot.duplicate(true)
+		bad_snapshot["shifts"] = bad_shifts
+		check(not Worldview.validate_snapshot(bad_snapshot), "neplatný počet posunů se odmítne: " + str(bad_shifts))
+	for bad_certainty in [-0.1, 1.1, NAN, INF]:
+		var bad_snapshot: Dictionary = good_snapshot.duplicate(true)
+		bad_snapshot["certainty"]["family"] = bad_certainty
+		check(not Worldview.validate_snapshot(bad_snapshot), "neplatná jistota se odmítne: " + str(bad_certainty))
+	var probe := Worldview.new()
+	probe.configure({"family":0.6}, {}, 0.5, false, false)
+	var before_probe: Dictionary = probe.to_dict()
+	var invalid_probe: Dictionary = before_probe.duplicate(true)
+	invalid_probe["shifts"] = NAN
+	probe.from_dict(invalid_probe)
+	check(probe.to_dict() == before_probe, "odmítnutý snapshot nezmění živý model")
 
 
 func _test_model() -> void:

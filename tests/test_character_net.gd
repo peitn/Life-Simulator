@@ -195,6 +195,63 @@ func _run() -> void:
 		server._character_records[edit_key].mind["dispositions"]["rejection_reactivity"]==0.73,
 		"rejected private-axis edit preserves data and revision")
 
+	section("H2b queued Apply/read after authoritative ownership revocation")
+	# Stage genuine ENet RPCs from the authenticated player while auto-poll is
+	# disabled. Flush the client, revoke server authority, then poll the server.
+	# This tests authorization at delivery, not only when the client queued Apply.
+	var owner_peer_id: int = a.net.multiplayer.get_unique_id()
+	var before_queued_rev: int = server._character_revisions[edit_key]
+	var before_queued_data: Dictionary = server._character_records[edit_key].to_dict().duplicate(true)
+	var before_queued_look: Dictionary = s_own.look.duplicate(true)
+	var before_queued_ack: int = replies_a.size()
+	var before_queued_reads: int = snapshots.size()
+	var queued_candidate: Dictionary = before_queued_data.duplicate(true)
+	queued_candidate["body"]["height_cm"] = 195.0
+	var fence_marker := "h2b-revoked-fence-" + "f".repeat(32)
+	var fence_seen := {"count":0, "revoked":false}
+	server.net.chat_received.connect(func(from_name: String, message: String, system: bool):
+		if from_name == "Alfa" and message == fence_marker and not system:
+			fence_seen["count"] += 1
+			fence_seen["revoked"] = not server.net.server_can_edit_character(owner_peer_id, edit_key))
+	var auto_poll: bool = get_tree().multiplayer_poll
+	check(server.net.players[owner_peer_id]["chat"] != null,
+		"authenticated player has a production chat limiter for the reliable receive fence")
+	get_tree().multiplayer_poll = false
+	var queued_apply: bool = a.net.request_character_edit_apply(before_queued_rev, queued_candidate, "d".repeat(32))
+	var queued_read: bool = a.net.request_character_edit_snapshot("e".repeat(32))
+	# All three RPCs use the same default reliable ENet channel (0). The server
+	# chat_received signal is emitted synchronously from the server-side handler;
+	# observing it proves that the preceding Apply/read packets were dispatched.
+	# No server poll occurs until AFTER the authoritative ownership revocation.
+	a.net.send_chat(fence_marker)
+	server.net.players[owner_peer_id]["own"] = false
+	var revoked_before_poll: bool = not server.net.server_can_edit_character(owner_peer_id, edit_key)
+	var polls_ok := true
+	var fence_deadline := Time.get_ticks_msec() + 3500
+	while int(fence_seen["count"]) == 0 and Time.get_ticks_msec() < fence_deadline:
+		if a.net.multiplayer.poll() != OK or server.net.multiplayer.poll() != OK:
+			polls_ok = false
+			break
+		await get_tree().process_frame
+	var fence_at_revocation: bool = int(fence_seen["count"]) == 1 and bool(fence_seen["revoked"])
+	get_tree().multiplayer_poll = auto_poll
+	await wait_seconds(0.15)
+	check(queued_apply and queued_read and polls_ok and revoked_before_poll,
+		"both reliable ENet edit RPCs queued and server authorization revoked before any poll")
+	check(fence_at_revocation,
+		"server observed ordered reliable chat fence after Apply/read while ownership was revoked")
+	check(not server.net.server_can_edit_character(owner_peer_id, edit_key),
+		"server authority remained revoked through the reliable receive fence")
+	check(replies_a.size() == before_queued_ack and snapshots.size() == before_queued_reads,
+		"revoked owner receives no private Apply acknowledgement or private read")
+	check(server._character_revisions[edit_key] == before_queued_rev and
+		server._character_records[edit_key].to_dict() == before_queued_data and
+		s_own.look == before_queued_look,
+		"fenced stale Apply cannot change canonical data, revision or public appearance")
+	server.net.players[owner_peer_id]["own"] = true
+	check(server.net.server_can_edit_character(owner_peer_id, edit_key),
+		"restoring server authority permits subsequent normal owner editing")
+
 	section("H2b public appearance replication and late join")
 	check(await wait_until(func(): return pa.look==s_own.look and pb.look==s_own.look, 4.0),
 		"owner and observer receive canonical public appearance after Apply")
@@ -334,6 +391,34 @@ func _run() -> void:
 		fresh_incarnation, 1, JSON.stringify(respawned.look).to_utf8_buffer())
 	check(await wait_until(func(): return int(b.net._public_look_revisions.get(own_name,0)) == 1, 3.0), "current incarnation update is accepted")
 	check(fresh_puppet.look.get("body",{}).get("height_cm") == 160.0, "current appearance remains canonical")
+	# Production hello/spawn/despawn lifecycle: an observer cannot seize the
+	# recycled node name after the former owner disconnects. The new actor
+	# has a different incarnation and no player_character authority.
+	check(not server.net.server_can_edit_character(observer_peer_id, own_name),
+		"observer has no private authority over recycled actor name")
+	var recycled_baseline: Dictionary = server._character_records[own_name].to_dict().duplicate(true)
+	var recycled_revision: int = int(server._character_revisions[own_name])
+	var denied_recycled_reads := {"count": 0}
+	b.net.character_edit_snapshot.connect(func(_key, _data, _rev): denied_recycled_reads["count"] += 1)
+	var legitimate_b_sim: String = b.net.my_sim
+	var original_peer_assignment: Dictionary = server.net.players[observer_peer_id].duplicate(true)
+	b.net.my_sim = own_name
+	check(b.net.request_character_edit_snapshot("b".repeat(32)),
+		"observer sends forged private read for recycled actor over production ENet")
+	var recycled_attack: Dictionary = recycled_baseline.duplicate(true)
+	recycled_attack["body"]["height_cm"] = 192.0
+	check(b.net.request_character_edit_apply(recycled_revision, recycled_attack, "c".repeat(32)),
+		"observer sends forged Apply for recycled actor over production ENet")
+	await wait_seconds(0.35)
+	check(denied_recycled_reads["count"] == 0 and replies_b.is_empty(),
+		"recycled-name forgery receives neither private snapshot nor Apply acknowledgement")
+	check(server._character_revisions[own_name] == recycled_revision and
+		server._character_records[own_name].to_dict() == recycled_baseline and
+		fresh_puppet.look.get("body", {}).get("height_cm") == 160.0,
+		"recycled-name forgery cannot mutate canonical record or public appearance")
+	check(server.net.players[observer_peer_id] == original_peer_assignment,
+		"forged client selection does not change server-owned peer assignment")
+	b.net.my_sim = legitimate_b_sim
 	server.net.character_edit_apply_rpc_enabled = false
 	b.net.character_edit_apply_rpc_enabled = false
 	for w in [b, g, c, d2, e, f]:

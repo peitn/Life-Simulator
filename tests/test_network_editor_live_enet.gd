@@ -289,6 +289,66 @@ func run() -> void:
         "reconnection never discloses private draft to spectator")
     panel._on_cancel()
     await process_frame
+    # Transfer ownership while both transports remain connected. Neither a
+    # previous valid editor nor a cached client identity grants access.
+    var former_owner_id: int = apis[1].get_unique_id()
+    var transferred_owner_id: int = apis[2].get_unique_id()
+    worlds[0].net.players[former_owner_id]["own"] = false
+    worlds[0].net.players[transferred_owner_id]["own"] = true
+    check(not worlds[0].net.server_can_edit_character(former_owner_id, "Actor")
+        and worlds[0].net.server_can_edit_character(transferred_owner_id, "Actor"),
+        "server reassigns sole edit authority without reconnect")
+    var former_reads: int = snapshot_counts["owner"]
+    var new_reads: int = snapshot_counts["outsider"]
+    var former_acks := {"count": 0}
+    worlds[1].net.character_edit_apply_correlated.connect(
+        func(_id, _key, _accepted, _rev, _changed, _reason): former_acks["count"] += 1)
+    check(worlds[1].net.request_character_edit_snapshot("f".repeat(32)),
+        "former owner can send a syntactically valid private read request")
+    check(await drain(), "reassigned private read ENet fence")
+    check(snapshot_counts["owner"] == former_reads,
+        "former owner receives no private snapshot after reassignment")
+    worlds[1].net.cancel_character_edit_snapshot("f".repeat(32))
+    var former_candidate: Dictionary = worlds[0]._character_records["Actor"].to_dict().duplicate(true)
+    former_candidate["body"]["height_cm"] = 188.0
+    check(worlds[1].net.request_character_edit_apply(3, former_candidate, "a".repeat(32)),
+        "former owner can send a syntactically valid Apply after revocation")
+    check(await drain(), "reassigned unauthorized Apply ENet fence")
+    check(former_acks["count"] == 0 and worlds[0].received_count == 1
+        and worlds[0]._character_revisions["Actor"] == 3,
+        "revoked Apply receives no private ACK and cannot commit")
+    var transferred_panel := Editor.new()
+    transferred_panel.main = worlds[2]
+    worlds[2].add_child(transferred_panel)
+    check(transferred_panel.open_network_character("Actor"),
+        "new owner opens real ENet character editor")
+    check(await drain(), "new owner canonical private read ENet fence")
+    check(transferred_panel._session.is_open() and transferred_panel._revision == 3,
+        "new owner receives canonical revision without previous draft")
+    check(snapshot_counts["outsider"] == new_reads + 1
+        and snapshot_counts["owner"] == former_reads,
+        "private canonical read reaches only newly authorized owner")
+    var transferred_draft: Dictionary = transferred_panel._session.draft()
+    transferred_draft["body"]["height_cm"] = 178.0
+    check(transferred_panel._session.replace_draft(transferred_draft, "ownership transfer edit"),
+        "new owner prepares isolated post-transfer draft")
+    transferred_panel._refresh()
+    transferred_panel._on_apply()
+    check(await drain(), "new owner authenticated Apply ENet fence")
+    check(await drain(), "new owner canonical readback ENet fence")
+    check(worlds[0].received_count == 2 and worlds[0]._character_revisions["Actor"] == 4,
+        "new owner alone commits and advances revision exactly once")
+    check(transferred_panel._revision == 4 and not transferred_panel._session.is_dirty(),
+        "new owner receives confirmed canonical revision 4")
+    check(worlds[1].find_sim("Actor").look.get("body", {}).get("height_cm") == 178.0,
+        "former owner receives only updated public appearance")
+    check(snapshot_counts["owner"] == former_reads
+        and not worlds[1].find_sim("Actor").look.has("uid")
+        and not worlds[1].find_sim("Actor").look.has("mind"),
+        "former owner never receives new private data after transfer")
+    transferred_panel._on_cancel()
+    await process_frame
+    check(not is_instance_valid(transferred_panel), "transferred editor closes cleanly")
     cleanup()
     await process_frame
     print("NETWORK_EDITOR_LIVE_RESULT=",passed," passed ",failed," failed")

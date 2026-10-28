@@ -6,6 +6,7 @@ extends RefCounted
 ## Each bone has a small mesh attached, so its motion is actually bone-driven.
 ## No runtime collision, physics impulses, fingertip contact, or gameplay RPC.
 const Atlas=preload("res://scripts/assets/anatomy_overlay.gd")
+const Hand=preload("res://scripts/assets/hand_detail_builder.gd")
 const SEGMENTS_PER_HAND := 14
 const RADIAL := 9
 const SUPPORTED_SIDES := ["l","r"]
@@ -56,6 +57,25 @@ static func create_hand(production:Skeleton3D,side:String)->BoneAttachment3D:
             return null
         names[n]=true
         parsed[n]=item
+    # C16 diagnostic retarget: translate each digit from Blender atlas
+    # coordinates to existing gameplay hand root; preserve lengths and pose.
+    var rest_offsets:Dictionary={}
+    for item in data:
+        var token:PackedStringArray=String(item["n"]).split("_")
+        if token.size()!=4 or int(token[2])!=1:
+            continue
+        var atlas_digit:int=int(token[1])
+        var game_digit:int=4 if atlas_digit==1 else atlas_digit-2
+        if game_digit<0 or game_digit>4:
+            return null
+        var game_index:int=game_digit+(5 if side=="l" else 0)
+        var endpoint:Dictionary=Hand.finger_endpoints(game_index)
+        if endpoint.is_empty():return null
+        var delta:Vector3=(endpoint["root"] as Vector3)-_vec(item["h"])
+        if not delta.is_finite() or delta.length()>.120:
+            return null
+        rest_offsets[atlas_digit]=delta
+    if rest_offsets.size()!=5:return null
     var attachment:=BoneAttachment3D.new()
     attachment.name="C15_FingerRoot_"+side
     attachment.bone_name="hand_"+side
@@ -68,8 +88,10 @@ static func create_hand(production:Skeleton3D,side:String)->BoneAttachment3D:
     var local_rest:Dictionary={}
     for item in data:
         var name:String=str(item["n"])
-        var head:Vector3=inv_hand*_vec(item["h"])
-        var tail:Vector3=inv_hand*_vec(item["t"])
+        var atlas_digit:int=int(name.split("_")[1])
+        var offset:Vector3=rest_offsets[atlas_digit]
+        var head:Vector3=inv_hand*(_vec(item["h"])+offset)
+        var tail:Vector3=inv_hand*(_vec(item["t"])+offset)
         var axis:Vector3=tail-head
         if axis.length()<.004:
             attachment.queue_free()
@@ -139,7 +161,9 @@ static func bend(root:BoneAttachment3D,digit:int,
     var rig:Skeleton3D=root.get_node_or_null("PhalangeRig")
     if rig==null or rig.get_bone_count()!=SEGMENTS_PER_HAND:
         return false
-    var digit_number:int=digit+1
+    # UI digit order index,middle,ring,little,thumb differs from
+    # anatomical atlas order thumb,index,middle,ring,little.
+    var digit_number:int=1 if digit==4 else digit+2
     var segment:int=1 if joint=="proximal" else 2
     var name:String="finger_"+str(digit_number)+"_"+str(segment)+"_"+side
     var idx:int=rig.find_bone(name)
@@ -147,7 +171,7 @@ static func bend(root:BoneAttachment3D,digit:int,
         return false
     var angle:float=.74*strength if joint=="proximal" else .66*strength
     rig.set_bone_pose_rotation(idx,Quaternion(Vector3.RIGHT,angle))
-    if joint=="distal" and digit!=0:
+    if joint=="distal" and digit!=4:
         var end_bone:int=rig.find_bone("finger_"+str(digit_number)+"_3_"+side)
         if end_bone>=0:
             rig.set_bone_pose_rotation(end_bone,Quaternion(Vector3.RIGHT,angle*.30))

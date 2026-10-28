@@ -193,8 +193,13 @@ static func validate_snapshot(d: Variant) -> bool:
 		for t in m:
 			if not TOPICS.has(t) or typeof(m[t]) not in [TYPE_FLOAT, TYPE_INT] or not is_finite(float(m[t])) or absf(float(m[t])) > 1.0:
 				return false
-	if d.has("shifts") and (typeof(d["shifts"]) not in [TYPE_FLOAT, TYPE_INT] or float(d["shifts"]) < 0.0):
-		return false
+			if key == "certainty" and float(m[t]) < 0.0:
+				return false
+	if d.has("shifts"):
+		var n = d["shifts"]
+		# JSON decodes integral numbers as floats: accept 2.0, never 2.5/NaN/Inf.
+		if typeof(n) not in [TYPE_INT, TYPE_FLOAT] or not is_finite(float(n)) or float(n) < 0.0 or float(n) != floor(float(n)) or float(n) > 9007199254740991.0:
+			return false
 	return true
 
 
