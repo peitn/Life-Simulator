@@ -910,6 +910,17 @@ Main lock acquired at 17:20:45 UTC after the expired city lease (`city-authoring
 
 **Open:** `test_extreme_fictional_household` exceeds its 110 s watchdog (server: 21 checks done when the watchdog fired; local sandbox: 27/27 then watchdog). It fails the same way on unmodified GitHub HEAD, i.e. it predates this recovery (the psyche A–J load made the 8-NPC scenario slower). NOT a pass. Exact next step: profile the 8-NPC extreme scenario (per-tick psyche cost) and either speed up the simulation or shard the scenario like the household matrix; do not just raise the watchdog without measuring. Also still open: H3 (second-creator preview parity incl. hand_size), the late-observer MultiplayerSpawner gap (FAILING diagnostic), H6 rendered visual QA.
 
+
+## 28 Oct 2026 20:17–20:40 UTC — Claude scheduled run `main-claude-sched-1793215387-24499`: extreme household watchdog (IN PROGRESS)
+Lock: acquire at 19:23 refused (lease `main-claude-tts-1793214993`, started 19:16, never heartbeated); no writes until the v3 coordinator archived the expired lease at 20:17:33 (`previews/automation-archive/expired-1793218653-…-main-claude-tts-1793214993`). Pre-edit backup 372 774 KB.
+Done: profiled the 8-NPC case (48.8 s/case, no hotspot, see `docs/reviews/extreme-household-sharding-20261028.md`); `tests/test_extreme_fictional_household.gd` sharded (measured watchdog 35 s + 75 s/case, lock-owned JSON shard reports with provenance and final-state hash, `--control-only`, `--aggregate`). Server: 4 shards 15/15 each (44.7–46.5 s sim), control 12/12, aggregate 12/12 (identical final state with/without reload across processes), save_game 46/46, godot_check 60/60. docs/testing.md section appended. Simulation code unchanged.
+Changed: tests/test_extreme_fictional_household.gd (md5 771ae5d7…), docs/testing.md (3c276686…), docs/reviews/extreme-household-sharding-20261028.md (deb0c503…).
+NEXT STEP: AUDIT/DEVLOG/ROADMAP entries, room upload, GitHub sync attempt (push from this session was refused by the git proxy: repo not in authorized set), release lock.
+
+## 28 Oct 2026 ~20:30 UTC — Claude scheduled run `main-claude-sched-1793215387-24499`: běh dokončen
+Shrnutí: nález z obnovy (extreme household watchdog) uzavřen shardingem testu; server 4×15/15 + kontrola 12/12 + agregace 12/12, save_game 46/46, check 60/60. AUDIT/DEVLOG/ROADMAP/docs aktualizovány, AUDIT výňatek v místnosti (rev. 19), paměť místnosti 4d299af2…. GitHub NEsynchronizován (git proxy této relace odmítá push) – server je napřed o tests/test_extreme_fictional_household.gd, docs/testing.md, docs/reviews/extreme-household-sharding-20261028.md a deníky.
+DALŠÍ KROK: H3 – veřejný 3D náhled druhé postavy z tvorby == vzhled spawnuté postavy po ručním načtení i cold startu (vč. hand_size, schéma v18); poté případně profilem řízené zrychlení psyche ticku s důkazy determinismu.
+
 ## 28 October 2026 ~19:40–21:00 UTC — Claude: character voices speak Czech (intonation + text-to-speech)
 Owner request: "add intonation to the voices and make them work as text-to-speech". Self-contained, offline, deterministic.
 - New `scripts/audio/czech_g2p.gd` (rule-based Czech G2P: normalisation, numbers 0–9999, ch/ě/di-ti-ni/ů/ř/long vowels/diphthongs/dž/ŋ, regressive voicing incl. across word boundaries, v as non-trigger, v→f, sh→sx, final devoicing, proclitic k s v z; syllabification with syllabic r/l/m; stress units with stressed prepositions and unstressed enclitics; phrase types statement / yes-no / wh / exclamation / continuation / ellipsis).

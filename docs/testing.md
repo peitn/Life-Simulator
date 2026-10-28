@@ -256,3 +256,23 @@ passed every simulation check (42/42 per size) but could not write their report 
 On the live server after upload: all listed suites pass with exit 0, including the household matrix **43/43 for each
 size 4, 6 and 8** (4 seeds × 30 days). `test_extreme_fictional_household` still hits its 110 s watchdog on the server
 (open, pre-existing on HEAD; see CHECKPOINT).
+
+### Extreme fictional household: sharded (28 October 2026)
+
+`test_extreme_fictional_household` is now run as five separate processes plus an aggregate, because one 14-day
+8-NPC case costs ~47–53 s after psyche A–J and the cost is spread over ~15 per-agent systems (profile and reasoning in
+`docs/reviews/extreme-household-sharding-20261028.md`). The watchdog is derived from that measurement
+(35 s + 75 s per case per 14 days). Run sequentially, with the current main-lock run ID:
+
+```
+godot --headless --path . tests/test_extreme_fictional_household.tscn -- --scenario=low_support  --seed=3 --owner-run-id=<run>
+godot --headless --path . tests/test_extreme_fictional_household.tscn -- --scenario=low_support  --seed=7 --owner-run-id=<run>
+godot --headless --path . tests/test_extreme_fictional_household.tscn -- --scenario=high_support --seed=3 --owner-run-id=<run>
+godot --headless --path . tests/test_extreme_fictional_household.tscn -- --scenario=high_support --seed=7 --owner-run-id=<run>
+godot --headless --path . tests/test_extreme_fictional_household.tscn -- --scenario=low_support  --seed=3 --control-only --owner-run-id=<run>
+godot --headless --path . tests/test_extreme_fictional_household.tscn -- --aggregate=<run>
+```
+
+Each shard: 15 checks (control: 12); aggregate: 12 checks, including source provenance and an identical final state
+with and without the day-7 disk reload across processes. Running the test without arguments still executes all four
+cases in one process (watchdog 335 s). Results of the latest server run are in `AUDIT.md`.

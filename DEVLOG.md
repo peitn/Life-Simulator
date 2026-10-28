@@ -2262,6 +2262,16 @@ Main lock acquired at 17:20:45 UTC after the expired city lease (`city-authoring
 
 **Open:** `test_extreme_fictional_household` exceeds its 110 s watchdog (server: 21 checks done when the watchdog fired; local sandbox: 27/27 then watchdog). It fails the same way on unmodified GitHub HEAD, i.e. it predates this recovery (the psyche A–J load made the 8-NPC scenario slower). NOT a pass. Exact next step: profile the 8-NPC extreme scenario (per-tick psyche cost) and either speed up the simulation or shard the scenario like the household matrix; do not just raise the watchdog without measuring. Also still open: H3 (second-creator preview parity incl. hand_size), the late-observer MultiplayerSpawner gap (FAILING diagnostic), H6 rendered visual QA.
 
+
+## 28 Oct 2026 20:40 UTC — Claude scheduled run `main-claude-sched-1793215387-24499`
+- Main lock waited ~55 min for the stale `main-claude-tts-1793214993` lease (no heartbeat after 19:16); acquired after automatic v3 archival at 20:17:33. Backups 372 774 KB before, 372 783 KB after.
+- `test_extreme_fictional_household` sharded (scenario × seed per process, measured watchdog, lock-owned JSON reports with provenance and final-state hash, `--control-only`, `--aggregate`). Server 4×15/15, control 12/12, aggregate 12/12, save_game 46/46, check 60/60. Profile and Gemini review in `docs/reviews/extreme-household-sharding-20261028.md`.
+- GitHub: push refused (git proxy: repository not authorized for this session); NOT synced.
+### room_last_id: 383
+### room_files
+- AUDIT.md: 67c43cd5dc2e4b47b6ca34ef6f98f514 · ROADMAP.md: 7164b3b50b234125b12ea520a3eed70f
+- Next step proposal: H3 second-creator public 3D preview parity with spawned look after manual load and cold start (incl. schema-v18 hand_size); then optional profiling-driven speed-up of per-tick psyche cost with determinism proofs.
+
 ## 28 October 2026 ~19:40–21:00 UTC — Claude: character voices speak Czech (intonation + text-to-speech)
 Owner request: "add intonation to the voices and make them work as text-to-speech". Self-contained, offline, deterministic.
 - New `scripts/audio/czech_g2p.gd` (rule-based Czech G2P: normalisation, numbers 0–9999, ch/ě/di-ti-ni/ů/ř/long vowels/diphthongs/dž/ŋ, regressive voicing incl. across word boundaries, v as non-trigger, v→f, sh→sx, final devoicing, proclitic k s v z; syllabification with syllabic r/l/m; stress units with stressed prepositions and unstressed enclitics; phrase types statement / yes-no / wh / exclamation / continuation / ellipsis).

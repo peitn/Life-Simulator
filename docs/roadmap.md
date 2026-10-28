@@ -119,3 +119,6 @@ Eight steps, each one complete and tested. Principles and details are in
 A separate JavaScript port of the core rules with a pure DOM and CSS interface (no canvas or WebGL),
 playable on phones, is hosted at <https://lifesim.peiti.workers.dev/>. The GDScript rules in this
 repository remain the source of truth. The web port's source is not part of this repository yet.
+
+
+- 28 Oct 2026: `test_extreme_fictional_household` watchdog finding closed by sharding (see docs/reviews/extreme-household-sharding-20261028.md); simulation speed unchanged. Next: H3 second-creator preview parity.

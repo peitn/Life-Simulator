@@ -1589,3 +1589,18 @@ Gemini found no issue (numeric public data only, strict server validation, no co
 
 d) ChatGPT: files sent to the room for review (see DEVLOG). Open items from earlier runs (household_dynamics seed-13
 79/80, C15 finger root alignment #248/#249, psyche slices E–J from the main chat) were not touched by this run.
+
+
+## 28 Oct 2026 — Claude scheduled run `main-claude-sched-1793215387-24499`: extreme household watchdog (test-only change)
+
+Scope: open finding from the rollback recovery — `test_extreme_fictional_household` exceeded its 110 s watchdog (same on unmodified HEAD).
+
+**Measurement.** Sandbox (Godot 4.7.2, 2 cores) 48.8 s per 14-day 8-NPC case; server 44.7–46.5 s. Temporary `sim_tick` instrumentation (reverted, never on the server): decision/act 21 %, mood.evaluate 15 %, mental 13.5 %, emotions 12 %, psyche 12 %, ledger 5.5 %, net 4.7 %, the rest < 3 %. No hotspot; a broad optimisation would risk the exact-determinism checks and was not attempted.
+
+**a) Self-review.** Re-read the whole changed test: shard selection, watchdog from measured cost (35 s + 75 s/case/14 days), report write only with `Guard.owns`, run-ID validation, `--control-only`, aggregate checks (presence, ok, saves, agents, bad floats, run ID, kind, days, 8 sims in final state, provenance SHA-256 of 7 sources, control hash == checkpoint hash). Monolithic run without arguments still works (budget 335 s). Simulation code unchanged (MD5 of main.gd, sim_agent, mental_state, household_dynamics, game_save identical to GitHub 791cf3d before and after).
+
+**b) Tests (server, exit 0, no timeout).** Shards low3 15/15, low7 15/15, high3 15/15, high7 15/15; control low3 12/12; aggregate 12/12 (final state identical with and without the day-7 reload across separate processes); save_game 46/46; godot_check 60/60. Sandbox negative checks: tampered `ok`, different control hash, invalid aggregate/owner run IDs and a write without lock ownership all fail as intended. Server shard results were byte-for-byte the same metrics as in the sandbox (determinism across machines for this build).
+
+**c) Gemini.** Accepted: empty final state would hash identically → `final_state_sims` == 8 required. Rejected with reasons: path injection via scenario (only constants reach the path), lock TOCTOU (v3 fcntl gate, per-shard files), JSON argument order (correct for Godot 4.7), corrupt JSON crash (`parse_string` → null → failed check). Limitation noted: run shards sequentially. Details: `docs/reviews/extreme-household-sharding-20261028.md`.
+
+**d) Not done / open.** Performance unchanged. GitHub push refused by this session's git proxy (repository not in its authorized set) — server is ahead of GitHub by these 3 files + journals. ChatGPT review of the new test is requested in the room. Other open items unchanged: H3 second-creator preview parity incl. hand_size, late-observer MultiplayerSpawner gap (FAILING diagnostic), H6 rendered visual QA, seed-13 social rate.

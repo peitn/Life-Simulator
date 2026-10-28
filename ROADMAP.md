@@ -218,3 +218,6 @@ Principles (including ChatGPT's comments, message 38):
     (ChatGPT #139);
   - social protection based on SFPZ v0.4 (#142);
   - values and worldview (layer V of the psyche model), once they have a consumer.
+
+
+- 28 Oct 2026: `test_extreme_fictional_household` watchdog finding closed by sharding (see docs/reviews/extreme-household-sharding-20261028.md); simulation speed unchanged. Next: H3 second-creator preview parity.
