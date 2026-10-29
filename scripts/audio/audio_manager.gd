@@ -647,7 +647,7 @@ func voice_mode() -> String:
 		var m := String(gs.character_voice_mode())
 		if m in ["wordless", "tts", "off"]:
 			return m
-	return "tts"
+	return "wordless"
 
 
 ## Public speech line → spoken with Czech TTS in the character's own public voice. Reads only

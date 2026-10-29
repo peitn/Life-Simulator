@@ -142,21 +142,34 @@ Everything is self-contained: no network, no external engine, no recorded speech
   punctuation: statement (`.`) final fall; yes/no question (`?` without a question word) low last stressed syllable and
   a rise to the end; wh-question (kdo, co, kde, kdy, proč, jak, kam, odkud, kolik, který/á/é, čí, …) high start and
   falling end; exclamation (`!`) 1.5× range and stronger accents; comma/semicolon/colon slight rise and a short pause;
-  ellipsis trailing low with fade. F0 declines across the utterance; the contour is bounded to −10…+8 semitones around
-  the speaker's own base. Durations: short vowel 72 ms, long vowels 1.72×, diphthongs 150 ms, stressed nuclei +6 %,
-  phrase-final lengthening ×1.45 (×1.9 in a trailing ellipsis), all divided by the speaking rate (voice.tempo ×
-  style).
-- **Synthesis (`scripts/audio/czech_tts.gd`)** – the same source–filter model as the wordless voice (Rosenberg glottal
-  pulse with jitter/shimmer/period doubling from `voice.roughness`, breath noise, spectral tilt), four formant
-  resonators with 13 ms coarticulated transitions and gliding diphthongs; fricatives as 4th-order band-limited noise
-  (s ≈ 5.6 kHz, š ≈ 2.9 kHz, f broad, x ≈ 1.5 kHz; voiced z ž v mix voicing), h as breathy glottal noise, plosives as
-  closure (+ voice bar for b d ď g) and a 13 ms burst with formant onsets pulled to the place locus (no aspiration),
-  affricates c č dz dž, nasals m n ň ŋ, l, r as a single tap (short) or ~28 Hz trill, ř as trill + fricative noise, j.
-  Per-phoneme output levels are calibrated against vowels (sonorants ≈ −6 dB, sibilants ≈ −10 dB). `voice.pitch` sets
-  the base F0 (≈ 77–331 Hz), `voice.timbre` the formant (tract) scale, `voice.roughness` jitter/shimmer/subharmonics;
-  styles klidně, vesele, naštvaně, smutně, unaveně (TTS only) and šeptem scale mean F0, range, accent, rate, energy and
-  breathiness. Nothing is derived from gender, identity, grammatical gender, name or body. Same input → identical
-  bytes (own FNV-1a hash and RNG). Peak normalisation with soft saturation, never clipping.
+  ellipsis trailing low with fade. F0 declines across the utterance; the contour is kept inside −10…+8 semitones
+  around the speaker's own base and 50–420 Hz by linear compression (no clipped plateaus). Micro-prosody (v2): cosine
+  interpolation + 15 ms zero-phase smoothing, deterministic two-component drift (±0.45 st / 120 ms and ±0.18 st /
+  55 ms), intrinsic vowel pitch (i/u +0.3 st, a −0.25 st), +0.7 st after voiceless and −0.45 st after voiced
+  obstruents decaying over ~35 ms, accent peaks slightly after the nucleus onset, the yes/no rise spread over the
+  last nucleus (≤ ~80 st/s). Durations: short vowel 85 ms (unstressed ×0.96, stressed ×1.06), long vowels 1.72×,
+  diphthongs 165 ms, phrase-final lengthening ×1.45 (×1.9 in a trailing ellipsis), all divided by the speaking rate
+  (voice.tempo × style); pauses comma 200 ms, period/question 420 ms (× style).
+- **Synthesis (`scripts/audio/czech_tts.gd`, v2 since 29 Oct 2026)** – see *Natural voice rework* below. KLGLOTT88
+  glottal flow derivative (style open quotient 0.46–0.74, polyBLEP closure, extra one-pole tilt), Gaussian jitter
+  σ 0.38 % + 1.6 %·roughness² and shimmer σ 2.5 % + 7.5 %·roughness², a mild alternate-period creak only above
+  roughness 0.6, glottal-pulsed aspiration noise; Klatt cascade of six unity-gain resonators (F1–F4 from the phoneme,
+  fixed F5 4.5 kHz and F6 5.6 kHz scaled by the tract; bandwidths 70/95/150/220/300/500 Hz, F1 widened with F0);
+  nasal antiformant (m 1.0, n 1.75, ň 2.35, ŋ 2.9 kHz) + murmur low-pass; frication as 4th-order band-limited noise
+  (s ≈ 5.6 kHz, š ≈ 3.1 kHz, f/v broad and weak, x ≈ 1.9 kHz; voiced z ž v pulsed by the glottis), h as breathy
+  aspiration through the next vowel's formants, plosives as closure (voice bar for b d ď g) + place-shaped 3.5 ms
+  decaying burst (velar burst follows the next vowel) + 14 ms aspiration/voice-onset delay after voiceless stops,
+  affricates c č dz dž, l, j, r as one tap (two for syllabic/long r), ř as a ~26 Hz trill with friction in the
+  openings. All parameters are control tracks (one value per 16 samples) smoothed zero-phase: formants τ 9 ms
+  (≈ 40 ms transitions, natural undershoot in fast/short syllables, consonant F2 values act as loci), voicing τ 3.5 ms,
+  noise τ 2.2 ms. Syllable gain: stressed ×1.12, unstressed ×0.94, −16 % across a phrase, phrase-final nucleus fades
+  by up to 50 % with extra breath, phrase-initial vowels start softly. Output: DC block, 7 kHz Butterworth low-pass,
+  six early reflections (7–46 ms, ≤ −20 dB, damped), 2:1 compression above −10 dB, peak −3 dBFS for the loudest
+  style (calm ≈ −3.7 dBFS, sad ≈ −4.6 dBFS), 12 ms fades. `voice.pitch` sets the base F0 (≈ 77–331 Hz),
+  `voice.timbre` the tract scale (±12 %) and source brightness, `voice.roughness` jitter/shimmer/noise/creak;
+  styles klidně (soft, warm), vesele (higher, livelier, brighter), naštvaně (tenser, pressed, louder, never above the
+  F0 ceiling), smutně / unaveně (slower, breathier, lower range), šeptem (whisper). Nothing is derived from gender,
+  identity, grammatical gender, name or body. Same input → identical bytes (own FNV-1a hash and seeded RNG).
 - **API** – `VoiceSynth.speak(text, voice, style, sr) -> AudioStreamWAV`, `speak_buffer`, `tts_phonemes`,
   `tts_transcription`, `tts_plan` (segments, syllables with stress, phrases, F0 every 5 ms), `tts_f0_contour`,
   `tts_cache_key`, `tts_style_for_emotion`.
@@ -170,18 +183,53 @@ Everything is self-contained: no network, no external engine, no recorded speech
   voices from formant TTS were not judged convincing). In multiplayer every peer synthesises locally from public data
   only (bubble text, look.voice, net_emotion); no private state is read and nothing extra is sent.
 - **Setting** – `GameSettings.character_voices` (persisted in `user://settings.cfg`), menu **Hlasy postav: Beze slov /
-  Řeč z textu / Vypnuto**, default **Řeč z textu**. *Beze slov* keeps the previous wordless conversation lines and no
+  Řeč z textu / Vypnuto**, default **Beze slov** since 29 Oct 2026 (the owner found the first TTS voice robotic and
+  creepy; the default returns to Řeč z textu only after the owner approves the reworked voice). *Beze slov* keeps the previous wordless conversation lines and no
   TTS; *Vypnuto* silences conversation lines, TTS, the crying cue and argument voices (door slams and the tension layer
   stay).
 - **Creator / editor** – the Hlas section has a **Zkusit větu** field (default "Ahoj, jak se máš? Dneska je hezky."),
   **▶ Zkusit větu** and **Otázka** ("Půjdeš se mnou zítra ven?") to hear the draft voice speak; rendered off the main
   thread, cached with the other previews.
-- **Quality and limits (honest)** – contours, timing, levels and spectra were checked on rendered samples (spectrogram
-  and measured-vs-planned F0 plots); the measured F0 follows the planned contour, fricatives are band-limited and no
-  sample clips. Intelligibility has **not** been verified by a listener or a speech recogniser in this run: it is a
-  compact rule-based formant synthesiser and will sound robotic; unusual words, loanwords, abbreviations, prefix
-  boundaries (po-učit vs. pouze) and homographs follow the rules above and may be mispronounced. If the owner finds it
-  unpleasant, switch the default in `GameSettings.DEFAULTS` to `wordless`.
+- **Quality and limits (honest)** – see the rework section: all claims are measurements, nobody involved in the
+  rework could listen. Intelligibility has **not** been verified by a listener or a speech recogniser (no ASR model
+  could be downloaded: the session's network allowed package registries only). It is still a compact rule-based
+  formant synthesiser: clearly synthetic, prosody is rule-based, unusual words, loanwords, abbreviations, prefix
+  boundaries (po-učit vs. pouze) and homographs may be mispronounced.
+
+### Natural voice rework (29 October 2026)
+
+The owner called the first version "robotic and creepy" and chose to improve the existing synthesis (no neural model,
+no Simlish). Diagnosis on the 8 owner samples + 3 extra sentences (Praat/parselmouth, numpy/scipy; scripts kept out of
+the repo) found:
+
+1. **Muffled, "in-head" spectrum** – parallel formants with fixed relative gains and a 2 kHz source low-pass: the
+   2–4 kHz band of vowels was −36 dB re 0–1 kHz (natural ≈ −20…−26), almost nothing above 4.5 kHz.
+2. **Hoarse/creepy source** – uniform white jitter ≈ 1 % and shimmer ≈ 6 % per period, period-doubling
+   "subharmonics" from roughness 0.35 on (the 0.5-roughness sample growled), almost no breath noise in modal voice.
+3. **Robotic pitch** – piecewise-linear F0 with flat plateaus (55 % of 30 ms vowel windows < 0.1 st movement, flat
+   runs up to 115 ms, hard clamps at −10/+8 st that pinned the angry/high samples flat).
+4. **Choppy envelope** – one constant amplitude per phoneme switched with 5 ms ramps (5 ms level jumps p99 20 dB).
+5. **Clicks** – audible transients at the utterance onset, at fricative/sonorant joins and a formant jump at every
+   plosive (8 isolated broadband transients in the 11 samples).
+6. **tanh saturation** on every utterance and a completely dry signal.
+
+| Measurement (mean of 11 sentences, 22.05 kHz) | before | after | natural target |
+|---|---|---|---|
+| vowel 2–4 kHz band re 0–1 kHz | −36.1 dB | −22.1 dB | ≈ −20…−26 dB |
+| vowel energy above 4 kHz re 0–1 kHz | −37.8 dB | −40.1 dB (with a smooth roll-off instead of a cliff) | — |
+| vowel HNR (Praat cc) | 21.3 dB | 18.2 dB (calm ≈ 19–20, sad/tired ≈ 13–14) | modal ≈ 17–22, breathy lower |
+| jitter / shimmer (Praat local, connected speech) | 1.46 % / 9.0 % | 1.16 % / 9.3 % | low (shimmer includes intended envelope) |
+| F0 flat 30 ms windows in vowels (planned contour) | 55 % | 30 % | — |
+| longest perfectly flat F0 run in a vowel | 115 ms | 40 ms | none |
+| median F0 velocity in vowels | 3.9 st/s | 7.4 st/s | lively speech moves continuously |
+| isolated clicks (detector, 11 samples, 22.05 / 16 kHz) | 8 / 2 | 0 / 0 | 0 |
+| 5 ms level jump p99 | 20.2 dB | 8.8 dB | — |
+| median vowel (short and long) / consonant | 89 / 59 ms | 104 / 59 ms | short 70–110 / 50–100 ms |
+| peak | −2.0 dBFS (saturated) | −3.7 dBFS (−3.0 angry) | ≈ −3 dBFS |
+| render time, longest sample (2.5 s) | 82 ms | ≈ 100–130 ms | ≪ 1 s |
+
+Per-segment levels re vowels after the rework: j −5, l −6, r −7, n −7, ň −7, m −9, h −9, v −9, z −10, s −11.5,
+š −12.4, ž −12.6 dB.
 
 ## Tests
 

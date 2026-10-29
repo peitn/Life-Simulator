@@ -61,7 +61,9 @@ const DEFAULTS := {
 	## Adult sexual content: private and non-graphic, opt-in OFF by default.
 	"adult_intimacy": false,
 	"warning_ack": false,
-	"character_voices": "tts",
+	## Default stays "wordless" until the owner approves the reworked TTS voice (Oct 2026);
+	## "Řeč z textu" remains selectable in the settings.
+	"character_voices": "wordless",
 }
 
 ## Sprostá slova pro cenzuru (kmeny; porovnává se začátek slova bez diakritiky na malých písmenech).
