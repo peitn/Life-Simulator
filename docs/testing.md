@@ -276,3 +276,7 @@ godot --headless --path . tests/test_extreme_fictional_household.tscn -- --aggre
 Each shard: 15 checks (control: 12); aggregate: 12 checks, including source provenance and an identical final state
 with and without the day-7 disk reload across processes. Running the test without arguments still executes all four
 cases in one process (watchdog 335 s). Results of the latest server run are in `AUDIT.md`.
+
+## Laboratoř (tools/lab, docs/lab)
+- `tests/lab/test_lab_runner.tscn` – validace scénáře, stejný seed = shodný hash i snímky, jiný seed = jiný průběh, tvar snímků, žádné NaN (headless, ~40 s).
+- Spuštění scénáře: `godot --headless --path . res://tools/lab/lab_cli.tscn -- --scenario=<json> --out=<json>`; analýza: `python3 tools/lab/analyze_experiment.py <adresář>`.

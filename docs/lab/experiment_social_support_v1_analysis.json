@@ -1,0 +1,154 @@
+{
+ "n_seeds": 6,
+ "seeds": [
+  101,
+  102,
+  103,
+  104,
+  105,
+  106
+ ],
+ "metrics": {
+  "mean_stress": {
+   "low": 3.5163,
+   "high": 2.9362,
+   "low_sd": 0.2646,
+   "high_sd": 0.6289,
+   "diff": -0.5802,
+   "diff_sd": 0.7855,
+   "ci95": [
+    -1.4047,
+    0.2443
+   ],
+   "p_signflip": 0.1562,
+   "dz": -0.739
+  },
+  "final_stress": {
+   "low": 3.781,
+   "high": 2.4942,
+   "low_sd": 2.1007,
+   "high_sd": 2.1672,
+   "diff": -1.2868,
+   "diff_sd": 3.7734,
+   "ci95": [
+    -5.2474,
+    2.6737
+   ],
+   "p_signflip": 0.4688,
+   "dz": -0.341
+  },
+  "high_stress_share": {
+   "low": 0.0,
+   "high": 0.0,
+   "low_sd": 0.0,
+   "high_sd": 0.0,
+   "diff": 0.0,
+   "diff_sd": 0.0,
+   "ci95": [
+    0.0,
+    0.0
+   ],
+   "p_signflip": 1.0,
+   "dz": null
+  },
+  "mean_mood": {
+   "low": 35.7118,
+   "high": 35.2192,
+   "low_sd": 1.3527,
+   "high_sd": 1.6591,
+   "diff": -0.4927,
+   "diff_sd": 2.7024,
+   "ci95": [
+    -3.3291,
+    2.3438
+   ],
+   "p_signflip": 0.75,
+   "dz": -0.182
+  },
+  "final_mood": {
+   "low": 36.294,
+   "high": 36.6437,
+   "low_sd": 8.6555,
+   "high_sd": 4.586,
+   "diff": 0.3497,
+   "diff_sd": 7.4243,
+   "ci95": [
+    -7.4429,
+    8.1422
+   ],
+   "p_signflip": 0.9688,
+   "dz": 0.047
+  },
+  "mean_relationship": {
+   "low": 28.4667,
+   "high": 67.4732,
+   "low_sd": 0.3174,
+   "high_sd": 0.5048,
+   "diff": 39.0065,
+   "diff_sd": 0.7036,
+   "ci95": [
+    38.268,
+    39.745
+   ],
+   "p_signflip": 0.0312,
+   "dz": 55.442
+  },
+  "final_relationship": {
+   "low": 51.733,
+   "high": 81.2893,
+   "low_sd": 0.7627,
+   "high_sd": 0.7695,
+   "diff": 29.5563,
+   "diff_sd": 1.1174,
+   "ci95": [
+    28.3835,
+    30.7291
+   ],
+   "p_signflip": 0.0312,
+   "dz": 26.452
+  },
+  "argument_share": {
+   "low": 0.0473,
+   "high": 0.0334,
+   "low_sd": 0.0063,
+   "high_sd": 0.0065,
+   "diff": -0.0139,
+   "diff_sd": 0.0071,
+   "ci95": [
+    -0.0213,
+    -0.0065
+   ],
+   "p_signflip": 0.0312,
+   "dz": -1.967
+  },
+  "talks": {
+   "low": 570.6667,
+   "high": 625.1667,
+   "low_sd": 5.7155,
+   "high_sd": 7.3869,
+   "diff": 54.5,
+   "diff_sd": 11.4149,
+   "ci95": [
+    42.5188,
+    66.4812
+   ],
+   "p_signflip": 0.0312,
+   "dz": 4.774
+  },
+  "arguments": {
+   "low": 27,
+   "high": 20.8333,
+   "low_sd": 3.7417,
+   "high_sd": 3.8687,
+   "diff": -6.1667,
+   "diff_sd": 4.2151,
+   "ci95": [
+    -10.5908,
+    -1.7425
+   ],
+   "p_signflip": 0.0625,
+   "dz": -1.463
+  }
+ },
+ "note": "Platí jen v rámci modelu (fiktivní agenti). Manipulace = initial_support + initial_relationship dohromady; neodděluje jejich příspěvky."
+}
