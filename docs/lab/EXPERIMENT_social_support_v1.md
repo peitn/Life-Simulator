@@ -1,3 +1,5 @@
+> **OPRAVA:** `initial_support` (mental.support) v modelu doznívá s tau 6 h, takže neměl trvalý účinek. Závěry o „opoře“ níže neplatí; viz EXPERIMENT_factorial_v1.md.
+
 # Experiment 1 – nízká vs vysoká sociální opora (ilustrační, M1a/M1b)
 
 Fiktivní agenti. Výsledky platí jen v rámci modelu `lab-m1a-0.1`; část parametrů je herní balance (viz EVIDENCE.md). Nejde o diagnostiku ani predikci lidí.
