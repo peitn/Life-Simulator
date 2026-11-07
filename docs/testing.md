@@ -280,3 +280,8 @@ cases in one process (watchdog 335 s). Results of the latest server run are in `
 ## Laboratoř (tools/lab, docs/lab)
 - `tests/lab/test_lab_runner.tscn` – validace scénáře, stejný seed = shodný hash i snímky, jiný seed = jiný průběh, tvar snímků, žádné NaN (headless, ~40 s).
 - Spuštění scénáře: `godot --headless --path . res://tools/lab/lab_cli.tscn -- --scenario=<json> --out=<json>`; analýza: `python3 tools/lab/analyze_experiment.py <adresář>`.
+
+## Ekonomika E1 (scripts/sim/economy, docs/economy.md)
+- `tests/test_economy_core.tscn` – kniha (dvojitý zápis, bez záporných zůstatků, hash řetězec a detekce manipulace), daně a zaokrouhlení, mzdy/povinnosti, půjčky (celočíselný úrok, default = jen skóre), vynucování, `financial_pressure`, Gini/chudoba, round trip (headless, ~1 s).
+- `tests/test_economy_sim.tscn` – zachování peněz 365 dní × 8–20 agentů × více seedů, determinismus (stejný seed = stejný hash, jiný seed jiný), obnova z JSONu, demo CSV (headless, ~8 s).
+- Demo/CSV: `godot --headless --path . res://tools/lab/economy_demo.tscn -- --seeds=1,2,3 --agents=8 --days=365 --out=<adresář>`.
