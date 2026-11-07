@@ -9,6 +9,10 @@ extends RefCounted
 ##   condition (volitelné, platí pro všechny agenty na začátku; vše ostatní zůstává shodné):
 ##     initial_support: 0..1  → mental.support (vnímaná opora, stejný konstrukt, který čte model)
 ##     initial_relationship: -100..100 → počáteční přátelství každého s každým (rel. matrix modelu)
+##     POZOR: mental.support je „nedávná opora" a v modelu mizí s časovou konstantou 6 h (mental_state.gd:388),
+##     takže initial_support sám o sobě po několika hodinách nic nedělá; trvalou složkou jsou vztahy.
+##   interventions (volitelné): [{day: 0..days, kind: "stressor", amount: 0..100, target: "all" | jméno agenta}]
+##     stresor se aplikuje stejnou cestou jako životní událost v household_dynamics (mental.on_stressor("life", ...)).
 ## Výsledek: {"ok", "scenario", "seed", "days", "agents": [jména], "snapshots": [...], "final_hash": String,
 ##            "stats": household statistiky, "model": {...verze/provenance}}
 ## Všechna data jsou fiktivní agenti. Výsledky platí jen v rámci modelu, ne pro lidi.
@@ -45,6 +49,18 @@ static func validate(sc: Dictionary) -> Array:
 		if cond.has("initial_relationship") and (not (cond["initial_relationship"] is float or cond["initial_relationship"] is int) \
 				or absf(float(cond["initial_relationship"])) > 100.0):
 			errs.append("initial_relationship musí být -100..100")
+	var iv = sc.get("interventions", [])
+	if typeof(iv) != TYPE_ARRAY:
+		errs.append("interventions musí být pole")
+	else:
+		for e in iv:
+			if typeof(e) != TYPE_DICTIONARY or String(e.get("kind", "")) != "stressor" \
+					or not (e.get("amount", null) is float or e.get("amount", null) is int) \
+					or float(e["amount"]) < 0.0 or float(e["amount"]) > 100.0 \
+					or not (e.get("day", null) is float or e.get("day", null) is int) \
+					or float(e["day"]) < 0.0 or float(e["day"]) > float(sc.get("days", 0)):
+				errs.append("intervence musí být {day 0..days, kind 'stressor', amount 0..100, target}")
+				break
 	return errs
 
 
@@ -92,16 +108,23 @@ static func run(host: Node, sc: Dictionary) -> Dictionary:
 		names.append(String(sim.sim_name))
 	var snaps: Array = []
 	snaps.append(_snapshot(w, 0.0))
+	var pending: Array = []
+	for e in sc.get("interventions", []):
+		pending.append(e.duplicate(true))
+	pending.sort_custom(func(x, y): return float(x["day"]) < float(y["day"]))
+	var first_iv := float(pending[0]["day"]) if not pending.is_empty() else -1.0
 	var steps_per_snap := int(snap_h * 60 / STEP_MINUTES)
 	var total_steps := int(days * 1440 / STEP_MINUTES)
 	for i in total_steps:
 		clock.advance(STEP_MINUTES)
+		while not pending.is_empty() and float(pending[0]["day"]) * 1440.0 <= float(i + 1) * STEP_MINUTES:
+			_apply_intervention(w, pending.pop_front())
 		if (i + 1) % steps_per_snap == 0:
 			snaps.append(_snapshot(w, float(i + 1) * STEP_MINUTES / 1440.0))
 	var stats: Dictionary = w.dynamics.stats.duplicate(true)
 	var result := {"ok": true, "scenario": String(sc.get("name", "bez_nazvu")), "seed": seed_i, "days": days,
 		"agents": names, "condition": cond, "snapshots": snaps, "stats": stats,
-		"summary": summarize(snaps),
+		"interventions": sc.get("interventions", []), "summary": summarize(snaps, first_iv),
 		"final_hash": _hash_state(w),
 		"model": {"version": MODEL_VERSION, "step_minutes": STEP_MINUTES,
 			"note": "Fiktivní agenti; výsledky platí v rámci modelu. Část parametrů je herní balance."}}
@@ -111,6 +134,13 @@ static func run(host: Node, sc: Dictionary) -> Dictionary:
 	settings.persist = prev_persist
 	await host.get_tree().process_frame
 	return result
+
+
+static func _apply_intervention(w: Node, e: Dictionary) -> void:
+	var target := String(e.get("target", "all"))
+	for sim in w.sims:
+		if target == "all" or String(sim.sim_name) == target:
+			sim.mental.on_stressor("life", float(e["amount"]), sim.mental_cfg())
 
 
 static func _r(v: float) -> float:
@@ -149,7 +179,7 @@ static func _hash_state(w: Node) -> String:
 
 
 ## Souhrnné metriky z denních snímků (průměry přes agenty): stres, nálada, přátelství, vyhrocení stresu.
-static func summarize(snaps: Array) -> Dictionary:
+static func summarize(snaps: Array, first_iv_day: float = -1.0) -> Dictionary:
 	var stress_sum := 0.0
 	var mood_sum := 0.0
 	var rel_sum := 0.0
@@ -167,6 +197,16 @@ static func summarize(snaps: Array) -> Dictionary:
 			for o in ag["relationships"]:
 				rel_sum += float(ag["relationships"][o])
 				rel_n += 1
+	var peak := 0.0
+	var post_sum := 0.0
+	var post_n := 0
+	for s2 in snaps:
+		for nm2 in s2["agents"]:
+			var st := float(s2["agents"][nm2]["stress"])
+			peak = maxf(peak, st)
+			if first_iv_day >= 0.0 and float(s2["day"]) > first_iv_day:
+				post_sum += st
+				post_n += 1
 	var last: Dictionary = snaps[-1]
 	var fs := 0.0
 	var fm := 0.0
@@ -188,4 +228,5 @@ static func summarize(snaps: Array) -> Dictionary:
 		"high_stress_share": snappedf(float(high_stress) / maxf(1.0, n), 0.0001),
 		"final_stress": snappedf(fs / maxf(1.0, fn), 0.001), "final_mood": snappedf(fm / maxf(1.0, fn), 0.001),
 		"final_relationship": snappedf(fr / maxf(1.0, fk), 0.001),
+		"peak_stress": snappedf(peak, 0.001), "mean_stress_post": snappedf(post_sum / maxf(1.0, post_n), 0.001),
 		"talks": talks, "arguments": args, "argument_share": snappedf(float(args) / maxf(1.0, talks), 0.0001)}

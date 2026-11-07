@@ -49,6 +49,25 @@ func _run() -> void:
 	check(int(a["stats"].get("talks", 0)) > 0, "proběhly rozhovory", str(a["stats"].get("talks", 0)))
 	check(a["model"]["version"] == Runner.MODEL_VERSION, "výsledek nese verzi modelu")
 
+	section("Intervence (stresor)")
+	check(Runner.validate({"seed": 1, "days": 3, "interventions": [{"day": 1, "kind": "stressor", "amount": 40, "target": "all"}]}).is_empty(), "platná intervence")
+	check(Runner.validate({"seed": 1, "days": 3, "interventions": [{"day": 9, "kind": "stressor", "amount": 40}]}).size() == 1, "den mimo rozsah je neplatný")
+	check(Runner.validate({"seed": 1, "days": 3, "interventions": [{"day": 1, "kind": "x", "amount": 40}]}).size() == 1, "neznámý druh je neplatný")
+	var base := {"name": "iv", "seed": 5, "days": 3, "snapshot_hours": 6}
+	var stressed: Dictionary = base.duplicate(true)
+	stressed["interventions"] = [{"day": 1.0, "kind": "stressor", "amount": 40.0, "target": "all"}]
+	var placebo: Dictionary = base.duplicate(true)
+	placebo["interventions"] = [{"day": 1.0, "kind": "stressor", "amount": 0.0, "target": "all"}]
+	var r0: Dictionary = await Runner.run(self, base)
+	var r1: Dictionary = await Runner.run(self, stressed)
+	var r2: Dictionary = await Runner.run(self, placebo)
+	check(r0["ok"] and r1["ok"] and r2["ok"], "tři běhy s intervencí proběhly")
+	check(float(r1["summary"]["peak_stress"]) > float(r0["summary"]["peak_stress"]) + 10.0, "stresor zvýší špičku stresu",
+			"%.1f vs %.1f" % [r1["summary"]["peak_stress"], r0["summary"]["peak_stress"]])
+	check(r2["final_hash"] == r0["final_hash"], "placebo (amount 0) = přesně stejný průběh jako bez intervence")
+	var r3: Dictionary = await Runner.run(self, stressed)
+	check(r3["final_hash"] == r1["final_hash"], "intervence je deterministická")
+
 	section("Běh nezanechává stopy ve hře")
 	check(Runner.Main.household_override.is_empty(), "household_override je vrácen")
 	finish("test_lab_runner")
