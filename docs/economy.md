@@ -18,6 +18,7 @@ Slouží jako budoucí zdroj „finančního tlaku“ pro psychologii a pro labo
 | `scripts/sim/economy/economy.gd` | jádro: agenti, mzdy, daně, povinnosti, půjčky, vynucování, tlak, metriky, (de)serializace |
 | `tools/lab/economy_demo.gd/.tscn` | headless demo 8 agentů × 365 dní × seedy → CSV |
 | `tests/test_economy_core.*`, `tests/test_economy_sim.*` | testy (viz bod 8) |
+| `stock_market.gd`, `market_*.gd`, `docs/economy_market.md` | volitelná (výchozí vypnutá) FIKTIVNÍ akciová burza a její experimenty |
 
 ## 2. Měna a kniha
 

@@ -11,6 +11,7 @@ extends RefCounted
 
 const Ledger := preload("res://scripts/sim/economy/economy_ledger.gd")
 const Catalog := preload("res://scripts/sim/economy/economy_catalog.gd")
+const StockMarket := preload("res://scripts/sim/economy/stock_market.gd")
 
 const ACC_TREASURY := "treasury"
 const ACC_BANK := "bank"
@@ -31,6 +32,7 @@ var agent_order: Array = []       # pořadí vložení (deterministická iterace
 var loans: Array = []             # Array[Dictionary]
 var next_loan_id: int = 1
 var stats: Dictionary = {}
+var market: RefCounted = null     # volitelná fiktivní burza (stock_market.gd); null = vypnuto (výchozí)
 
 
 @warning_ignore("integer_division")
@@ -68,6 +70,9 @@ func _init(p_seed: int = 1, p_config: Dictionary = {}, p_bootstrap: bool = true)
 		var cap: int = _ci("bank_capital")
 		if cap > 0:
 			ledger.post(0, "mint_bank_capital", ACC_MINT, ACC_BANK, cap, "bank capital")
+		# Volitelná fiktivní burza: config {"market_enabled": true, "market": {přepisy}}; výchozí vypnuto (stav i hash beze změny).
+		if bool(config.get("market_enabled", false)):
+			market = StockMarket.new(self, config.get("market", {}))
 
 
 static func _blank_stats() -> Dictionary:
@@ -806,6 +811,8 @@ func run_day() -> Dictionary:
 	if bool(config["auto_policy"]):
 		for id in agent_order:
 			_policy(agents[id])
+	if market != null:
+		market.run_day()
 	for id in agent_order:
 		var a: Dictionary = agents[id]
 		var lg: Array = a["income_log"]
@@ -884,9 +891,12 @@ func to_dict() -> Dictionary:
 	var ags: Array = []
 	for id in agent_order:
 		ags.append((agents[id] as Dictionary).duplicate(true))
-	return {"version": MODEL_VERSION, "seed": seed_value, "rng_state": str(rng.state), "config": config.duplicate(true),
+	var out: Dictionary = {"version": MODEL_VERSION, "seed": seed_value, "rng_state": str(rng.state), "config": config.duplicate(true),
 		"day": day, "agents": ags, "loans": loans.duplicate(true), "next_loan_id": next_loan_id,
 		"stats": stats.duplicate(true), "ledger": ledger.to_dict()}
+	if market != null:
+		out["market"] = market.to_dict()
+	return out
 
 
 static func from_dict(d0: Dictionary) -> RefCounted:
@@ -903,6 +913,8 @@ static func from_dict(d0: Dictionary) -> RefCounted:
 	e.next_loan_id = int(d["next_loan_id"])
 	e.stats = d["stats"]
 	e.ledger = Ledger.from_dict(d["ledger"])
+	if d.has("market"):
+		e.market = StockMarket.from_dict(d["market"], e)
 	return e
 
 
@@ -918,7 +930,10 @@ func state_hash() -> String:
 func agent_view(id: String) -> Dictionary:
 	var c: Dictionary = pressure_components(id)
 	var a: Dictionary = agents[id]
-	return {"balance": c["balance"], "debt": c["debt"], "financial_pressure": float(c["total_pm"]) / 1000.0,
+	var v: Dictionary = {"balance": c["balance"], "debt": c["debt"], "financial_pressure": float(c["total_pm"]) / 1000.0,
 		"pressure_pm": c["total_pm"], "runway_pm": c["runway_pm"], "debt_pm": c["debt_pm"], "missed_pm": c["missed_pm"],
 		"employed": legal_job_of(id) != "", "illegal_active": illegal_job_of(id) != "" and day >= int(a["cooldown_until"]),
 		"credit": a["credit"], "in_poverty": in_poverty(id), "arrears": arrears_total(id)}
+	if market != null:   # jen čtení: portfolio_value, equity_share_pm, unrealized_pm, drawdown_pm, profile (financial_pressure se NEMĚNÍ)
+		v["market"] = market.view(id)
+	return v

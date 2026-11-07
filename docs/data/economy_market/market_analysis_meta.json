@@ -1,0 +1,18 @@
+{
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12
+ ],
+ "n_tests": 412,
+ "note": "p z exaktního sign-flip testu přes seedy (2^n); Holm v rámci rodiny×metrika(×profil). Simulační replikace jednoho vymyšleného modelu; neříká nic o reálných trzích."
+}

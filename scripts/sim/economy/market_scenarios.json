@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "tag": "game_balance",
+  "note": "Fiktivní scénáře šoků pro vymyšlenou burzu. Všechna čísla jsou herní balance, ne kalibrace na reálné události. Typy událostí: path (kumulativní změna cen lineárně přes `days`, scope = market|sektor|ticker), vol (násobek volatility), div_cut (škrt dividend + volitelný cenový dopad price_pm), rates (posun sazeb půjček / daní / poplatku + volitelný cenový dopad), layoffs (vlna propouštění v ekonomice). Částky *_pm jsou promile, *_bp setiny procenta.",
+  "scenarios": [
+    {"id": "baseline", "title": "Bez šoku (kontrola)", "shock_day": 100, "events": []},
+    {"id": "crash", "title": "Krach: -30 % za 3 dny", "shock_day": 100,
+      "events": [{"type": "path", "day": 100, "days": 3, "total_pm": -300, "scope": "market"}]},
+    {"id": "crash_rebound", "title": "Krach -30 % za 3 dny a odraz +35 % za 60 dní (V)", "shock_day": 100,
+      "events": [{"type": "path", "day": 100, "days": 3, "total_pm": -300, "scope": "market"},
+                 {"type": "path", "day": 103, "days": 60, "total_pm": 350, "scope": "market"}]},
+    {"id": "bubble", "title": "Bublina +60 % za 40 dní a splasknutí -48 % za 5 dní", "shock_day": 100,
+      "events": [{"type": "path", "day": 60, "days": 40, "total_pm": 600, "scope": "market"},
+                 {"type": "path", "day": 100, "days": 5, "total_pm": -480, "scope": "market"}]},
+    {"id": "bear", "title": "Dlouhý medvědí trh: -35 % za 120 dní", "shock_day": 100,
+      "events": [{"type": "path", "day": 100, "days": 120, "total_pm": -350, "scope": "market"}]},
+    {"id": "highvol", "title": "Vysoká volatilita: 3x po 60 dní", "shock_day": 100,
+      "events": [{"type": "vol", "day": 100, "days": 60, "mult_pm": 3000}]},
+    {"id": "sector", "title": "Sektorový šok: technologie -40 % za 2 dny", "shock_day": 100,
+      "events": [{"type": "path", "day": 100, "days": 2, "total_pm": -400, "scope": "tech"}]},
+    {"id": "divcut", "title": "Škrt dividend o 80 % a cenová reakce -6 %", "shock_day": 100,
+      "events": [{"type": "div_cut", "day": 100, "days": 0, "cut_pm": 800, "price_pm": -60, "scope": "market"}]},
+    {"id": "rates", "title": "Posun sazeb a daní: půjčky +5 p. b., daň z obchodu 0,5 %, daň z dividend 15 %, cena -8 %", "shock_day": 100,
+      "events": [{"type": "rates", "day": 100, "loan_rate_add_bp": 500, "trade_tax_bp": 50, "div_tax_bp": 1500, "price_pm": -80, "scope": "market"}]},
+    {"id": "crash_layoffs", "title": "Krach -30 % a vlna propouštění 25 % zaměstnaných", "shock_day": 100,
+      "events": [{"type": "path", "day": 100, "days": 3, "total_pm": -300, "scope": "market"},
+                 {"type": "layoffs", "day": 101, "share_pm": 250}]}
+  ]
+}
