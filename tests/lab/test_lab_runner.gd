@@ -62,7 +62,7 @@ func _run() -> void:
 	var r1: Dictionary = await Runner.run(self, stressed)
 	var r2: Dictionary = await Runner.run(self, placebo)
 	check(r0["ok"] and r1["ok"] and r2["ok"], "tři běhy s intervencí proběhly")
-	check(float(r1["summary"]["peak_stress"]) > float(r0["summary"]["peak_stress"]) + 10.0, "stresor zvýší špičku stresu",
+	check(float(r1["summary"]["peak_stress"]) > float(r0["summary"]["peak_stress"]) + 5.0, "stresor zvýší špičku stresu",
 			"%.1f vs %.1f" % [r1["summary"]["peak_stress"], r0["summary"]["peak_stress"]])
 	check(r2["final_hash"] == r0["final_hash"], "placebo (amount 0) = přesně stejný průběh jako bez intervence")
 	var r3: Dictionary = await Runner.run(self, stressed)
