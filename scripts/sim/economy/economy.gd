@@ -179,7 +179,7 @@ func add_agent(id: String, opts: Dictionary = {}) -> Dictionary:
 	var tier: String = String(opts.get("tier", Catalog.TIERS[tier_i]))
 	if not (Catalog.HOUSING as Dictionary).has(tier):
 		return {"ok": false, "reason": "bad_tier"}
-	skill = int(opts.get("skill", skill))
+	skill = int(opts.get("qualification", opts.get("skill", skill)))   # "qualification" = alias pro most/laboratoř
 	shift_off = int(opts.get("shift_off", shift_off))
 	endow = int(opts.get("endowment", endow))
 	var a: Dictionary = {

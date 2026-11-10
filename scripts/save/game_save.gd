@@ -72,7 +72,8 @@ static func _commands(world: Node, queue: Array) -> Array:
 
 ## allow_authority = true jen pro ServerWorldStore (H4b): snímek světa na síťové autoritě
 ## (hostitel / dedikovaný server). Soubor zůstává na serveru, klientům se nic z toho neposílá.
-static func capture(world: Node, allow_authority: bool = false) -> Dictionary:
+## max_sims: strop počtu postav (výchozí MAX_SIMS = hra beze změny); laboratoř ho zvyšuje pro checkpointy velkých populací.
+static func capture(world: Node, allow_authority: bool = false, max_sims: int = MAX_SIMS) -> Dictionary:
 	if world == null or world.net == null or not world.net.is_authority():
 		return {"ok": false, "reason": "offline_only"}
 	if world.net.is_networked() and not allow_authority:
@@ -119,7 +120,7 @@ static func capture(world: Node, allow_authority: bool = false) -> Dictionary:
 		}
 		out.append({"node": key, "character": world._character_records[key].to_dict(),
 			"revision": int(world._character_revisions.get(key, 0)), "state": state})
-	if out.is_empty() or out.size() > MAX_SIMS:
+	if out.is_empty() or out.size() > max_sims:
 		return {"ok": false, "reason": "roster_size"}
 	var objs: Array = []
 	for obj in world.smart_objects:
@@ -173,7 +174,7 @@ static func _valid_ref(value: Variant, people: Dictionary, object_count: int) ->
 	return false
 
 
-static func validate_data(data: Variant, world: Node = null) -> Dictionary:
+static func validate_data(data: Variant, world: Node = null, max_sims: int = MAX_SIMS) -> Dictionary:
 	if typeof(data) != TYPE_DICTIONARY or data.get("version", -1) != VERSION:
 		return {"ok": false, "reason": "unsupported_version"}
 	if typeof(data.get("clock")) != TYPE_DICTIONARY:
@@ -186,7 +187,7 @@ static func validate_data(data: Variant, world: Node = null) -> Dictionary:
 	if typeof(clock.get("running")) != TYPE_BOOL:
 		return {"ok": false, "reason": "bad_running"}
 	var sims = data.get("sims")
-	if typeof(sims) != TYPE_ARRAY or sims.is_empty() or sims.size() > MAX_SIMS:
+	if typeof(sims) != TYPE_ARRAY or sims.is_empty() or sims.size() > max_sims:
 		return {"ok": false, "reason": "bad_roster"}
 	var nodes: Dictionary = {}
 	for item in sims:
@@ -355,7 +356,7 @@ static func _restore_state(world: Node, sim: Node, data: Dictionary) -> void:
 
 ## allow_authority = true jen pro ServerWorldStore (H4b): obnova na síťové autoritě, a to jen do
 ## PRÁZDNÉHO světa před prvním klientem (spawny jdou přes MultiplayerSpawner, nic se neruší).
-static func apply(world: Node, data: Variant, allow_authority: bool = false) -> Dictionary:
+static func apply(world: Node, data: Variant, allow_authority: bool = false, max_sims: int = MAX_SIMS) -> Dictionary:
 	if world == null or world.net == null:
 		return {"ok": false, "reason": "offline_only"}
 	if world.net.is_networked():
@@ -363,7 +364,7 @@ static func apply(world: Node, data: Variant, allow_authority: bool = false) -> 
 			return {"ok": false, "reason": "offline_only"}
 		if not world.sims.is_empty():
 			return {"ok": false, "reason": "server_world_not_empty"}
-	var check: Dictionary = validate_data(data, world)
+	var check: Dictionary = validate_data(data, world, max_sims)
 	if not bool(check["ok"]):
 		return check
 	var previous_running: bool = world.clock.running

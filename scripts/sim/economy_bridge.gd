@@ -13,7 +13,8 @@ extends RefCounted
 
 const Economy := preload("res://scripts/sim/economy/economy.gd")
 const MODEL_VERSION := "economy-bridge-0.1"
-const MAX_AGENTS := 64
+## 128 (dříve 64): laboratoř ("Údolí") registruje stovku agentů; pro ≤ 64 agentů se nic nemění.
+const MAX_AGENTS := 128
 
 ## Jediné místo s laděním (vše `game_balance`; nic není `empirical_anchor`, nic není kalibrováno na reálná data).
 const BALANCE := {
@@ -24,6 +25,9 @@ const BALANCE := {
 	# portfolia neměl na co působit); illegal_share_bp 0 = žádní agenti s (abstraktní) nelegální prací, most nemá nic, co by k ní vedlo.
 	"economy": {"endowment_min": 20000, "endowment_max": 120000, "illegal_share_bp": 0},
 	"max_catchup_days": 3,          # kolik dnů ekonomiky se nejvýš dožene při skoku času (zbytek se zahodí)
+	# Volitelné předvolby po agentech (laboratoř): {sim_name: {tier, qualification, job, endowment, household, shift_off, profile}}.
+	# Prázdné = původní chování (vše z RNG ekonomiky a z otisku id). `profile` = investorský profil burzy (jen s market=true).
+	"agents": {},
 	# --- chronický finanční stres z financial_pressure (0..1) ---
 	"pressure_floor": 0.30,         # pod touto hodnotou tlaku žádný chronický stres
 	"chronic_stress_per_day": 4.0,  # body stresu za den při tlaku 1.0 (lineárně od prahu)
@@ -84,6 +88,41 @@ static func validate_config(c: Dictionary) -> Array:
 		elif k == "economy":
 			if typeof(c[k]) != TYPE_DICTIONARY:
 				errs.append("economy musí být objekt")
+		elif k == "agents":
+			errs.append_array(_validate_agents(c[k]))
+	return errs
+
+
+const AGENT_KEYS := ["tier", "qualification", "job", "endowment", "household", "shift_off", "profile"]
+
+
+static func _validate_agents(a: Variant) -> Array:
+	var errs: Array = []
+	if typeof(a) != TYPE_DICTIONARY:
+		return ["agents musí být objekt"]
+	if (a as Dictionary).size() > MAX_AGENTS:
+		errs.append("agents: nejvýš %d agentů" % MAX_AGENTS)
+	for nm in a:
+		var o: Variant = a[nm]
+		if typeof(o) != TYPE_DICTIONARY:
+			errs.append("agents.%s musí být objekt" % String(nm))
+			continue
+		for k in o:
+			if not AGENT_KEYS.has(String(k)):
+				errs.append("agents.%s: neznámý klíč %s" % [String(nm), String(k)])
+		if o.has("tier") and not (Economy.Catalog.HOUSING as Dictionary).has(String(o["tier"])):
+			errs.append("agents.%s: neznámé bydlení" % String(nm))
+		if o.has("job") and String(o["job"]) != "" and not (Economy.Catalog.JOBS as Dictionary).has(String(o["job"])):
+			errs.append("agents.%s: neznámé povolání" % String(nm))
+		if o.has("profile") and not (Economy.StockMarket.MCat.PROFILES as Dictionary).has(String(o["profile"])):
+			errs.append("agents.%s: neznámý investorský profil" % String(nm))
+		for k2 in ["qualification", "shift_off", "endowment"]:
+			if o.has(k2):
+				var v: Variant = o[k2]
+				var okn: bool = (typeof(v) == TYPE_INT or (typeof(v) == TYPE_FLOAT and is_finite(v) and floorf(v) == v))
+				var lim: Array = {"qualification": [0, 3], "shift_off": [0, 6], "endowment": [0, 10000000]}[k2]
+				if not okn or int(v) < int(lim[0]) or int(v) > int(lim[1]):
+					errs.append("agents.%s.%s mimo rozsah" % [String(nm), k2])
 	return errs
 
 
@@ -119,7 +158,21 @@ func ensure_agents(sim_names: Array) -> void:
 		if eco.has_agent(id):
 			names[nm] = id
 			continue
-		if bool(eco.add_agent(id, {})["ok"]):
+		var opts: Dictionary = {}
+		var prof: String = ""
+		var pre: Variant = (cfg["agents"] as Dictionary).get(nm, null)
+		if typeof(pre) == TYPE_DICTIONARY:
+			for ok in ["tier", "qualification", "endowment", "household", "shift_off"]:
+				if (pre as Dictionary).has(ok):
+					opts[ok] = pre[ok]
+			if (pre as Dictionary).has("job") and String(pre["job"]) != "":
+				opts["job"] = String(pre["job"])
+			elif (pre as Dictionary).has("job"):
+				opts["job"] = ""   # výslovně bez práce
+			prof = String((pre as Dictionary).get("profile", ""))
+		if bool(eco.add_agent(id, opts)["ok"]):
+			if prof != "" and eco.market != null:
+				eco.market.set_profile(id, prof)
 			names[nm] = id
 			state[id] = {"worry": 0.0, "idx_prev": Economy.StockMarket.PPM if eco.market != null else 0}
 			stats["agents"] = names.size()
