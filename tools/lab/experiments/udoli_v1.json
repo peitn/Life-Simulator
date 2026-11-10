@@ -1,0 +1,340 @@
+{
+ "name": "udoli_v1",
+ "seed": 20310,
+ "days": 180,
+ "long_run": true,
+ "snapshot_hours": 24,
+ "snapshot_mode": "compact",
+ "household_file": "res://tools/lab/experiments/udoli_v1_household.json",
+ "population_file": "res://tools/lab/experiments/udoli_v1_population.json",
+ "settings": {
+  "mental_health": "full",
+  "intrusive_thoughts": 3,
+  "distortion_fx": true,
+  "distortion_strength": 1.0,
+  "addiction": true,
+  "profanity": true,
+  "adult_intimacy": true,
+  "sh_ed_topics": false
+ },
+ "economy": {
+  "enabled": true,
+  "market": true,
+  "use_population": true,
+  "events": [
+   {
+    "type": "layoffs",
+    "day": 20,
+    "share_pm": 300,
+    "label": "Propouštění (Dílna a okolí)",
+    "source": "Obecní rada Údolí"
+   },
+   {
+    "type": "path",
+    "day": 42,
+    "days": 5,
+    "total_pm": -350,
+    "scope": "market",
+    "label": "Krach na burze −35 %",
+    "source": "Obecní rada Údolí"
+   },
+   {
+    "type": "vol",
+    "day": 47,
+    "days": 20,
+    "mult_pm": 2000,
+    "label": "Zvýšená volatilita po krachu",
+    "source": "Obecní rada Údolí"
+   },
+   {
+    "type": "rates",
+    "day": 70,
+    "loan_rate_add_bp": 400,
+    "label": "Recese: dražší úvěry",
+    "source": "Obecní rada Údolí"
+   },
+   {
+    "type": "div_cut",
+    "day": 70,
+    "days": 60,
+    "cut_pm": 400,
+    "scope": "market",
+    "label": "Recese: škrt dividend",
+    "source": "Obecní rada Údolí"
+   },
+   {
+    "type": "layoffs",
+    "day": 72,
+    "share_pm": 200,
+    "label": "Recese: druhá vlna propouštění",
+    "source": "Obecní rada Údolí"
+   },
+   {
+    "type": "path",
+    "day": 100,
+    "days": 20,
+    "total_pm": 250,
+    "scope": "market",
+    "label": "Růst burzy +25 %",
+    "source": "Obecní rada Údolí"
+   }
+  ]
+ },
+ "interventions": [
+  {
+   "day": 5,
+   "source": "Obecní rada Údolí",
+   "kind": "moodlet",
+   "target": "all",
+   "strength": -6,
+   "minutes": 10080,
+   "emotion": "smutny",
+   "label": "Zimní tma a mrazy",
+   "category": "sezónní"
+  },
+  {
+   "day": 5,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "all",
+   "amount": 3,
+   "label": "Zimní tma a mrazy",
+   "category": "sezónní"
+  },
+  {
+   "day": 12,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": [
+    "wealth:0",
+    "wealth:1"
+   ],
+   "amount": 9,
+   "label": "Zimní účty za energie",
+   "category": "sezónní/finanční"
+  },
+  {
+   "day": 20,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "group:dilna",
+   "amount": 20,
+   "label": "Oznámení o propouštění v Dílně",
+   "category": "ekonomická/skupinová"
+  },
+  {
+   "day": 28,
+   "source": "Obecní rada Údolí",
+   "kind": "moodlet",
+   "target": "household:dom_01",
+   "strength": -18,
+   "minutes": 4320,
+   "emotion": "smutny",
+   "label": "Smutek v rodině",
+   "category": "životní/skupinová"
+  },
+  {
+   "day": 28,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "household:dom_01",
+   "amount": 45,
+   "label": "Úmrtí v rodině (domácnost dom_01)",
+   "category": "životní/skupinová"
+  },
+  {
+   "day": 35,
+   "source": "Obecní rada Údolí",
+   "kind": "relation",
+   "a": "community:dilny",
+   "b": "community:stara_ctvrt",
+   "delta": -18,
+   "label": "Spor o hluk z dílen",
+   "category": "sociální/hádka"
+  },
+  {
+   "day": 55,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "Adam Urban",
+   "amount": 55,
+   "label": "Individuální krize (jeden agent)",
+   "category": "životní/jednotlivec"
+  },
+  {
+   "day": 60,
+   "source": "Obecní rada Údolí",
+   "kind": "moodlet",
+   "target": "all",
+   "strength": 14,
+   "minutes": 4320,
+   "emotion": "stastny",
+   "label": "Masopustní slavnost",
+   "category": "sociální/oslava"
+  },
+  {
+   "day": 60,
+   "source": "Obecní rada Údolí",
+   "kind": "relation",
+   "a": "all",
+   "b": "all",
+   "delta": 4,
+   "label": "Masopustní slavnost",
+   "category": "sociální/oslava"
+  },
+  {
+   "day": 70,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": [
+    "group:obchodni_rada",
+    "group:kuryrni_sluzba"
+   ],
+   "amount": 8,
+   "label": "Recese: pokles tržeb obchodů a kurýrů",
+   "category": "ekonomická/skupinová"
+  },
+  {
+   "day": 85,
+   "source": "Obecní rada Údolí",
+   "kind": "relation",
+   "a": "community:dilny",
+   "b": "community:stara_ctvrt",
+   "delta": 15,
+   "label": "Smíření po sporu o hluk",
+   "category": "sociální/smíření"
+  },
+  {
+   "day": 90,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "all",
+   "amount": 6,
+   "label": "Termín daňového přiznání",
+   "category": "kalendářní"
+  },
+  {
+   "day": 95,
+   "source": "Obecní rada Údolí",
+   "kind": "moodlet",
+   "target": "David Havlík",
+   "strength": 16,
+   "minutes": 4320,
+   "emotion": "stastny",
+   "label": "Výhra v tombole (jeden agent)",
+   "category": "životní/jednotlivec"
+  },
+  {
+   "day": 110,
+   "source": "Obecní rada Údolí",
+   "kind": "moodlet",
+   "target": "group:technicky_ustav",
+   "strength": 10,
+   "minutes": 4320,
+   "emotion": "stastny",
+   "label": "Odměny v Technickém ústavu",
+   "category": "ekonomická/skupinová"
+  },
+  {
+   "day": 120,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "age:65-95",
+   "amount": 16,
+   "label": "Chřipková vlna u starších",
+   "category": "zdravotní/skupinová"
+  },
+  {
+   "day": 130,
+   "source": "Obecní rada Údolí",
+   "kind": "moodlet",
+   "target": "all",
+   "strength": 12,
+   "minutes": 4320,
+   "emotion": "stastny",
+   "label": "Letní festival",
+   "category": "sociální/oslava"
+  },
+  {
+   "day": 130,
+   "source": "Obecní rada Údolí",
+   "kind": "relation",
+   "a": "all",
+   "b": "all",
+   "delta": 3,
+   "label": "Letní festival",
+   "category": "sociální/oslava"
+  },
+  {
+   "day": 140,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "all",
+   "amount": 5,
+   "label": "Vedro",
+   "category": "sezónní"
+  },
+  {
+   "day": 150,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": "community:recni_nabrezi",
+   "amount": 38,
+   "label": "Povodeň na Říčním nábřeží",
+   "category": "přírodní/skupinová"
+  },
+  {
+   "day": 150,
+   "source": "Obecní rada Údolí",
+   "kind": "moodlet",
+   "target": "community:recni_nabrezi",
+   "strength": -14,
+   "minutes": 10080,
+   "emotion": "smutny",
+   "label": "Škody po povodni",
+   "category": "přírodní/skupinová"
+  },
+  {
+   "day": 152,
+   "source": "Obecní rada Údolí",
+   "kind": "relation",
+   "a": "community:recni_nabrezi",
+   "b": "community:recni_nabrezi",
+   "delta": 10,
+   "label": "Sousedská solidarita po povodni",
+   "category": "sociální/smíření"
+  },
+  {
+   "day": 165,
+   "source": "Obecní rada Údolí",
+   "kind": "relation",
+   "a": "group:urad",
+   "b": "group:technicky_ustav",
+   "delta": -25,
+   "label": "Hádka úřadu s Technickým ústavem",
+   "category": "sociální/hádka"
+  },
+  {
+   "day": 165,
+   "source": "Obecní rada Údolí",
+   "kind": "stressor",
+   "target": [
+    "group:urad",
+    "group:technicky_ustav"
+   ],
+   "amount": 10,
+   "label": "Hádka úřadu s Technickým ústavem",
+   "category": "sociální/hádka"
+  },
+  {
+   "day": 175,
+   "source": "Obecní rada Údolí",
+   "kind": "relation",
+   "a": "group:urad",
+   "b": "group:technicky_ustav",
+   "delta": 14,
+   "label": "Smíření úřadu a ústavu",
+   "category": "sociální/smíření"
+  }
+ ]
+}

@@ -23,6 +23,10 @@ func _go() -> void:
 			extra["checkpoint_out"] = a.trim_prefix("--checkpoint-out=")
 		elif a.begins_with("--stop-day="):
 			extra["stop_day"] = int(a.trim_prefix("--stop-day="))
+		elif a.begins_with("--block="):
+			extra["block"] = a.trim_prefix("--block=")
+		elif a.begins_with("--seed="):
+			extra["seed"] = int(a.trim_prefix("--seed="))
 		elif a == "--progress":
 			extra["progress"] = true
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(scen_path)) if scen_path != "" and FileAccess.file_exists(scen_path) else null

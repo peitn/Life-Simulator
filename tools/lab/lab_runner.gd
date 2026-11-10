@@ -191,6 +191,10 @@ static func validate(sc: Dictionary) -> Array:
 		errs.append("stop_day musí být 1..days")
 	if sc.has("stop_day") and not sc.has("checkpoint_out"):
 		errs.append("stop_day vyžaduje checkpoint_out")
+	if sc.has("block"):
+		var blks: Dictionary = pop.get("blocks", {}) if typeof(pop.get("blocks", null)) == TYPE_DICTIONARY else {}
+		if typeof(sc["block"]) != TYPE_STRING or not blks.has(String(sc["block"])):
+			errs.append("block musí být id bloku z population_file.blocks")
 	if sc.has("snapshot_mode") and not ["full", "compact"].has(String(sc["snapshot_mode"])):
 		errs.append("snapshot_mode musí být full nebo compact")
 	if sc.has("progress") and typeof(sc["progress"]) != TYPE_BOOL:
@@ -349,6 +353,7 @@ static func _bridge_cfg(eco: Dictionary, sc_seed: int, pop: Dictionary = {}) -> 
 				o["profile"] = String(a["profile"])
 			ag[String(nm)] = o
 		c["agents"] = ag
+		c["register_all"] = true
 	return c
 
 
@@ -378,6 +383,19 @@ static func _open(host: Node, sc: Dictionary) -> Dictionary:
 	var hh = sc.get("household", [])
 	if (hh as Array).is_empty() and sc.has("household_file"):
 		hh = _load_json(String(sc["household_file"]))
+	var pop0 := _population(sc)
+	var gidx := {}   # jméno → globální pořadí v populaci (seed postavy nezávisí na tom, v jakém bloku běží)
+	var block_members: Array = []
+	if sc.has("block") and not pop0.is_empty():
+		block_members = pop0["blocks"][String(sc["block"])]["members"]
+		var keep: Array = []
+		for ch in hh:
+			var nm0 := ("%s %s" % [ch["identity"]["first_name"], ch["identity"].get("last_name", "")]).strip_edges()
+			if block_members.has(nm0):
+				keep.append(ch)
+		hh = keep
+		for i in (pop0.get("order", []) as Array).size():
+			gidx[String(pop0["order"][i])] = i
 	Main.household_override = hh
 	var w := Node3D.new()
 	w.set_script(Main)
@@ -388,7 +406,8 @@ static func _open(host: Node, sc: Dictionary) -> Dictionary:
 	ctx["w"] = w
 	var n := 0
 	for sim in w.sims:
-		sim.rng.seed = seed_i * 7919 + n * 104729 + 13
+		var gi: int = int(gidx.get(String(sim.sim_name), n)) if not gidx.is_empty() else n
+		sim.rng.seed = seed_i * 7919 + gi * 104729 + 13
 		sim.think_cooldown = sim.rng.randf_range(0.0, 3.0)
 		n += 1
 	var cond: Dictionary = sc.get("condition", {})
@@ -407,7 +426,7 @@ static func _open(host: Node, sc: Dictionary) -> Dictionary:
 			by_name[String(sim.sim_name)] = sim
 		ctx["missing"] = []
 		for nm in pop["agents"]:
-			if not by_name.has(String(nm)):
+			if not by_name.has(String(nm)) and (block_members.is_empty() or block_members.has(String(nm))):
 				(ctx["missing"] as Array).append(String(nm))
 		for r in pop["relations"]:
 			var a = by_name.get(String(r[0]), null)
@@ -545,6 +564,12 @@ static func run(host: Node, sc: Dictionary) -> Dictionary:
 		result["applied_interventions"] = applied
 		result["gossip_stats"] = (w.gossip.stats as Dictionary).duplicate(true)
 		result["settings"] = (ctx["settings"].values as Dictionary).duplicate(true)
+		var src := {}
+		for a in w.sims:
+			for k in a.mental.stress_sources:
+				src[String(k)] = snappedf(float(src.get(String(k), 0.0)) + float(a.mental.stress_sources[k]), 0.01)
+		result["stress_sources_total"] = src   # kumulativní příspěvky k stresu podle zdroje (součet přes agenty od startu světa)
+		result["world"] = {"smart_objects": w.smart_objects.size(), "agents": w.sims.size()}
 		result["elapsed_s"] = float(Time.get_ticks_msec() - t0) / 1000.0
 	await _close(host, ctx)
 	return result

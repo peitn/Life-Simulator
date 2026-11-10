@@ -28,6 +28,9 @@ const BALANCE := {
 	# Volitelné předvolby po agentech (laboratoř): {sim_name: {tier, qualification, job, endowment, household, shift_off, profile}}.
 	# Prázdné = původní chování (vše z RNG ekonomiky a z otisku id). `profile` = investorský profil burzy (jen s market=true).
 	"agents": {},
+	# true = při prvním spatření se zaregistrují VŠICHNI agenti z `agents` (v pořadí klíčů), ne jen ti, kdo jsou ve světě.
+	# Laboratoř tak může simulovat jednu populaci po blocích (každý blok = vlastní dům) nad toutéž ekonomikou.
+	"register_all": false,
 	# --- chronický finanční stres z financial_pressure (0..1) ---
 	"pressure_floor": 0.30,         # pod touto hodnotou tlaku žádný chronický stres
 	"chronic_stress_per_day": 4.0,  # body stresu za den při tlaku 1.0 (lineárně od prahu)
@@ -90,6 +93,9 @@ static func validate_config(c: Dictionary) -> Array:
 				errs.append("economy musí být objekt")
 		elif k == "agents":
 			errs.append_array(_validate_agents(c[k]))
+		elif k == "register_all":
+			if typeof(c[k]) != TYPE_BOOL:
+				errs.append("register_all musí být bool")
 	return errs
 
 
@@ -150,7 +156,10 @@ func _f(key: String) -> float:
 
 ## Zaregistruje nové agenty (sim_name -> id) v pořadí, v jakém přišli (deterministické losování v ekonomice).
 func ensure_agents(sim_names: Array) -> void:
-	for n in sim_names:
+	var order: Array = sim_names
+	if bool(cfg["register_all"]):
+		order = (cfg["agents"] as Dictionary).keys() + sim_names
+	for n in order:
 		var nm: String = String(n)
 		if names.has(nm) or names.size() >= MAX_AGENTS:
 			continue

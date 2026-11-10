@@ -1,0 +1,26 @@
+{
+ "name": "udoli_v1_control",
+ "seed": 20310,
+ "days": 180,
+ "long_run": true,
+ "snapshot_hours": 24,
+ "snapshot_mode": "compact",
+ "household_file": "res://tools/lab/experiments/udoli_v1_household.json",
+ "population_file": "res://tools/lab/experiments/udoli_v1_population.json",
+ "settings": {
+  "mental_health": "full",
+  "intrusive_thoughts": 3,
+  "distortion_fx": true,
+  "distortion_strength": 1.0,
+  "addiction": true,
+  "profanity": true,
+  "adult_intimacy": true,
+  "sh_ed_topics": false
+ },
+ "economy": {
+  "enabled": true,
+  "market": true,
+  "use_population": true
+ },
+ "interventions": []
+}

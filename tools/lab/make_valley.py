@@ -71,6 +71,39 @@ def beta(rng, a, b):
     return rng.betavariate(a, b)
 
 
+BLOCK_CAP = 8   # engine: jeden dům (9 chytrých objektů) – víc než 8 obyvatel vede k saturaci stresu z tlačenice (viz docs)
+
+
+def pack_blocks(households):
+    """Domácnosti → „bloky“ (≤ BLOCK_CAP obyvatel), každý blok = jeden dům v enginu. Nejdřív first-fit decreasing v rámci
+    komunity, pak sloučení nedoplněných bloků napříč komunitami. Deterministické (řazení podle velikosti a id)."""
+    blocks = []   # {"members": [...], "households": [...], "communities": set}
+    for comm in [c["id"] for c in COMMUNITIES]:
+        hs = sorted([h for h in households if h["community"] == comm], key=lambda h: (-len(h["members"]), h["id"]))
+        local = []
+        for h in hs:
+            for b in local:
+                if len(b["members"]) + len(h["members"]) <= BLOCK_CAP:
+                    b["members"] += h["members"]; b["households"].append(h["id"])
+                    break
+            else:
+                b = {"members": list(h["members"]), "households": [h["id"]], "communities": {comm}}
+                local.append(b)
+        blocks += local
+    merged = []
+    for b in sorted(blocks, key=lambda b: (-len(b["members"]), b["households"][0])):
+        for m in merged:
+            if len(m["members"]) + len(b["members"]) <= BLOCK_CAP:
+                m["members"] += b["members"]; m["households"] += b["households"]; m["communities"] |= b["communities"]
+                break
+        else:
+            merged.append({"members": list(b["members"]), "households": list(b["households"]), "communities": set(b["communities"])})
+    out = {}
+    for i, b in enumerate(sorted(merged, key=lambda b: b["households"][0])):
+        out["blk_%02d" % (i + 1)] = {"members": b["members"], "households": sorted(b["households"]), "communities": sorted(b["communities"])}
+    return out
+
+
 def build(seed, n):
     rng = random.Random(seed)
     sizes = list(SIZES)
@@ -258,11 +291,92 @@ def build(seed, n):
             continue
         add_pair(a, b, -rng.randint(20, 55))
         nr += 1
-    pop = {"version": 1, "seed": seed, "n": len(chars), "communities": COMMUNITIES and [{"id": c["id"], "title": c["title"]} for c in COMMUNITIES],
+    blocks = pack_blocks(households)
+    pop = {"version": 1, "seed": seed, "order": [c["identity"]["first_name"] + " " + c["identity"]["last_name"] for c in chars],
+           "blocks": blocks, "n": len(chars), "communities": COMMUNITIES and [{"id": c["id"], "title": c["title"]} for c in COMMUNITIES],
            "groups": [{"id": g["id"], "title": g["title"], "job": g["job"]} for g in WORK_GROUPS],
            "households": households, "agents": pop_agents, "relations": rel_pairs,
            "note": "Fiktivní populace; rozdělení a pravděpodobnosti jsou návrhové předpoklady (game_balance), ne data o lidech."}
     return chars, pop
+
+
+SOURCE = "Obecní rada Údolí"
+
+
+def pick_named(pop):
+    """Deterministicky vybere jednotlivce pro cílené události (bez náhody): krize = nejchudší člen s depresivní predispozicí
+    (jinak nejchudší), radost = nejchudší člen bez predispozic; bereavement domácnost = první domácnost s ≥ 4 členy."""
+    ag = pop["agents"]
+    names = sorted(ag.keys())
+    dep = [n for n in names if "depression" in ag[n]["predispositions"]]
+    pool = dep if dep else names
+    crisis = sorted(pool, key=lambda n: (ag[n]["wealth_class"], n))[0]
+    lucky_pool = [n for n in names if not ag[n]["predispositions"] and n != crisis]
+    lucky = sorted(lucky_pool, key=lambda n: (ag[n]["wealth_class"], n))[0]
+    big = [h for h in pop["households"] if len(h["members"]) >= 4]
+    return crisis, lucky, sorted(h["id"] for h in big)[0], sorted(h["id"] for h in big)[-1]
+
+
+def build_scenario(seed, pop, days=180):
+    """Scénář výzkumného běhu v1: 6 měsíců, všechny relevantní systémy zapnuty, 18 kalendářních a cílených událostí.
+    day = dny od startu běhu (8:00 herního dne day+1). Ekonomické události: den ekonomiky; projeví se od herního dne day+1."""
+    crisis, lucky, hh_bereave, hh_flood = pick_named(pop)
+    A = lambda d, **kw: dict({"day": d, "source": SOURCE}, **kw)
+    iv = [
+        A(5, kind="moodlet", target="all", strength=-6, minutes=10080, emotion="smutny", label="Zimní tma a mrazy", category="sezónní"),
+        A(5, kind="stressor", target="all", amount=3, label="Zimní tma a mrazy", category="sezónní"),
+        A(12, kind="stressor", target=["wealth:0", "wealth:1"], amount=9, label="Zimní účty za energie", category="sezónní/finanční"),
+        A(20, kind="stressor", target="group:dilna", amount=20, label="Oznámení o propouštění v Dílně", category="ekonomická/skupinová"),
+        A(28, kind="stressor", target="household:" + hh_bereave, amount=45, label="Úmrtí v rodině (domácnost %s)" % hh_bereave, category="životní/skupinová"),
+        A(28, kind="moodlet", target="household:" + hh_bereave, strength=-18, minutes=4320, emotion="smutny", label="Smutek v rodině", category="životní/skupinová"),
+        A(35, kind="relation", a="community:dilny", b="community:stara_ctvrt", delta=-18, label="Spor o hluk z dílen", category="sociální/hádka"),
+        A(55, kind="stressor", target=crisis, amount=55, label="Individuální krize (jeden agent)", category="životní/jednotlivec"),
+        A(60, kind="moodlet", target="all", strength=14, minutes=4320, emotion="stastny", label="Masopustní slavnost", category="sociální/oslava"),
+        A(60, kind="relation", a="all", b="all", delta=4, label="Masopustní slavnost", category="sociální/oslava"),
+        A(70, kind="stressor", target=["group:obchodni_rada", "group:kuryrni_sluzba"], amount=8, label="Recese: pokles tržeb obchodů a kurýrů", category="ekonomická/skupinová"),
+        A(85, kind="relation", a="community:dilny", b="community:stara_ctvrt", delta=15, label="Smíření po sporu o hluk", category="sociální/smíření"),
+        A(90, kind="stressor", target="all", amount=6, label="Termín daňového přiznání", category="kalendářní"),
+        A(95, kind="moodlet", target=lucky, strength=16, minutes=4320, emotion="stastny", label="Výhra v tombole (jeden agent)", category="životní/jednotlivec"),
+        A(110, kind="moodlet", target="group:technicky_ustav", strength=10, minutes=4320, emotion="stastny", label="Odměny v Technickém ústavu", category="ekonomická/skupinová"),
+        A(120, kind="stressor", target="age:65-95", amount=16, label="Chřipková vlna u starších", category="zdravotní/skupinová"),
+        A(130, kind="moodlet", target="all", strength=12, minutes=4320, emotion="stastny", label="Letní festival", category="sociální/oslava"),
+        A(130, kind="relation", a="all", b="all", delta=3, label="Letní festival", category="sociální/oslava"),
+        A(140, kind="stressor", target="all", amount=5, label="Vedro", category="sezónní"),
+        A(150, kind="stressor", target="community:recni_nabrezi", amount=38, label="Povodeň na Říčním nábřeží", category="přírodní/skupinová"),
+        A(150, kind="moodlet", target="community:recni_nabrezi", strength=-14, minutes=10080, emotion="smutny", label="Škody po povodni", category="přírodní/skupinová"),
+        A(152, kind="relation", a="community:recni_nabrezi", b="community:recni_nabrezi", delta=10, label="Sousedská solidarita po povodni", category="sociální/smíření"),
+        A(165, kind="relation", a="group:urad", b="group:technicky_ustav", delta=-25, label="Hádka úřadu s Technickým ústavem", category="sociální/hádka"),
+        A(165, kind="stressor", target=["group:urad", "group:technicky_ustav"], amount=10, label="Hádka úřadu s Technickým ústavem", category="sociální/hádka"),
+        A(175, kind="relation", a="group:urad", b="group:technicky_ustav", delta=14, label="Smíření úřadu a ústavu", category="sociální/smíření"),
+    ]
+    eco_events = [
+        {"type": "layoffs", "day": 20, "share_pm": 300, "label": "Propouštění (Dílna a okolí)", "source": SOURCE},
+        {"type": "path", "day": 42, "days": 5, "total_pm": -350, "scope": "market", "label": "Krach na burze −35 %", "source": SOURCE},
+        {"type": "vol", "day": 47, "days": 20, "mult_pm": 2000, "label": "Zvýšená volatilita po krachu", "source": SOURCE},
+        {"type": "rates", "day": 70, "loan_rate_add_bp": 400, "label": "Recese: dražší úvěry", "source": SOURCE},
+        {"type": "div_cut", "day": 70, "days": 60, "cut_pm": 400, "scope": "market", "label": "Recese: škrt dividend", "source": SOURCE},
+        {"type": "layoffs", "day": 72, "share_pm": 200, "label": "Recese: druhá vlna propouštění", "source": SOURCE},
+        {"type": "path", "day": 100, "days": 20, "total_pm": 250, "scope": "market", "label": "Růst burzy +25 %", "source": SOURCE},
+    ]
+    iv.sort(key=lambda e: (e["day"], e["label"]))
+    return {
+        "name": "udoli_v1", "seed": seed, "days": days, "long_run": True, "snapshot_hours": 24, "snapshot_mode": "compact",
+        "household_file": "res://tools/lab/experiments/udoli_v1_household.json",
+        "population_file": "res://tools/lab/experiments/udoli_v1_population.json",
+        "settings": {"mental_health": "full", "intrusive_thoughts": 3, "distortion_fx": True, "distortion_strength": 1.0,
+                     "addiction": True, "profanity": True, "adult_intimacy": True, "sh_ed_topics": False},
+        "economy": {"enabled": True, "market": True, "use_population": True, "events": eco_events},
+        "interventions": iv,
+    }
+
+
+def control_of(sc):
+    """Kontrolní rameno: stejná populace, nastavení, ekonomika a seed, ale BEZ intervencí a BEZ událostí burzy/ekonomiky."""
+    c = json.loads(json.dumps(sc))
+    c["name"] = sc["name"] + "_control"
+    c["interventions"] = []
+    c["economy"].pop("events", None)
+    return c
 
 
 def main():
@@ -278,6 +392,12 @@ def main():
         json.dump(chars, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     with open(os.path.join(a.out, a.prefix + "_population.json"), "w", encoding="utf-8") as f:
         json.dump(pop, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    if a.n == 100:
+        # sim seed odvozen z generátorového seedu; scénář se zapisuje vedle dat
+        with open(os.path.join(a.out, a.prefix + ".json"), "w", encoding="utf-8") as f:
+            json.dump(build_scenario(a.seed, pop), f, ensure_ascii=False, indent=1, sort_keys=False)
+        with open(os.path.join(a.out, a.prefix + "_control.json"), "w", encoding="utf-8") as f:
+            json.dump(control_of(build_scenario(a.seed, pop)), f, ensure_ascii=False, indent=1, sort_keys=False)
     print("OK n=%d domácností=%d vztahů=%d" % (len(chars), len(pop["households"]), len(pop["relations"])))
 
 
