@@ -23,6 +23,16 @@ class FakeWorld:
 	extends Node3D
 	var net: Node
 	var hud: Node
+	# QA 11/2026: SimAgent's world contract requires get_sims()/get_smart_objects(); without them the
+	# coercion scene raised "Nonexistent function 'get_sims'" inside SimAgent._sim_by_name.
+	func get_sims() -> Array:
+		var out: Array = []
+		for c in get_children():
+			if c.has_method("memory_key"):
+				out.append(c)
+		return out
+	func get_smart_objects() -> Array:
+		return []
 
 func _ready() -> void:
 	section("Independent attachment and dependency by person")

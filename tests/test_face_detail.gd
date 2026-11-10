@@ -508,13 +508,28 @@ func _mr(ring: int, a: float, upper: bool) -> int:
 	return -1
 
 
+## Nejbližší vrchol prstence úst k parametru a. QA 11/2026: po zjemnění mřížky hlavy (30. 10., NX 24 → 32)
+## už sloupce neleží přesně na a = 0,25 / 0,75 / 0,875, takže přesné hledání vracelo −1 (měření −99).
+func _mr_near(ring: int, a: float, upper: bool) -> int:
+	var best := -1
+	var bd := 0.08
+	for i in _idx("mr"):
+		var r: Array = topo.recipes[i]
+		if int(r[1]) == ring and ((float(r[3]) > 0.0) == upper) and absf(float(r[3])) > 0.99:
+			var d := absf(float(r[2]) - a)
+			if d < bd:
+				bd = d
+				best = i
+	return best
+
+
 func _test_run22_shapes() -> void:
 	section("Běh 22: tvar úst, úsměv, rty, profil, řasy")
 	var pj := HB.positions(topo, {"ex_jaw_open": 1.0})
 	var gaps: Array = []
 	for a in [0.0, 0.25, 0.5, 0.75, 0.875, 1.0]:
-		var u := _mr(3, a, true)
-		var lo := _mr(3, a, false)
+		var u := _mr_near(3, a, true)
+		var lo := _mr_near(3, a, false)
 		gaps.append((pj[u].y - pj[lo].y) * 1000.0 if u >= 0 and lo >= 0 else -99.0)
 	var mono := true
 	for k in range(1, gaps.size()):
@@ -523,7 +538,7 @@ func _test_run22_shapes() -> void:
 	# zaoblení: ve 3/4 šířky je otvor ještě ≥ 55 % středu (obdélník by měl ~100 %, ostrý klín ~25 %), u koutku (0,88) ≤ 75 %
 	check(float(gaps[3]) > 0.55 * float(gaps[0]) and float(gaps[4]) < 0.75 * float(gaps[0]), "otvor je zaoblený (0,75 šířky: %.0f %%, 0,88: %.0f %% středu)" % [100.0 * float(gaps[3]) / float(gaps[0]), 100.0 * float(gaps[4]) / float(gaps[0])])
 	var ps := HB.positions(topo, {"ex_smile": 1.0})
-	var corner := _mr(1, 1.0, true)
+	var corner := _mr_near(1, 1.0, true)
 	check(corner >= 0 and ps[corner].y - p0[corner].y > 0.0045 and ps[corner].x - p0[corner].x > 0.003,
 		"Duchennův úsměv: koutek nahoru o %.1f mm, do strany o %.1f mm" % [(ps[corner].y - p0[corner].y) * 1000.0, (ps[corner].x - p0[corner].x) * 1000.0])
 	var d0 := HB.derive({})
@@ -541,15 +556,15 @@ func _test_run22_shapes() -> void:
 	check(cheek > 0.0015, "úsměv: lícní polštář laterálně od nasolabiální rýhy dopředu o %.1f mm" % (cheek * 1000.0))
 	var e: Dictionary = HB.derive({"ex_smile": 1.0})["eye1"]
 	check(float(e["lo_raise"]) >= 0.4, "úsměv přimhouří dolní víčka (lo_raise %.2f)" % float(e["lo_raise"]))
-	var up1 := _mr(1, 0.0, true)
-	var up2 := _mr(2, 0.0, true)
-	var lo2 := _mr(2, 0.0, false)
-	var lo1 := _mr(1, 0.0, false)
+	var up1 := _mr_near(1, 0.0, true)
+	var up2 := _mr_near(2, 0.0, true)
+	var lo2 := _mr_near(2, 0.0, false)
+	var lo1 := _mr_near(1, 0.0, false)
 	check(p0[up2].z - p0[up1].z > 0.0035 and p0[lo2].z - p0[lo1].z > 0.004, "objem rtů: horní %.1f mm, dolní %.1f mm před linií rtu" % [(p0[up2].z - p0[up1].z) * 1000.0, (p0[lo2].z - p0[lo1].z) * 1000.0])
-	var bow_c := _mr(1, 0.0, true)
-	var bow_p := _mr(1, 0.25, true)
+	var bow_c := _mr_near(1, 0.0, true)
+	var bow_p := _mr_near(1, 0.25, true)
 	check(p0[bow_p].y - p0[bow_c].y > 0.0012, "Cupidův luk: vrchol o %.1f mm nad prohlubní" % ((p0[bow_p].y - p0[bow_c].y) * 1000.0))
-	var D = load("res://previews/diag/jaw_profile.gd")
+	var D = load("res://tests/support/jaw_profile.gd")
 	var worst := 0.0
 	for col in [12, 10, 8]:
 		var ch: PackedInt32Array = D.chain(topo, col)

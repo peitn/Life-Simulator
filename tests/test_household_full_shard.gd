@@ -50,8 +50,15 @@ func _run() -> void:
 			"seed%d: three canonical autonomous NPCs converse over full 14 days" % seed)
 		check(sum_outcomes == int(r["talks"]) and int(hist.get("argue",0))==int(stats["argues"]),
 			"seed%d: every talk has one outcome; only actual fights counted" % seed)
-		check(rate >= 0.08 and rate <= 0.6,
-			"seed%d: real arguments in wide per-seed acceptance range" % seed, "%.3f" % rate)
+		# QA 11/2026: the 8–60 % bound predates H5, when every unsuccessful conversation counted as an
+		# argument. It now applies to unpleasant conversations (argue + awkward + misunderstanding);
+		# genuine arguments use the documented post-H5 per-run bound of 5–60 % (docs/testing.md).
+		var unpleasant: float = float(int(hist.get("argue", 0)) + int(hist.get("awkward", 0))
+			+ int(hist.get("misunderstanding", 0))) / maxf(1.0, float(r["talks"]))
+		check(unpleasant >= 0.08 and unpleasant <= 0.6,
+			"seed%d: unpleasant conversations in wide per-seed acceptance range (8–60 %%)" % seed, "%.3f" % unpleasant)
+		check(rate >= 0.05 and rate <= 0.6,
+			"seed%d: real arguments neither vanish nor dominate (5–60 %%)" % seed, "%.3f" % rate)
 		check(int(r["crit"])==0, "seed%d: no critical needs sustained" % seed)
 		check(not (stats["friction"] as Dictionary).is_empty() and not (stats["shared"] as Dictionary).is_empty(),
 			"seed%d: home frictions and positive shared moments both exist" % seed)

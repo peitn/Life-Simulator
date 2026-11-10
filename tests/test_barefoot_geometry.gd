@@ -80,14 +80,14 @@ func run()->void:
     preview.show_draft(d)
     check(visual._foot_detail_nodes.all(func(mi):return mi.visible),
         "bare feet are visible when shoes = bosy")
-    var base_skin_color:Color=visual._foot_skin_material.albedo_color
+    var base_skin_color:Color=_mat_color(visual._foot_skin_material)
     d["skin"]["tone"]=0.93
     d["body"]["shoulders"]=1.0
     d["body"]["hips"]=1.0
     preview.show_draft(d)
-    check(visual._foot_skin_material.albedo_color!=base_skin_color,
+    check(_mat_color(visual._foot_skin_material)!=base_skin_color,
         "feet follow continuous skin pigmentation")
-    check(visual._foot_nail_material.albedo_color!=visual._foot_skin_material.albedo_color,
+    check(_mat_color(visual._foot_nail_material)!=_mat_color(visual._foot_skin_material),
         "toe nail plates have independent enamel shading")
     check(visual._foot_detail_nodes[0].get_blend_shape_value(9)!=0.0,
         "feet inherit actual authored hips morph")
@@ -157,3 +157,15 @@ func run()->void:
     await process_frame
     print("BAREFOOT_DETAIL_RESULT checks=",checks," failures=",failures)
     quit(0 if failures==0 else 1)
+
+
+## QA 11/2026: nail/skin detail materials became ShaderMaterial ("base_color") in the 30 Oct realism
+## pass; reading .albedo_color raised a script error and the test never quit.
+func _mat_color(m:Material)->Color:
+    if m is StandardMaterial3D:
+        return (m as StandardMaterial3D).albedo_color
+    if m is ShaderMaterial:
+        var c=(m as ShaderMaterial).get_shader_parameter("base_color")
+        if c is Color:
+            return c
+    return Color(0,0,0,0)

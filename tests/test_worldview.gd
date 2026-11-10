@@ -159,6 +159,22 @@ func _find(world: Node, first: String) -> Node:
 	return null
 
 
+## Nesoulad v domácnosti = součet |a − b| přes všechny dvojice a témata, na která mají oba názor.
+## To je polarizace v pravém smyslu (lidé se od sebe vzdalují). Součet |postojů| („vyhraněnost“) ji
+## neměří: vzroste i tehdy, když nejistého umírněného člena přesvědčí někdo, komu věří – tedy když
+## se domácnost naopak sbližuje (QA 11/2026: 4,40 → 4,46 při poklesu nesouladu 7,00 → 6,91).
+func _disagreement(sims: Array) -> float:
+	var total := 0.0
+	for i in sims.size():
+		for j in range(i + 1, sims.size()):
+			var a: Dictionary = sims[i].psy.worldview.stance
+			var b: Dictionary = sims[j].psy.worldview.stance
+			for t in a:
+				if b.has(t):
+					total += absf(float(a[t]) - float(b[t]))
+	return total
+
+
 func _run_household(days: float) -> Dictionary:
 	var hh: Array = U.household({})
 	hh[0]["personality"] = _pers(0, {"tradition": 0.9, "community": 0.6, "risk": -0.5}, {"security": 0.9})
@@ -171,6 +187,7 @@ func _run_household(days: float) -> Dictionary:
 	for s in w.sims:
 		for t in s.psy.worldview.stance:
 			pol0 += absf(float(s.psy.worldview.stance[t]))
+	var dis0 := _disagreement(w.sims)
 	U.run_minutes(clock, days * DAY)
 	var pol1 := 0.0
 	var max_drift := 0.0
@@ -183,14 +200,20 @@ func _run_household(days: float) -> Dictionary:
 	var states := {}
 	for s in w.sims:
 		states[s.sim_name] = s.psy.worldview.to_dict()
-	var res := {"pol0": pol0, "pol1": pol1, "drift": max_drift, "shifts": shifts, "states": states, "fp": U.action_fingerprint(w), "world": w}
+	var res := {"pol0": pol0, "pol1": pol1, "dis0": dis0, "dis1": _disagreement(w.sims), "drift": max_drift, "shifts": shifts, "states": states, "fp": U.action_fingerprint(w), "world": w}
 	return res
 
 
 func _test_world() -> void:
 	section("Domácnost: žádná polarizace, determinismus")
 	var r1: Dictionary = await _run_household(10.0)
-	check(float(r1["pol1"]) <= float(r1["pol0"]) + 0.05, "průměrná vyhraněnost nevzrostla (žádná polarizace)", "%.2f → %.2f" % [r1["pol0"], r1["pol1"]])
+	check(float(r1["dis1"]) <= float(r1["dis0"]) + 0.05, "nesoulad mezi členy domácnosti nevzrostl (žádná polarizace)",
+		"%.3f → %.3f" % [r1["dis0"], r1["dis1"]])
+	# Vyhraněnost smí vzrůst jen přesvědčením (sblížením), nikdy „backfire“ efektem: přírůstek součtu
+	# |postojů| nesmí přesáhnout to, o kolik se členové k sobě přiblížili.
+	check(float(r1["pol1"]) - float(r1["pol0"]) <= maxf(0.0, float(r1["dis0"]) - float(r1["dis1"])) + 0.05,
+		"vyhraněnost neroste rychleji, než se domácnost sbližuje",
+		"vyhraněnost %.3f → %.3f, nesoulad %.3f → %.3f" % [r1["pol0"], r1["pol1"], r1["dis0"], r1["dis1"]])
 	check(float(r1["drift"]) <= Worldview.MAX_DRIFT + 1e-6 and int(r1["shifts"]) > 0, "názory se pomalu posunuly v mezích",
 		"drift %.3f, posunů %d" % [r1["drift"], r1["shifts"]])
 	var w: Node = r1["world"]

@@ -53,6 +53,12 @@ func run()->void:
 	var accepted:Dictionary=world.read_character_edit(key).data
 	check(accepted.clothing.bezne.designs.top.name==changed.name,"authoritative Apply stores reusable design")
 	check(sim.visual.look_params.garment_designs.top.pattern=="checks","live actor receives custom design after Apply")
+	# QA 11/2026: the live world uses the game asset path (async C5 wardrobe since 7 Nov 2026), so the
+	# patterned garment replaces the placeholder a few frames after Apply – wait for it.
+	var wait_until_ms:=Time.get_ticks_msec()+60000
+	while sim.visual.wardrobe_waiting() and Time.get_ticks_msec()<wait_until_ms:
+		await process_frame
+	check(not sim.visual.wardrobe_waiting(),"live actor wardrobe finished building (async game path)")
 	check(sim.visual._c5_nodes.any(func(mi):return mi.material_override is ShaderMaterial),"live actor actually wears patterned garment")
 	check(sim.visual._garment_midriff!=null and sim.visual._garment_midriff.visible,"live cropped garment has underlying body skin")
 	check(world.save_game("manual").get("ok",false),"real household save accepts custom clothing")

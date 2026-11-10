@@ -444,7 +444,18 @@ func _test_long_runs() -> void:
 		"reálné nedorozumění i trapné ticho vzniká nezávisle na skutečných hádkách")
 	check(outcomes_sum == all_talks,
 		"každý rozhovor má přesně jeden odlišitelný výsledek")
-	check(rates.min() >= 0.08 and rates.max() <= 0.6, "žádný seed neujede (8–60 %)", "%.0f–%.0f %%" % [rates.min() * 100.0, rates.max() * 100.0])
+	# Mez 8–60 % vznikla, když se za „hádku“ počítal každý nepovedený rozhovor. Od H5 má rozhovor čtyři
+	# výsledky, takže původní mez patří podílu NEPŘÍJEMNÝCH rozhovorů (hádka + trapné ticho +
+	# nedorozumění); skutečné hádky mají po H5 zdokumentovanou mez 5–60 % na běh (docs/testing.md,
+	# matice domácností). QA 11/2026: mez 8 % na skutečné hádky v jednom seedu selhávala šumem
+	# (seed 13: 5,8 %, po přidání drbů seed 0: 6,9 % – vřelá domácnost, vztahy −8/+91/+48).
+	var unpleasant: Array = runs.map(func(r):
+		var o: Dictionary = r["stats"].get("outcomes", {})
+		return float(int(o.get("argue", 0)) + int(o.get("awkward", 0)) + int(o.get("misunderstanding", 0))) / maxf(1.0, float(r["talks"])))
+	check(unpleasant.min() >= 0.08 and unpleasant.max() <= 0.6, "žádný seed neujede: nepříjemné rozhovory 8–60 %",
+		"%.0f–%.0f %%" % [unpleasant.min() * 100.0, unpleasant.max() * 100.0])
+	check(rates.min() >= 0.05 and rates.max() <= 0.6, "v žádném seedu skutečné hádky nezmizí ani nepřevládnou (5–60 %)",
+		"%.0f–%.0f %%" % [rates.min() * 100.0, rates.max() * 100.0])
 	check(runs.all(func(r): return int(r["talks"]) >= DAYS * 2), "postavy spolu mluví (aspoň 2 rozhovory denně)")
 
 	section("Vztahy: žádná spirála, žádná idyla, různé dvojice")

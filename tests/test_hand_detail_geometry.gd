@@ -93,16 +93,16 @@ func run() -> void:
     var base: Dictionary=CharacterData.create().to_dict()
     base["identity"]["first_name"]="Nora"
     base["personality"]["traits"]=["optimista"]
-    var default_skin:Color=v._hand_skin_material.albedo_color
+    var default_skin:Color=_mat_color(v._hand_skin_material)
     base["skin"]["tone"]=0.95
     base["body"]["shoulders"]=1.0
     base["body"]["body_fat"]=1.0
     check(Validator.validate(base,{"mode":"strict"}).get("ok",false),
         "extreme adult appearance remains schema valid")
     preview.show_draft(base)
-    check(v._hand_skin_material.albedo_color!=default_skin,
+    check(_mat_color(v._hand_skin_material)!=default_skin,
         "finger geometry follows continuous skin chromophores")
-    check(v._hand_nail_material.albedo_color!=v._hand_skin_material.albedo_color,
+    check(_mat_color(v._hand_nail_material)!=_mat_color(v._hand_skin_material),
         "real nail plates have independent surface shade")
     check(v._hand_detail_nodes[0].get_blend_shape_value(5)!=0.0,
         "hand fingers deform with body frame/shoulder morph targets")
@@ -111,7 +111,7 @@ func run() -> void:
     preview.show_draft(base)
     check(v._hand_detail_nodes==skin_nodes_before,
         "multiple skin color changes reuse identical topology and rig")
-    check(v._hand_skin_material.albedo_color!=default_skin,
+    check(_mat_color(v._hand_skin_material)!=default_skin,
         "melanin range changes hand coloration, not identity")
 
     # Real skeleton bone pose movements, independently left and right.
@@ -163,3 +163,15 @@ func run() -> void:
     await process_frame
     print("HAND_GEOMETRY_RESULT checks=",checks," failures=",failures)
     quit(0 if failures==0 else 1)
+
+
+## QA 11/2026: nail/skin detail materials became ShaderMaterial ("base_color") in the 30 Oct realism
+## pass; reading .albedo_color raised a script error and the test never quit.
+func _mat_color(m:Material)->Color:
+    if m is StandardMaterial3D:
+        return (m as StandardMaterial3D).albedo_color
+    if m is ShaderMaterial:
+        var c=(m as ShaderMaterial).get_shader_parameter("base_color")
+        if c is Color:
+            return c
+    return Color(0,0,0,0)
