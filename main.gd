@@ -36,6 +36,7 @@ const Gossip_G := preload("res://scripts/core/grammar_cs.gd")
 const SaveGame := preload("res://scripts/save/game_save.gd")
 const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
 const SimVisualScript := preload("res://scripts/sim/sim_visual.gd")
+const HairRigScript := preload("res://scripts/assets/hair_rig.gd")
 
 ## Startovní domácnost jako CharacterData (v2; jen pole odlišná od výchozích hodnot schématu;
 ## zbytek doplní validátor). Vzhled je explicitní – žádné odvozování ze jména ani z rodu.
@@ -721,6 +722,8 @@ func _exit_tree() -> void:
 		server_save_now()
 	if ClothingWardrobe.async_load:
 		ClothingWardrobe.wait_for_builds()
+	# Totéž pro účesy (QA 11/2026): nevyzvednuté úlohy stavby vlasů zablokovaly ukončení procesu.
+	HairRigScript.wait_for_builds()
 
 
 ## A window-close request is earlier than child teardown. Frequent interval/day

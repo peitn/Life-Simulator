@@ -36,11 +36,49 @@ static var async_build := false
 static var _mutex := Mutex.new()
 ## klíč účesu → [WeakRef vlastníků], kteří čekají na dokončení (zároveň příznak „staví se“)
 static var _waiters: Dictionary = {}
+## klíč účesu → id úlohy WorkerThreadPool, na kterou se ještě nečekalo (každá úloha se musí vyzvednout
+## právě jednou). QA 11/2026: úlohy se dřív nevyzvedávaly vůbec a ukončení hry s rozpracovanými nebo
+## ještě nespuštěnými stavbami účesů zablokovalo proces při ukončování enginu (Godot 4.7.2).
+static var _tasks: Dictionary = {}
+## Generace cache: výsledek stavby spuštěné před clear_cache() se zahodí.
+static var _gen := 0
+## Nastavené po dobu wait_for_builds(): úlohy, které ještě nezačaly, skončí bez práce.
+static var _cancel := false
+static var _cancelled: Dictionary = {}
 const _SELF := preload("res://scripts/assets/hair_rig.gd")
 
 
-static func clear_cache() -> void:
+## Počká na rozpracované stavby účesů (ukončení hry, testy). Jen hlavní vlákno. Úlohy, které ještě
+## nezačaly, se přeskočí (jejich účes se postaví znovu při příští žádosti); rozpracované doběhnou
+## a jejich odložené _finish se provede v dalším snímku (pokud ještě nějaký bude).
+static func wait_for_builds() -> void:
 	_mutex.lock()
+	var ids: Array = _tasks.values()
+	_tasks.clear()
+	_cancel = true
+	_mutex.unlock()
+	for id in ids:
+		WorkerThreadPool.wait_for_task_completion(int(id))
+	_mutex.lock()
+	_cancel = false
+	for key in _cancelled:
+		_waiters.erase(key)
+	_cancelled.clear()
+	_mutex.unlock()
+
+
+## Počet staveb, jejichž úloha ještě nebyla vyzvednuta (testy, diagnostika).
+static func tasks_in_flight() -> int:
+	_mutex.lock()
+	var n := _tasks.size()
+	_mutex.unlock()
+	return n
+
+
+static func clear_cache() -> void:
+	wait_for_builds()
+	_mutex.lock()
+	_gen += 1
 	_src = {}
 	_ctx = {}
 	_meshes = {}
@@ -193,9 +231,13 @@ static func request_mesh(part: String, style: String, owner: Object) -> Dictiona
 		_waiters[key] = []
 	if owner != null:
 		(_waiters[key] as Array).append(weakref(owner))
+	var gen := _gen
 	_mutex.unlock()
 	if first:
-		WorkerThreadPool.add_task(Callable(_SELF, "_task").bind(part, style, Time.get_ticks_usec()), false, "hair " + key)
+		var id := WorkerThreadPool.add_task(Callable(_SELF, "_task").bind(part, style, Time.get_ticks_usec(), gen), false, "hair " + key)
+		_mutex.lock()
+		_tasks[key] = id
+		_mutex.unlock()
 	return {"ready": false, "mesh": null}
 
 
@@ -207,13 +249,34 @@ static func is_pending(part: String, style: String) -> bool:
 	return r
 
 
-static func _task(part: String, style: String, t0: int) -> void:
+## Pracovní vlákno.
+static func _task(part: String, style: String, t0: int, gen: int = 0) -> void:
+	_mutex.lock()
+	var skip := _cancel
+	if skip:
+		_cancelled[part + ":" + style] = true
+	_mutex.unlock()
+	if skip:
+		return
 	var pack := build_pack(part, style)
-	Callable(_SELF, "_finish").call_deferred(part, style, pack, t0)
+	Callable(_SELF, "_finish").call_deferred(part, style, pack, t0, gen)
 
 
-static func _finish(part: String, style: String, pack: Dictionary, t0: int) -> void:
+## Hlavní vlákno.
+static func _finish(part: String, style: String, pack: Dictionary, t0: int, gen: int = 0) -> void:
 	var key := part + ":" + style
+	_mutex.lock()
+	var stale := gen != _gen
+	var task_id := -1
+	if not stale and _tasks.has(key):
+		task_id = int(_tasks[key])
+		_tasks.erase(key)
+	_mutex.unlock()
+	if task_id >= 0:
+		# Tělo úlohy už skončilo (toto volání zařadila na svém konci), takže se nečeká.
+		WorkerThreadPool.wait_for_task_completion(task_id)
+	if stale:
+		return  # cache byla mezitím vymazána; noví zájemci mají vlastní úlohu
 	_store(key, pack, t0)
 	_mutex.lock()
 	var ws: Array = _waiters.get(key, [])
