@@ -380,6 +380,18 @@ func _build_furniture() -> void:
 	box(tm, Vector3(0.8, 0.25, 0.1), Vector3(0, 1.25, -0.8), dark)
 
 
+## Půdorys přístavby (_build_eight_suite_rooms: podlaha 13,3 × 6,7 m se středem 12,7 / 1,36) rozšířený
+## o dosah koruny stromu (až 0,6 m posun + 1,5 m poloměr).
+const ANNEX_MIN := Vector2(6.05, -1.99)
+const ANNEX_MAX := Vector2(19.35, 4.71)
+const TREE_CLEARANCE := 2.1
+
+
+static func tree_in_annex(p: Vector3) -> bool:
+	return p.x > ANNEX_MIN.x - TREE_CLEARANCE and p.x < ANNEX_MAX.x + TREE_CLEARANCE \
+		and p.z > ANNEX_MIN.y - TREE_CLEARANCE and p.z < ANNEX_MAX.y + TREE_CLEARANCE
+
+
 func _build_garden() -> void:
 	var bark := mat("bark", Color(0.32, 0.22, 0.14), 1.0)
 	var leaves := [mat("leaf0", Color(0.2, 0.42, 0.16), 0.9), mat("leaf1", Color(0.28, 0.5, 0.18), 0.9), mat("leaf2", Color(0.35, 0.45, 0.15), 0.9)]
@@ -389,10 +401,18 @@ func _build_garden() -> void:
 		Vector3(9, 0, 11), Vector3(0, 0, -11), Vector3(-15, 0, -3), Vector3(23, 0, -7)]
 	for p in spots:
 		var h := rng.randf_range(2.2, 3.6)
-		cyl(root, 0.16, h, p + Vector3(0, h / 2.0, 0), bark)
+		# QA 11/2026: strom na (12, 0, 4) stál uvnitř přístavby osmičlenné domácnosti (kmen i koruna
+		# procházely chodbou a ložnicí). Náhodná čísla se čerpají stejně, ostatní stromy se nemění.
+		var blocked := include_eight_suite and tree_in_annex(p)
+		if not blocked:
+			var trunk := cyl(root, 0.16, h, p + Vector3(0, h / 2.0, 0), bark)
+			trunk.set_meta("garden_tree", true)
 		for i in 3:
 			var off := Vector3(rng.randf_range(-0.6, 0.6), h + rng.randf_range(-0.2, 0.9), rng.randf_range(-0.6, 0.6))
-			sphere(root, rng.randf_range(0.9, 1.5), p + off, leaves[rng.randi_range(0, 2)])
+			var radius := rng.randf_range(0.9, 1.5)
+			var leaf: Material = leaves[rng.randi_range(0, 2)]
+			if not blocked:
+				sphere(root, radius, p + off, leaf)
 	# Plot kolem parcely
 	var fence := mat("fence", Color(0.9, 0.9, 0.88), 0.7)
 	for i in range(-12, 13):

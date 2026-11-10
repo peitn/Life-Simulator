@@ -116,6 +116,20 @@ func _run() -> void:
 		"action-list click and activation trigger character commands")
 	check(w.hud._world_popup.id_pressed.get_connections().size() > 0,
 		"world-object popup actions have callbacks")
+	section("Garden trees keep clear of the eight-resident annex (QA 11/2026)")
+	var WB = load("res://scripts/world/world_builder.gd")
+	var trunks := 0
+	var inside := 0
+	for n in w.find_children("*", "MeshInstance3D", true, false):
+		if n.has_meta("garden_tree"):
+			trunks += 1
+			var gp: Vector3 = n.global_position
+			if gp.x > WB.ANNEX_MIN.x - 1.5 and gp.x < WB.ANNEX_MAX.x + 1.5 and gp.z > WB.ANNEX_MIN.y - 1.5 and gp.z < WB.ANNEX_MAX.y + 1.5:
+				inside += 1
+	check(trunks >= 6, "garden still has its trees", str(trunks))
+	check(inside == 0, "no tree trunk stands inside or against the annex", str(inside))
+	check(WB.tree_in_annex(Vector3(12, 0, 4)) and not WB.tree_in_annex(Vector3(23, 0, -7)) and not WB.tree_in_annex(Vector3(-10, 0, -8)),
+		"annex footprint test separates the blocked spot from free garden spots")
 	settings.set_value("audio_enabled", initial_sound, false)
 	w.queue_free()
 	await get_tree().process_frame
