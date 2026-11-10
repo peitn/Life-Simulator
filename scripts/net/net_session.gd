@@ -931,6 +931,11 @@ func handle_command(id: int, sim_node: Variant, action_id: Variant, target: Vari
 		if bool(action.get("approach_only", false)) and not tgt.accepts_support():
 			stats["rejected"] += 1
 			return "%s teď pomoc nepotřebuje." % tgt.first_name()
+		# Konfrontovat kvůli drbům jde jen toho, o kom postava (z odhalení) ví, že řeči šířil.
+		if String(action_id) == "confront_gossip" and (not world.has_method("gossip_can_confront") \
+				or not world.gossip_can_confront(sim, tgt)):
+			stats["rejected"] += 1
+			return "Nevíš o žádných řečech, které by o tobě %s %s." % [tgt.gendered("šířil(a)"), tgt.first_name()]
 	else:
 		var objs: Array = world.get_smart_objects()
 		if not Protocol.valid_int(target, 0, objs.size() - 1):

@@ -29,7 +29,9 @@ extends RefCounted
 
 const Grammar := preload("res://scripts/core/grammar_cs.gd")
 
-const VERSION := 1
+const VERSION := 2
+## Starší uložení (v1) nemají podezřelé ani konfrontace – načtou se s prázdnými.
+const MIN_VERSION := 1
 ## Katalog druhů. neg = záporný drb; content = "" | "mental_health" | "addiction"; about_listener = týká se
 ## posluchače (badmouth: „X o tobě mluví za zády“); fab = smí vzniknout smyšlením.
 const KINDS := {
@@ -69,6 +71,10 @@ const BOND_DAILY_CAP := 3.0
 ## Odhalení: zásah do vztahu subjektu ke zdroji.
 const EXPOSE_BASE := 6.0
 const EXPOSE_SEV := 12.0
+## Podezřelí (od koho drb šel): platnost a limit na subjekt.
+const MAX_SUSPECTS := 8
+const SUSPECT_TTL_MIN := 14.0 * 1440.0
+const STAT_KEYS := ["observed", "fabricated", "shared", "exposed", "debunked", "forgotten", "confronted", "retracted", "denied"]
 
 var rng := RandomNumberGenerator.new()
 var rumors := {}            # rid (int) → rumor
@@ -76,7 +82,9 @@ var know := {}              # key → {rid: entry}
 var exposed := {}           # subject key → {rid: t}
 var impact_day := {}        # "listener|subject" → [day, sum]
 var names := {}             # key → {"n": jméno, "g": gramatika}
-var stats := {"observed": 0, "fabricated": 0, "shared": 0, "exposed": 0, "debunked": 0, "forgotten": 0}
+var suspects := {}          # subject key → {source key: {rid, t, kind, truth, origin}}
+var stats := {"observed": 0, "fabricated": 0, "shared": 0, "exposed": 0, "debunked": 0, "forgotten": 0,
+	"confronted": 0, "retracted": 0, "denied": 0}
 var _next_id := 1
 var _acc := 0.0
 
@@ -496,6 +504,7 @@ func expose(informer: Dictionary, subject: Dictionary, now: float, content: Dict
 		exposed[sk].erase(ks[0])
 	stats["exposed"] = int(stats["exposed"]) + 1
 	var source := String(e2["from"])
+	_add_suspect(sk, source, pick, now)
 	var sev := float(e2["sev"])
 	# Subjekt se brání; lež informátora snáz přesvědčí.
 	e2["belief"] = float(e2["belief"]) * (0.6 if not bool(r2["truth"]) else 0.85)
@@ -556,7 +565,22 @@ func tick(dm: float) -> void:
 			stats["forgotten"] = int(stats["forgotten"]) + 1
 		if know[k].is_empty():
 			know.erase(k)
+	_expire_suspects(step)
 	_gc()
+
+
+## Podezření stárnou s herním časem (nezávisle na absolutních časech v uložení).
+func _expire_suspects(step: float) -> void:
+	var subs: Array = suspects.keys()
+	subs.sort()
+	for s in subs:
+		for src in (suspects[s] as Dictionary).keys():
+			var e: Dictionary = suspects[s][src]
+			e["age"] = float(e.get("age", 0.0)) + step
+			if float(e["age"]) > SUSPECT_TTL_MIN:
+				suspects[s].erase(src)
+		if (suspects[s] as Dictionary).is_empty():
+			suspects.erase(s)
 
 
 ## Drby, které nikdo nezná, zmizí (odhalení se pamatují dál jen dokud drb existuje).
@@ -617,6 +641,11 @@ func _drop_weakest_rumor() -> void:
 ## Postava odešla ze světa natrvalo: její znalosti zmizí (drby o ní žijí dál u ostatních).
 func forget_knower(key: String) -> void:
 	know.erase(key)
+	suspects.erase(key)
+	for s in suspects.keys():
+		suspects[s].erase(key)
+		if suspects[s].is_empty():
+			suspects.erase(s)
 	_gc()
 
 
@@ -647,9 +676,17 @@ func to_dict() -> Dictionary:
 		for rid in exposed[s]:
 			m[str(rid)] = exposed[s][rid]
 		ex[s] = m
+	var su := {}
+	for s in suspects:
+		var m3 := {}
+		for src in suspects[s]:
+			var e: Dictionary = suspects[s][src]
+			m3[src] = {"rid": int(e["rid"]), "t": e["t"], "kind": e["kind"], "truth": e["truth"], "origin": e["origin"],
+				"age": float(e.get("age", 0.0))}
+		su[s] = m3
 	return {"v": VERSION, "rng_state": rng.state, "next_id": _next_id, "acc": _acc, "rumors": rs, "know": kn,
 		"exposed": ex, "impact_day": impact_day.duplicate(true), "names": names.duplicate(true),
-		"stats": stats.duplicate()}
+		"stats": stats.duplicate(), "suspects": su}
 
 
 static func _n(v: Variant, lo: float, hi: float) -> bool:
@@ -670,9 +707,13 @@ static func validate_snapshot(d: Variant) -> bool:
 	if typeof(d) != TYPE_DICTIONARY:
 		return false
 	for key in d:
-		if not ["v", "rng_state", "next_id", "acc", "rumors", "know", "exposed", "impact_day", "names", "stats"].has(key):
+		if not ["v", "rng_state", "next_id", "acc", "rumors", "know", "exposed", "impact_day", "names", "stats", "suspects"].has(key):
 			return false
-	if d.get("v") != VERSION or typeof(d.get("rng_state")) != TYPE_INT or not _n(d.get("next_id"), 1.0, 1.0e9) \
+	if typeof(d.get("v")) != TYPE_INT or int(d["v"]) < MIN_VERSION or int(d["v"]) > VERSION:
+		return false
+	if int(d["v"]) < 2 and d.has("suspects"):
+		return false
+	if typeof(d.get("rng_state")) != TYPE_INT or not _n(d.get("next_id"), 1.0, 1.0e9) \
 			or not _n(d.get("acc", 0.0), 0.0, 1.0e6):
 		return false
 	var rs = d.get("rumors")
@@ -738,12 +779,28 @@ static func validate_snapshot(d: Variant) -> bool:
 				or String(v["n"]).length() > MAX_NAME or not Grammar.valid(v.get("g")):
 			return false
 	var st = d.get("stats")
-	if typeof(st) != TYPE_DICTIONARY or st.size() > 8:
+	if typeof(st) != TYPE_DICTIONARY or st.size() > STAT_KEYS.size():
 		return false
 	for k in st:
-		if typeof(k) != TYPE_STRING or not ["observed", "fabricated", "shared", "exposed", "debunked", "forgotten"].has(k) \
-				or not _n(st[k], 0.0, 1.0e12):
+		if typeof(k) != TYPE_STRING or not STAT_KEYS.has(k) or not _n(st[k], 0.0, 1.0e12):
 			return false
+	var su = d.get("suspects", {})
+	if typeof(su) != TYPE_DICTIONARY or su.size() > MAX_KNOWERS:
+		return false
+	for s in su:
+		if not _key_ok(s) or typeof(su[s]) != TYPE_DICTIONARY or su[s].size() > MAX_SUSPECTS or su[s].is_empty():
+			return false
+		for src in su[s]:
+			var e = su[s][src]
+			if not _key_ok(src) or src == s or typeof(e) != TYPE_DICTIONARY or e.size() != 6:
+				return false
+			if typeof(e.get("rid")) != TYPE_INT or int(e["rid"]) < 1 or int(e["rid"]) >= int(d["next_id"]) \
+					or not _n(e.get("t"), -1.0e12, 1.0e12) or typeof(e.get("kind")) != TYPE_STRING or not KINDS.has(e["kind"]) \
+					or not bool(KINDS[e["kind"]]["neg"]) or typeof(e.get("truth")) != TYPE_BOOL or typeof(e.get("origin")) != TYPE_BOOL \
+					or not _n(e.get("age"), 0.0, SUSPECT_TTL_MIN):
+				return false
+			if e["kind"] == "steals" and bool(e["truth"]):
+				return false
 	return true
 
 
@@ -776,10 +833,199 @@ func from_dict(d: Variant) -> bool:
 	names = {}
 	for k in d["names"]:
 		names[String(k)] = {"n": String(d["names"][k]["n"]), "g": String(d["names"][k]["g"])}
-	stats = {"observed": 0, "fabricated": 0, "shared": 0, "exposed": 0, "debunked": 0, "forgotten": 0}
+	stats = {}
+	for k in STAT_KEYS:
+		stats[k] = 0
 	for k in d["stats"]:
 		stats[k] = int(d["stats"][k])
+	suspects = {}
+	var su: Dictionary = d.get("suspects", {})
+	for s in su:
+		var m3 := {}
+		for src in su[s]:
+			var e: Dictionary = su[s][src]
+			m3[String(src)] = {"rid": int(e["rid"]), "t": float(e["t"]), "kind": String(e["kind"]),
+				"truth": bool(e["truth"]), "origin": bool(e["origin"]), "age": float(e["age"])}
+		suspects[String(s)] = m3
 	_next_id = int(d["next_id"])
 	_acc = float(d.get("acc", 0.0))
 	rng.state = int(d["rng_state"])
 	return true
+
+
+# ---------------------------------------------------------------- konfrontace a popření (10. 11. 2026)
+
+## Podezřelí: subjekt se při odhalení dozvěděl, od koho drb šel (bezprostřední zdroj). Jen ty smí konfrontovat.
+## suspects[subject][source] = {rid, t, kind, truth, origin} – údaje se kopírují, aby konfrontace dávala
+## smysl i poté, co drb sám vyhasl. Platnost SUSPECT_TTL, nejvýš MAX_SUSPECTS na subjekt.
+func _add_suspect(subject: String, source: String, rid: int, now: float) -> void:
+	if not _key_ok(subject) or not _key_ok(source) or subject == source or not rumors.has(rid):
+		return
+	if not suspects.has(subject):
+		if suspects.size() >= MAX_KNOWERS:
+			return
+		suspects[subject] = {}
+	var r: Dictionary = rumors[rid]
+	suspects[subject][source] = {"rid": rid, "t": now, "kind": String(r["kind"]), "truth": bool(r["truth"]),
+		"origin": String(r["origin"]) == source}
+	while suspects[subject].size() > MAX_SUSPECTS:
+		var oldest := ""
+		var ot := INF
+		var ks: Array = suspects[subject].keys()
+		ks.sort()
+		for k in ks:
+			if float(suspects[subject][k]["t"]) < ot:
+				ot = float(suspects[subject][k]["t"])
+				oldest = k
+		suspects[subject].erase(oldest)
+
+
+func can_confront(subject: String, accused: String) -> bool:
+	return suspects.has(subject) and suspects[subject].has(accused)
+
+
+## Soukromé věty pro subjekt: od koho ty řeči šly (jen jména, bez čísel).
+func suspect_lines(subject: String, limit := 2) -> PackedStringArray:
+	var out := PackedStringArray()
+	if not suspects.has(subject):
+		return out
+	var ks: Array = suspects[subject].keys()
+	ks.sort()
+	for k in ks:
+		if out.size() >= limit:
+			break
+		var nm := String(names.get(k, {}).get("n", ""))
+		if nm != "":
+			out.append("Ty řeči o mně šly od: %s." % nm)
+	return out
+
+
+## Pravděpodobnosti výsledku konfrontace (pro test i ladění). Přizná poctivý a přívětivý obviněný;
+## kdo lež sám vymyslel, přiznává hůř; hádka hrozí u nepřívětivých (obou stran).
+static func confront_odds(acc_honesty: float, acc_agree: float, sub_agree: float, lied_origin: bool) -> Dictionary:
+	var p_admit := clampf(0.15 + 0.55 * acc_honesty + 0.2 * acc_agree - (0.15 if lied_origin else 0.0), 0.05, 0.9)
+	var p_esc := clampf(0.06 + 0.3 * (1.0 - acc_agree) + 0.2 * (1.0 - sub_agree), 0.05, 0.6)
+	var p_escalate := (1.0 - p_admit) * p_esc
+	return {"admit": p_admit, "escalate": p_escalate, "deny": maxf(1.0 - p_admit - p_escalate, 0.0)}
+
+
+## `subject` si to vyříká s `accused` (musí být podezřelý). Podezření se spotřebuje (žádný spam).
+## Vrací {} nebo událost {type "confront", subject, accused, rid, kind, outcome admit|deny|escalate, truth,
+## origin, retracted (kolika posluchačům obviněný drb vyvrátil), delta_subject (subjekt → obviněný),
+## delta_accused (obviněný → subjekt), guilt (vina obviněného)}.
+func confront(subject: Dictionary, accused: Dictionary, now: float) -> Dictionary:
+	var sk := String(subject.get("key", ""))
+	var ak := String(accused.get("key", ""))
+	if not _key_ok(sk) or not _key_ok(ak) or sk == ak or not is_finite(now) or not can_confront(sk, ak):
+		return {}
+	var s: Dictionary = suspects[sk][ak]
+	suspects[sk].erase(ak)
+	if suspects[sk].is_empty():
+		suspects.erase(sk)
+	var truth := bool(s["truth"])
+	var origin := bool(s["origin"])
+	var odds := confront_odds(clampf(_f(accused.get("honesty"), 0.5), 0.0, 1.0),
+		clampf(_f(accused.get("agreeableness"), 0.5), 0.0, 1.0),
+		clampf(_f(subject.get("agreeableness"), 0.5), 0.0, 1.0), origin and not truth)
+	var roll := rng.randf()
+	var outcome := "deny"
+	if roll < float(odds["admit"]):
+		outcome = "admit"
+	elif roll < float(odds["admit"]) + float(odds["escalate"]):
+		outcome = "escalate"
+	var rid := int(s["rid"])
+	var retracted := 0
+	var d_sub := 0.0
+	var d_acc := 0.0
+	var guilt := 0.0
+	match outcome:
+		"admit":
+			# Obviněný to odvolá u lidí, kterým to řekl: lež ztratí víc než pravda.
+			if know.has(ak) and know[ak].has(rid):
+				var te: Dictionary = know[ak][rid]
+				for lk in te["told"]:
+					if know.has(lk) and know[lk].has(rid):
+						var e: Dictionary = know[lk][rid]
+						var before := float(e["belief"])
+						e["belief"] = before * (0.5 if not truth else 0.8)
+						retracted += 1
+						if before >= SHARE_MIN_BELIEF and float(e["belief"]) < SHARE_MIN_BELIEF:
+							stats["debunked"] = int(stats.get("debunked", 0)) + 1
+				if not truth:
+					te["belief"] = float(te["belief"]) * 0.3
+			stats["retracted"] = int(stats.get("retracted", 0)) + retracted
+			d_sub = 3.0 if not truth else 4.0
+			guilt = 6.0 + (8.0 if origin and not truth else 0.0)
+		"deny":
+			d_sub = -3.0 if not truth else -1.5
+			d_acc = -2.0
+			guilt = 3.0 if origin and not truth else 0.0
+		"escalate":
+			pass  # hádku (vztahy, stres, svědci → nové drby) řeší simulace postav
+	stats["confronted"] = int(stats.get("confronted", 0)) + 1
+	return {"type": "confront", "subject": sk, "accused": ak, "rid": rid, "kind": String(s["kind"]),
+		"outcome": outcome, "truth": truth, "origin": origin, "retracted": retracted,
+		"delta_subject": d_sub, "delta_accused": d_acc, "guilt": guilt}
+
+
+## `subject` popírá před `listener`em záporné drby o sobě (ten nejsilnější, kterému posluchač věří).
+## Subjekt neví, co posluchač ví – může narazit. Výsledky: nothing (posluchač nic neví), believed /
+## doubted (víra klesla pod / zůstala nad hranicí šíření), caught (pravdu, kterou posluchač viděl sám,
+## popřít nejde → „lže mi do očí“). Jednou denně na dvojici. Vrací {} nebo událost {type "deny", subject,
+## listener, rid, kind, outcome, truth, belief, delta_rel (posluchač → subjekt; návrat části dopadu)}.
+func deny(subject: Dictionary, listener: Dictionary, now: float, content: Dictionary) -> Dictionary:
+	var sk := String(subject.get("key", ""))
+	var lk := String(listener.get("key", ""))
+	if not _key_ok(sk) or not _key_ok(lk) or sk == lk or not is_finite(now):
+		return {}
+	var base := {"type": "deny", "subject": sk, "listener": lk, "rid": 0, "kind": "", "outcome": "nothing",
+		"truth": false, "belief": 0.0, "delta_rel": 0.0}
+	if _cap_daily_key("d|" + lk + "|" + sk, 1.0, now, 1.0) <= 0.0:
+		base["outcome"] = "repeat"
+		return base
+	var mine: Dictionary = know.get(lk, {})
+	var ids: Array = mine.keys()
+	ids.sort()
+	var pick := 0
+	var pw := 0.0
+	for rid in ids:
+		var r: Dictionary = rumors.get(rid, {})
+		if r.is_empty() or r["subject"] != sk or not bool(KINDS[r["kind"]]["neg"]) or not content_ok(String(r["kind"]), content):
+			continue
+		var e: Dictionary = mine[rid]
+		var w := float(e["belief"]) * float(e["sev"])
+		if float(e["belief"]) >= FORGET_BELIEF and w > pw:
+			pw = w
+			pick = int(rid)
+	if pick == 0:
+		return base
+	var r2: Dictionary = rumors[pick]
+	var e2: Dictionary = mine[pick]
+	var truth := bool(r2["truth"])
+	base["rid"] = pick
+	base["kind"] = String(r2["kind"])
+	base["truth"] = truth
+	if truth and String(e2["from"]) == "":
+		base["outcome"] = "caught"
+		base["belief"] = float(e2["belief"])
+		base["delta_rel"] = -4.0
+		stats["denied"] = int(stats.get("denied", 0)) + 1
+		return base
+	var lrel: Dictionary = listener.get("rel", {}) if typeof(listener.get("rel")) == TYPE_DICTIONARY else {}
+	var trust := clampf(0.4 + _f(lrel.get(sk, 0.0)) / 150.0, 0.1, 0.9)
+	var before := float(e2["belief"])
+	e2["belief"] = before * (1.0 - (0.6 if not truth else 0.25) * trust)
+	# Část dopadu na vztah se vrátí (úměrně tomu, o kolik víra klesla pod už promítnutou úroveň).
+	var applied := float(e2["applied"])
+	var back := maxf(applied - float(e2["belief"]), 0.0)
+	e2["applied"] = minf(applied, float(e2["belief"]))
+	var rec := 0.0
+	if not (String(r2["kind"]) == "panic"):
+		rec = clampf(NEG_IMPACT * 0.5 * back * float(e2["sev"]), 0.0, EVENT_CAP * 0.5)
+	base["belief"] = float(e2["belief"])
+	base["delta_rel"] = rec
+	base["outcome"] = "believed" if float(e2["belief"]) < SHARE_MIN_BELIEF else "doubted"
+	if before >= SHARE_MIN_BELIEF and float(e2["belief"]) < SHARE_MIN_BELIEF:
+		stats["debunked"] = int(stats.get("debunked", 0)) + 1
+	stats["denied"] = int(stats.get("denied", 0)) + 1
+	return base

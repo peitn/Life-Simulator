@@ -218,6 +218,17 @@ const ACTIONS: Array = [
 		"effects": {"social": 6.0}, "tags": ["social", "repair"], "posture": "stand",
 		"base_appeal": 0.0, "effort": 0.6,
 	},
+	# --- drby: vyříkat si to se zdrojem (jen když postava ví, od koho řeči šly) a popřít je před druhými
+	{
+		"id": "confront_gossip", "label": "Vyříkává si drby", "object": "sim", "duration": 20.0,
+		"effects": {"social": 2.0}, "tags": ["social", "conflict"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.7,
+	},
+	{
+		"id": "deny_gossip", "label": "Popírá drby o sobě", "object": "sim", "duration": 15.0,
+		"effects": {"social": 4.0}, "tags": ["social"], "posture": "stand",
+		"player_only": true, "effort": 0.5,
+	},
 	# --- mimovolné stavy a pomoc druhým
 	{
 		"id": "panic", "label": "Panická ataka", "object": "", "duration": 25.0,
@@ -345,6 +356,50 @@ const LINES := {
 	"apology_none": [
 		"Za co? V pohodě.",
 		"Nic se nestalo, fakt.",
+	],
+	## Drby – konfrontace zdroje ((a) = rod mluvčího; odpovídá obviněný).
+	"confront_open": [
+		"Hele, slyšel(a) jsem, co o mně roznášíš.",
+		"Můžeš mi vysvětlit, proč o mně mluvíš za zády?",
+		"Prej o mně vykládáš kraviny. Tak mi to řekni do očí.",
+	],
+	"confront_admit": [
+		"…jo. Promiň. Nemělo to ode mě jít dál.",
+		"Máš pravdu. Neměl(a) jsem to říkat. Řeknu lidem, jak to bylo.",
+	],
+	"confront_deny": [
+		"Já? Ani omylem. Kdo ti tohle napovídal?",
+		"Nic jsem neříkal(a). Fakt nevím, o čem mluvíš.",
+		"To si vymýšlíš. Mě do toho netahej.",
+	],
+	"confront_escalate": [
+		"A co jako? Někdo to říct musel!",
+		"Nebudeš mě tu vyslýchat, kurva.",
+		"Ty si fakt myslíš, že se všechno točí kolem tebe?",
+	],
+	## Popření drbu ((a) = rod mluvčího).
+	"deny_open": [
+		"To, co se o mně povídá, není pravda.",
+		"Neposlouchej ty řeči. Takhle to nebylo.",
+	],
+	"deny_believed": [
+		"Dobře. Věřím ti.",
+		"Jo, mně to taky přišlo divný.",
+	],
+	"deny_doubted": [
+		"Hm. Uvidíme.",
+		"Já nevím… lidi to říkají dost jistě.",
+	],
+	"deny_caught": [
+		"Viděl(a) jsem to na vlastní oči. Nekecej mi.",
+		"Fakt mi budeš lhát do očí?",
+	],
+	"deny_nothing": [
+		"Jaký řeči? Nic jsem neslyšel(a).",
+		"O čem to mluvíš? Nevím o ničem.",
+	],
+	"deny_repeat": [
+		"Už jsi mi to říkal(a). Dneska už stačilo.",
 	],
 	"hesitate": [
 		"Hned… jen ještě chvilku.",

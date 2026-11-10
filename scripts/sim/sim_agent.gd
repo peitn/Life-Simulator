@@ -1324,6 +1324,9 @@ func _start_social(partner: Node3D) -> void:
 	if String(act.get("id", "")) == "apologize":
 		_start_apology(partner, act)
 		return
+	if String(act.get("id", "")) in ["confront_gossip", "deny_gossip"]:
+		_start_gossip_talk(partner, act)
+		return
 	if forced == "negative" and _clock.total_minutes - float(partner.insulted_by.get(sim_name, -1.0e9)) < INSULT_IGNORE_MINUTES:
 		# Opakovaná urážka v krátké době: oběť se otočí a odejde. Útočník nadává do prázdna,
 		# oběť to jen otráví – nepřeruší ji to (ochrana proti „zamykání“ cizí postavy).
@@ -1574,6 +1577,57 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 
 ## Omluva: přijetí / „uvidíme“ / odmítnutí podle křivdy, vztahu, povahy, stresu a upřímnosti
 ## (historie omluv a porušených omluv). Spam omluv oběť nepřeruší – jen ji otráví.
+## Rozhovor o drbech: konfrontace zdroje (přizná / zapře / hádka) nebo popření před posluchačem.
+## Výsledek a dopady počítá autorita (main.gossip_talk); tady jen repliky, popisky a průběh rozhovoru.
+## Bez čeho mluvit (nikdo nic neví / podezření už vyřešené) druhého NEPŘERUŠÍ – jen krátce odpoví.
+var last_gossip_talk := {}
+
+
+func _start_gossip_talk(partner: Node3D, act: Dictionary) -> void:
+	var aid := String(act["id"])
+	var ev: Dictionary = {}
+	if world != null and world.has_method("gossip_talk"):
+		ev = world.gossip_talk(self, partner, aid)
+	last_gossip_talk = ev.duplicate()
+	var outcome := String(ev.get("outcome", "nothing"))
+	var confront := aid == "confront_gossip"
+	say(ActionLibrary.random_line("confront_open" if confront else "deny_open", rng))
+	_detail_dirty = true
+	partner._detail_dirty = true
+	if ev.is_empty() or outcome in ["nothing", "repeat"]:
+		act["label"] = ("Vyčítá drby: " if confront else "Popírá drby: ") + partner.first_name()
+		act["duration"] = 6.0
+		act["effects"] = {}
+		partner.say(ActionLibrary.random_line("deny_repeat" if outcome == "repeat" else "deny_nothing", partner.rng))
+		current_action = act
+		target = null
+		_begin_acting()
+		return
+	var partner_act: Dictionary = act.duplicate(true)
+	partner_act["effects"] = {"social": 2.0}
+	if confront:
+		act["label"] = "Vyříkává si drby s: " + partner.first_name()
+		partner_act["label"] = "Čelí výčitkám kvůli drbům: " + first_name()
+	else:
+		act["label"] = "Popírá drby před: " + partner.first_name()
+		partner_act["label"] = "Poslouchá, jak to bylo: " + first_name()
+	partner.join_social(self, partner_act)
+	var positive := outcome in ["admit", "believed"]
+	if confront and outcome == "escalate":
+		partner.say(ActionLibrary.random_line("confront_escalate", partner.rng))
+		act["label"] = "Hádá se kvůli drbům s: " + partner.first_name()
+		partner.current_action["label"] = "Hádá se kvůli drbům s: " + first_name()
+		_social_outcome(partner, -rng.randf_range(6.0, 12.0), "argue")
+	else:
+		var key := ("confront_" if confront else "deny_") + outcome
+		partner.say(ActionLibrary.random_line(key, partner.rng))
+	_social_positive = positive
+	partner._social_positive = positive
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
 func _start_apology(partner: Node3D, act: Dictionary) -> void:
 	var t := now()
 	var cfg := mental_cfg()

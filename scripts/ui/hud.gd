@@ -671,6 +671,10 @@ func _rebuild_commands(sim) -> void:
 			_add_cmd("Jít uklidnit: " + other.sim_name, ["comfort_panic", String(other.name)])
 		_add_cmd("Omluvit se: " + other.sim_name, ["apologize", String(other.name)])
 		_add_cmd("Urazit: " + other.sim_name, ["insult", String(other.name)])
+		# Konfrontace jen se známým zdrojem drbů (offline/host to ví; klientovi v MP rozhodne server).
+		if not main.has_method("gossip_can_confront") or not main._gossip_authority() or main.gossip_can_confront(sim, other):
+			_add_cmd("Vyříkat si drby: " + other.sim_name, ["confront_gossip", String(other.name)])
+		_add_cmd("Popřít drby o sobě: " + other.sim_name, ["deny_gossip", String(other.name)])
 		for pressure_id in ["reproach", "guilt_trip", "blame_shift", "emotional_blackmail", "stonewalling"]:
 			var pressure_action: Dictionary = ActionLibrary.get_action(pressure_id)
 			if _cmd_allowed(pressure_action, gs):

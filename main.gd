@@ -798,6 +798,7 @@ func gossip_profile(s: Node) -> Dictionary:
 	var hx: Dictionary = s.get("hexaco") if typeof(s.get("hexaco")) == TYPE_DICTIONARY else {}
 	return {"key": SimAgent.memory_key(s), "honesty": _gossip01(hx.get("honesty", 0.0)),
 		"extraversion": _gossip01(hx.get("extraversion", 0.0)),
+		"agreeableness": _gossip01(hx.get("agreeableness", 0.0)),
 		"stigma": clampf(Traits.sum_param(s.trait_profile, "stigma"), 0.0, 1.0), "rel": rel, "grudge": grudge}
 
 
@@ -911,13 +912,79 @@ func _apply_gossip_event(ev: Dictionary, now: float) -> void:
 				subject.ledger.on_hurt_by(source.sim_name, 8.0 + 14.0 * sev, now)
 				subject.remember_social(source, "humiliation", clampf(sev * (0.7 if bool(ev["truth"]) else 1.0), 0.05, 1.0), "told", "intended")
 				subject.remember("%s o mně roznáší řeči" % source.sim_name)
+		"confront":
+			var subject := _gossip_sim(String(ev["subject"]))
+			var accused := _gossip_sim(String(ev["accused"]))
+			if subject == null or accused == null:
+				return
+			match String(ev["outcome"]):
+				"admit":
+					_rel_add(subject, accused, float(ev["delta_subject"]))
+					subject.ledger.soften(accused.sim_name, 10.0)
+					accused.ledger.on_hurt_other(subject.sim_name, float(ev["guilt"]))
+					subject.remember_social(accused, "apology", 0.4)
+					subject.add_joy_moodlet("drb_vyjasneno", "Vyjasnili jsme si to", "spokojeny", 5.0, 240.0)
+					accused.mood.add_moodlet("drb_nacapan", "Načapali mě při drbech", "nesvuj", -5.0, 240.0)
+					subject.remember("%s přiznal%s, že o mně mluvil%s" % [accused.sim_name,
+						Gossip_G.past(String(accused.grammar)), Gossip_G.past(String(accused.grammar))])
+				"deny":
+					_rel_add(subject, accused, float(ev["delta_subject"]))
+					_rel_add(accused, subject, float(ev["delta_accused"]))
+					if float(ev["guilt"]) > 0.0:
+						accused.ledger.on_hurt_other(subject.sim_name, float(ev["guilt"]))
+					subject.remember_social(accused, "trust_breach", 0.35, "self", subject.interpret_intent(0.5))
+					subject.mood.add_moodlet("drb_zapira", "Zapírá mi do očí", "nastvany", -6.0, 240.0)
+				"escalate":
+					pass  # hádku zpracuje SimAgent (_social_outcome "argue": vztahy, stres, svědci)
+		"deny":
+			var subject := _gossip_sim(String(ev["subject"]))
+			var listener := _gossip_sim(String(ev["listener"]))
+			if subject == null or listener == null:
+				return
+			match String(ev["outcome"]):
+				"believed", "doubted":
+					_rel_add(listener, subject, float(ev["delta_rel"]))
+					if String(ev["outcome"]) == "believed":
+						subject.add_joy_moodlet("drb_uveril", "Věří mi", "spokojeny", 3.0, 180.0)
+				"caught":
+					_rel_add(listener, subject, float(ev["delta_rel"]))
+					listener.remember_social(subject, "trust_breach", 0.5, "self", "intended")
+					subject.mood.add_moodlet("drb_nevericnost", "Nevěří mi", "nesvuj", -4.0, 180.0)
 
 
-## Soukromé věty pro vlastníka postavy: co se o sobě dozvěděl(a).
+## Soukromé věty pro vlastníka postavy: co se o sobě dozvěděl(a) a od koho ty řeči šly.
 func gossip_private_lines(s: Node) -> PackedStringArray:
-	if gossip == null or s == null:
+	if gossip == null or s == null or not _gossip_authority():
 		return PackedStringArray()
-	return gossip.exposed_lines(SimAgent.memory_key(s))
+	var out: PackedStringArray = gossip.exposed_lines(SimAgent.memory_key(s))
+	out.append_array(gossip.suspect_lines(SimAgent.memory_key(s)))
+	return out
+
+
+## Smí `s` konfrontovat `other` kvůli drbům? (Ví z odhalení, že řeči šly od něj.) Jen autorita.
+func gossip_can_confront(s: Node, other: Node) -> bool:
+	if gossip == null or s == null or other == null or not _gossip_authority():
+		return false
+	return gossip.can_confront(SimAgent.memory_key(s), SimAgent.memory_key(other))
+
+
+## Rozhovor o drbech (konfrontace zdroje / popření před posluchačem). Volá simulace postavy `a`
+## na začátku akce; vrací událost (pro repliky a testy), dopady na vztahy aplikuje zde.
+func gossip_talk(a: Node, b: Node, action_id: String) -> Dictionary:
+	if gossip == null or a == null or b == null or a == b or not _gossip_authority():
+		return {}
+	var now := float(clock.total_minutes)
+	_gossip_name(a)
+	_gossip_name(b)
+	var ev: Dictionary = {}
+	match action_id:
+		"confront_gossip":
+			ev = gossip.confront(gossip_profile(a), gossip_profile(b), now)
+		"deny_gossip":
+			ev = gossip.deny(gossip_profile(a), gossip_profile(b), now, gossip_content())
+	if not ev.is_empty():
+		_apply_gossip_event(ev, now)
+	return ev
 	
 
 func get_selected_sim():

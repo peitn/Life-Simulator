@@ -3,6 +3,7 @@ extends "res://tests/test_base.gd"
 ## smyšlené pomluvy, odhalení zdroje, vyvracení zkušeností, vyhasínání, obsahová nastavení,
 ## determinismus, uložení (round-trip + fuzz) a integrace do skutečné offline domácnosti.
 
+const Boundary := preload("res://tests/test_gossip_content_boundary.gd")
 const Gossip := preload("res://scripts/sim/gossip_network.gd")
 const Main := preload("res://main.gd")
 const SaveGame := preload("res://scripts/save/game_save.gd")
@@ -46,7 +47,18 @@ static func expose_until(g, i: Dictionary, s: Dictionary, now: float, content :=
 	return []
 
 
+func _unit_boundary() -> void:
+	section("Gossip content boundaries: six independent checks")
+	var result: Dictionary = Boundary.run()
+	var checks: Dictionary = result.get("results", {})
+	var expected: Array = ["panic_disabled", "panic_enabled", "drinking_disabled", "drinking_enabled", "self_witness", "empty_witness"]
+	check(result.get("checks", -1) == expected.size() and checks.size() == expected.size(), "boundary results complete")
+	for key in expected:
+		check(checks.get(key, false) == true, "boundary " + key)
+
+
 func _run() -> void:
+	_unit_boundary()
 	_unit_observe()
 	_unit_share()
 	_unit_fabrication()
@@ -361,7 +373,7 @@ func _unit_persistence() -> void:
 	var bad: Array = []
 	var m: Dictionary
 	m = snap.duplicate(true); m["evil"] = 1; bad.append(["neznámý klíč", m])
-	m = snap.duplicate(true); m["v"] = 2; bad.append(["verze", m])
+	m = snap.duplicate(true); m["v"] = Gossip.VERSION + 1; bad.append(["verze", m])
 	m = snap.duplicate(true); m["rng_state"] = 1.5; bad.append(["rng typ", m])
 	m = snap.duplicate(true); m["rumors"][0]["truth"] = "yes"; bad.append(["truth typ", m])
 	m = snap.duplicate(true); m["rumors"][0]["sev"] = 1.5; bad.append(["sev rozsah", m])

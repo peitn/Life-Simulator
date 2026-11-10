@@ -216,7 +216,7 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 ## Ve stresu nebo v depresi se postava radši vyhne člověku, na kterého má pifku (křivda, čerstvá
 ## výtka), než aby šla do další třenice. Omluvy a nátlak (mají vlastní pravidla) se netýká.
 static func avoidance_weight(sim, other, a: Dictionary) -> float:
-	if sim.mental == null or a.has("pressure_kind") or String(a.get("id", "")) == "apologize":
+	if sim.mental == null or a.has("pressure_kind") or String(a.get("id", "")) in ["apologize", "confront_gossip"]:
 		return 1.0
 	var av: float = sim.mental.avoidance(sim.mental_cfg())
 	if av <= 0.0:
@@ -244,6 +244,24 @@ static func apology_score(sim, other, base: float, friendship: float) -> float:
 	return s
 
 
+## Chuť vyříkat si drby: jen když postava ví, že řeči šly od `other` (autorita) a nese si vůči němu
+## zášť ≥ CONFRONT_GRUDGE. Vznětliví a nepřívětiví do toho jdou spíš, úzkostní se tomu vyhýbají (base
+## už nese násobiče úzkosti a deprese).
+const CONFRONT_GRUDGE := 20.0
+
+
+static func confront_score(sim, other, base: float) -> float:
+	var w = sim.get("world")
+	if w == null or not is_instance_valid(w) or not w.has_method("gossip_can_confront") or not w.gossip_can_confront(sim, other):
+		return 0.0
+	var g: float = sim.ledger.grudge(other.sim_name) if sim.ledger != null else 0.0
+	if g < CONFRONT_GRUDGE:
+		return 0.0
+	var hx: Dictionary = sim.get("hexaco") if typeof(sim.get("hexaco")) == TYPE_DICTIONARY else {}
+	var agree := clampf(float(hx.get("agreeableness", 0.0)), -1.0, 1.0)
+	return base * clampf(g / 40.0, 0.5, 1.5) * (1.0 - 0.35 * agree)
+
+
 ## Vrátí {"action": Dictionary, "target": Node3D|null, "score": float} nebo {}.
 static func choose(sim, objects: Array, sims: Array, rng: RandomNumberGenerator, hour: int) -> Dictionary:
 	# Emergency prevention: choose a free shower while there is still enough
@@ -269,6 +287,12 @@ static func choose(sim, objects: Array, sims: Array, rng: RandomNumberGenerator,
 					continue
 				var friendship: float = float(sim.relationships.get(other.sim_name, 0.0))
 				if a.has("pressure_kind") and sim.ledger.grudge(other.sim_name) < 12.0:
+					continue
+				if a["id"] == "confront_gossip":
+					var sc := confront_score(sim, other, base)
+					if sc > 0.0:
+						cands.append({"action": a, "target": other,
+							"score": sc / (1.0 + sim.global_position.distance_to(other.global_position) / DISTANCE_SCALE)})
 					continue
 				if a["id"] == "apologize":
 					var sa := apology_score(sim, other, base, friendship)
