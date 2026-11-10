@@ -1,0 +1,291 @@
+{
+ "n_seeds": 12,
+ "seeds": [
+  301,
+  302,
+  303,
+  304,
+  305,
+  306,
+  307,
+  308,
+  309,
+  310,
+  311,
+  312
+ ],
+ "cell_means": {
+  "post_peak_stress": {
+   "e0": 42.24,
+   "calm": 42.7689,
+   "crash": 42.3457
+  },
+  "post_mean_stress": {
+   "e0": 9.1626,
+   "calm": 9.4044,
+   "crash": 9.3884
+  },
+  "post_high_share": {
+   "e0": 0.0,
+   "calm": 0.0,
+   "crash": 0.0
+  },
+  "post_mean_mood": {
+   "e0": 33.4013,
+   "calm": 33.0382,
+   "crash": 32.9396
+  },
+  "final_stress": {
+   "e0": 5.1041,
+   "calm": 5.7246,
+   "crash": 4.8405
+  },
+  "final_mood": {
+   "e0": 37.8783,
+   "calm": 34.675,
+   "crash": 36.6943
+  },
+  "argument_share": {
+   "e0": 0.0421,
+   "calm": 0.0448,
+   "crash": 0.0421
+  },
+  "stress_inputs": {
+   "e0": 0.0,
+   "calm": 7.4698,
+   "crash": 32.5379
+  }
+ },
+ "effects": {
+  "post_peak_stress": {
+   "eko": {
+    "mean": 0.5289,
+    "sd": 5.1368,
+    "ci95": [
+     -2.7349,
+     3.7927
+    ],
+    "p_signflip": 0.5625,
+    "dz": 0.103,
+    "n_positive": 7,
+    "n_negative": 1
+   },
+   "krach": {
+    "mean": -0.4232,
+    "sd": 5.7093,
+    "ci95": [
+     -4.0508,
+     3.2044
+    ],
+    "p_signflip": 0.8125,
+    "dz": -0.074,
+    "n_positive": 2,
+    "n_negative": 3
+   }
+  },
+  "post_mean_stress": {
+   "eko": {
+    "mean": 0.2418,
+    "sd": 0.9172,
+    "ci95": [
+     -0.3409,
+     0.8245
+    ],
+    "p_signflip": 0.3496,
+    "dz": 0.264,
+    "n_positive": 10,
+    "n_negative": 2
+   },
+   "krach": {
+    "mean": -0.016,
+    "sd": 1.2681,
+    "ci95": [
+     -0.8217,
+     0.7897
+    ],
+    "p_signflip": 0.9648,
+    "dz": -0.013,
+    "n_positive": 8,
+    "n_negative": 3
+   }
+  },
+  "post_high_share": {
+   "eko": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "p_signflip": 1.0,
+    "dz": null,
+    "n_positive": 0,
+    "n_negative": 0
+   },
+   "krach": {
+    "mean": 0.0,
+    "sd": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "p_signflip": 1.0,
+    "dz": null,
+    "n_positive": 0,
+    "n_negative": 0
+   }
+  },
+  "post_mean_mood": {
+   "eko": {
+    "mean": -0.3631,
+    "sd": 0.7109,
+    "ci95": [
+     -0.8148,
+     0.0885
+    ],
+    "p_signflip": 0.0488,
+    "dz": -0.511,
+    "n_positive": 1,
+    "n_negative": 11
+   },
+   "krach": {
+    "mean": -0.0987,
+    "sd": 0.3861,
+    "ci95": [
+     -0.344,
+     0.1467
+    ],
+    "p_signflip": 0.4131,
+    "dz": -0.256,
+    "n_positive": 3,
+    "n_negative": 8
+   }
+  },
+  "final_stress": {
+   "eko": {
+    "mean": 0.6206,
+    "sd": 2.1721,
+    "ci95": [
+     -0.7595,
+     2.0007
+    ],
+    "p_signflip": 0.3154,
+    "dz": 0.286,
+    "n_positive": 10,
+    "n_negative": 1
+   },
+   "krach": {
+    "mean": -0.8842,
+    "sd": 3.7892,
+    "ci95": [
+     -3.2917,
+     1.5234
+    ],
+    "p_signflip": 0.5254,
+    "dz": -0.233,
+    "n_positive": 5,
+    "n_negative": 5
+   }
+  },
+  "final_mood": {
+   "eko": {
+    "mean": -3.2033,
+    "sd": 7.4331,
+    "ci95": [
+     -7.9261,
+     1.5195
+    ],
+    "p_signflip": 0.188,
+    "dz": -0.431,
+    "n_positive": 1,
+    "n_negative": 11
+   },
+   "krach": {
+    "mean": 2.0194,
+    "sd": 5.7828,
+    "ci95": [
+     -1.6549,
+     5.6936
+    ],
+    "p_signflip": 0.2783,
+    "dz": 0.349,
+    "n_positive": 3,
+    "n_negative": 8
+   }
+  },
+  "argument_share": {
+   "eko": {
+    "mean": 0.0027,
+    "sd": 0.0052,
+    "ci95": [
+     -0.0006,
+     0.006
+    ],
+    "p_signflip": 0.125,
+    "dz": 0.524,
+    "n_positive": 4,
+    "n_negative": 1
+   },
+   "krach": {
+    "mean": -0.0027,
+    "sd": 0.005,
+    "ci95": [
+     -0.0059,
+     0.0005
+    ],
+    "p_signflip": 0.0625,
+    "dz": -0.544,
+    "n_positive": 0,
+    "n_negative": 5
+   }
+  },
+  "stress_inputs": {
+   "eko": {
+    "mean": 7.4698,
+    "sd": 5.2376,
+    "ci95": [
+     4.142,
+     10.7976
+    ],
+    "p_signflip": 0.0005,
+    "dz": 1.426,
+    "n_positive": 12,
+    "n_negative": 0
+   },
+   "krach": {
+    "mean": 25.0681,
+    "sd": 15.7182,
+    "ci95": [
+     15.0812,
+     35.055
+    ],
+    "p_signflip": 0.001,
+    "dz": 1.595,
+    "n_positive": 11,
+    "n_negative": 0
+   }
+  }
+ },
+ "p_holm_within_contrast": {
+  "eko": {
+   "post_mean_mood": 0.3416,
+   "argument_share": 0.75,
+   "final_mood": 0.94,
+   "final_stress": 1.0,
+   "post_mean_stress": 1.0,
+   "post_peak_stress": 1.0,
+   "post_high_share": 1.0
+  },
+  "krach": {
+   "stress_inputs": 0.008,
+   "argument_share": 0.4375,
+   "final_mood": 1.0,
+   "post_mean_mood": 1.0,
+   "final_stress": 1.0,
+   "post_peak_stress": 1.0,
+   "post_mean_stress": 1.0,
+   "post_high_share": 1.0
+  }
+ },
+ "note": "Platí jen v rámci modelu (fiktivní agenti, herní balance). Kontrasty jsou párové podle seedu."
+}

@@ -112,7 +112,7 @@ Každý zdroj označen: **OVĚŘENO** (otevřena stránka s bibliografií/abstra
 | Bikhchandani, Hirshleifer, Welch: *A Theory of Fads, Fashion, Custom, and Cultural Change in Informational Cascades*, J. Polit. Econ. 100(5), 992–1026, 1992 | OVĚŘENO (EconPapers) | pozorovatelé předchozích voleb mohou racionálně kopírovat; mnohé masové chování je křehké | pouze motivace pro zpětnou vazbu toku obchodů do cen (herding model **neobsahuje**) |
 | Tvrzení „panický prodej se obvykle nevyplácí“, „investoři honí výkon“ apod. | **Z PAMĚTI / neověřeno, nepoužito jako tvrzení** | – | – |
 
-## 8. Návrh dopadu poklesu portfolia na psychiku (NEIMPLEMENTOVÁNO)
+## 8. Návrh dopadu poklesu portfolia na psychiku (implementováno jako volitelný most: `docs/economy_psyche_bridge.md`)
 
 Rozhraní zůstává `financial_pressure` a `agent_view`. Návrh pro budoucí krok (každý parametr `game_balance`, vyžaduje samostatné rozhodnutí a testy):
 1. `agent_view()["market"]` už nabízí `drawdown_pm`, `unrealized_pm`, `equity_share_pm`. Psychika by mohla vzít *nedávný* pokles (např. přes 20 dní) jako **malý, časově doznívající přídavek ke stresu** úměrný `drawdown_pm · equity_share_pm / 1000`, s horním stropem a poločasem desítek dní.

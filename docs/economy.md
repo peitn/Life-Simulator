@@ -1,6 +1,6 @@
 # Ekonomika (E0/E1) – fiktivní měna, kniha, práce, dluh, daně, vynucování, chudoba
 
-Stav: izolovaný, deterministický, plně otestovaný modul. **Není napojen na `sim_agent`, `main.gd`, `CharacterData` ani save formát.**
+Stav: izolovaný, deterministický, plně otestovaný modul. **Ve výchozí hře není napojen na `sim_agent`, `CharacterData` ani save formát.** Volitelný (výchozí vypnutý) most na stres a náladu viz `docs/economy_psyche_bridge.md`.
 Slouží jako budoucí zdroj „finančního tlaku“ pro psychologii a pro laboratoř (`tools/lab`, `docs/lab`).
 
 > **Platnost a meze (čti první).** Jde o *mechanismové pískoviště*: ukazuje, co se stane v modelu při daných pravidlech.

@@ -300,6 +300,7 @@ correctly despawned. Note: `MultiplayerSynchronizer.get_visibility_for()` only r
 ## Ekonomika E1 (scripts/sim/economy, docs/economy.md)
 - `tests/test_economy_core.tscn` – kniha (dvojitý zápis, bez záporných zůstatků, hash řetězec a detekce manipulace), daně a zaokrouhlení, mzdy/povinnosti, půjčky (celočíselný úrok, default = jen skóre), vynucování, `financial_pressure`, Gini/chudoba, round trip (headless, ~1 s).
 - `tests/test_economy_sim.tscn` – zachování peněz 365 dní × 8–20 agentů × více seedů, determinismus (stejný seed = stejný hash, jiný seed jiný), obnova z JSONu, demo CSV (headless, ~8 s).
+- `tests/test_economy_bridge.tscn` – most ekonomika → psychika (opt-in): validace a ohraničenost mapování, krach vs klid, uložení/obnova, žádné akce, hash vypnutého stavu proti kódu před mostem, determinismus, drát do HouseholdDynamics, GameSave round-trip včetně starého savu a lab blok `economy` (headless, ~25 s; 79 kontrol).
 - Demo/CSV: `godot --headless --path . res://tools/lab/economy_demo.tscn -- --seeds=1,2,3 --agents=8 --days=365 --out=<adresář>`.
 
 
