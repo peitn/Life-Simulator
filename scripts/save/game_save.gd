@@ -3,6 +3,7 @@ extends RefCounted
 ## Binary Variant format disallows encoded Objects; checksum and bounded file sizes.
 const CharacterValidator := preload("res://scripts/character/character_validator.gd")
 const HouseholdDynamics := preload("res://scripts/sim/household_dynamics.gd")
+const EconomyBridge := preload("res://scripts/sim/economy_bridge.gd")
 const EmotionalState := preload("res://scripts/sim/emotional_state.gd")
 const IntimacyState := preload("res://scripts/sim/intimacy_state.gd")
 const PsycheExt := preload("res://scripts/sim/psyche_ext.gd")
@@ -145,6 +146,9 @@ static func capture(world: Node, allow_authority: bool = false) -> Dictionary:
 	# Drby (volitelná sekce; starší uložené hry ji nemají → začne se bez drbů).
 	if world.get("gossip") != null:
 		data["gossip"] = world.gossip.to_dict()
+	# Most ekonomika -> psychika (volitelný; sekce existuje jen když je zapnutý, jinak formát zůstává beze změny).
+	if d.economy_bridge != null:
+		data["economy"] = d.economy_bridge.to_dict()
 	return {"ok": true, "data": data}
 
 
@@ -370,7 +374,12 @@ static func apply(world: Node, data: Variant, allow_authority: bool = false) -> 
 			sim.leave_world()
 			world.unregister_sim(sim)
 			sim.free()
+	var prev_bridge = world.dynamics.economy_bridge
 	world.dynamics = HouseholdDynamics.new()
+	if data.has("economy"):
+		world.dynamics.economy_bridge = EconomyBridge.from_dict(data["economy"])
+	if world.dynamics.economy_bridge == null and prev_bridge != null:
+		world.dynamics.economy_bridge = EconomyBridge.new(prev_bridge.cfg)   # starý save bez sekce: zapnutý přepínač zůstává
 	if world.get("gossip") != null:
 		world.gossip = GossipNetwork.new()
 		if data.has("gossip"):

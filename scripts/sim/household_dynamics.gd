@@ -116,6 +116,8 @@ var _cooked := {}         # jméno postavy -> minuty nepřetržitého vaření (
 var _dirty_dishes_until := -1.0
 ## Statistiky (testy, ladění, budoucí HUD „jak to doma vypadá“).
 var stats := {}
+## Volitelný most ekonomika -> psychika (scripts/sim/economy_bridge.gd). null = vypnuto (výchozí): hra je beze změny.
+var economy_bridge = null
 
 
 func _init() -> void:
@@ -142,6 +144,29 @@ func advance(dm: float, sims: Array, clock) -> void:
 	while _acc >= TICK - 1e-6:
 		_acc -= TICK
 		tick(sims, clock.get_hour(), float(clock.total_minutes))
+	if economy_bridge != null:
+		_economy_day(sims, clock.get_day())
+
+
+## Jednou za herní den: most posune fiktivní ekonomiku a vrátí malé vstupy (stres, nálada). Žádná akce se nevybírá ani nevynucuje.
+func _economy_day(all_sims: Array, day: int) -> void:
+	var live: Array = []
+	for s in all_sims:
+		if is_instance_valid(s) and s.has_method("command") and s.is_inside_tree():
+			live.append(s)
+	var live_names: Array = []
+	for s in live:
+		live_names.append(String(s.sim_name))
+	var fx: Dictionary = economy_bridge.step_day(day, live_names)
+	for s in live:
+		var e: Dictionary = fx.get(String(s.sim_name), {})
+		if e.is_empty():
+			continue
+		if float(e["stress"]) > 0.0:
+			s.mental.on_stressor("life", float(e["stress"]), s.mental_cfg())
+		s.mood.remove_moodlet("financni_starost")
+		if float(e["mood"]) < 0.0:
+			s.mood.add_moodlet("financni_starost", "Starosti o peníze", "smutny", float(e["mood"]), float(e["mood_minutes"]))
 
 
 ## Jeden krok. sims = všechny postavy světa; loutky (klient) se ignorují.

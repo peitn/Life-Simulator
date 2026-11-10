@@ -32,6 +32,7 @@ const CharacterData := preload("res://scripts/character/character_data.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const HouseholdDynamics := preload("res://scripts/sim/household_dynamics.gd")
 const GossipNetwork := preload("res://scripts/sim/gossip_network.gd")
+const EconomyBridge := preload("res://scripts/sim/economy_bridge.gd")
 const Gossip_G := preload("res://scripts/core/grammar_cs.gd")
 const SaveGame := preload("res://scripts/save/game_save.gd")
 const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
@@ -178,6 +179,13 @@ func _ready() -> void:
 	clock = cfg.get("clock", null)
 	if clock == null:
 		clock = get_node("/root/GameClock")
+	# Opt-in (výchozí vypnuto): most fiktivní ekonomiky -> stres/nálada. cfg["economy_psyche"] = true | {přepisy BALANCE}.
+	if cfg.get("economy_psyche", false):
+		var eb_cfg: Dictionary = cfg["economy_psyche"] if typeof(cfg["economy_psyche"]) == TYPE_DICTIONARY else {}
+		if EconomyBridge.validate_config(eb_cfg).is_empty():
+			dynamics.economy_bridge = EconomyBridge.new(eb_cfg)
+		else:
+			push_warning("economy_psyche: neplatná konfigurace, most zůstává vypnutý")
 	# Vlasy z karet: první sestavení účesu běží ve vlákně (hra se nezasekne při vstupu postavy s novým účesem);
 	# headless --test a testy zůstávají synchronní. `async_character_assets` (výchozí = visuals) umožní
 	# testům zapnout přesně herní cestu i bez ostatních vizuálů.
@@ -404,6 +412,8 @@ func _config_from_args() -> Dictionary:
 	var n := args.find("--name")
 	if n >= 0 and n + 1 < args.size():
 		cfg["name"] = args[n + 1]
+	if args.has("--economy-psyche"):
+		cfg["economy_psyche"] = true
 	var ch := args.find("--character")
 	if ch >= 0 and ch + 1 < args.size():
 		cfg["character"] = args[ch + 1]

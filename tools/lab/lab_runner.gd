@@ -13,11 +13,16 @@ extends RefCounted
 ##     takže initial_support sám o sobě po několika hodinách nic nedělá; trvalou složkou jsou vztahy.
 ##   interventions (volitelné): [{day: 0..days, kind: "stressor", amount: 0..100, target: "all" | jméno agenta}]
 ##     stresor se aplikuje stejnou cestou jako životní událost v household_dynamics (mental.on_stressor("life", ...)).
+##   economy (volitelné, výchozí vypnuto; bez něj je běh bit-for-bit shodný): {enabled: bool, market: bool, seed: int,
+##     shock: {day: 1..days, total_pm: -999..0, days: 1..30}}  → zapne most fiktivní ekonomiky/burzy na psychiku
+##     (scripts/sim/economy_bridge.gd). shock = plošný pokles cen burzy (typ "path", scope "market"), vyžaduje market=true.
+##     Den ekonomiky d se projeví na začátku herního dne d+1 (ekonomika se posouvá o den při přechodu dne).
 ## Výsledek: {"ok", "scenario", "seed", "days", "agents": [jména], "snapshots": [...], "final_hash": String,
 ##            "stats": household statistiky, "model": {...verze/provenance}}
 ## Všechna data jsou fiktivní agenti. Výsledky platí jen v rámci modelu, ne pro lidi.
 
 const Main := preload("res://main.gd")
+const EconomyBridge := preload("res://scripts/sim/economy_bridge.gd")
 const STEP_MINUTES := 2.0
 const MODEL_VERSION := "lab-m1a-0.1"
 
@@ -49,6 +54,8 @@ static func validate(sc: Dictionary) -> Array:
 		if cond.has("initial_relationship") and (not (cond["initial_relationship"] is float or cond["initial_relationship"] is int) \
 				or absf(float(cond["initial_relationship"])) > 100.0):
 			errs.append("initial_relationship musí být -100..100")
+	if sc.has("economy"):
+		errs.append_array(_validate_economy(sc["economy"], sc.get("days", 0)))
 	var iv = sc.get("interventions", [])
 	if typeof(iv) != TYPE_ARRAY:
 		errs.append("interventions musí být pole")
@@ -62,6 +69,47 @@ static func validate(sc: Dictionary) -> Array:
 				errs.append("intervence musí být {day 0..days, kind 'stressor', amount 0..100, target}")
 				break
 	return errs
+
+
+static func _validate_economy(eco: Variant, days: Variant) -> Array:
+	var errs: Array = []
+	if typeof(eco) != TYPE_DICTIONARY:
+		return ["economy musí být objekt"]
+	for k in eco:
+		if not ["enabled", "market", "seed", "shock"].has(String(k)):
+			errs.append("economy: neznámý klíč %s" % String(k))
+	if eco.has("enabled") and typeof(eco["enabled"]) != TYPE_BOOL:
+		errs.append("economy.enabled musí být bool")
+	if eco.has("market") and typeof(eco["market"]) != TYPE_BOOL:
+		errs.append("economy.market musí být bool")
+	if eco.has("seed") and (not _is_whole(eco["seed"]) or absf(float(eco["seed"])) > 1.0e9):
+		errs.append("economy.seed musí být celé číslo")
+	if eco.has("shock"):
+		var sh = eco["shock"]
+		if typeof(sh) != TYPE_DICTIONARY:
+			errs.append("economy.shock musí být objekt")
+		else:
+			if not bool(eco.get("market", false)) or not bool(eco.get("enabled", false)):
+				errs.append("economy.shock vyžaduje enabled i market")
+			for k in sh:
+				if not ["day", "total_pm", "days"].has(String(k)):
+					errs.append("economy.shock: neznámý klíč %s" % String(k))
+			if not _is_whole(sh.get("day", null)) or int(sh["day"]) < 1 or (_is_whole(days) and int(sh["day"]) > int(days)):
+				errs.append("economy.shock.day musí být 1..days")
+			if not _is_whole(sh.get("total_pm", null)) or int(sh["total_pm"]) < -999 or int(sh["total_pm"]) > 0:
+				errs.append("economy.shock.total_pm musí být -999..0")
+			if not _is_whole(sh.get("days", null)) or int(sh["days"]) < 1 or int(sh["days"]) > 30:
+				errs.append("economy.shock.days musí být 1..30")
+	return errs
+
+
+## Z bloku economy sestaví konfiguraci mostu (jen když je enabled).
+static func _bridge_cfg(eco: Dictionary, sc_seed: int) -> Dictionary:
+	var c := {"seed": int(eco.get("seed", sc_seed)), "market": bool(eco.get("market", false))}
+	if eco.has("shock"):
+		var sh: Dictionary = eco["shock"]
+		c["events"] = [{"type": "path", "day": int(sh["day"]), "days": int(sh["days"]), "total_pm": int(sh["total_pm"]), "scope": "market"}]
+	return c
 
 
 ## Spustí scénář pod `host` (uzel ve stromu, přes který se čeká na snímky). Vrací výsledek.
@@ -103,6 +151,10 @@ static func run(host: Node, sc: Dictionary) -> Dictionary:
 			for other in w.sims:
 				if other != sim:
 					sim.relationships[other.sim_name] = float(cond["initial_relationship"])
+	var eco_sc: Dictionary = sc.get("economy", {})
+	var eco_on: bool = bool(eco_sc.get("enabled", false))
+	if eco_on:
+		w.dynamics.economy_bridge = EconomyBridge.new(_bridge_cfg(eco_sc, seed_i))
 	var names: Array = []
 	for sim in w.sims:
 		names.append(String(sim.sim_name))
@@ -113,6 +165,8 @@ static func run(host: Node, sc: Dictionary) -> Dictionary:
 		pending.append(e.duplicate(true))
 	pending.sort_custom(func(x, y): return float(x["day"]) < float(y["day"]))
 	var first_iv := float(pending[0]["day"]) if not pending.is_empty() else -1.0
+	if eco_on and eco_sc.has("shock") and first_iv < 0.0:
+		first_iv = float(eco_sc["shock"]["day"])
 	var steps_per_snap := int(snap_h * 60 / STEP_MINUTES)
 	var total_steps := int(days * 1440 / STEP_MINUTES)
 	for i in total_steps:
@@ -122,12 +176,18 @@ static func run(host: Node, sc: Dictionary) -> Dictionary:
 		if (i + 1) % steps_per_snap == 0:
 			snaps.append(_snapshot(w, float(i + 1) * STEP_MINUTES / 1440.0))
 	var stats: Dictionary = w.dynamics.stats.duplicate(true)
+	var eco_out: Dictionary = {}
+	if eco_on:
+		eco_out = {"enabled": true, "market": bool(eco_sc.get("market", false)), "stats": w.dynamics.economy_bridge.stats.duplicate(true),
+			"bridge": EconomyBridge.MODEL_VERSION}
 	var result := {"ok": true, "scenario": String(sc.get("name", "bez_nazvu")), "seed": seed_i, "days": days,
 		"agents": names, "condition": cond, "snapshots": snaps, "stats": stats,
 		"interventions": sc.get("interventions", []), "summary": summarize(snaps, first_iv),
 		"final_hash": _hash_state(w),
 		"model": {"version": MODEL_VERSION, "step_minutes": STEP_MINUTES,
 			"note": "Fiktivní agenti; výsledky platí v rámci modelu. Část parametrů je herní balance."}}
+	if eco_on:
+		result["economy"] = eco_out
 	w.queue_free()
 	Main.household_override = prev_override
 	clock.running = prev_running
@@ -159,6 +219,10 @@ static func _snapshot(w: Node, day: float) -> Dictionary:
 			emo[String(k)] = _r(float(a.emotions.levels[k]))
 		agents[String(a.sim_name)] = {"stress": _r(float(a.mental.stress)), "mood": _r(float(a.get_mood_value())),
 			"relationships": rel, "emotions": emo}
+		if w.dynamics.economy_bridge != null:   # jen u zapnuté ekonomiky; jinak se formát snímků nemění
+			var ev: Dictionary = w.dynamics.economy_bridge.view(String(a.sim_name))
+			agents[String(a.sim_name)]["economy"] = {"pressure": _r(float(ev.get("pressure", 0.0))), "worry": _r(float(ev.get("worry", 0.0))),
+				"portfolio_value": int(ev.get("portfolio_value", 0))}
 	return {"day": _r(day), "agents": agents, "talks": int(w.dynamics.stats.get("talks", 0)),
 		"arguments": int(w.dynamics.stats.get("argues", 0))}
 
