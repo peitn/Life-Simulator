@@ -370,7 +370,7 @@ static func _open(host: Node, sc: Dictionary) -> Dictionary:
 	var clock = host.get_node("/root/GameClock")
 	var settings = host.get_node("/root/GameSettings")
 	var ctx := {"clock": clock, "settings": settings, "prev_running": clock.running, "prev_persist": settings.persist,
-		"prev_override": Main.household_override}
+		"prev_override": Main.household_override, "prev_values": settings.values.duplicate(true)}
 	clock.running = false
 	settings.persist = false
 	settings.reset()
@@ -447,6 +447,7 @@ static func _close(host: Node, ctx: Dictionary) -> void:
 	Main.household_override = ctx["prev_override"]
 	ctx["clock"].running = ctx["prev_running"]
 	ctx["settings"].persist = ctx["prev_persist"]
+	ctx["settings"].values = ctx["prev_values"]   # nastavení z `settings` scénáře nepřežije běh (hostitelský proces dostane původní)
 	await host.get_tree().process_frame
 
 
