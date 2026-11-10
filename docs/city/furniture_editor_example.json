@@ -1,0 +1,136 @@
+{
+	"name": "Jídelní stůl",
+	"parts": [
+		{
+			"collide": true,
+			"material": "wood",
+			"name": "Top 1",
+			"position": [
+				0.0,
+				0.765,
+				0.0
+			],
+			"rotation": [
+				0,
+				0,
+				0
+			],
+			"shape": "box",
+			"size": [
+				1.6,
+				0.055,
+				0.9
+			],
+			"tint": [
+				1,
+				1,
+				1
+			]
+		},
+		{
+			"collide": true,
+			"material": "wood",
+			"name": "Leg-1-1 2",
+			"position": [
+				-0.69,
+				0.36875,
+				-0.34
+			],
+			"rotation": [
+				0,
+				0,
+				0
+			],
+			"shape": "box",
+			"size": [
+				0.06,
+				0.7375,
+				0.06
+			],
+			"tint": [
+				1,
+				1,
+				1
+			]
+		},
+		{
+			"collide": true,
+			"material": "wood",
+			"name": "Leg-11 3",
+			"position": [
+				-0.69,
+				0.36875,
+				0.34
+			],
+			"rotation": [
+				0,
+				0,
+				0
+			],
+			"shape": "box",
+			"size": [
+				0.06,
+				0.7375,
+				0.06
+			],
+			"tint": [
+				1,
+				1,
+				1
+			]
+		},
+		{
+			"collide": true,
+			"material": "wood",
+			"name": "Leg1-1 4",
+			"position": [
+				0.69,
+				0.36875,
+				-0.34
+			],
+			"rotation": [
+				0,
+				0,
+				0
+			],
+			"shape": "box",
+			"size": [
+				0.06,
+				0.7375,
+				0.06
+			],
+			"tint": [
+				1,
+				1,
+				1
+			]
+		},
+		{
+			"collide": true,
+			"material": "wood",
+			"name": "Leg11 5",
+			"position": [
+				0.69,
+				0.36875,
+				0.34
+			],
+			"rotation": [
+				0,
+				0,
+				0
+			],
+			"shape": "box",
+			"size": [
+				0.06,
+				0.7375,
+				0.06
+			],
+			"tint": [
+				1,
+				1,
+				1
+			]
+		}
+	],
+	"version": 1
+}

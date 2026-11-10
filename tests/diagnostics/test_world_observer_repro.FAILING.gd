@@ -95,6 +95,16 @@ func _worker(role: String, port: int, token: String) -> void:
     var observer_sent := false
     var observer_request_at := 0
     var observer_next_debug := 0
+    # Bounded client-side spawn signal trace; diagnostic only, no private data.
+    var observer_spawn_events: Array[String] = []
+    # Weak references only: no node retention, signal callback, or exit-time hooks.
+    # At each existing bounded stage sample distinguish freed from detached actors.
+    var observer_spawn_refs: Array[WeakRef] = []
+    if role == "observer" and world.net != null and world.net.spawner != null:
+        world.net.spawner.spawned.connect(func(node: Node) -> void:
+            if observer_spawn_events.size() < 16:
+                observer_spawn_events.append(String(node.name))
+                observer_spawn_refs.append(weakref(node)))
     if role == "observer" and world.net != null:
         world.net.character_edit_snapshot.connect(func(_key: String, _data: Dictionary, _rev: int) -> void: observer_read_replies.append(true))
         world.net.character_edit_snapshot_correlated.connect(func(_request: String, _key: String, _data: Dictionary, _rev: int) -> void: observer_read_replies.append(true))
@@ -184,12 +194,29 @@ func _worker(role: String, port: int, token: String) -> void:
                 var tree_names: Array[String] = []
                 for child in world.sims_root.get_children():
                     tree_names.append(String(child.name))
+                var spawn_lifecycle: Array[Dictionary] = []
+                for i in range(observer_spawn_events.size()):
+                    var spawned_node: Node = observer_spawn_refs[i].get_ref()
+                    spawn_lifecycle.append({"name": observer_spawn_events[i],
+                        "alive": spawned_node != null,
+                        "inside_tree": spawned_node.is_inside_tree() if spawned_node != null else false,
+                        "parent": String(spawned_node.get_parent().name) if spawned_node != null and spawned_node.get_parent() != null else ""})
+                # Bounded monotonic observation timeline; no node retained.
+                var trace: Array = _read(token, "observer_trace").get("samples", [])
+                if trace.size() < 24:
+                    trace.append({"t_ms": Time.get_ticks_msec(), "owner_known": not owner_sim.is_empty(),
+                        "owner_present": owner_actor != null, "connected": world.net._connected,
+                        "spawned": observer_spawn_events.size(), "lifecycle": spawn_lifecycle})
+                    _write(token, "observer_trace", {"samples": trace})
                 _write(token, "observer_stage", {"phase": "awaiting_owner_public",
                     "owner_name_known": not owner_sim.is_empty(), "owner_actor_found": owner_actor != null,
                     "owner_node_in_tree": world.sims_root.has_node(NodePath(owner_sim)),
                     "own_sim": String(world.net.my_sim), "sims": names, "tree_children": tree_names,
                     "public_revisions": world.net._public_look_revisions.duplicate(true),
-                    "pending_public": world.net._pending_public_looks.has(owner_sim)})
+                    "pending_public": world.net._pending_public_looks.has(owner_sim),
+                    "spawner_spawned_events": observer_spawn_events.duplicate(),
+                    "spawn_lifecycle": spawn_lifecycle,
+                    "spawner_spawn_path": String(world.net.spawner.spawn_path) if world.net.spawner != null else "missing"})
             if owner_actor != null:
                 var height: float = float(owner_actor.look.get("body", {}).get("height_cm", 0.0))
                 var public_ok := absf(height - 174.5) < 0.001
@@ -232,11 +259,22 @@ func _worker(role: String, port: int, token: String) -> void:
 func _spawn(role: String, port: int, token: String) -> int:
     var args := PackedStringArray(["--headless", "--path", ProjectSettings.globalize_path("res://"),
         "res://tests/diagnostics/test_world_observer_repro.FAILING.tscn", "--", "worker", role, str(port), token])
+    # Optional bounded-runner mode: capture each worker's stderr/stdout.
+    # The wrapper execs Godot in place, preserving worker PID identity.
+    if "capture-workers" in OS.get_cmdline_user_args():
+        var safe_token := token.replace("/", "_").replace(".", "_")
+        var log_path := "/tmp/lifesim_observer_worker_" + safe_token + "_" + role + ".log"
+        var wrapped := PackedStringArray([ProjectSettings.globalize_path("res://tests/diagnostics/h3_child_capture.py"),
+            log_path, OS.get_executable_path()])
+        wrapped.append_array(args)
+        return OS.create_process("python3", wrapped)
     return OS.create_process(OS.get_executable_path(), args)
 
 func _parent() -> void:
     section("Production World independent-process ENet: character hello, spawn, owner ACL")
     var token := str(Time.get_ticks_usec()) + "_" + str(OS.get_process_id())
+    # Public, per-invocation identifier for correlating optional worker logs.
+    print("WORLD_MP_TOKEN=", token)
     var port := 30000 + randi() % 18000
     var server_pid := _spawn("server", port, token)
     check(server_pid > 0, "separate server OS process launched")

@@ -61,7 +61,8 @@ var my_character := {}
 var my_vote := 1
 var chat_log: Array = []  # [[from, text, system]]
 var stats := {"rejected": 0, "commands": 0, "chat_sent": 0, "chat_blocked": 0, "kicked": 0,
-	"clock_syncs": 0, "votes": 0, "characters_rejected": 0, "characters_spawned": 0}
+	"clock_syncs": 0, "votes": 0, "characters_rejected": 0, "characters_spawned": 0,
+	"held": 0, "resumed": 0, "resume_failed": 0, "hold_expired": 0, "restored_held": 0}
 ## Server: poslední důvod odmítnutí postavy (testy, log).
 var last_character_error := String()
 
@@ -79,6 +80,25 @@ var _private_sent := {}
 var _kick_at := {}
 const KICK_DELAY := 0.5
 var _connected := false
+
+# ---------------------------------------------------------------- H4a: znovupřipojení (reconnect)
+## Server: jak dlouho (reálné s) čeká postava odpojeného hráče na jeho návrat. 0 = vypnuto
+## (postava domácnosti se hned uvolní, vlastní postava hned odchází – chování před H4a).
+## Hra (main.gd bez net_config) nastaví RECONNECT_GRACE_DEFAULT, testy si ho zapínají samy.
+const RECONNECT_GRACE_DEFAULT := 120.0
+var reconnect_grace_seconds := 0.0
+## Server: hash(token) -> {"sim", "name", "own", "expires"} – postavy čekající na návrat hráče.
+## Server drží JEN SHA-256 hash tokenu; samotný token zná pouze klient.
+var _held := {}
+## Server: peer_id -> hash platného tokenu tohoto připojeného hráče.
+var _peer_token_hash := {}
+## Server: peer_id, který požádal o úmyslný odchod (_c2s_leave) – jeho postava se nedrží.
+var _leaving := {}
+## Klient: tajný jednorázový token pro návrat k postavě (jen v paměti, nikdy na disk ani do logu).
+var my_reconnect_token := String()
+## Klient: kam se naposledy připojil (pro „Znovu připojit“).
+var last_join := {}
+const RECONNECT_TOKEN_BYTES := 32
 
 
 func setup(p_world: Node, p_clock: Node) -> void:
@@ -118,7 +138,9 @@ func start_offline(player_name := "") -> void:
 
 
 ## Spustí server. dedicated = bez lokálního hráče.
-func host(port: int, player_name := "", dedicated := false, character := {}) -> int:
+## register_local = false (H4b, server s perzistencí): hostitel se zaregistruje až po obnově světa
+## přes register_local_host() – může tak dostat zpět svou uloženou postavu.
+func host(port: int, player_name := "", dedicated := false, character := {}, register_local := true) -> int:
 	if not ClassDB.class_exists("ENetMultiplayerPeer"):
 		push_warning("Multiplayer (ENet) na této platformě není (webová verze) – hra běží offline.")
 		return ERR_UNAVAILABLE
@@ -135,15 +157,18 @@ func host(port: int, player_name := "", dedicated := false, character := {}) -> 
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	my_character = character
-	if not dedicated:
+	if not dedicated and register_local:
 		_register_player(1, player_name, character)
 	else:
 		_update_speed()
 	return OK
 
 
-func join(address: String, port: int, player_name := "", character_code := "") -> int:
+func join(address: String, port: int, player_name := "", character_code := "", reconnect_token := "") -> int:
 	my_character_code = character_code
+	# Token z předchozí relace (Znovu připojit). Neplatný formát se zahodí hned na klientu.
+	my_reconnect_token = reconnect_token if _valid_token_format(reconnect_token) else String()
+	last_join = {"address": address, "port": port, "name": player_name, "character": character_code}
 	if not ClassDB.class_exists("ENetMultiplayerPeer"):
 		push_warning("Multiplayer (ENet) na této platformě není (webová verze) – hra běží offline.")
 		return ERR_UNAVAILABLE
@@ -154,23 +179,30 @@ func join(address: String, port: int, player_name := "", character_code := "") -
 	multiplayer.multiplayer_peer = peer
 	mode = Mode.CLIENT
 	my_name = Protocol.sanitize_name(player_name)
-	multiplayer.connected_to_server.connect(_on_connected_to_server)
-	multiplayer.connection_failed.connect(_on_connection_failed)
-	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	if not multiplayer.connected_to_server.is_connected(_on_connected_to_server):
+		multiplayer.connected_to_server.connect(_on_connected_to_server)
+		multiplayer.connection_failed.connect(_on_connection_failed)
+		multiplayer.server_disconnected.connect(_on_server_disconnected)
 	return OK
 
 
 func shutdown() -> void:
 	_edit_limiters.clear()
 	_public_resync_limiters.clear()
+	# Before close(): closing a server host emits peer_disconnected for every peer, and the handler's
+	# roster/chat/clock broadcasts must not rpc_id() into the already closed ENet host ("Unable to
+	# send packet ... max channels: 0"). _remote_players() is empty while not connected.
+	_connected = false
 	if multiplayer.multiplayer_peer != null and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer):
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
-	_connected = false
 	_public_look_revisions.clear()
 	_pending_public_looks.clear()
 	_public_resync_requested.clear()
 	cancel_character_edit_snapshot()
+	_held.clear()
+	_peer_token_hash.clear()
+	_leaving.clear()
 
 
 # ---------------------------------------------------------------- spawn postav
@@ -332,6 +364,58 @@ func _c2s_hello(player_name: Variant, version: Variant, character_code: Variant)
 		_s2c_notice.rpc_id(id, "Nekompatibilní verze hry (server %d)." % Protocol.VERSION)
 		_kick_later(id)
 		return
+	_hello_with_character(id, player_name, character_code)
+
+
+## H4a: hello s tokenem z předchozí relace. Platný token = návrat ke stejné (držené) postavě;
+## neplatný, prošlý nebo už použitý token = obyčejné hello (s kódem postavy) – klient se tak
+## nedozví, jestli nějaká postava existovala, a nezíská nic navíc. Jeden pokus na spojení.
+@rpc("any_peer", "call_remote", "reliable")
+func _c2s_resume(player_name: Variant, version: Variant, token: Variant, character_code: Variant) -> void:
+	if not multiplayer.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if players.has(id) or not pending.has(id):
+		stats["rejected"] += 1
+		return
+	if typeof(version) != TYPE_INT or int(version) != Protocol.VERSION:
+		stats["rejected"] += 1
+		_s2c_notice.rpc_id(id, "Nekompatibilní verze hry (server %d)." % Protocol.VERSION)
+		_kick_later(id)
+		return
+	_expire_held()
+	var h := _token_hash(token) if _valid_token_format(token) else String()
+	if h != String() and _held.has(h):
+		var entry: Dictionary = _held[h]
+		_held.erase(h)
+		var s = world.find_sim(String(entry["sim"]))
+		if s != null:
+			pending.erase(id)
+			stats["resumed"] += 1
+			if s.has_meta("reconnect_hold"):
+				s.remove_meta("reconnect_hold")
+			_register_player(id, player_name, {}, entry)
+			return
+	stats["resume_failed"] += 1
+	_notify(id, "Předchozí relace už neplatí – vstupuješ do hry znovu.")
+	_hello_with_character(id, player_name, character_code)
+
+
+## Hráč chce odejít (menu) – jeho postava na něj nebude čekat. Odpojí ho server po KICK_DELAY.
+@rpc("any_peer", "call_remote", "reliable")
+func _c2s_leave() -> void:
+	if not multiplayer.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	if not players.has(id):
+		stats["rejected"] += 1
+		return
+	_leaving[id] = true
+	_peer_token_hash.erase(id)
+	_kick_at[id] = _now() + KICK_DELAY
+
+
+func _hello_with_character(id: int, player_name: Variant, character_code: Variant) -> void:
 	# Vlastní postava: server NIKDY nevěří datům klienta – limity, CRC, JSON, migrace, striktní validace.
 	var character := {}
 	if typeof(character_code) != TYPE_STRING:
@@ -402,15 +486,21 @@ func _c2s_emergency() -> void:
 
 # ---------------------------------------------------------------- server: logika
 
-func _register_player(id: int, raw_name: Variant, character := {}) -> void:
+func _register_player(id: int, raw_name: Variant, character := {}, resume := {}) -> void:
 	var taken: Array = []
 	for pid in players:
 		taken.append(players[pid]["name"])
-	var nm := Protocol.unique_name(Protocol.sanitize_name(raw_name), taken)
+	for hk in _held:
+		taken.append(_held[hk]["name"])
+	# Návrat: jméno z původní relace (už sanitizované serverem), ne nové jméno od klienta.
+	var nm := Protocol.unique_name(String(resume["name"]) if not resume.is_empty() else Protocol.sanitize_name(raw_name), taken)
 	var now := _now()
 	var sim := String()
 	var own := false
-	if not character.is_empty():
+	if not resume.is_empty():
+		sim = String(resume["sim"])
+		own = bool(resume.get("own", false))
+	elif not character.is_empty():
 		sim = _spawn_player_character(id, character)
 		own = sim != String()
 		if not own:
@@ -431,6 +521,8 @@ func _register_player(id: int, raw_name: Variant, character := {}) -> void:
 		welcomed.emit(sim)
 	else:
 		_s2c_welcome.rpc_id(id, id, nm, sim)
+		if sim != String():
+			_issue_reconnect_token(id)
 	_refresh_visibility()
 	# Spawner replays original spawn data. Catch a newly introduced peer up
 	# with the current canonical look after earlier edits. The client buffers
@@ -442,7 +534,9 @@ func _register_player(id: int, raw_name: Variant, character := {}) -> void:
 				_server_broadcast_character_public_look(String(key), revision, id)
 	_broadcast_roster()
 	var msg := "%s vstupuje do hry" % nm
-	if sim != "":
+	if not resume.is_empty():
+		msg = "%s se vrací ke své postavě %s." % [nm, _sim_display(sim)]
+	elif sim != "":
 		msg += " a ovládá postavu %s." % _sim_display(sim)
 	else:
 		msg += " jako divák (všechny postavy jsou obsazené)."
@@ -470,6 +564,11 @@ func _spawn_player_character(id: int, character: Dictionary) -> String:
 	for pid in players:
 		if bool(players[pid].get("own", false)):
 			count += 1
+	# Držené (čekající na návrat) vlastní postavy se počítají taky – opakované odpojení
+	# a připojení s novým kódem postavy nesmí limit obejít.
+	for hk in _held:
+		if bool(_held[hk].get("own", false)):
+			count += 1
 	if count >= Protocol.MAX_PLAYER_CHARACTERS:
 		return String()
 	var c := CharacterData.new()
@@ -494,6 +593,8 @@ func _free_sim() -> String:
 	var owned: Array = []
 	for pid in players:
 		owned.append(players[pid]["sim"])
+	for hk in _held:
+		owned.append(_held[hk]["sim"])
 	for s in world.get_sims():
 		if not owned.has(String(s.name)) and not bool(s.get_meta("player_character", false)):
 			return String(s.name)
@@ -514,25 +615,196 @@ func _on_peer_disconnected(id: int) -> void:
 	_public_resync_limiters.erase(id)
 	pending.erase(id)
 	_kick_at.erase(id)
+	var token_hash: String = String(_peer_token_hash.get(id, ""))
+	_peer_token_hash.erase(id)
+	var leaving := bool(_leaving.get(id, false))
+	_leaving.erase(id)
 	if not players.has(id):
 		return
 	var p: Dictionary = players[id]
 	players.erase(id)
 	_private_sent.erase(id)
 	# Postava domácnosti se vrací pod autonomní řízení – zrušit zbytek hráčových příkazů.
-	# Vlastní postava hráče odchází s ním (despawn se replikuje všem klientům).
 	var s = world.find_sim(p["sim"])
 	if s != null and s.has_method("command"):
 		s.player_queue.clear()
-		if bool(p.get("own", false)):
-			if s.has_method("leave_world"):
-				s.leave_world()
-			world.unregister_sim(s)
-			s.queue_free()
+	# H4a: neplánovaný výpadek (ne úmyslný odchod, ne vypnutí serveru) → postava na hráče počká.
+	# Žije dál pod AI (svět se kvůli jednomu hráči nezastaví), nikdo jiný ji nedostane.
+	var hold := s != null and _connected and not leaving and token_hash != String() \
+		and reconnect_grace_seconds > 0.0
+	if hold:
+		_held[token_hash] = {"sim": String(p["sim"]), "name": String(p["name"]),
+			"own": bool(p.get("own", false)), "expires": _now() + reconnect_grace_seconds}
+		s.set_meta("reconnect_hold", true)
+		stats["held"] += 1
+	elif s != null and s.has_method("command") and bool(p.get("own", false)):
+		# Vlastní postava hráče odchází s ním (despawn se replikuje všem klientům).
+		_despawn_own(s)
 	_refresh_visibility()
 	_broadcast_roster()
-	_system_chat("%s opouští hru." % p["name"])
+	if hold:
+		_system_chat("%s opouští hru (ztráta spojení) – postava %s na návrat čeká %d s." % [
+			p["name"], _sim_display(String(p["sim"])), int(ceil(reconnect_grace_seconds))])
+	else:
+		_system_chat("%s opouští hru." % p["name"])
 	_update_speed()
+
+
+func _despawn_own(s: Node) -> void:
+	if s.has_method("leave_world"):
+		s.leave_world()
+	world.unregister_sim(s)
+	s.queue_free()
+
+
+# ---------------------------------------------------------------- H4a: tokeny a držené postavy
+
+static func _valid_token_format(token: Variant) -> bool:
+	if typeof(token) != TYPE_STRING:
+		return false
+	var t := String(token)
+	if t.length() != RECONNECT_TOKEN_BYTES * 2:
+		return false
+	for i in t.length():
+		var c := t.unicode_at(i)
+		if not ((c >= 48 and c <= 57) or (c >= 97 and c <= 102)):  # jen malé hex 0-9a-f
+			return false
+	return true
+
+
+static func _token_hash(token: Variant) -> String:
+	return String(token).sha256_text()
+
+
+## Server: nový jednorázový token pro připojeného hráče (rotace při každém přivítání/návratu).
+func _issue_reconnect_token(id: int) -> void:
+	if reconnect_grace_seconds <= 0.0 or id <= 1:
+		return
+	var token := Crypto.new().generate_random_bytes(RECONNECT_TOKEN_BYTES).hex_encode()
+	_peer_token_hash[id] = _token_hash(token)
+	_s2c_reconnect_token.rpc_id(id, token)
+
+
+## Server: postavy, jejichž hráč se do konce lhůty nevrátil – vlastní odchází, domácí se uvolní.
+func _expire_held() -> void:
+	if _held.is_empty():
+		return
+	var now := _now()
+	var gone: Array = []
+	for hk in _held:
+		if float(_held[hk]["expires"]) <= now:
+			gone.append(hk)
+	for hk in gone:
+		var e: Dictionary = _held[hk]
+		_held.erase(hk)
+		stats["hold_expired"] += 1
+		var s = world.find_sim(String(e["sim"]))
+		if s != null:
+			if s.has_meta("reconnect_hold"):
+				s.remove_meta("reconnect_hold")
+			if bool(e.get("own", false)) and s.has_method("command"):
+				_despawn_own(s)
+		_system_chat("%s se nevrátil(a) – postava %s už nečeká." % [e["name"], String(e["sim"]) if s == null else _sim_display(String(e["sim"]))])
+	_refresh_visibility()
+
+
+## Server (testy, HUD hostitele): kolik postav čeká na návrat hráče.
+func held_count() -> int:
+	return _held.size()
+
+
+func is_held(sim_node: String) -> bool:
+	for hk in _held:
+		if String(_held[hk]["sim"]) == sim_node:
+			return true
+	return false
+
+
+# ---------------------------------------------------------------- H4b: perzistence serveru
+
+## Hostitel se serverovou perzistencí: registrace až po obnově světa. Když uložený svět obsahuje
+## hostitelovu vlastní postavu (resume_sim), dostane ji zpět místo nového spawnu.
+func register_local_host(player_name := "", character := {}, resume_sim := "") -> void:
+	if mode != Mode.HOST or players.has(1):
+		return
+	var s = world.find_sim(resume_sim) if resume_sim != "" else null
+	if s != null and bool(s.get_meta("player_character", false)) and not is_held(resume_sim):
+		_register_player(1, player_name, {}, {"sim": resume_sim, "name": Protocol.sanitize_name(player_name), "own": true})
+	else:
+		_register_player(1, player_name, character)
+
+
+## Server: co z relací hráčů přežije restart serveru. Ukládají se JEN SHA-256 hashe tokenů
+## (samotný token server nikdy nemá). Připojení hráči s tokenem se uloží jako držení s celou
+## lhůtou; už držené postavy jen se zbytkem své lhůty (opakované restarty ji neprodlužují).
+## Hráči na odchodu token nemají (_c2s_leave) a jejich vlastní postava už odešla se světem.
+## Hostitel (peer 1) token nemá, uloží se jen jeho vlastní postava.
+func persist_snapshot() -> Dictionary:
+	var held: Array = []
+	if not is_authority() or mode == Mode.OFFLINE:
+		return {"held": held, "host_sim": ""}
+	var now := _now()
+	for pid in players:
+		if pid == 1:
+			continue
+		var h := String(_peer_token_hash.get(pid, ""))
+		if h == String() or String(players[pid]["sim"]) == String():
+			continue
+		held.append({"hash": h, "sim": String(players[pid]["sim"]), "name": String(players[pid]["name"]),
+			"own": bool(players[pid].get("own", false)), "remaining": reconnect_grace_seconds})
+	for hk in _held:
+		var e: Dictionary = _held[hk]
+		if float(e["expires"]) <= now:
+			continue
+		held.append({"hash": String(hk), "sim": String(e["sim"]), "name": String(e["name"]),
+			"own": bool(e.get("own", false)), "remaining": float(e["expires"]) - now})
+	var host_sim := ""
+	if mode == Mode.HOST and players.has(1) and bool(players[1].get("own", false)):
+		host_sim = String(players[1]["sim"])
+	return {"held": held, "host_sim": host_sim}
+
+
+## Server po obnově uloženého světa (PŘED prvním klientem): postavy čekají na návrat svých
+## hráčů po uložený zbytek lhůty (nejvýš reconnect_grace_seconds) od startu serveru. Záznamy už
+## ověřil ServerWorldStore; tady se navíc kontroluje, že postava existuje a není držená dvakrát.
+func restore_held(entries: Array) -> int:
+	if not is_authority() or mode == Mode.OFFLINE or reconnect_grace_seconds <= 0.0:
+		return 0
+	var n := 0
+	for e in entries:
+		if typeof(e) != TYPE_DICTIONARY:
+			continue
+		var h := String(e.get("hash", ""))
+		var sim := String(e.get("sim", ""))
+		var s = world.find_sim(sim)
+		var remaining := clampf(float(e.get("remaining", reconnect_grace_seconds)), 0.0, reconnect_grace_seconds)
+		if s == null or h == String() or _held.has(h) or is_held(sim) or not (remaining > 0.0):
+			continue
+		_held[h] = {"sim": sim, "name": Protocol.sanitize_name(e.get("name", "")),
+			"own": bool(e.get("own", false)), "expires": _now() + remaining}
+		s.set_meta("reconnect_hold", true)
+		stats["restored_held"] += 1
+		n += 1
+	return n
+
+
+## Klient: úmyslný odchod – server postavu nedrží. Spojení ukončí server.
+func request_leave() -> void:
+	if mode == Mode.CLIENT and _connected:
+		_c2s_leave.rpc_id(1)
+		# Při zavírání okna se proces ukončí hned – žádost odeslat teď, ne až v příštím poll().
+		# (Třídu ENet nejmenovat staticky – webová verze ji nemusí mít.)
+		var peer := multiplayer.multiplayer_peer
+		if peer != null and peer.get_class() == "ENetMultiplayerPeer":
+			var host = peer.get("host")
+			if host != null:
+				host.flush()
+	my_reconnect_token = String()
+
+
+## Klient: je možné se vrátit k postavě (máme token a víme kam)?
+func can_resume() -> bool:
+	return mode == Mode.CLIENT and my_reconnect_token != String() and not last_join.is_empty()
 
 
 func _kick(id: int) -> void:
@@ -741,10 +1013,32 @@ func _remote_players() -> Array:
 	var out: Array = []
 	if not _connected:
 		return out
+	# Jen peery, které ENet/SceneMultiplayer ještě opravdu vede jako připojené: při souběžném
+	# odpojení více klientů může být jiný hráč odpojen dřív, než doběhne jeho handler
+	# (rpc_id do něj = „Unable to send packet … max channels: 0“).
+	var live := multiplayer.get_peers()
 	for pid in players:
-		if pid != 1:
+		if pid != 1 and live.has(pid) and _peer_transport_live(pid):
 			out.append(pid)
 	return out
+
+
+## ENet: peer, jehož spojení už ENet ukončil (resetovaný peer bez kanálů), se mezi peery
+## SceneMultiplayer ještě chvíli drží, než server zpracuje událost odpojení. Posílat mu nic.
+## (Třídy ENet se jmenují dynamicky – webová verze je nemá.)
+func _peer_transport_live(pid: int) -> bool:
+	var mp := multiplayer.multiplayer_peer
+	if mp == null or mp.get_class() != "ENetMultiplayerPeer":
+		return true
+	var pp = mp.call("get_peer", pid)
+	if pp == null:
+		return false
+	if _enet_state_connected < 0:
+		_enet_state_connected = ClassDB.class_get_integer_constant("ENetPacketPeer", "STATE_CONNECTED")
+	return int(pp.call("get_state")) == _enet_state_connected
+
+
+var _enet_state_connected := -1
 
 
 func _broadcast_chat(from: String, text: String, system: bool) -> void:
@@ -790,6 +1084,7 @@ func _process(delta: float) -> void:
 		if now >= float(_kick_at[id]):
 			_kick_at.erase(id)
 			_kick(id)
+	_expire_held()
 	if emergency_until > 0.0 and now >= emergency_until:
 		emergency_until = 0.0
 		_system_chat("Nouzová pauza skončila.")
@@ -865,6 +1160,13 @@ func _s2c_private(sim_node: Variant, needs: Variant, detail: Variant) -> void:
 		p.apply_private(needs, detail)
 
 
+## H4a: jednorázový token pro návrat k postavě. Drží se jen v paměti klienta.
+@rpc("authority", "call_remote", "reliable")
+func _s2c_reconnect_token(token: Variant) -> void:
+	if _valid_token_format(token):
+		my_reconnect_token = String(token)
+
+
 @rpc("authority", "call_remote", "reliable")
 func _s2c_notice(text: Variant) -> void:
 	if typeof(text) == TYPE_STRING:
@@ -882,7 +1184,13 @@ func _add_chat(from: String, text: String, system: bool) -> void:
 
 func _on_connected_to_server() -> void:
 	_connected = true
-	_c2s_hello.rpc_id(1, my_name, Protocol.VERSION, my_character_code)
+	if my_reconnect_token != String():
+		var token := my_reconnect_token
+		# Token je jednorázový: po odeslání ho klient zapomene; server pošle nový.
+		my_reconnect_token = String()
+		_c2s_resume.rpc_id(1, my_name, Protocol.VERSION, token, my_character_code)
+	else:
+		_c2s_hello.rpc_id(1, my_name, Protocol.VERSION, my_character_code)
 
 
 func _on_connection_failed() -> void:

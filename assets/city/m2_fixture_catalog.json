@@ -1,0 +1,2712 @@
+{
+  "version": 1,
+  "units": "meters",
+  "front": "+Z",
+  "materials": {
+    "enamel": [
+      0.88,
+      0.9,
+      0.87,
+      1
+    ],
+    "steel": [
+      0.55,
+      0.6,
+      0.65,
+      1
+    ],
+    "dark": [
+      0.045,
+      0.055,
+      0.065,
+      1
+    ],
+    "wood": [
+      0.42,
+      0.25,
+      0.12,
+      1
+    ],
+    "ceramic": [
+      0.92,
+      0.94,
+      0.95,
+      1
+    ],
+    "glass": [
+      0.5,
+      0.75,
+      0.8,
+      0.22
+    ],
+    "screen": [
+      0.06,
+      0.22,
+      0.32,
+      1
+    ],
+    "fabric": [
+      0.23,
+      0.38,
+      0.46,
+      1
+    ],
+    "red": [
+      0.65,
+      0.18,
+      0.12,
+      1
+    ],
+    "blue": [
+      0.12,
+      0.28,
+      0.55,
+      1
+    ],
+    "green": [
+      0.2,
+      0.4,
+      0.22,
+      1
+    ]
+  },
+  "entries": {
+    "stove": {
+      "label": "Sporák",
+      "tag": "stove",
+      "action": "cook",
+      "use": [
+        [
+          0,
+          0,
+          0.95
+        ]
+      ],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Cabinet",
+          "shape": "box",
+          "size": [
+            0.9,
+            0.9,
+            0.7
+          ],
+          "position": [
+            0,
+            0.45,
+            0
+          ],
+          "material": "enamel"
+        },
+        {
+          "name": "Hob",
+          "shape": "box",
+          "size": [
+            0.9,
+            0.03,
+            0.7
+          ],
+          "position": [
+            0,
+            0.915,
+            0
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "Burner",
+          "shape": "cylinder",
+          "size": [
+            0.2,
+            0.012,
+            0.2
+          ],
+          "position": [
+            -0.2,
+            0.936,
+            -0.16
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Burner",
+          "shape": "cylinder",
+          "size": [
+            0.2,
+            0.012,
+            0.2
+          ],
+          "position": [
+            -0.2,
+            0.936,
+            0.16
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Burner",
+          "shape": "cylinder",
+          "size": [
+            0.2,
+            0.012,
+            0.2
+          ],
+          "position": [
+            0.2,
+            0.936,
+            -0.16
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Burner",
+          "shape": "cylinder",
+          "size": [
+            0.2,
+            0.012,
+            0.2
+          ],
+          "position": [
+            0.2,
+            0.936,
+            0.16
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Oven",
+          "shape": "box",
+          "size": [
+            0.69,
+            0.43,
+            0.018
+          ],
+          "position": [
+            0,
+            0.46,
+            0.36
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "OvenGlass",
+          "shape": "box",
+          "size": [
+            0.55,
+            0.29,
+            0.02
+          ],
+          "position": [
+            0,
+            0.46,
+            0.372
+          ],
+          "material": "screen"
+        },
+        {
+          "name": "Handle",
+          "shape": "box",
+          "size": [
+            0.58,
+            0.035,
+            0.055
+          ],
+          "position": [
+            0,
+            0.73,
+            0.39
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Dial",
+          "shape": "cylinder",
+          "size": [
+            0.05,
+            0.025,
+            0.05
+          ],
+          "position": [
+            -0.3,
+            0.855,
+            0.38
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Dial",
+          "shape": "cylinder",
+          "size": [
+            0.05,
+            0.025,
+            0.05
+          ],
+          "position": [
+            -0.1,
+            0.855,
+            0.38
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Dial",
+          "shape": "cylinder",
+          "size": [
+            0.05,
+            0.025,
+            0.05
+          ],
+          "position": [
+            0.1,
+            0.855,
+            0.38
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Dial",
+          "shape": "cylinder",
+          "size": [
+            0.05,
+            0.025,
+            0.05
+          ],
+          "position": [
+            0.3,
+            0.855,
+            0.38
+          ],
+          "material": "steel"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Cabinet",
+          "size": [
+            0.9,
+            0.9,
+            0.7
+          ],
+          "position": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "name": "Hob",
+          "size": [
+            0.9,
+            0.03,
+            0.7
+          ],
+          "position": [
+            0,
+            0.915,
+            0
+          ]
+        }
+      ]
+    },
+    "counter": {
+      "label": "Kuchyňská linka",
+      "tag": "",
+      "action": "",
+      "use": [],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Cabinet",
+          "shape": "box",
+          "size": [
+            1.2,
+            0.88,
+            0.65
+          ],
+          "position": [
+            0,
+            0.44,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Top",
+          "shape": "box",
+          "size": [
+            1.24,
+            0.045,
+            0.7
+          ],
+          "position": [
+            0,
+            0.9025,
+            0
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "Door",
+          "shape": "box",
+          "size": [
+            0.57,
+            0.7,
+            0.025
+          ],
+          "position": [
+            -0.3,
+            0.47,
+            0.34
+          ],
+          "material": "enamel"
+        },
+        {
+          "name": "Handle",
+          "shape": "box",
+          "size": [
+            0.14,
+            0.025,
+            0.035
+          ],
+          "position": [
+            -0.3,
+            0.73,
+            0.37
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Door",
+          "shape": "box",
+          "size": [
+            0.57,
+            0.7,
+            0.025
+          ],
+          "position": [
+            0.3,
+            0.47,
+            0.34
+          ],
+          "material": "enamel"
+        },
+        {
+          "name": "Handle",
+          "shape": "box",
+          "size": [
+            0.14,
+            0.025,
+            0.035
+          ],
+          "position": [
+            0.3,
+            0.73,
+            0.37
+          ],
+          "material": "steel"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Cabinet",
+          "size": [
+            1.2,
+            0.88,
+            0.65
+          ],
+          "position": [
+            0,
+            0.44,
+            0
+          ]
+        },
+        {
+          "name": "Top",
+          "size": [
+            1.24,
+            0.045,
+            0.7
+          ],
+          "position": [
+            0,
+            0.9025,
+            0
+          ]
+        }
+      ]
+    },
+    "sink": {
+      "label": "Dřez s baterií",
+      "tag": "",
+      "action": "",
+      "use": [],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Cabinet",
+          "shape": "box",
+          "size": [
+            0.8,
+            0.86,
+            0.65
+          ],
+          "position": [
+            0,
+            0.43,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "BasinBottom",
+          "shape": "box",
+          "size": [
+            0.7,
+            0.035,
+            0.53
+          ],
+          "position": [
+            0,
+            0.75,
+            0
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "BasinSide",
+          "shape": "box",
+          "size": [
+            0.055,
+            0.16,
+            0.65
+          ],
+          "position": [
+            -0.36,
+            0.825,
+            0
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "BasinSide",
+          "shape": "box",
+          "size": [
+            0.055,
+            0.16,
+            0.65
+          ],
+          "position": [
+            0.36,
+            0.825,
+            0
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "BasinEnd",
+          "shape": "box",
+          "size": [
+            0.67,
+            0.16,
+            0.055
+          ],
+          "position": [
+            0,
+            0.825,
+            -0.29
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "BasinEnd",
+          "shape": "box",
+          "size": [
+            0.67,
+            0.16,
+            0.055
+          ],
+          "position": [
+            0,
+            0.825,
+            0.29
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Drain",
+          "shape": "cylinder",
+          "size": [
+            0.09,
+            0.005,
+            0.09
+          ],
+          "position": [
+            0,
+            0.771,
+            0
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "TapStem",
+          "shape": "cylinder",
+          "size": [
+            0.036,
+            0.35,
+            0.036
+          ],
+          "position": [
+            0.27,
+            1.04,
+            -0.23
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "TapSpout",
+          "shape": "box",
+          "size": [
+            0.21,
+            0.035,
+            0.035
+          ],
+          "position": [
+            0.17,
+            1.2,
+            -0.23
+          ],
+          "material": "steel"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Cabinet",
+          "size": [
+            0.8,
+            0.86,
+            0.65
+          ],
+          "position": [
+            0,
+            0.43,
+            0
+          ]
+        },
+        {
+          "name": "BasinBottom",
+          "size": [
+            0.7,
+            0.035,
+            0.53
+          ],
+          "position": [
+            0,
+            0.75,
+            0
+          ]
+        },
+        {
+          "name": "BasinSide",
+          "size": [
+            0.055,
+            0.16,
+            0.65
+          ],
+          "position": [
+            -0.36,
+            0.825,
+            0
+          ]
+        },
+        {
+          "name": "BasinSide",
+          "size": [
+            0.055,
+            0.16,
+            0.65
+          ],
+          "position": [
+            0.36,
+            0.825,
+            0
+          ]
+        },
+        {
+          "name": "BasinEnd",
+          "size": [
+            0.67,
+            0.16,
+            0.055
+          ],
+          "position": [
+            0,
+            0.825,
+            -0.29
+          ]
+        },
+        {
+          "name": "BasinEnd",
+          "size": [
+            0.67,
+            0.16,
+            0.055
+          ],
+          "position": [
+            0,
+            0.825,
+            0.29
+          ]
+        }
+      ]
+    },
+    "shower": {
+      "label": "Sprchový kout",
+      "tag": "shower",
+      "action": "shower",
+      "use": [
+        [
+          0,
+          0,
+          0.17
+        ]
+      ],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Tray",
+          "shape": "box",
+          "size": [
+            1.2,
+            0.05,
+            1.2
+          ],
+          "position": [
+            0,
+            -0.025,
+            0
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "Drain",
+          "shape": "cylinder",
+          "size": [
+            0.11,
+            0.003,
+            0.11
+          ],
+          "position": [
+            0.3,
+            0.002,
+            -0.35
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "SideGlass",
+          "shape": "box",
+          "size": [
+            0.025,
+            2,
+            1.2
+          ],
+          "position": [
+            -0.6,
+            1,
+            0
+          ],
+          "material": "glass"
+        },
+        {
+          "name": "SideGlass",
+          "shape": "box",
+          "size": [
+            0.025,
+            2,
+            1.2
+          ],
+          "position": [
+            0.6,
+            1,
+            0
+          ],
+          "material": "glass"
+        },
+        {
+          "name": "RearGlass",
+          "shape": "box",
+          "size": [
+            1.2,
+            2,
+            0.025
+          ],
+          "position": [
+            0,
+            1,
+            -0.6
+          ],
+          "material": "glass"
+        },
+        {
+          "name": "Pipe",
+          "shape": "cylinder",
+          "size": [
+            0.036,
+            1.95,
+            0.036
+          ],
+          "position": [
+            -0.43,
+            0.975,
+            -0.5
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Head",
+          "shape": "cylinder",
+          "size": [
+            0.24,
+            0.025,
+            0.24
+          ],
+          "position": [
+            -0.3,
+            1.95,
+            -0.36
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "HeadArm",
+          "shape": "box",
+          "size": [
+            0.15,
+            0.025,
+            0.16
+          ],
+          "position": [
+            -0.36,
+            1.94,
+            -0.43
+          ],
+          "material": "steel"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Tray",
+          "size": [
+            1.2,
+            0.05,
+            1.2
+          ],
+          "position": [
+            0,
+            -0.025,
+            0
+          ]
+        },
+        {
+          "name": "SideGlass",
+          "size": [
+            0.025,
+            2,
+            1.2
+          ],
+          "position": [
+            -0.6,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "SideGlass",
+          "size": [
+            0.025,
+            2,
+            1.2
+          ],
+          "position": [
+            0.6,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "RearGlass",
+          "size": [
+            1.2,
+            2,
+            0.025
+          ],
+          "position": [
+            0,
+            1,
+            -0.6
+          ]
+        }
+      ]
+    },
+    "toilet": {
+      "label": "Toaleta — vybavení",
+      "tag": "",
+      "action": "",
+      "use": [],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Base",
+          "shape": "box",
+          "size": [
+            0.31,
+            0.3,
+            0.45
+          ],
+          "position": [
+            0,
+            0.15,
+            0.06
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "Cistern",
+          "shape": "box",
+          "size": [
+            0.44,
+            0.65,
+            0.2
+          ],
+          "position": [
+            0,
+            0.325,
+            -0.27
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "BowlBase",
+          "shape": "box",
+          "size": [
+            0.43,
+            0.07,
+            0.56
+          ],
+          "position": [
+            0,
+            0.32,
+            0.09
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "RimSide",
+          "shape": "box",
+          "size": [
+            0.055,
+            0.07,
+            0.55
+          ],
+          "position": [
+            -0.2,
+            0.39,
+            0.09
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "RimSide",
+          "shape": "box",
+          "size": [
+            0.055,
+            0.07,
+            0.55
+          ],
+          "position": [
+            0.2,
+            0.39,
+            0.09
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "RimEnd",
+          "shape": "box",
+          "size": [
+            0.36,
+            0.07,
+            0.055
+          ],
+          "position": [
+            0,
+            0.39,
+            -0.16
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "RimEnd",
+          "shape": "box",
+          "size": [
+            0.36,
+            0.07,
+            0.055
+          ],
+          "position": [
+            0,
+            0.39,
+            0.34
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "Flush",
+          "shape": "cylinder",
+          "size": [
+            0.05,
+            0.012,
+            0.05
+          ],
+          "position": [
+            0.12,
+            0.658,
+            -0.27
+          ],
+          "material": "steel"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Base",
+          "size": [
+            0.31,
+            0.3,
+            0.45
+          ],
+          "position": [
+            0,
+            0.15,
+            0.06
+          ]
+        },
+        {
+          "name": "Cistern",
+          "size": [
+            0.44,
+            0.65,
+            0.2
+          ],
+          "position": [
+            0,
+            0.325,
+            -0.27
+          ]
+        },
+        {
+          "name": "BowlBase",
+          "size": [
+            0.43,
+            0.07,
+            0.56
+          ],
+          "position": [
+            0,
+            0.32,
+            0.09
+          ]
+        },
+        {
+          "name": "RimSide",
+          "size": [
+            0.055,
+            0.07,
+            0.55
+          ],
+          "position": [
+            -0.2,
+            0.39,
+            0.09
+          ]
+        },
+        {
+          "name": "RimSide",
+          "size": [
+            0.055,
+            0.07,
+            0.55
+          ],
+          "position": [
+            0.2,
+            0.39,
+            0.09
+          ]
+        },
+        {
+          "name": "RimEnd",
+          "size": [
+            0.36,
+            0.07,
+            0.055
+          ],
+          "position": [
+            0,
+            0.39,
+            -0.16
+          ]
+        },
+        {
+          "name": "RimEnd",
+          "size": [
+            0.36,
+            0.07,
+            0.055
+          ],
+          "position": [
+            0,
+            0.39,
+            0.34
+          ]
+        }
+      ]
+    },
+    "bathtub": {
+      "label": "Vana — vybavení",
+      "tag": "",
+      "action": "",
+      "use": [],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Bottom",
+          "shape": "box",
+          "size": [
+            0.78,
+            0.06,
+            1.65
+          ],
+          "position": [
+            0,
+            0.08,
+            0
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "Side",
+          "shape": "box",
+          "size": [
+            0.08,
+            0.48,
+            1.8
+          ],
+          "position": [
+            -0.4,
+            0.29,
+            0
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "Side",
+          "shape": "box",
+          "size": [
+            0.08,
+            0.48,
+            1.8
+          ],
+          "position": [
+            0.4,
+            0.29,
+            0
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "End",
+          "shape": "box",
+          "size": [
+            0.75,
+            0.48,
+            0.08
+          ],
+          "position": [
+            0,
+            0.29,
+            -0.86
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "End",
+          "shape": "box",
+          "size": [
+            0.75,
+            0.48,
+            0.08
+          ],
+          "position": [
+            0,
+            0.29,
+            0.86
+          ],
+          "material": "ceramic"
+        },
+        {
+          "name": "Drain",
+          "shape": "cylinder",
+          "size": [
+            0.09,
+            0.006,
+            0.09
+          ],
+          "position": [
+            0,
+            0.113,
+            -0.64
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Tap",
+          "shape": "cylinder",
+          "size": [
+            0.05,
+            0.22,
+            0.05
+          ],
+          "position": [
+            0.31,
+            0.59,
+            -0.7
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Spout",
+          "shape": "box",
+          "size": [
+            0.2,
+            0.035,
+            0.035
+          ],
+          "position": [
+            0.24,
+            0.69,
+            -0.7
+          ],
+          "material": "steel"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Bottom",
+          "size": [
+            0.78,
+            0.06,
+            1.65
+          ],
+          "position": [
+            0,
+            0.08,
+            0
+          ]
+        },
+        {
+          "name": "Side",
+          "size": [
+            0.08,
+            0.48,
+            1.8
+          ],
+          "position": [
+            -0.4,
+            0.29,
+            0
+          ]
+        },
+        {
+          "name": "Side",
+          "size": [
+            0.08,
+            0.48,
+            1.8
+          ],
+          "position": [
+            0.4,
+            0.29,
+            0
+          ]
+        },
+        {
+          "name": "End",
+          "size": [
+            0.75,
+            0.48,
+            0.08
+          ],
+          "position": [
+            0,
+            0.29,
+            -0.86
+          ]
+        },
+        {
+          "name": "End",
+          "size": [
+            0.75,
+            0.48,
+            0.08
+          ],
+          "position": [
+            0,
+            0.29,
+            0.86
+          ]
+        }
+      ]
+    },
+    "dining_table": {
+      "label": "Jídelní stůl",
+      "tag": "",
+      "action": "",
+      "use": [],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Top",
+          "shape": "box",
+          "size": [
+            1.6,
+            0.055,
+            0.9
+          ],
+          "position": [
+            0,
+            0.765,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg-1-1",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            -0.69,
+            0.36875,
+            -0.34
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg-11",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            -0.69,
+            0.36875,
+            0.34
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg1-1",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            0.69,
+            0.36875,
+            -0.34
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg11",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            0.69,
+            0.36875,
+            0.34
+          ],
+          "material": "wood"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Top",
+          "size": [
+            1.6,
+            0.055,
+            0.9
+          ],
+          "position": [
+            0,
+            0.765,
+            0
+          ]
+        },
+        {
+          "name": "Leg-1-1",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            -0.69,
+            0.36875,
+            -0.34
+          ]
+        },
+        {
+          "name": "Leg-11",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            -0.69,
+            0.36875,
+            0.34
+          ]
+        },
+        {
+          "name": "Leg1-1",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            0.69,
+            0.36875,
+            -0.34
+          ]
+        },
+        {
+          "name": "Leg11",
+          "size": [
+            0.06,
+            0.7375,
+            0.06
+          ],
+          "position": [
+            0.69,
+            0.36875,
+            0.34
+          ]
+        }
+      ]
+    },
+    "dining_chair": {
+      "label": "Jídelní židle",
+      "tag": "",
+      "action": "",
+      "use": [],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Seat",
+          "shape": "box",
+          "size": [
+            0.46,
+            0.065,
+            0.46
+          ],
+          "position": [
+            0,
+            0.46,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg-1-1",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            -0.17,
+            0.21375,
+            -0.17
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg-11",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            -0.17,
+            0.21375,
+            0.17
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg1-1",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            0.17,
+            0.21375,
+            -0.17
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Leg11",
+          "shape": "box",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            0.17,
+            0.21375,
+            0.17
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Back",
+          "shape": "box",
+          "size": [
+            0.46,
+            0.46,
+            0.055
+          ],
+          "position": [
+            0,
+            0.73,
+            -0.2
+          ],
+          "material": "wood"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Seat",
+          "size": [
+            0.46,
+            0.065,
+            0.46
+          ],
+          "position": [
+            0,
+            0.46,
+            0
+          ]
+        },
+        {
+          "name": "Leg-1-1",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            -0.17,
+            0.21375,
+            -0.17
+          ]
+        },
+        {
+          "name": "Leg-11",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            -0.17,
+            0.21375,
+            0.17
+          ]
+        },
+        {
+          "name": "Leg1-1",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            0.17,
+            0.21375,
+            -0.17
+          ]
+        },
+        {
+          "name": "Leg11",
+          "size": [
+            0.06,
+            0.4275,
+            0.06
+          ],
+          "position": [
+            0.17,
+            0.21375,
+            0.17
+          ]
+        },
+        {
+          "name": "Back",
+          "size": [
+            0.46,
+            0.46,
+            0.055
+          ],
+          "position": [
+            0,
+            0.73,
+            -0.2
+          ]
+        }
+      ]
+    },
+    "bookshelf": {
+      "label": "Knihovna",
+      "tag": "bookshelf",
+      "action": "read",
+      "use": [
+        [
+          0,
+          0,
+          0.85
+        ]
+      ],
+      "pose": [],
+      "parts": [
+        {
+          "name": "Side",
+          "shape": "box",
+          "size": [
+            0.06,
+            2,
+            0.35
+          ],
+          "position": [
+            -0.67,
+            1,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Side",
+          "shape": "box",
+          "size": [
+            0.06,
+            2,
+            0.35
+          ],
+          "position": [
+            0.67,
+            1,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Back",
+          "shape": "box",
+          "size": [
+            1.28,
+            2,
+            0.035
+          ],
+          "position": [
+            0,
+            1,
+            -0.16
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Shelf",
+          "shape": "box",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            0.03,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Shelf",
+          "shape": "box",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            0.49,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Shelf",
+          "shape": "box",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            0.95,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Shelf",
+          "shape": "box",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            1.41,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Shelf",
+          "shape": "box",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            1.97,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.54,
+            0.22999999999999998,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            -0.37,
+            0.2425,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            -0.2,
+            0.255,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.030000000000000027,
+            0.22999999999999998,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            0.14,
+            0.2425,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            0.31000000000000005,
+            0.255,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            0.48,
+            0.22999999999999998,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.54,
+            0.6900000000000001,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            -0.37,
+            0.7025,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            -0.2,
+            0.7150000000000001,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.030000000000000027,
+            0.6900000000000001,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            0.14,
+            0.7025,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            0.31000000000000005,
+            0.7150000000000001,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            0.48,
+            0.6900000000000001,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.54,
+            1.15,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            -0.37,
+            1.1625,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            -0.2,
+            1.175,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.030000000000000027,
+            1.15,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            0.14,
+            1.1625,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            0.31000000000000005,
+            1.175,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            0.48,
+            1.15,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.54,
+            1.61,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            -0.37,
+            1.6225000000000003,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            -0.2,
+            1.6350000000000002,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            -0.030000000000000027,
+            1.61,
+            0
+          ],
+          "material": "red"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.325,
+            0.21
+          ],
+          "position": [
+            0.14,
+            1.6225000000000003,
+            0
+          ],
+          "material": "blue"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.35,
+            0.21
+          ],
+          "position": [
+            0.31000000000000005,
+            1.6350000000000002,
+            0
+          ],
+          "material": "green"
+        },
+        {
+          "name": "Book",
+          "shape": "box",
+          "size": [
+            0.12,
+            0.3,
+            0.21
+          ],
+          "position": [
+            0.48,
+            1.61,
+            0
+          ],
+          "material": "red"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Side",
+          "size": [
+            0.06,
+            2,
+            0.35
+          ],
+          "position": [
+            -0.67,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "Side",
+          "size": [
+            0.06,
+            2,
+            0.35
+          ],
+          "position": [
+            0.67,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "Back",
+          "size": [
+            1.28,
+            2,
+            0.035
+          ],
+          "position": [
+            0,
+            1,
+            -0.16
+          ]
+        },
+        {
+          "name": "Shelf",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            0.03,
+            0
+          ]
+        },
+        {
+          "name": "Shelf",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            0.49,
+            0
+          ]
+        },
+        {
+          "name": "Shelf",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            0.95,
+            0
+          ]
+        },
+        {
+          "name": "Shelf",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            1.41,
+            0
+          ]
+        },
+        {
+          "name": "Shelf",
+          "size": [
+            1.28,
+            0.05,
+            0.35
+          ],
+          "position": [
+            0,
+            1.97,
+            0
+          ]
+        }
+      ]
+    },
+    "treadmill": {
+      "label": "Běžecký pás",
+      "tag": "treadmill",
+      "action": "workout",
+      "use": [
+        [
+          0,
+          0,
+          1.3
+        ]
+      ],
+      "pose": [
+        [
+          0,
+          0.18,
+          0.2
+        ]
+      ],
+      "parts": [
+        {
+          "name": "Base",
+          "shape": "box",
+          "size": [
+            0.8,
+            0.15,
+            1.8
+          ],
+          "position": [
+            0,
+            0.075,
+            0
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "Belt",
+          "shape": "box",
+          "size": [
+            0.64,
+            0.03,
+            1.6
+          ],
+          "position": [
+            0,
+            0.165,
+            0
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "Upright",
+          "shape": "box",
+          "size": [
+            0.05,
+            1.1,
+            0.05
+          ],
+          "position": [
+            -0.38,
+            0.7,
+            -0.8
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Rail",
+          "shape": "box",
+          "size": [
+            0.04,
+            0.04,
+            0.68
+          ],
+          "position": [
+            -0.38,
+            1.07,
+            -0.47
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Upright",
+          "shape": "box",
+          "size": [
+            0.05,
+            1.1,
+            0.05
+          ],
+          "position": [
+            0.38,
+            0.7,
+            -0.8
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Rail",
+          "shape": "box",
+          "size": [
+            0.04,
+            0.04,
+            0.68
+          ],
+          "position": [
+            0.38,
+            1.07,
+            -0.47
+          ],
+          "material": "steel"
+        },
+        {
+          "name": "Console",
+          "shape": "box",
+          "size": [
+            0.8,
+            0.22,
+            0.12
+          ],
+          "position": [
+            0,
+            1.25,
+            -0.8
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "Display",
+          "shape": "box",
+          "size": [
+            0.35,
+            0.12,
+            0.01
+          ],
+          "position": [
+            0,
+            1.28,
+            -0.733
+          ],
+          "material": "screen"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Base",
+          "size": [
+            0.8,
+            0.15,
+            1.8
+          ],
+          "position": [
+            0,
+            0.075,
+            0
+          ]
+        },
+        {
+          "name": "Belt",
+          "size": [
+            0.64,
+            0.03,
+            1.6
+          ],
+          "position": [
+            0,
+            0.165,
+            0
+          ]
+        },
+        {
+          "name": "Upright",
+          "size": [
+            0.05,
+            1.1,
+            0.05
+          ],
+          "position": [
+            -0.38,
+            0.7,
+            -0.8
+          ]
+        },
+        {
+          "name": "Rail",
+          "size": [
+            0.04,
+            0.04,
+            0.68
+          ],
+          "position": [
+            -0.38,
+            1.07,
+            -0.47
+          ]
+        },
+        {
+          "name": "Upright",
+          "size": [
+            0.05,
+            1.1,
+            0.05
+          ],
+          "position": [
+            0.38,
+            0.7,
+            -0.8
+          ]
+        },
+        {
+          "name": "Rail",
+          "size": [
+            0.04,
+            0.04,
+            0.68
+          ],
+          "position": [
+            0.38,
+            1.07,
+            -0.47
+          ]
+        },
+        {
+          "name": "Console",
+          "size": [
+            0.8,
+            0.22,
+            0.12
+          ],
+          "position": [
+            0,
+            1.25,
+            -0.8
+          ]
+        }
+      ]
+    },
+    "tv": {
+      "label": "Televizní sestava",
+      "tag": "tv",
+      "action": "watch_tv",
+      "use": [
+        [
+          -0.5,
+          0,
+          2.85
+        ],
+        [
+          0.5,
+          0,
+          2.85
+        ]
+      ],
+      "pose": [
+        [
+          -0.5,
+          0,
+          2.04
+        ],
+        [
+          0.5,
+          0,
+          2.04
+        ]
+      ],
+      "parts": [
+        {
+          "name": "Cabinet",
+          "shape": "box",
+          "size": [
+            1.8,
+            0.5,
+            0.45
+          ],
+          "position": [
+            0,
+            0.25,
+            0
+          ],
+          "material": "wood"
+        },
+        {
+          "name": "Television",
+          "shape": "box",
+          "size": [
+            1.5,
+            0.85,
+            0.06
+          ],
+          "position": [
+            0,
+            1,
+            -0.05
+          ],
+          "material": "dark"
+        },
+        {
+          "name": "Screen",
+          "shape": "box",
+          "size": [
+            1.4,
+            0.76,
+            0.012
+          ],
+          "position": [
+            0,
+            1,
+            -0.012
+          ],
+          "material": "screen"
+        },
+        {
+          "name": "BenchSeat",
+          "shape": "box",
+          "size": [
+            2.1,
+            0.42,
+            0.85
+          ],
+          "position": [
+            0,
+            0.21,
+            2.1
+          ],
+          "material": "fabric"
+        },
+        {
+          "name": "BenchBack",
+          "shape": "box",
+          "size": [
+            2.1,
+            0.48,
+            0.18
+          ],
+          "position": [
+            0,
+            0.66,
+            2.44
+          ],
+          "material": "fabric"
+        },
+        {
+          "name": "Arm",
+          "shape": "box",
+          "size": [
+            0.14,
+            0.22,
+            0.85
+          ],
+          "position": [
+            -1,
+            0.5,
+            2.1
+          ],
+          "material": "fabric"
+        },
+        {
+          "name": "Arm",
+          "shape": "box",
+          "size": [
+            0.14,
+            0.22,
+            0.85
+          ],
+          "position": [
+            1,
+            0.5,
+            2.1
+          ],
+          "material": "fabric"
+        }
+      ],
+      "colliders": [
+        {
+          "name": "Cabinet",
+          "size": [
+            1.8,
+            0.5,
+            0.45
+          ],
+          "position": [
+            0,
+            0.25,
+            0
+          ]
+        },
+        {
+          "name": "Television",
+          "size": [
+            1.5,
+            0.85,
+            0.06
+          ],
+          "position": [
+            0,
+            1,
+            -0.05
+          ]
+        },
+        {
+          "name": "BenchSeat",
+          "size": [
+            2.1,
+            0.42,
+            0.85
+          ],
+          "position": [
+            0,
+            0.21,
+            2.1
+          ]
+        },
+        {
+          "name": "BenchBack",
+          "size": [
+            2.1,
+            0.48,
+            0.18
+          ],
+          "position": [
+            0,
+            0.66,
+            2.44
+          ]
+        },
+        {
+          "name": "Arm",
+          "size": [
+            0.14,
+            0.22,
+            0.85
+          ],
+          "position": [
+            -1,
+            0.5,
+            2.1
+          ]
+        },
+        {
+          "name": "Arm",
+          "size": [
+            0.14,
+            0.22,
+            0.85
+          ],
+          "position": [
+            1,
+            0.5,
+            2.1
+          ]
+        }
+      ]
+    }
+  }
+}

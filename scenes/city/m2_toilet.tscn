@@ -1,0 +1,172 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/city/m2_fixture.gd" id="1_67ivj"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uu3rp"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_8hdsd"]
+size = Vector3(0.31, 0.3, 0.45)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o526v"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_ha31k"]
+size = Vector3(0.44, 0.65, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_h2nb1"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_v761f"]
+size = Vector3(0.43, 0.07, 0.56)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_23ayx"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_4xjbg"]
+size = Vector3(0.055, 0.07, 0.55)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_b55sc"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_4eq83"]
+size = Vector3(0.055, 0.07, 0.55)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pkoi4"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_xtpop"]
+size = Vector3(0.36, 0.07, 0.055)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_76jxl"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_iwxlr"]
+size = Vector3(0.36, 0.07, 0.055)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_85jgj"]
+resource_name = "steel"
+albedo_color = Color(0.55, 0.6, 0.65, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_jd0dm"]
+top_radius = 0.025
+bottom_radius = 0.025
+height = 0.012
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bhhyr"]
+size = Vector3(0.31, 0.3, 0.45)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_xug2o"]
+size = Vector3(0.44, 0.65, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8wbcf"]
+size = Vector3(0.43, 0.07, 0.56)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jni4j"]
+size = Vector3(0.055, 0.07, 0.55)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_0yoab"]
+size = Vector3(0.055, 0.07, 0.55)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1kypa"]
+size = Vector3(0.36, 0.07, 0.055)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_k1u5u"]
+size = Vector3(0.36, 0.07, 0.055)
+
+[node name="M2_toilet" type="Node3D" unique_id=306064162]
+script = ExtResource("1_67ivj")
+furniture_kind = "toilet"
+
+[node name="Model" type="Node3D" parent="." unique_id=1345668840]
+
+[node name="Base" type="MeshInstance3D" parent="Model" unique_id=911333515]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0.06)
+material_override = SubResource("StandardMaterial3D_uu3rp")
+mesh = SubResource("BoxMesh_8hdsd")
+
+[node name="Cistern" type="MeshInstance3D" parent="Model" unique_id=1254752443]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.325, -0.27)
+material_override = SubResource("StandardMaterial3D_o526v")
+mesh = SubResource("BoxMesh_ha31k")
+
+[node name="BowlBase" type="MeshInstance3D" parent="Model" unique_id=228278434]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0.09)
+material_override = SubResource("StandardMaterial3D_h2nb1")
+mesh = SubResource("BoxMesh_v761f")
+
+[node name="RimSide" type="MeshInstance3D" parent="Model" unique_id=1680324449]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.39, 0.09)
+material_override = SubResource("StandardMaterial3D_23ayx")
+mesh = SubResource("BoxMesh_4xjbg")
+
+[node name="@MeshInstance3D@16" type="MeshInstance3D" parent="Model" unique_id=61909970]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.39, 0.09)
+material_override = SubResource("StandardMaterial3D_b55sc")
+mesh = SubResource("BoxMesh_4eq83")
+
+[node name="RimEnd" type="MeshInstance3D" parent="Model" unique_id=1861328522]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.39, -0.16)
+material_override = SubResource("StandardMaterial3D_pkoi4")
+mesh = SubResource("BoxMesh_xtpop")
+
+[node name="@MeshInstance3D@17" type="MeshInstance3D" parent="Model" unique_id=109641226]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.39, 0.34)
+material_override = SubResource("StandardMaterial3D_76jxl")
+mesh = SubResource("BoxMesh_iwxlr")
+
+[node name="Flush" type="MeshInstance3D" parent="Model" unique_id=1639661094]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.658, -0.27)
+material_override = SubResource("StandardMaterial3D_85jgj")
+mesh = SubResource("CylinderMesh_jd0dm")
+
+[node name="Collision" type="StaticBody3D" parent="." unique_id=998707899]
+collision_mask = 3
+
+[node name="Base" type="CollisionShape3D" parent="Collision" unique_id=2005540127]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0.06)
+shape = SubResource("BoxShape3D_bhhyr")
+
+[node name="Cistern" type="CollisionShape3D" parent="Collision" unique_id=1981628022]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.325, -0.27)
+shape = SubResource("BoxShape3D_xug2o")
+
+[node name="BowlBase" type="CollisionShape3D" parent="Collision" unique_id=442487642]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0.09)
+shape = SubResource("BoxShape3D_8wbcf")
+
+[node name="RimSide" type="CollisionShape3D" parent="Collision" unique_id=1067700299]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.39, 0.09)
+shape = SubResource("BoxShape3D_jni4j")
+
+[node name="@CollisionShape3D@18" type="CollisionShape3D" parent="Collision" unique_id=1187476384]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.39, 0.09)
+shape = SubResource("BoxShape3D_0yoab")
+
+[node name="RimEnd" type="CollisionShape3D" parent="Collision" unique_id=591345783]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.39, -0.16)
+shape = SubResource("BoxShape3D_1kypa")
+
+[node name="@CollisionShape3D@19" type="CollisionShape3D" parent="Collision" unique_id=847757440]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.39, 0.34)
+shape = SubResource("BoxShape3D_k1u5u")
+
+[node name="Points" type="Node3D" parent="." unique_id=1068453818]

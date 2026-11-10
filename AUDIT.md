@@ -1604,3 +1604,82 @@ Scope: open finding from the rollback recovery — `test_extreme_fictional_house
 **c) Gemini.** Accepted: empty final state would hash identically → `final_state_sims` == 8 required. Rejected with reasons: path injection via scenario (only constants reach the path), lock TOCTOU (v3 fcntl gate, per-shard files), JSON argument order (correct for Godot 4.7), corrupt JSON crash (`parse_string` → null → failed check). Limitation noted: run shards sequentially. Details: `docs/reviews/extreme-household-sharding-20261028.md`.
 
 **d) Not done / open.** Performance unchanged. GitHub push refused by this session's git proxy (repository not in its authorized set) — server is ahead of GitHub by these 3 files + journals. ChatGPT review of the new test is requested in the room. Other open items unchanged: H3 second-creator preview parity incl. hand_size, late-observer MultiplayerSpawner gap (FAILING diagnostic), H6 rendered visual QA, seed-13 social rate.
+
+
+## 2026-11-05 ~20:00 UTC — Claude run main-claude-1793906514-225497: H3 late-observer
+**Změna:** nový test `tests/test_world_observer_late_owner.gd/.tscn` (odvozen z diagnostiky observer_repro; owner čeká na observer_done, nová fáze odchodu ownera → despawn u observera). Produkční kód beze změny.
+**Self-review:** observer_done vyžaduje přítomný owner actor → despawn se nemůže splést s předčasným; server čeká na observer_leave, takže despawn není způsoben vypnutím serveru (observer still_connected=true). Pole `server_visibility.visible` je jen diagnostika (get_visibility_for = explicitní override). Watchdog 70 s.
+**Testy (skutečně spuštěné, Godot 4.7.2):** nový test 17/17 ×2 (7.9 s, 7.8 s, exit0); test_world_enet_multiprocess 11/11; h3_minimal_first_owner_enet 11/11; test_character_editor_ui 68/68; godot_check 60/60. Původní observer_repro.FAILING 13/15 reprodukováno před změnou; s měřením časů spawn 674.287 / despawn 674.636 po konci ownera. h3_three_process.FAILING 8/17 exit1 (nezměněno; hair build synchronně 2,4–7,4 s/styl na observeru).
+**Gemini (gemini-2.5-flash; 3.5-flash-lite přetížený):** závěr „závod v harnessu“ označen jako silně podložený; tvrzení o get_visibility_for potvrzeno jako pravděpodobně správné; upozornění na umělost synchronizačních bodů — přijato jako omezení (test nekryje odpojení uprostřed kontroly, latenci, ztrátu paketů). Tvrzení, že test nekryje ACL/forged RPC, odmítnuto: test ověřuje observer_acl_denied na serveru, 0 odpovědí na podvržené read/apply a 0 soukromých záznamů u observera (Gemini dostal jen shrnutí).
+**Otevřené:** h3_three_process (synchronní stavba vlasů v testu), H4 MP reconnect/migrace, C5 cat hoodie váhy, seed13 outlier.
+
+
+## 2026-11-07 — Claude run `main-claude-1794036109-242565`: H3 asynchronní šatník + prewarm klienta
+**Změny:** scripts/assets/clothing_wardrobe.gd (async_load, WorkerThreadPool, worker jen pole → _realize na hlavním vlákně), scripts/assets/lsx_decoder.gd (_part_surfaces sdílené build_scene + scene_arrays), scripts/sim/sim_visual.gd (placeholder GLB oblečení, _on_wardrobe_ready), main.gd (async_character_assets, prewarm vizuálu klienta před join, _exit_tree čeká na úlohy), tests/test_wardrobe_async (nový), tests/test_h3_three_process_game (nový), tests/diagnostics/h3_three_process.FAILING.gd (volby wardrobe-async/game-assets, SOURCE_SHA).
+**Self-review:** nalezen a opraven deadlock první verze (ArrayMesh ve vlákně → surface_get_arrays čeká na hlavní vlákno, které čekalo v wait_for_task_completion). Varování-jako-chyby v testu (Variant z await/weakref) opraveno.
+**Testy (skutečně spuštěné, exit0):** test_wardrobe_async 28/28; test_h3_three_process_game 17/17 ×2 (24,2 s / 25,2 s); clothing_authored 14/14, clothing_c5 16/16, subculture_wardrobe 14/14, body_morphs 62/62, character_preview 13/13, character_editor_ui 68/68, full_playable_slice 87/87, world_observer_late_owner 17/17, world_enet_multiprocess 11/11, multiplayer 67/67, character_net 97/97, live_character_edit 38/38, action_visual_consistency 16/16, world_interaction_visual 27/27, live_anatomy_overlay 76/76, eight_household_doors_audio 39/39, save_game 46/46, host_character_editor 10/10, torso_surface_c13 24/24; godot_check 60/60.
+**Neprošlo (předexistující, nesouvisí se změnou):** test_assets 153/155 (rozpočet postavy 27 418 > 20 000 tris; pánev v sedu 0,60 m), test_hair 59/60 (5 účesů > 26 000 tris). Diagnostika h3_three_process.FAILING ve výchozím synchronním režimu 5/17 (záměrně ponechaný nejhorší případ). test_h3_rendered_parity a test_h3_cold_process_reload vyžadují zvláštní argumenty/lease – nespuštěny.
+**Gemini (gemini-3.5-flash; pro model bez kvóty):** (1) „závod task id v _start_build vs _finish“ – ZAMÍTNUTO: _finish je call_deferred na hlavní vlákno a nemůže proběhnout uprostřed synchronní _start_build; (2) wait_for_task_completion v _finish může krátce blokovat – PŘIJATO jako drobné (tělo úlohy už skončilo; změřená max. mezera snímků 22,7 ms); (3) _realize celého druhu v jednom snímku může přesáhnout 16 ms (top = 118 sítí) – PŘIJATO jako otevřené (časové dělení po kusech); (4) placeholder u vzdálených hráčů – záměr, sítě oděvů nejsou herní logika ani hitboxy; (5) sdílené Resource ve workeru – ZAMÍTNUTO, _build_kind čte jen FileAccess a čistá pole.
+**Citlivý obsah / tón:** beze změny; placeholder nikdy neukazuje nahé tělo.
+**Otevřené:** _realize po kusech; prewarm nesníží první stavbu na pomalém HW pod ~1 s (jen ji přesune před připojení); vlasy ve vlákně trvají pod zátěží 11–17 s (helma mezitím).
+
+
+## 2026-11-07 19:50 UTC — Claude run `main-claude-1794079342-248630`: H3 realizace šatníku po snímcích
+**Změny:** `scripts/assets/clothing_wardrobe.gd` (produkce: realizace ArrayMesh po snímcích, rozpočet 4 ms, kurzor sdílený se synchronní cestou, _complete_realizing, reset zahodí), `scripts/net/net_session.gd` (produkce: `_connected=false` před `close()`), `tests/diagnostics/h3_three_process.FAILING.gd` (fixture: WeakRef v lambdách SceneMultiplayer signálů), `tests/test_wardrobe_async.gd` (+13 kontrol), `tests/test_action_visual_consistency.gd` (čeká na async šatník).
+**a) Self-review:** přečteny všechny změněné úseky; doplněn docstring `_load`; ověřeno, že sync/async používají stejný kurzor; mutex drží jen hlavní vlákno (workery ho neberou); notifikace vlastníků mimo zámek, u sync dokončení odloženě.
+**b) Testy (skutečné běhy Godot 4.7.2 headless):** test_wardrobe_async **41/41**; test_h3_three_process_game **17/17 ×5** (3 poslední se stderr čistým kromě známého ObjectDB 20); regrese 28 sad PASS (seznam v docs/reviews/h3-wardrobe-realize-chunking-20261107.md); godot_check 60/60. Předexistující selhání beze změny: test_assets 153/155, test_hair 59/60 (rozpočty tris). test_head = timeout nástroje 120 s (HeadBuilder 118 s) – NENÍ PASS. Nespouštěno samostatně: test_h3_cold_process_reload (vyžaduje argumenty), test_h3_rendered_parity (vyžaduje lease pro zápis screenshotů).
+**c) Gemini (gemini-3.5-flash-lite; gemini-3.5-flash 524 timeout):** 5 nálezů – reentrance Mutexu ZAMÍTNUTO (Godot Mutex je rekurzivní, ověřeno během), desync _realize_order ZAMÍTNUTO (vše pod mutexem na hlavním vlákně, vždy index 0), `_connected` před close() = oprávněná opatrnost, handler ho používá jen přes _remote_players → ponecháno, WeakRef ve fixture skrývá signály ZAMÍTNUTO (jen trace, žádná brána), odložený callback po sync dokončení = záměr (bez re-entrance), zdokumentováno.
+**ChatGPT:** bez nových zpráv od #408 (plán #410 odeslán).
+**Otevřené:** rendered parita náhled↔spawn s async placeholdery; prewarm vizuálu klienta stojí 3,4–4,6 s hlavního vlákna PŘED join (model GLB) – budoucí loading screen/async model; zmínky „Sims 4“ v `integrations/sims4/` (integrace pro cizí hru, Python moduly s API názvy hry) – NEPŘEJMENOVÁNO, čeká na rozhodnutí uživatelky.
+
+
+---
+
+## 2026-11-08 (Claude scheduled run main-claude-1794122510-255186) - H3 rendered async placeholder parity
+
+**Scope:** `scripts/sim/sim_visual.gd` (helmet_placeholder_color, HELMET_GREY, HELMET_SHADE, _apply_colors), new
+`tests/test_h3_async_placeholder_render.gd/.tscn`, SHA gate in `tests/diagnostics/h3_three_process.FAILING.gd`.
+
+**Self-review:** all changed files re-read; the change only affects the hair shell colour when strand cards exist; no
+network/schema change; public look only.
+
+**Tests:** godot_check 60/60; test_h3_async_placeholder_render **78/78** x2 (Xvfb GPU); test_h3_three_process_game 17/17 x4;
+wardrobe_async 41/41; character_preview 13/13; action_visual_consistency 17/17; body_morphs 62/62; clothing_authored 14/14;
+clothing_c5 16/16; world_interaction_visual 27/27; character_editor_ui 68/68; full_playable_slice 87/87; character_net 97/97;
+live_character_edit 38/38; character 157/157; save_game 46/46; appearance_slider_ui 111/111; live_anatomy_overlay 76/76;
+host_character_editor 10/10; multiplayer 66/67 then 67/67 x2 (known flake). Pre-existing: test_hair 59/60, test_assets 153/155.
+
+**Rendered QA:** screenshots inspected (sheet `previews/h3async-run1/h3async-main-claude-1794122510-255186-sheet.png`).
+Bug found: light-tan hair shell over dark cards during async hair build -> fixed (crown delta 0.44 -> 0.032).
+
+**Gemini:** 5 findings - see docs/reviews/h3-async-placeholder-render-20261108.md (1 doc fix, 1 open: Forward+/night light,
+1 partial: negative load-failure test open, 2 rejected with reasons).
+
+**Open:** Forward+/night calibration of the hair shell; dress placeholder (no skirt in GLB); negative test for failed garment
+load; ENet "max channels: 0" broadcast noise in _on_peer_disconnected; ChatGPT has not answered #413 yet.
+
+
+## 2026-11-08 večer — H4a znovupřipojení v MP (run main-claude-1794165732-262705)
+**Změna:** net_session.gd (token jen jako SHA-256 na serveru, _held, _c2s_resume/_c2s_leave/_s2c_reconnect_token, rotace, expirace, limit + _free_sim + rezervace jmen, _remote_players filtr get_peers + stav ENet), net_protocol VERSION 4, main.gd (reconnect_grace, resume_config, reconnect, zavření okna = leave), hud.gd (tlačítko Znovu připojit).
+**Self-review:** přečteny diffy všech 4 souborů; ověřeno, že find_sim nevrací uvolněné uzly (unregister před queue_free); web build: třídy ENet jen dynamicky (get_class/ClassDB).
+**Testy:** NOVÝ test_mp_reconnect 72/72 ×2; regrese multiplayer 67/67, character_net 97/97, h3_three_process_game 17/17, world_observer_late_owner 17/17, world_enet_multiprocess 11/11, enet_process_bootstrap 7/7, net_protocol 34/34, live_character_edit 38/38, full_playable_slice 87/87, host_character_editor 10/10, character_edit_ownership 75/75, character_editor_ui 68/68, save_game 46/46; godot_check 60/60. „max channels: 0“ už ve stderr není; zbývají 3× engine „multiplayer instance isn't currently active“ (bez GDScript backtrace).
+**Gemini (gemini-3.5-flash):** 2 nálezy zamítnuty s odůvodněním (is_instance_valid – find_sim nevrací uvolněné uzly; výkon _remote_players – MAX_CLIENTS 8); bezpečnostní review tokenu Gemini ODMÍTL provést → token zatím bez nezávislého bezpečnostního review (dotaz na ChatGPT #419). Detail: docs/reviews/h4a-reconnect-20261108.md.
+**Otevřené:** DTLS (token po nešifrovaném ENet), perzistence držených postav přes restart serveru (H4b), 3× engine chyba get_unique_id, dřívější: Forward+/noc helma, šaty jako placeholder, test_hair 59/60, test_assets 153/155, GitHub sync (add_repo v relaci chybí).
+
+## 2026-11-09 ráno — H4b serverové ukládání MP světa (run main-claude-1794208938-273195)
+**Změna:** NOVÝ scripts/save/server_world_store.gd; game_save.gd (capture/apply allow_authority, na serveru jen do prázdného světa); net_session.gd (register_local_host, persist_snapshot se zbytkem lhůty, restore_held, host register_local; SHA 73627db26f00); main.gd (server_persistence/server_save_directory/server_autosave_seconds, _restore_server_world, server autosave + uložení při zavření/exit, SHA f4315292c3c1). Protokol beze změny (VERSION 4).
+**Testy:** NOVÝ test_h4b_server_persistence 110/110 (první verze 97/97; +remaining 108/108; +Grok #422: useknutý soubor, soukromí B po obnově); regrese mp_reconnect 72/72 ×3, multiplayer 67/67 (1× známý flake hodin 66/67 při 4 paralelních bězích), character_net 97/97, save_game 46/46, h4b_boundary 3/3, full_playable_slice 87/87, world_enet_multiprocess 11/11, character_edit_ownership 75/75, host_character_editor 10/10, net_protocol 34/34, h3_three_process_game 17/17, save_continuation 12/12, live_character_edit 38/38; godot_check 60/60; smoke --server bez chyb.
+**Fallback 06:10 „timeout test_mp_reconnect“:** ověřeno 72/72 za 24,5 s beze změny kódu = limit nástroje 35 s, ne regrese.
+**Gemini (gemini-3.5-flash):** 5 nálezů – 1 přijat a opraven (restart prodlužoval lhůtu → ukládá se remaining, obnova min(remaining, lhůta), +10 kontrol), 3 zamítnuty s důvodem (purge po _c2s_leave – vlastní postava odchází s hráčem; host save na dedikovaném – záměr; chybějící record – nemožné), 1 mimo model hrozeb (zápis na disk serveru). Detail docs/reviews/h4b-server-persistence-20261109.md.
+**ChatGPT:** bez nových zpráv (poslední #420); plán #421. **Grok #422:** 7 bodů zodpovězeno (review doc), přidány 2 testy.
+**Otevřené:** DTLS; úmyslný odchod mezi autosave a pádem = dočasné držení; engine stderr get_unique_id / „max channels: 0“ bez GDScript backtrace; dřívější vizuální QA (tlačítko Znovu připojit, Forward+/noc helma).
+
+
+## 9. 11. 2026 večer — Claude `main-claude-1794252100-282844`: drby a pomluvy
+**Nové:** scripts/sim/gossip_network.gd; main.gd (adaptér, tick); sim_agent.gd (hexaco, 6 hooků); game_save.gd (sekce gossip). **Test:** test_gossip 106/106 (průběh 92 → 100 → 104 → 106).
+**Regrese PASS:** save_game 46, save_continuation 12, social_memory 41, substances 40, mental_health 95, reconciliation 58, social_nuance 27, withdrawal 27, player_commands 40, h4b_server_persistence 110, h4b_section_adversarial 33, h4b_boundary 3, multiplayer 67 (1× flake hodin v dávce, pak 67/67 ×2), character_net 97, mp_reconnect 72, full_playable_slice 87, net_protocol 34, crowded_household 50, determinism_split 5, dynamics_slice 63, household_resume 10 (30 dní exact), psyche 93, emotional_state 55, inner_voice 46, ocd_social_anxiety 45, depression 106; godot_check 60/60.
+**Selhání (předexistující):** test_worldview 41/42 – polarizace 4,40→4,47; ověřeno se sítí drbů vypnutou (stejné selhání). Otevřené.
+**Self-review:** úklid impact_day (server), plurál „Měli byste“.
+**Gemini (gemini-3.5-flash):** 6 nálezů – přijato: odměna „Dobrý drb“ i za citlivé drby (opraveno + test), O(n²) matice vztahů (jen sloupec posluchače), farmení sblížení (strop 3/den + test); zamítnuto s důvodem: únik v replikách (repliky generické, test), panic×stigma (stigma je vlastnost posluchače – návrh Gemini by stigmatizoval všechny), pád na chybějících klíčích (get+typ), exposed bez GC (_gc čistí). Detail docs/reviews/gossip-20261109.md.
+**ChatGPT:** bez reakce na plán #426. **Render:** žádný (bez vizuální změny).
+**GitHub:** NEsynchronizováno – add_repo v relaci chybí, GH_TOKEN neplatný.

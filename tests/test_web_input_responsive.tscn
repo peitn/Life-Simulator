@@ -1,0 +1,4 @@
+[gd_scene load_steps=2 format=3]
+[ext_resource type="Script" path="res://tests/test_web_input_responsive.gd" id="1"]
+[node name="WebInputResponsiveTest" type="Node"]
+script = ExtResource("1")

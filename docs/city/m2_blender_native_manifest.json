@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "models": {
+    "bathtub": {
+      "source": "assets/city/fixtures/bathtub.glb",
+      "sha256": "020a123b60c396a386da656747bd86699e7164b1a510ad253f71bc61a2998c0e",
+      "meshes": 8,
+      "triangles": 264
+    },
+    "bookshelf": {
+      "source": "assets/city/fixtures/bookshelf.glb",
+      "sha256": "544706583153d7c3161b71aaa361c2fac9e838b80bcae1bd49ed6695dde75f38",
+      "meshes": 36,
+      "triangles": 432
+    },
+    "counter": {
+      "source": "assets/city/fixtures/counter.glb",
+      "sha256": "e1fbeaee9eeb5731e045608f1ac37aacc9585514c2a9c212c6888a6f180d30bb",
+      "meshes": 6,
+      "triangles": 72
+    },
+    "dining_chair": {
+      "source": "assets/city/fixtures/dining_chair.glb",
+      "sha256": "dcca01f1a4dcddd52bb941b6543fa7087a381bd38cc67a7855d7019fd3c8f8fd",
+      "meshes": 6,
+      "triangles": 72
+    },
+    "dining_table": {
+      "source": "assets/city/fixtures/dining_table.glb",
+      "sha256": "439d096b1ecf75afa23da1f51292189df78ffe81168de832ac530208942cd847",
+      "meshes": 5,
+      "triangles": 60
+    },
+    "shower": {
+      "source": "assets/city/fixtures/shower.glb",
+      "sha256": "e71ed6a5b824aeaf9e855300657be1aef4c9ccc1a642f276f3b2bb31879eb7f7",
+      "meshes": 8,
+      "triangles": 348
+    },
+    "sink": {
+      "source": "assets/city/fixtures/sink.glb",
+      "sha256": "f73212a26dde2bfddc204c9fdf9d71d812c115e19f1df591b5145ccb280e2da9",
+      "meshes": 9,
+      "triangles": 276
+    },
+    "stove": {
+      "source": "assets/city/fixtures/stove.glb",
+      "sha256": "40bad792b83c4df487f6022646d696131326645f1654a25287acde8dcc65287b",
+      "meshes": 13,
+      "triangles": 828
+    },
+    "toilet": {
+      "source": "assets/city/fixtures/toilet.glb",
+      "sha256": "a5a150f4ffe5ab479b12712b83a7f9b7fe7634dd5f84130286d9b9b140c9ab10",
+      "meshes": 8,
+      "triangles": 180
+    },
+    "treadmill": {
+      "source": "assets/city/fixtures/treadmill.glb",
+      "sha256": "2def3daa2a8f4ff988aee3be5102c5eea7bc6ed138f99f796f794d0ad2ea81c6",
+      "meshes": 8,
+      "triangles": 96
+    },
+    "tv": {
+      "source": "assets/city/fixtures/tv.glb",
+      "sha256": "4c1e779b7117c476d3947364b2debe965919b1e54742e87f2f14af00ffb1ab5f",
+      "meshes": 7,
+      "triangles": 84
+    },
+    "bed_double": {
+      "source": "assets/models/bed_double.glb",
+      "sha256": "d1b54a340f97fd15e6d594ea8b5fd6c4cfc748d65127ac070953fe2843c605ac",
+      "meshes": 4,
+      "triangles": 4200
+    },
+    "bed_single": {
+      "source": "assets/models/bed_single.glb",
+      "sha256": "3c2b2f6e445b1279db6c391e50cb28701003834e56bb7d57664dad213038e90f",
+      "meshes": 3,
+      "triangles": 2472
+    },
+    "fridge": {
+      "source": "assets/models/fridge.glb",
+      "sha256": "89e075c41f1def3cb3942056f333b779dee169b2fc6477abc51488c5850b291f",
+      "meshes": 5,
+      "triangles": 868
+    },
+    "sofa": {
+      "source": "assets/models/sofa.glb",
+      "sha256": "bbcc3a6ed228e58dcd3ea2c35cc6b47ae562f77c3bfc2f24ef955ff6d8511d64",
+      "meshes": 3,
+      "triangles": 2896
+    },
+    "furniture_editor_example": {
+      "source": "docs/city/furniture_editor_example.glb",
+      "sha256": "df991e8b38bcb693b3eb66810625fb19c1a6544c1767a9906ec08ee148fc6008",
+      "meshes": 5,
+      "triangles": 60
+    }
+  },
+  "packed_images": 0
+}

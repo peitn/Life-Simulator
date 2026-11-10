@@ -11,6 +11,7 @@ const Traits := preload("res://scripts/sim/traits.gd")
 const Planner := preload("res://scripts/sim/utility_planner.gd")
 const ActionLibrary := preload("res://scripts/sim/action_library.gd")
 const SimVisual := preload("res://scripts/sim/sim_visual.gd")
+const DiningDetour := preload("res://scripts/world/dining_detour.gd")
 const MentalState := preload("res://scripts/sim/mental_state.gd")
 const PsycheModel := preload("res://scripts/psyche/psyche_model.gd")
 const RelLedger := preload("res://scripts/sim/rel_ledger.gd")
@@ -147,6 +148,8 @@ var _crying_edge_ready := false
 var psy = PsycheExt.new()
 ## Stabilní interní uid postavy (z CharacterData; klíč sociální paměti, nikdy jméno). Soukromé.
 var char_uid := ""
+## HEXACO osobnost P (−1..1) z PsycheModel – pro drby (poctivost, extraverze). Jen autorita.
+var hexaco := {}
 ## Profil rysů bez osobnostních akcentů (akcenty se přidávají jako váhy acc_* podle režimu obsahu).
 var _base_trait_profile: Variant = []
 ## Private sexuality and consent. Never part of replicated net_detail.
@@ -298,7 +301,9 @@ func apply_character_private(cd: Dictionary, initialize_sensitivity: bool = true
 	# 1. osa psychiky (běh 20): individualita a explicitní osobnost jako háčky MentalState – pro všechny tři
 	# režimy obsahu, MentalState si vybere podle aktuálního nastavení (přepnutí za běhu funguje hned).
 	mental.set_psyche(PsycheModel.hooks_by_mode(cd))
-	var dispositions: Dictionary = PsycheModel.compute(cd).get("D", {})
+	var psyche_r: Dictionary = PsycheModel.compute(cd)
+	var dispositions: Dictionary = psyche_r.get("D", {})
+	hexaco = (psyche_r.get("P", {}) as Dictionary).duplicate() if typeof(psyche_r.get("P")) == TYPE_DICTIONARY else {}
 	vigilance.configure(dispositions, initialize_sensitivity)
 	rejection.configure(dispositions, initialize_sensitivity)
 	emotions.configure(dispositions)
@@ -646,6 +651,9 @@ func _alert_witnesses() -> void:
 		if o._is_sleeping() or o.mental.panic_active:
 			continue
 		var rel: float = float(o.relationships.get(sim_name, 0.0))
+		# Svědek ataky o ní může mluvit (jen v plném režimu duševního zdraví – hlídá GossipNetwork).
+		if world.has_method("gossip_observe"):
+			world.gossip_observe(o, self, "panic")
 		var stigma_p := clampf(0.08 + Traits.sum_param(o.trait_profile, "stigma") - rel / 150.0 + o.mental.stress / 300.0, 0.02, 0.8)
 		var help_p := clampf(0.35 + rel / 100.0 - Traits.sum_param(o.trait_profile, "stigma"), 0.0, 0.9)
 		if o.mental.arousal > 60.0:
@@ -684,6 +692,9 @@ func receive_support_from(helper: Node3D) -> void:
 	add_joy_moodlet("pomoc_" + String(helper.name), "Někdo při mně stál", "spokojeny", 8.0, 600.0)
 	ledger.record_trust(helper.sim_name, "support", 9.0)
 	remember_social(helper, "support", 0.8)
+	# Kdo zažil pomoc, rád to o pomocníkovi řekne dál (pozitivní drb).
+	if world != null and world.has_method("gossip_observe"):
+		world.gossip_observe(self, helper, "kind")
 	inner_positive("warm", helper)
 	psy.worldview.experience("community", 0.02)
 	psy.worldview.experience("optimism", 0.02)
@@ -871,10 +882,15 @@ func _walk(dm: float) -> void:
 		if off.length() < 0.01:
 			off = Vector3.RIGHT
 		target_point = target.global_position + off.normalized() * SOCIAL_TALK_DIST
-	var to := target_point - global_position
+	var route_goal: Vector3 = DiningDetour.waypoint(global_position, target_point)
+	var to := route_goal - global_position
 	to.y = 0.0
 	var d := to.length()
 	if d <= ARRIVE_DIST:
+		if route_goal.distance_to(target_point) > ARRIVE_DIST:
+			# Reached a detour corner; re-evaluate the remaining unobstructed path.
+			global_position = Vector3(route_goal.x, global_position.y, route_goal.z)
+			return
 		global_position = Vector3(target_point.x, global_position.y, target_point.z)
 		_arrive()
 		return
@@ -925,6 +941,12 @@ func _begin_acting() -> void:
 			_face(look.normalized())
 		if current_action.get("posture", "stand") == "lie":
 			rotation.y = target.rotation.y
+		elif current_action.get("posture", "stand") == "sit" and target.get("object_tag") != null:
+			# Watch TV faces the TV from the sofa; relaxing faces the sofa's front.
+			if target.object_tag == "sofa":
+				rotation.y = target.rotation.y
+			elif target.object_tag == "tv":
+				rotation.y = target.rotation.y + PI
 	action_started.emit(self, current_action)
 
 
@@ -1759,6 +1781,9 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 			if joy_gap > 25.0 and b.emotions.level("joy") > 55.0:
 				a.emotions.impulse("envy", b.sim_name, clampf(joy_gap / 90.0, 0.2, 0.7))
 		a.note_relationship_change(b, cur, nv)
+	# Drby a pomluvy: po povedeném rozhovoru (jednou za rozhovor, jen na autoritě).
+	if positive and world != null and world.has_method("gossip_exchange"):
+		world.gossip_exchange(self, partner)
 
 
 # ---------------------------------------------------------------- rozšíření psychiky (psyche_ext)
@@ -2071,6 +2096,8 @@ func _substance_after_finish(id: String, interrupted: bool) -> void:
 		for o in world.get_sims():
 			if o == self or not o.has_method("command") or o._is_sleeping() or o.global_position.distance_to(global_position) > 8.0:
 				continue
+			if sid == "alcohol" and world.has_method("gossip_observe"):
+				world.gossip_observe(o, self, "drinking")
 			if float(o.relationships.get(sim_name, 0.0)) >= 25.0:
 				o.mood.add_moodlet("sub_obava_" + String(name), "Bojím se o: " + first_name(), "uzkostny", -4.0 * concern, 240.0)
 
@@ -2254,6 +2281,8 @@ func psyche_private_lines() -> PackedStringArray:
 	out.append_array(psy.worldview.private_lines())
 	if _clock != null:
 		out.append_array(psy.subs.private_lines(now(), _subs_k()))
+	if world != null and world.has_method("gossip_private_lines"):
+		out.append_array(world.gossip_private_lines(self))
 	return out
 
 
@@ -2431,6 +2460,13 @@ func _witness_conflict(partner: Node3D, cfg: Dictionary, kind := "argue") -> voi
 			else:
 				o.remember_social(self, "conflict_seen", 0.3, "witnessed", "none", "", partner)
 				o.remember_social(partner, "conflict_seen", 0.3, "witnessed", "none", "", self)
+			# Svědek má o čem mluvit (drby).
+			if world.has_method("gossip_observe"):
+				if kind == "insult":
+					world.gossip_observe(o, self, "insult", 1.0, partner)
+				else:
+					world.gossip_observe(o, self, "fight", 1.0, partner)
+					world.gossip_observe(o, partner, "fight", 1.0, self)
 
 
 ## Žárliví nesou těžce, když se jejich blízký (vztah ≥ 40) baví s někým jiným.
@@ -2581,4 +2617,4 @@ func _face(dir: Vector3) -> void:
 func _update_visual() -> void:
 	if visual == null:
 		return
-	visual.apply(current_posture(), mood.value, mood.emotion, sim_name, display_action(), speech, emotions.crying)
+	visual.apply(current_posture(), mood.value, mood.emotion, sim_name, display_action(), speech, emotions.crying, String(current_action.get("id", "")) if state == State.ACTING else "")

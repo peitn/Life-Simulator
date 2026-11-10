@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/test_neural_cache_formats.gd" id="1"]
+
+[node name="TestNeuralCacheFormats" type="Node"]
+script = ExtResource("1")

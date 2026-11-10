@@ -255,3 +255,15 @@ one-shots through AudioManager.
 ## Rebuilding
 
 `godot --headless -s res://tools/build_audio.gd -- [id ...]` (no ids = everything). Music takes about 40 s.
+
+### Voice resonance control (30 October 2026)
+
+A fifth public voice dimension `resonance` (-1..+1, default 0) independently adjusts formant bandwidth by `2^(-0.6*resonance)` for both wordless VoiceSynth and CzechTTS. The CharacterEditor includes a live slider with standard draft/Undo/Redo/Apply; Schema v20 migrates v19 voices with neutral 0. Both audio cache keys include resonance. TTS remains synthetic and the voice mode default is still **Beze slov**. Verification and limits: [voice-resonance-20261030.md](reviews/voice-resonance-20261030.md).
+
+## Voice Lab web preview (30 October 2026)
+
+Separate published browser voice editor: https://peiti-godot-mcp.hf.space/play/lifesim_voice_lab/ . It includes the game VoiceSynth+CzechTTS+CzechG2P source copied on 30 October, five voice sliders (including independent resonance), style presets, user-entered Czech sentence, actual PCM waveform, and A/B audio comparison. The site is a different Godot project, so new game speech changes need explicit sync and web re-export; no live API link to Audio Engine MCP exists yet. Actual ElmerSolver Helmholtz 2D ideal-air-tube calculations (350/490/650Hz) were made, but are only an educational resonance example and are NOT used to synthesize or physically calibrate a human voice. Source details: in the Voice Lab project docs/voice_lab_elmer.md. Godot Voice Lab headless A/B and smoke tests passed; web export was published and returned HTTP 200; no real-phone listening QA. The game default stays wordless until the owner chooses naturalistic TTS.
+
+## Neural Czech voices (30 October 2026)
+
+The owner reported persistent robotic sound of procedural CzechTTS despite resonance and multi-knob A/B attempts. Implemented **separate opt-in native Piper/ONNX voice mode** `tts_neural`: Czech Kasandra and Jirka medium speakers via Python CPU script `tools/audio/neural_tts.py`, managed by `scripts/audio/neural_voice.gd`; worker-thread 3D speech via AudioManager; explicit voice editor preview buttons; GameSettings and Esc menu. Defaults preserved as wordless. Web export disables neural choice because it cannot execute Python. Runtime Piper models live separately under /app/library/lifesim/neural_models, provision via tools/audio/setup_neural_voices.py --install-deps. Detailed architecture/limits/QA: [audio-neural-voice.md](audio-neural-voice.md). Tests: new 18/18, legacy TTS 82/82, Voice 110/110, Godot syntax 60/60. Sample links are in the linked document.

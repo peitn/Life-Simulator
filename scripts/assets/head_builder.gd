@@ -82,9 +82,9 @@ const TONGUE_V := 7
 const CAVITY_BACK := 0.012
 const CAVITY_R := Vector3(0.032, 0.019, 0.040)
 
-const NX := 24
-const NY := 26
-const NZ := 14
+const NX := 32
+const NY := 36
+const NZ := 20
 const KY := 1.35
 ## Osa krku (vizuální kontrola běh 10): nahoře pod hlavou je za středem hlavy (krk vpředu zkracoval úhel
 ## brada–krk a chyběla spodní plocha čelisti), dole u těla na ose těla – krk se mírně naklání dopředu
@@ -159,14 +159,14 @@ const LIN_TOL := 0.00025
 const CX_MIN := 0.0003
 ## Mezitvar (in-between v ±0,5) se uloží, když se morf uprostřed odchyluje od lineární interpolace o víc než 0,5 mm.
 const INB_MIN := 0.0005
-const EAR_K := 6
-const EAR_M := 16
+const EAR_K := 10
+const EAR_M := 32
 ## Prstence oční koule (stupně od osy pohledu): 0–1 okraj zornice (posouvá ex_pupil), 2–3 duhovka, 3–4 limbus.
 const EYE_RINGS_DEG := [9.0, 10.0, 21.0, 25.0, 27.0, 31.0, 36.0, 50.0, 70.0, 90.0, 110.0, 135.0, 160.0]
 ## Velikost zornice: okraj v (PUPIL_DEG + PUPIL_RANGE · ex_pupil)° (≈ 2,9–5,0 mm průměr při poloměru oka 11,9 mm).
 const PUPIL_DEG := 9.0
 const PUPIL_RANGE := 3.2
-const EYE_SEG := 18
+const EYE_SEG := 48
 const RX_FRONT := [[0.04, 1.0], [0.0, 0.955], [-0.03, 0.91], [-0.06, 0.84], [-0.085, 0.71], [-0.105, 0.50], [-0.125, 0.30]]
 const RX_BACK := [[0.03, 1.0], [-0.02, 0.97], [-0.06, 0.86], [-0.10, 0.74]]
 
@@ -383,10 +383,10 @@ static func derive(p: Dictionary) -> Dictionary:
 	# o 2 mm širší ústa (koutky se stáčejí dozadu, v čelním pohledu měřila ~41 mm místo ~50);
 	# rozsah lip_* kolem nové výchozí hodnoty zůstává ve stejném poměru.
 	# Běh 22 (render): rty pořád ploché → víc objemu (horní +15 %, dolní +19 %), rozsah lip_* ve stejném poměru.
-	d["lipU"] = 0.0052 * (1.0 + 0.40 * v.call("lip_upper"))
-	d["lipL"] = 0.0062 * (1.0 + 0.36 * v.call("lip_lower"))
-	d["lipUh"] = 0.0094 * (1.0 + 0.24 * v.call("lip_upper"))
-	d["lipLh"] = 0.0106 * (1.0 + 0.21 * v.call("lip_lower"))
+	d["lipU"] = 0.0039 * (1.0 + 0.40 * v.call("lip_upper"))
+	d["lipL"] = 0.0048 * (1.0 + 0.36 * v.call("lip_lower"))
+	d["lipUh"] = 0.0072 * (1.0 + 0.24 * v.call("lip_upper"))
+	d["lipLh"] = 0.0085 * (1.0 + 0.21 * v.call("lip_lower"))
 	d["mouth_asym"] = 0.0015 * v.call("asym_mouth")
 	d["ear_s"] = 1.0 + 0.14 * v.call("ear_size")
 	d["ear_a"] = deg_to_rad(17.0 + 14.0 * v.call("ear_angle"))
@@ -524,6 +524,12 @@ static func _nose(x: float, y: float, d: Dictionary) -> float:
 	var aw := 0.0150 * (1.0 + 0.16 * float(d["nose_w"]))
 	var ay := tip_y - 0.0048
 	hh += (0.0068 + 0.0008 * float(d["nose_tip"])) * _g2(absf(x) - aw * 0.78, y - ay, 0.0050, 0.0050)
+	# Alar crease, paired nasal vestibules and central columella.
+	# Millimetre-scale concavities, not black disks laid on the face.
+	var na := aw * 0.68
+	hh -= 0.0035 * _g2(absf(x)-na, y-(sub_y+0.0025), 0.0027, 0.0018)
+	hh += 0.0010 * _g2(x, y-(sub_y+0.0010), 0.0021, 0.0030)
+	hh -= 0.0009 * _g2(absf(x)-aw*1.08, y-ay+0.001, 0.0018, 0.0040)
 	return hh
 
 
@@ -542,10 +548,10 @@ static func _relief(px: float, py: float, pz: float, d: Dictionary) -> float:
 	r -= 0.0028 * _g2(x, y - 0.016, 0.009, 0.007) * fr
 	for s in [1, -1]:
 		var e: Vector3 = d["eye%d" % s]["E"]
-		r -= 0.0040 * _g2(x - float(e.x), y - (float(e.y) - float(c.y)), 0.016, 0.012) * fr
+		r -= 0.0022 * _g2(x - float(e.x), y - (float(e.y) - float(c.y)), 0.016, 0.012) * fr
 	r -= 0.0035 * _g2(ax - 0.068, y - 0.035, 0.012, 0.02) * _smooth(-0.01, 0.04, z)
-	r += (0.0042 + 0.0050 * float(d["cheekb"])) * _g3(ax - 0.050, y + 0.010, z - 0.050, 0.012, 0.010, 0.022)
-	r += (0.0024 + 0.0050 * float(d["cheekf"])) * _g3(ax - 0.044, y + 0.040, z - 0.055, 0.014, 0.016, 0.03)
+	r += (0.0058 + 0.0050 * float(d["cheekb"])) * _g3(ax - 0.050, y + 0.010, z - 0.050, 0.012, 0.010, 0.022)
+	r += (0.0038 + 0.0050 * float(d["cheekf"])) * _g3(ax - 0.044, y + 0.040, z - 0.055, 0.014, 0.016, 0.03)
 	r += (0.0025 + 0.0035 * float(d["jaw_a"]) + 0.0015 * float(d["muscle"])) * _g3(ax - 0.050, y + 0.070, z + 0.002, 0.010, 0.010, 0.016)
 	var my := float(d["My"]) - float(c.y)
 	r += 0.0055 * _g2(x, (y - my) * 0.9, 0.022, 0.020) * fr
@@ -813,7 +819,7 @@ static func _mouth_ring_pos(d: Dictionary, ring: int, a: float, b: float, gi: in
 			var g := surface(lattice_dir(gi, gj, NZ), d)
 			var p := surface_xy(x + (float(g.x) - x) * 0.12, (my + y) + (float(g.y) - (my + y)) * 0.12, d, 0.09)
 			# vermilionový okraj (white roll): běh 22 0,4 → 0,7 mm – ostřejší přechod kůže/ret
-			return Vector3(p.x, p.y, float(p.z) + 0.0007 * fz)
+			return Vector3(p.x, p.y, float(p.z) + 0.0004 * fz)
 		2:
 			var x := a * mw * 0.97
 			var y := float(ul.x) * 0.45 if upper else float(ul.y) * 0.62
@@ -874,8 +880,10 @@ static func _ear_local(side: int, k: int, m: int) -> Vector3:
 	if side > 0:
 		var helix := 0.0040 * exp(-pow((rr - 0.84) / 0.10, 2.0)) * (1.0 - lobe)
 		var anti := 0.0022 * exp(-pow((rr - 0.52) / 0.10, 2.0)) * (1.0 - lobe) * (1.0 - _smooth(0.2, 0.8, nz))
-		var concha := -0.0016 * exp(-(pow((y + 0.003) / 0.009, 2.0) + pow((z - 0.002) / 0.007, 2.0)))
-		x = (0.0022 + helix + anti + concha + 0.0026 * lobe) * sqrt(edge)
+		var concha := -0.0034 * exp(-(pow((y + 0.003) / 0.009, 2.0) + pow((z - 0.002) / 0.007, 2.0)))
+		var tragus := 0.0028 * _g2(y + 0.005, z - 0.008, 0.004, 0.003)
+		var fork := 0.0015 * _g2(y - 0.012, z + 0.001, 0.008, 0.003)
+		x = (0.0022 + helix + anti + concha + tragus + fork + 0.0026 * lobe) * sqrt(edge)
 	else:
 		x = -0.0026 * sqrt(edge)
 	return Vector3(x, y, z)

@@ -277,11 +277,86 @@ Each shard: 15 checks (control: 12); aggregate: 12 checks, including source prov
 with and without the day-7 disk reload across processes. Running the test without arguments still executes all four
 cases in one process (watchdog 335 s). Results of the latest server run are in `AUDIT.md`.
 
+
+## Late observer + owner lifecycle (H3, 5 Nov 2026)
+`tests/test_world_observer_late_owner.tscn` runs four OS processes: a dedicated production server, an observer
+client that joins first (gets a household character), an owner client that joins later with its own CharacterData,
+and the parent. It checks that the observer receives the owner's late-spawned puppet and only the public appearance
+revision after the owner's Apply, that the observer's forged read/apply RPCs get no reply, and that when the owner
+quits, its own character is despawned on the observer while the observer stays connected. 17 checks, ~8 s.
+
+It replaces the intentionally failing diagnostic `tests/diagnostics/test_world_observer_repro.FAILING.gd` (13/15).
+Root cause of that failure was the harness, not the server: the owner worker exited 0.3 s after its own success,
+while the observer still needed a 450 ms window after seeing the public look; the owner's character was then
+correctly despawned. Note: `MultiplayerSynchronizer.get_visibility_for()` only reports explicit
+`set_visibility_for()` overrides, not the result of visibility filters, so `false` there is not evidence of a bug.
+
+
 ## Laboratoř (tools/lab, docs/lab)
 - `tests/lab/test_lab_runner.tscn` – validace scénáře, stejný seed = shodný hash i snímky, jiný seed = jiný průběh, tvar snímků, žádné NaN (headless, ~40 s).
 - Spuštění scénáře: `godot --headless --path . res://tools/lab/lab_cli.tscn -- --scenario=<json> --out=<json>`; analýza: `python3 tools/lab/analyze_experiment.py <adresář>`.
+- Dokumentace: docs/lab/M0_NAVRH.md (inventura), EVIDENCE.md (vědecké podklady), EXPERIMENT_social_support_v1.md.
 
 ## Ekonomika E1 (scripts/sim/economy, docs/economy.md)
 - `tests/test_economy_core.tscn` – kniha (dvojitý zápis, bez záporných zůstatků, hash řetězec a detekce manipulace), daně a zaokrouhlení, mzdy/povinnosti, půjčky (celočíselný úrok, default = jen skóre), vynucování, `financial_pressure`, Gini/chudoba, round trip (headless, ~1 s).
 - `tests/test_economy_sim.tscn` – zachování peněz 365 dní × 8–20 agentů × více seedů, determinismus (stejný seed = stejný hash, jiný seed jiný), obnova z JSONu, demo CSV (headless, ~8 s).
 - Demo/CSV: `godot --headless --path . res://tools/lab/economy_demo.tscn -- --seeds=1,2,3 --agents=8 --days=365 --out=<adresář>`.
+
+
+### Async wardrobe and H3 game-path join (7 Nov 2026)
+- `tests/test_wardrobe_async.tscn` (28 checks): threaded and synchronous garment builds are
+  byte-identical, longest main-thread frame gap during a background build (22.7 ms vs a 1.5 s
+  synchronous stall), one callback per kind, freed owners, `reset_cache()` during a build,
+  SimVisual placeholder and outfit changes while waiting.
+- `tests/test_h3_three_process_game.tscn` (17 checks, ~25 s): creator → owner-private read →
+  spectator → reconnect across three Godot OS processes with the game's asynchronous asset path.
+- Evening update: `test_wardrobe_async` now has 41 checks; the new section verifies the frame-spread
+  realisation (several frames for the 118 top meshes, no realisation frame longer than the budget plus
+  one mesh, pending-until-complete, an owner joining mid-realisation, a synchronous caller completing it,
+  `reset_cache()` dropping it, byte-identical output with a 2 ms budget). `test_action_visual_consistency`
+  waits for the asynchronous wardrobe of `Main` before inspecting garments.
+
+
+### Rendered async-placeholder parity (8 Nov 2026)
+- `tests/test_h3_async_placeholder_render.tscn` (78 checks, ~70 s). Needs a real display:
+  `xvfb-run -a godot --path . --rendering-method gl_compatibility res://tests/test_h3_async_placeholder_render.tscn -- --lease=<v3 main lease>`.
+  It reads the GPU framebuffer of the character-editor preview viewport and compares, for four
+  fictional outfits, the editor preview (synchronous build) with a freshly spawned character on the
+  game's asynchronous wardrobe/hair path: while waiting (placeholder clothes cover the torso/legs/feet
+  regions, silhouette IoU > 0.80; a dress waits as shirt + trousers, IoU > 0.65 – known limitation)
+  and after the build (identical garment pieces, mean RGB delta < 0.002, IoU > 0.98 – measured 0.0/1.0).
+  A no-clothes control proves the region checks would fail without a placeholder. The last phase also
+  makes hair asynchronous and compares the crown colour of the GLB hair shell with the finished strand
+  cards (dark and grey hair). Screenshots: `res://previews/h3async-<lease>-*.png`.
+- `tests/diagnostics/h3_three_process.FAILING.gd` is SHA-gated on `scripts/sim/sim_visual.gd`; any edit
+  of that file requires updating `SOURCE_SHA` (the probe patches only `_build`/`_build_model`).
+
+
+### H4a reconnect (8 November 2026)
+
+`tests/test_mp_reconnect.tscn` — real ENet, dedicated server plus clients in one process
+(same harness as `test_multiplayer`), server `reconnect_grace = 3 s`. **72/72** (two runs,
+~22 s). Covers token format validation, hash-only server storage, token delivered only to its
+owner, unplanned disconnect holds own and household characters (same instance), held
+characters not reassigned, own-character limit counts held characters, broadcast filter skips
+peers without a live ENet transport, resume to the same node with preserved relationships and
+memories, original player name, ownership/edit ACL and private state, token rotation, reused /
+random / expired tokens fall back to normal hello with a notice, expiry despawns an own
+character for all clients and frees a household character, intentional leave is not held,
+a second resume on an already welcomed connection is rejected, `resume_config()` contents and
+the HUD reconnect button. Remaining stderr: three engine-level
+"multiplayer instance isn't currently active" errors without a GDScript backtrace (also seen in
+earlier H3 multi-process diagnostics).
+
+### H4b server world persistence (9 November 2026)
+`tests/test_h4b_server_persistence.tscn` — 110 checks, real ENet in one process: save/restart/resume with the same token (own and household characters), no plain tokens on disk, private record restored only on the server, forged/used tokens rejected, interval autosave, expiry after restart, grace 0, 19 tampered server-section cases, corrupted or truncated primary → `.bak`, both corrupted → fresh household, restore guards, listen host gets its character back. Expected stderr: `decode_variant` errors from the deliberately random save bytes.
+
+
+### Gossip and rumours (9 November 2026)
+`tests/test_gossip.tscn` — 106 checks: witnessed rumours only, belief formula, trust and plausibility,
+social proof, distortion along a chain, daily caps (opinion and bonding), fabrication only with low honesty and
+a grudge, content settings and listener stigma, generic spoken lines for sensitive kinds, exposure of the
+immediate source, debunking, step-independent decay, limits, determinism, binary round-trip and identical
+continuation, 24 forged snapshots and 300 random inputs, and integration in a real offline household
+(hooks, GameSave section, legacy saves, 5-day run). Known pre-existing failure: `test_worldview`
+polarisation check (fails identically with gossip disabled).

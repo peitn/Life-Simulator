@@ -1,0 +1,174 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/city/m2_fixture.gd" id="1_7am1y"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gnyt4"]
+resource_name = "ceramic"
+albedo_color = Color(0.92, 0.94, 0.95, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_tetv1"]
+size = Vector3(1.2, 0.05, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4ng4i"]
+resource_name = "steel"
+albedo_color = Color(0.55, 0.6, 0.65, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_1msyv"]
+top_radius = 0.055
+bottom_radius = 0.055
+height = 0.003
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s2uof"]
+resource_name = "glass"
+transparency = 1
+cull_mode = 2
+albedo_color = Color(0.5, 0.75, 0.8, 0.22)
+roughness = 0.08
+
+[sub_resource type="BoxMesh" id="BoxMesh_a5nxq"]
+size = Vector3(0.025, 2, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cdsdu"]
+resource_name = "glass"
+transparency = 1
+cull_mode = 2
+albedo_color = Color(0.5, 0.75, 0.8, 0.22)
+roughness = 0.08
+
+[sub_resource type="BoxMesh" id="BoxMesh_vffhc"]
+size = Vector3(0.025, 2, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0amky"]
+resource_name = "glass"
+transparency = 1
+cull_mode = 2
+albedo_color = Color(0.5, 0.75, 0.8, 0.22)
+roughness = 0.08
+
+[sub_resource type="BoxMesh" id="BoxMesh_mkong"]
+size = Vector3(1.2, 2, 0.025)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bmy3d"]
+resource_name = "steel"
+albedo_color = Color(0.55, 0.6, 0.65, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_wnpke"]
+top_radius = 0.018
+bottom_radius = 0.018
+height = 1.95
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_revir"]
+resource_name = "steel"
+albedo_color = Color(0.55, 0.6, 0.65, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_2d3bt"]
+top_radius = 0.12
+bottom_radius = 0.12
+height = 0.025
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8wj2l"]
+resource_name = "steel"
+albedo_color = Color(0.55, 0.6, 0.65, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="BoxMesh" id="BoxMesh_et60x"]
+size = Vector3(0.15, 0.025, 0.16)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u8mwx"]
+size = Vector3(1.2, 0.05, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_681tg"]
+size = Vector3(0.025, 2, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_30i0w"]
+size = Vector3(0.025, 2, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dby40"]
+size = Vector3(1.2, 2, 0.025)
+
+[node name="M2_shower" type="Node3D" unique_id=1683621461]
+script = ExtResource("1_7am1y")
+furniture_kind = "shower"
+
+[node name="Model" type="Node3D" parent="." unique_id=493712092]
+
+[node name="Tray" type="MeshInstance3D" parent="Model" unique_id=1181352089]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.025, 0)
+material_override = SubResource("StandardMaterial3D_gnyt4")
+mesh = SubResource("BoxMesh_tetv1")
+
+[node name="Drain" type="MeshInstance3D" parent="Model" unique_id=1193232649]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.002, -0.35)
+material_override = SubResource("StandardMaterial3D_4ng4i")
+mesh = SubResource("CylinderMesh_1msyv")
+
+[node name="SideGlass" type="MeshInstance3D" parent="Model" unique_id=1560143858]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 1, 0)
+material_override = SubResource("StandardMaterial3D_s2uof")
+mesh = SubResource("BoxMesh_a5nxq")
+
+[node name="@MeshInstance3D@14" type="MeshInstance3D" parent="Model" unique_id=1738432464]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 1, 0)
+material_override = SubResource("StandardMaterial3D_cdsdu")
+mesh = SubResource("BoxMesh_vffhc")
+
+[node name="RearGlass" type="MeshInstance3D" parent="Model" unique_id=653203146]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.6)
+material_override = SubResource("StandardMaterial3D_0amky")
+mesh = SubResource("BoxMesh_mkong")
+
+[node name="Pipe" type="MeshInstance3D" parent="Model" unique_id=134689020]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.43, 0.975, -0.5)
+material_override = SubResource("StandardMaterial3D_bmy3d")
+mesh = SubResource("CylinderMesh_wnpke")
+
+[node name="Head" type="MeshInstance3D" parent="Model" unique_id=136481217]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 1.95, -0.36)
+material_override = SubResource("StandardMaterial3D_revir")
+mesh = SubResource("CylinderMesh_2d3bt")
+
+[node name="HeadArm" type="MeshInstance3D" parent="Model" unique_id=1291475325]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.36, 1.94, -0.43)
+material_override = SubResource("StandardMaterial3D_8wj2l")
+mesh = SubResource("BoxMesh_et60x")
+
+[node name="Collision" type="StaticBody3D" parent="." unique_id=2055575183]
+collision_mask = 3
+
+[node name="Tray" type="CollisionShape3D" parent="Collision" unique_id=435671752]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.025, 0)
+shape = SubResource("BoxShape3D_u8mwx")
+
+[node name="SideGlass" type="CollisionShape3D" parent="Collision" unique_id=792184417]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 1, 0)
+shape = SubResource("BoxShape3D_681tg")
+
+[node name="@CollisionShape3D@15" type="CollisionShape3D" parent="Collision" unique_id=2069158941]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 1, 0)
+shape = SubResource("BoxShape3D_30i0w")
+
+[node name="RearGlass" type="CollisionShape3D" parent="Collision" unique_id=1492779799]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.6)
+shape = SubResource("BoxShape3D_dby40")
+
+[node name="Points" type="Node3D" parent="." unique_id=1212902666]
+
+[node name="Use0" type="Marker3D" parent="Points" unique_id=1264021980]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.17)
+
+[node name="Pose0" type="Marker3D" parent="Points" unique_id=319602894]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.17)

@@ -7,6 +7,7 @@ const EmotionalState := preload("res://scripts/sim/emotional_state.gd")
 const IntimacyState := preload("res://scripts/sim/intimacy_state.gd")
 const PsycheExt := preload("res://scripts/sim/psyche_ext.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
+const GossipNetwork := preload("res://scripts/sim/gossip_network.gd")
 const VERSION := 1
 const MAGIC := "LS-HOUSEHOLD"
 const MAX_BYTES := 8 * 1024 * 1024
@@ -68,8 +69,12 @@ static func _commands(world: Node, queue: Array) -> Array:
 	return out
 
 
-static func capture(world: Node) -> Dictionary:
-	if world == null or world.net == null or world.net.is_networked() or not world.net.is_authority():
+## allow_authority = true jen pro ServerWorldStore (H4b): snímek světa na síťové autoritě
+## (hostitel / dedikovaný server). Soubor zůstává na serveru, klientům se nic z toho neposílá.
+static func capture(world: Node, allow_authority: bool = false) -> Dictionary:
+	if world == null or world.net == null or not world.net.is_authority():
+		return {"ok": false, "reason": "offline_only"}
+	if world.net.is_networked() and not allow_authority:
 		return {"ok": false, "reason": "offline_only"}
 	var out: Array = []
 	for sim in world.sims:
@@ -131,12 +136,16 @@ static func capture(world: Node) -> Dictionary:
 		"morning": d._morning.duplicate(true), "cooked": d._cooked.duplicate(true),
 		"stats": d.stats.duplicate(true)
 	}
-	return {"ok": true, "data": {
+	var data := {
 		"version": VERSION,
 		"clock": {"total_minutes": world.clock.total_minutes,
 			"speed_index": world.clock.speed_index, "running": world.clock.running},
 		"selected": int(world.selected), "sims": out,
-		"objects": objs, "dynamics": dynamics}}
+		"objects": objs, "dynamics": dynamics}
+	# Drby (volitelná sekce; starší uložené hry ji nemají → začne se bez drbů).
+	if world.get("gossip") != null:
+		data["gossip"] = world.gossip.to_dict()
+	return {"ok": true, "data": data}
 
 
 static func _finite_range(value: Variant, low: float, high: float) -> bool:
@@ -245,6 +254,8 @@ static func validate_data(data: Variant, world: Node = null) -> Dictionary:
 			return {"ok": false, "reason": "bad_elapsed"}
 		if not _finite_range(state.get("think_cooldown"), -1.0e7, 1.0e7):
 			return {"ok": false, "reason": "bad_cooldown"}
+	if data.has("gossip") and not GossipNetwork.validate_snapshot(data["gossip"]):
+		return {"ok": false, "reason": "bad_gossip"}
 	var objs = data.get("objects")
 	if typeof(objs) != TYPE_ARRAY or typeof(data.get("dynamics")) != TYPE_DICTIONARY:
 		return {"ok": false, "reason": "bad_environment"}
@@ -338,9 +349,16 @@ static func _restore_state(world: Node, sim: Node, data: Dictionary) -> void:
 	sim._update_visual()
 
 
-static func apply(world: Node, data: Variant) -> Dictionary:
-	if world == null or world.net == null or world.net.is_networked():
+## allow_authority = true jen pro ServerWorldStore (H4b): obnova na síťové autoritě, a to jen do
+## PRÁZDNÉHO světa před prvním klientem (spawny jdou přes MultiplayerSpawner, nic se neruší).
+static func apply(world: Node, data: Variant, allow_authority: bool = false) -> Dictionary:
+	if world == null or world.net == null:
 		return {"ok": false, "reason": "offline_only"}
+	if world.net.is_networked():
+		if not allow_authority or not world.net.is_authority():
+			return {"ok": false, "reason": "offline_only"}
+		if not world.sims.is_empty():
+			return {"ok": false, "reason": "server_world_not_empty"}
 	var check: Dictionary = validate_data(data, world)
 	if not bool(check["ok"]):
 		return check
@@ -353,6 +371,10 @@ static func apply(world: Node, data: Variant) -> Dictionary:
 			world.unregister_sim(sim)
 			sim.free()
 	world.dynamics = HouseholdDynamics.new()
+	if world.get("gossip") != null:
+		world.gossip = GossipNetwork.new()
+		if data.has("gossip"):
+			world.gossip.from_dict(data["gossip"])
 	for item in data["sims"]:
 		var st: Dictionary = item["state"]
 		var created = world.spawn_character(CharacterCodec.migrate(item["character"])["data"], st["position"], int(st.get("seed", 1)), String(item["node"]))

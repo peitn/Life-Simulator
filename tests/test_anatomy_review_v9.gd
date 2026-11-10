@@ -1,5 +1,6 @@
 extends SceneTree
 const Preview=preload("res://scripts/ui/character_preview.gd")
+const Visual=preload("res://scripts/sim/sim_visual.gd")
 const CD=preload("res://scripts/character/character_data.gd")
 const Codec=preload("res://scripts/character/character_codec.gd")
 const Validator=preload("res://scripts/character/character_validator.gd")
@@ -120,6 +121,64 @@ func run():
                         var c:Vector3=points[ids[t+2]]
                         if not a.is_finite() or (b-a).cross(c-a).length_squared()<1e-17: valid=false
                     check(valid,"actual posed anatomy has finite, noncollapsed faces")
+    # H3: two simultaneous authored preview rigs and two production SimVisual rigs.
+    # This checks real Skeleton3D pose scales and CPU-skinned hand vertices,
+    # not pixels, gameplay SimAgent spawning, or a cold-process save reload.
+    var hand_a: Dictionary = CD.create().to_dict()
+    var hand_b: Dictionary = CD.create().to_dict()
+    hand_a.body.hand_size = -0.6
+    hand_b.body.hand_size = 0.8
+    preview.show_draft(hand_a)
+    var preview_b = Preview.new()
+    root.add_child(preview_b)
+    preview_b.show_draft(hand_b)
+    var actor_a = Visual.new()
+    var actor_b = Visual.new()
+    root.add_child(actor_a)
+    root.add_child(actor_b)
+    actor_a.apply_look(preview.public_snapshot())
+    actor_b.apply_look(preview_b.public_snapshot())
+    var rigs: Array = [preview.visual._skeleton(), preview_b.visual._skeleton(),
+        actor_a._skeleton(), actor_b._skeleton()]
+    var rigs_ok: bool = true
+    for rig in rigs:
+        rigs_ok = rigs_ok and rig != null and rig.find_bone("hand_l") >= 0 and rig.find_bone("hand_r") >= 0
+    check(rigs_ok, "two previews and two actor visuals have actual left/right hand bones")
+    if rigs_ok:
+        var expected_scales: Array = [0.88, 1.16, 0.88, 1.16]
+        for side in ["hand_l", "hand_r"]:
+            for idx in rigs.size():
+                var expected_scale: float = float(expected_scales[idx])
+                var rig: Skeleton3D = rigs[idx]
+                check(rig.get_bone_pose_scale(rig.find_bone(side)).is_equal_approx(Vector3.ONE * expected_scale),
+                    "authored " + side + " scale matches each preview/actor independently " + str(idx))
+    var mesh_ok: bool = preview.visual._hand_detail_nodes.size() > 0 and preview_b.visual._hand_detail_nodes.size() > 0 and actor_a._hand_detail_nodes.size() > 0 and actor_b._hand_detail_nodes.size() > 0
+    check(mesh_ok, "both previews and actor visuals have actual skinned hand geometry")
+    if mesh_ok:
+        for visual in [preview.visual, preview_b.visual, actor_a, actor_b]:
+            visual.set_hand_pose("open")
+        var spans: Array = []
+        for visual in [preview.visual, preview_b.visual, actor_a, actor_b]:
+            var points: PackedVector3Array = posed(visual, visual._hand_detail_nodes[0])
+            check(points.size() > 50, "authored skinned hand mesh retains 51-point finger landmark")
+            spans.append(points[50].distance_to(points[0]) if points.size() > 50 else -1.0)
+        check(spans[0] > 0.0 and is_equal_approx(spans[0], spans[2]),
+            "first preview and actor have identical CPU-skinned hand span")
+        check(spans[1] > 0.0 and is_equal_approx(spans[1], spans[3]),
+            "second preview and actor have identical CPU-skinned hand span")
+        check(spans[0] > 0.0 and absf(spans[1] / maxf(spans[0], 0.00001) - 1.16 / 0.88) < 0.005,
+            "two independent authored hand meshes have expected physical size ratio")
+    hand_b.body.hand_size = 0.0
+    preview_b.show_draft(hand_b)
+    actor_b.apply_look(preview_b.public_snapshot())
+    if rigs_ok:
+        check(actor_a._skeleton().get_bone_pose_scale(actor_a._skeleton().find_bone("hand_l")).is_equal_approx(Vector3.ONE * 0.88),
+            "changing second actor hand size leaves first actor rig untouched")
+        check(actor_b._skeleton().get_bone_pose_scale(actor_b._skeleton().find_bone("hand_l")).is_equal_approx(Vector3.ONE),
+            "second actor rig returns to neutral hand scale")
+    actor_a.free()
+    actor_b.free()
+    preview_b.free()
     preview.free()
     await process_frame
     print("ANATOMY_V9_RESULT checks=",checks," failures=",failures)

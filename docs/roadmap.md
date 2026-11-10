@@ -122,3 +122,18 @@ repository remain the source of truth. The web port's source is not part of this
 
 
 - 28 Oct 2026: `test_extreme_fictional_household` watchdog finding closed by sharding (see docs/reviews/extreme-household-sharding-20261028.md); simulation speed unchanged. Next: H3 second-creator preview parity.
+
+- 7 Nov 2026: H3 – asynchronous C5 wardrobe with frame-spread mesh realisation, client visual prewarm, clean server shutdown; the three-process game-path test passes 17/17 (five consecutive runs). Next: rendered preview ↔ spawn parity, then H4 multiplayer reconnect.
+
+- 8 Nov 2026: H3 – rendered preview ↔ spawn parity on the async asset path (Xvfb GPU framebuffer, 78 checks): finished characters are pixel-identical to the editor preview; placeholder clothes never leave missing body regions; the hair-shell placeholder colour now matches the strand cards (was light tan over dark hair). Known: a dress waits as shirt + trousers. Next: H4 multiplayer reconnect/persistence.
+
+- 8 Nov 2026 (evening): H4a – multiplayer reconnect: a dropped player's character waits (game default 120 s) and the player resumes the same character with a one-time, rotated token (server stores only its SHA-256); held characters are not reassigned and count toward the own-character limit; intentional leave is not held; broadcasts skip peers without a live ENet transport (fixes the "max channels: 0" errors). New test_mp_reconnect 72/72. Next: H4b networked host/server persistence (held/owned characters across a server restart), then DTLS.
+
+- 2026-11-09: **H4b server world persistence done** — host/dedicated autosave and restore after restart, players resume with their token, private data stays server-side (`test_h4b_server_persistence` 110/110). Next: DTLS for the transport, multiplayer economy/world systems.
+
+
+- 2026-11-09 (evening): **(c) relationships — gossip and rumours**: rumours from witnessed events, belief and
+  distortion along chains, invented rumours from dishonest characters with grudges, exposure of the source,
+  debunking by personal experience, content settings and listener stigma, saved with the household
+  (`test_gossip` 106/106). Next: rivalry and manipulation on top of the network, a player command to confront or
+  deny a rumour, then DTLS for multiplayer.

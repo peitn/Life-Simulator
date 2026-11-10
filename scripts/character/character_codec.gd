@@ -182,6 +182,10 @@ static func migrate(d) -> Dictionary:
 		data = _v16_to_v17(data)
 	if v <= 17:
 		data = _v17_to_v18(data)
+	if v <= 18:
+		data = _v18_to_v19(data)
+	if v <= 19:
+		data = _v19_to_v20(data)
 	return {"ok": true, "data": data, "from_version": v}
 
 
@@ -450,4 +454,28 @@ static func _from_v0(old: Dictionary) -> Dictionary:
 	d["mind"]["morning_worse"] = bool((pat as Dictionary).get("morning_worse", false)) if typeof(pat) == TYPE_DICTIONARY else false
 	d["v"] = Schema.VERSION
 	d["uid"] = "%08x%08x" % [h, LSX.crc32(("uid:" + name).to_utf8_buffer())]
+	return d
+
+
+
+## v19: old outfits keep exactly their appearance; no custom garment by default.
+static func _v18_to_v19(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 19
+	var clothing = d.get("clothing", null)
+	if clothing is Dictionary:
+		for slot in Schema.OUTFIT_CATEGORIES:
+			var outfit = clothing.get(slot, null)
+			if outfit is Dictionary and not outfit.has("designs"):
+				outfit["designs"] = {}
+	return d
+
+
+## v20: resonance is a separate public acoustic parameter; legacy voices retain neutral sound.
+static func _v19_to_v20(src: Dictionary) -> Dictionary:
+	var d := src.duplicate(true)
+	d["v"] = 20
+	var voice = d.get("voice", null)
+	if voice is Dictionary and not voice.has("resonance"):
+		voice["resonance"] = 0.0
 	return d

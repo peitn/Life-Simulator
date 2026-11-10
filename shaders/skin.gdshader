@@ -202,7 +202,7 @@ void fragment() {
 	float mel = chrom.x;
 	float hb = chrom.y;
 	float car = chrom.z;
-	float rough = 0.52;
+	float rough = 0.63;
 	float crease = 0.0;
 	// LOD (audit Gemini, běh 10): jemné detaily pod rozlišením pixelu (pihy, póry, chloupky obočí, strniště,
 	// drobné skvrny) se od ~6 m plynule vypínají – šetří fragmentový výpočet u vzdálených postav a brání
@@ -309,10 +309,31 @@ void fragment() {
 		hb += ck * blush * 0.35;
 	}
 
-	// --- albedo z modelu (Beer–Lambert) ---
+	// Low-amplitude vascular variation, orbital transition, alar creases.
+    // Rest coordinates keep this attached through skinning and face morphs.
+    float tissue_ao = 0.0;
+    if (head && front) {
+        float cheek=exp(-pow((ax-.043)/.020,2.0)-pow((p.y-1.638)/.023,2.0));
+        float eye_bag=exp(-pow((ax-.0318)/.016,2.0)-pow((p.y-1.659)/.0035,2.0));
+        float nostril=exp(-pow((ax-.0102)/.0031,2.0)-pow((p.y-1.6295)/.0018,2.0))*smoothstep(.090,.102,p.z);
+        float alar=exp(-pow((ax-.017)/.0022,2.0)-pow((p.y-1.633)/.005,2.0))*smoothstep(.075,.09,p.z);
+        hb+=.015*cheek;
+        tissue_ao+=.08*eye_bag+.62*nostril+.10*alar;
+    }
+    // Palmar transverse creases and dorsal knuckle/tendon color variation.
+    if (!head && ax>.275 && p.y>.75 && p.y<.94) {
+        float palm=band(p.y,.821,.900,.009)*band(ax,.288,.346,.008);
+        float palm_side=1.0-smoothstep(-.004,.009,p.z);
+        float palm_line=exp(-pow((p.y-(.862+.12*(ax-.32)))/.00065,2.0));
+        palm_line+=.65*exp(-pow((p.y-(.845-.17*(ax-.32)))/.00065,2.0));
+        crease+=palm_line*palm*palm_side*.22;
+        hb+=.018*palm;
+    }
+    mel*=1.0+.018*(vnoise(p*85.0+seed)-.5);
+    // --- albedo z modelu (Beer–Lambert) ---
 	vec3 e = mel * k_mel + hb * k_hb + car * k_car;
 	vec3 alb = clamp(vec3(surface_refl) + rd * exp(-e), 0.0, 1.0);
-	alb *= 1.0 - 0.2 * crease;
+	alb *= (1.0 - 0.2 * crease) * (1.0-tissue_ao);
 
 	// --- tetování (inkoust pod pokožkou: kůže filtruje barvu inkoustu) ---
 	for (int i = 0; i < 8; i++) {
@@ -453,11 +474,11 @@ void fragment() {
 
 	ALBEDO = alb;
 	ROUGHNESS = clamp(rough, 0.22, 0.88);
-	SPECULAR = 0.35 + 0.25 * oil;
+	SPECULAR = 0.26 + 0.16 * oil;
 	CLEARCOAT = 0.3 * oil * oil;          // mazový film (mastná T-zóna) jako tenká lesklá vrstva (render: 0,5 bělilo světlou pleť)
 	CLEARCOAT_ROUGHNESS = 0.32;
 	RIM = vellus * vz * 0.22;
 	RIM_TINT = 0.6;
-	AO = 1.0 - 0.45 * crease;
+	AO = (1.0 - 0.45 * crease) * (1.0-tissue_ao);
 	SSS_STRENGTH = sss;
 }

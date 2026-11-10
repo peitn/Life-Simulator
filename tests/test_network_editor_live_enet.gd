@@ -1,6 +1,7 @@
 extends SceneTree
 ## Full real ENet owner UI: correlated private read -> draft -> authenticated
 ## authoritative Apply -> private ACK -> canonical readback -> public-only look.
+const GarmentDesign = preload("res://scripts/clothing/garment_design.gd")
 const Net = preload("res://scripts/net/net_session.gd")
 const Editor = preload("res://scripts/ui/character_editor_panel.gd")
 const CD = preload("res://scripts/character/character_data.gd")
@@ -195,6 +196,12 @@ func run() -> void:
     var edited: Dictionary=panel._session.draft()
     edited["body"]["height_cm"]=175.0
     edited["clothing"]["bezne"]["top"]="kawaii_kocici_mikina"
+    var garment: Dictionary = GarmentDesign.create("top", "kawaii_kocici_mikina")
+    garment["pattern"] = "checks"
+    garment["fabric"] = "cotton"
+    garment["sleeve_length"] = .58
+    garment["name"] = "Authenticated custom garment"
+    edited = GarmentDesign.put_on_character(edited, garment)
     check(panel._session.replace_draft(edited,"network test"),"owner creates isolated local draft")
     panel._refresh()
     check(worlds[0]._character_records["Actor"].body["height_cm"] != 175.0,
@@ -241,6 +248,12 @@ func run() -> void:
     check(not worlds[2].find_sim("Actor").look.has("uid") and not worlds[2].find_sim("Actor").look.has("mind"),
         "spectator never receives private UID or mental state")
     check(snapshot_counts["outsider"]==0,"no private readback ever reaches spectator")
+    check(worlds[0]._character_records["Actor"].clothing["bezne"].get("designs", {}).get("top", {}).get("pattern") == "checks",
+        "authenticated server commits portable custom garment recipe")
+    check(panel._session.draft()["clothing"]["bezne"].get("designs", {}).get("top", {}).get("sleeve_length") == .58,
+        "canonical private readback preserves custom sleeve geometry")
+    check(worlds[2].find_sim("Actor").look.get("clothing", {}).get("bezne", {}).get("designs", {}).get("top", {}).get("name") == "Authenticated custom garment",
+        "observer receives same bounded public garment recipe")
     # A newer server revision invalidates a draft: do not silently overwrite it.
     var stale: Dictionary = panel._session.draft()
     stale["body"]["height_cm"]=179.0

@@ -14,6 +14,7 @@ var _height := 1.8
 var _model_note: Label
 var _hand_pose_picker: OptionButton
 var _hand_closeup := false
+var _detail_view := "body"
 var _hand_detail_button: Button
 var _anatomy_picker: OptionButton
 var _finger_controls: VBoxContainer
@@ -74,6 +75,25 @@ func _ready() -> void:
         button.text = entry[0]
         button.pressed.connect(_turn.bind(float(entry[1])))
         buttons.add_child(button)
+    var detail_row := HBoxContainer.new()
+    detail_row.name = "DetailCameraRow"
+    add_child(detail_row)
+    var detail_label := Label.new()
+    detail_label.text = "Záběr:"
+    detail_row.add_child(detail_label)
+    var detail_picker := OptionButton.new()
+    detail_picker.name = "DetailCameraPicker"
+    detail_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    for entry in [["Celá postava","body"],["Obličej zblízka","face"],["Profil obličeje","profile"],["Ruce a nehty","hands"],["Chodidla a kotníky","feet"]]:
+        detail_picker.add_item(entry[0])
+        detail_picker.set_item_metadata(detail_picker.item_count-1,entry[1])
+    detail_picker.item_selected.connect(func(i:int):
+        _detail_view=String(detail_picker.get_item_metadata(i))
+        _hand_closeup=_detail_view=="hands"
+        _angle=PI/2.0 if _detail_view=="profile" else 0.0
+        visual.rotation.y=_angle
+        _frame_character())
+    detail_row.add_child(detail_picker)
     var gesture_row := HBoxContainer.new()
     gesture_row.name = "AnatomyGestureRow"
     add_child(gesture_row)
@@ -192,7 +212,16 @@ func show_draft(data: Dictionary) -> void:
     _frame_character()
 
 func _frame_character() -> void:
-    if _hand_closeup:
+    if _detail_view in ["face","profile"] and not _hand_closeup:
+        var ratio:float=_height/1.78
+        camera.size=.36*ratio
+        camera.position=Vector3(0,1.66*ratio,2)
+        camera.look_at(Vector3(0,1.66*ratio,0))
+    elif _detail_view=="feet" and not _hand_closeup:
+        camera.size=.44
+        camera.position=Vector3(0,.22,1.6)
+        camera.look_at(Vector3(0,.12,.04))
+    elif _hand_closeup:
         camera.size = .33
         camera.position = Vector3(.31, .83, 2.0)
         camera.look_at(Vector3(.31, .83, 0))

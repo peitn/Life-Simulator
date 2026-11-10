@@ -37,6 +37,9 @@ const BATHROOM_NEED := 40.0
 ## Nádobí zůstane jen po skutečném vaření (aspoň tolik minut) – ne po příkazu „vař“ zrušeném
 ## po minutě (review Gemini běh 15: griefing třenicemi přes rychlé příkazy).
 const DISHES_MIN_COOK := 20.0
+## Visual dirty plates remain after a substantial cooking action, then clear.
+## This is not a new authoritative inventory or persistent household property.
+const DISHES_VISIBLE_MINUTES := 240.0
 ## Základní šance za krok, že situace opravdu naštve (× dráždivost povahy).
 const FRICTION_P := {"noise": 0.25, "bathroom": 0.2, "dishes": 0.12}
 ## Odstup mezi třenicemi stejného druhu u stejné dvojice (herní minuty) – jinak by jedno
@@ -110,6 +113,7 @@ var _prev_acting := {}    # jméno postavy -> id akce, kterou dělala v minulém
 var _friction_day := {}  # jméno postavy -> [den, počet třenic dnes]
 var _morning := {}       # jméno postavy -> den, kdy už mělo ranní světlo
 var _cooked := {}         # jméno postavy -> minuty nepřetržitého vaření (pro nádobí)
+var _dirty_dishes_until := -1.0
 ## Statistiky (testy, ladění, budoucí HUD „jak to doma vypadá“).
 var stats := {}
 
@@ -154,6 +158,9 @@ func tick(all_sims: Array, hour: int, now: float) -> void:
 		_cooked[o.sim_name] = cooked + TICK if oid == "cook" else 0.0
 		if prev == "cook" and cooked < DISHES_MIN_COOK:
 			prev = ""  # krátce rozvařené a zrušené – žádné nádobí
+		if prev == "cook":
+			# The complaint and the visible plates originate in the same event.
+			_dirty_dishes_until = maxf(_dirty_dishes_until, now + DISHES_VISIBLE_MINUTES)
 		for s in sims:
 			if s == o:
 				continue
@@ -176,6 +183,11 @@ func tick(all_sims: Array, hour: int, now: float) -> void:
 	for x in sims:
 		if not x._is_sleeping() and x.rng.randf() < EVENT_HAZARD:
 			life_event(x, now)
+
+
+## Visible kitchen mess is tied to a real qualified cooking-completion event.
+func has_dirty_dishes(now: float) -> bool:
+	return now < _dirty_dishes_until
 
 
 ## Id akce, kterou postava právě DĚLÁ (ne ke které jde), jinak "".

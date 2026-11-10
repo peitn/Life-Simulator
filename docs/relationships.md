@@ -191,3 +191,30 @@ Multiplayer `net_detail` has deliberately **not** been changed to send
 attachment maps; proper owner-only transport/editor sliders per relationship
 are a separate future task. No FCCS involvement. New test suite:
 `tests/test_attachment_sensitive_scene.tscn`.
+
+
+## Gossip and rumours (9 November 2026)
+
+`scripts/sim/gossip_network.gd` models who knows what about whom, who told whom and how much each person
+believes it. It runs only on the authority (offline or server) and is saved with the household.
+
+- **Sources.** True rumours come only from witnessed events: an argument or insult seen by a bystander, a panic
+  attack seen by others, repeated drinking, and help received (a positive rumour). Invented rumours ("talks
+  about you behind your back", "takes other people's things") appear only when a character with low HEXACO
+  honesty holds a strong grudge (≥ 35) against a third person.
+- **Belief.** belief = trust in the teller × plausibility (listeners who like the subject believe less) ×
+  (1 − 0.3 · distortion) × the teller's own belief. A second independent source combines as
+  1 − (1 − a)(1 − 0.8 b). Each retelling adds distortion (more for dishonest tellers) and inflates perceived
+  severity, so weak chains die out after two or three hops unless people trust each other.
+- **Effect.** Only the *increase* in belief changes the listener's opinion of the subject, capped at 12 points
+  per listener–subject pair per day; teller–listener bonding is capped at 3 points per day.
+- **Exposure.** A friend of the subject (relationship ≥ 20) may tell them what is being said. The subject learns
+  the immediate source (the originator only if it is the same person) and loses trust in them: grudge,
+  humiliation trace, stress and a mood hit (shame for true rumours, anger for lies). The informer believes a
+  denied lie less.
+- **Debunking and forgetting.** A good conversation with the subject weakens belief (lies faster than truths);
+  eyewitnesses are not talked out of what they saw. Belief decays with τ = 12 game days.
+- **Sensitive content.** Panic-attack rumours exist only in the full mental-health mode, drinking rumours only
+  with addiction content on. A rumour about a panic attack changes the opinion of stigmatising listeners only;
+  spreading sensitive rumours gives no mood reward. Spoken lines for these kinds never name the condition.
+- **Privacy.** Nothing is replicated; the owner sees "Lidi si o mně povídají, že …" in their private lines.

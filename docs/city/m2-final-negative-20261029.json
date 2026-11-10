@@ -1,0 +1,38 @@
+{
+	"failed": 0,
+	"group": "negative",
+	"passed": 3,
+	"results": [
+		{
+			"accepted": true,
+			"args": [
+				"--legacy-seat-order"
+			],
+			"exit": 1,
+			"expected_exit": 1,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\nFAIL sofa remaining occupant keeps physical slot\nFAIL sofa freed slot reused without overlap\nM2_VALIDATED sofa\nM2_VALIDATED bed_single\nFAIL bed_double remaining occupant keeps physical slot\nFAIL bed_double freed slot reused without overlap\nM2_VALIDATED bed_double\nM2_VALIDATED fridge\nM2_FURNITURE 137/141 failed=4\nWARNING: 20 ObjectDB instances were leaked at exit (run with `--verbose` for details).\n   at: cleanup (core/object/object.cpp:2536)\n",
+			"target": "scripts/city/validate_m2_furniture.gd"
+		},
+		{
+			"accepted": true,
+			"args": [
+				"--legacy-tv"
+			],
+			"exit": 1,
+			"expected_exit": 1,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\nFAIL TV second seat remains stable\nFAIL TV fills only vacant seat\nM2_FIXTURES 295/297 failed=2\nWARNING: 20 ObjectDB instances were leaked at exit (run with `--verbose` for details).\n   at: cleanup (core/object/object.cpp:2536)\n",
+			"target": "scripts/city/validate_m2_fixtures.gd"
+		},
+		{
+			"accepted": true,
+			"args": [
+				"--disable-shower-side"
+			],
+			"exit": 1,
+			"expected_exit": 1,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\nFAIL shower glass blocks lateral passage\nFAIL shower glass blocks lateral passage\nFAIL shower glass blocks lateral passage\nFAIL shower glass blocks lateral passage\nM2_FIXTURES 293/297 failed=4\nWARNING: 20 ObjectDB instances were leaked at exit (run with `--verbose` for details).\n   at: cleanup (core/object/object.cpp:2536)\n",
+			"target": "scripts/city/validate_m2_fixtures.gd"
+		}
+	],
+	"run_id": "city-m2-complete-1793307317"
+}

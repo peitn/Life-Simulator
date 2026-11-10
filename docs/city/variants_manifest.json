@@ -1,0 +1,1935 @@
+{
+  "version": "1.0",
+  "license": "Original Life Simulator assets; all rights reserved",
+  "units": "meters",
+  "models": {
+    "window_wide": {
+      "category": "window",
+      "triangles": 108,
+      "glb": "assets/city/variants/window_wide.glb",
+      "sha256": "f311107442f82b7821b35624ac3b0135a72bd87317bcec5726d116c7a54eb99c",
+      "colliders": [
+        {
+          "name": "window_wide_Left",
+          "points": [
+            [
+              0,
+              0,
+              -0.1
+            ],
+            [
+              0.2,
+              0,
+              -0.1
+            ],
+            [
+              0.2,
+              2.8,
+              -0.1
+            ],
+            [
+              0,
+              2.8,
+              -0.1
+            ],
+            [
+              0,
+              0,
+              0.1
+            ],
+            [
+              0.2,
+              0,
+              0.1
+            ],
+            [
+              0.2,
+              2.8,
+              0.1
+            ],
+            [
+              0,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_wide_Right",
+          "points": [
+            [
+              1.8,
+              0,
+              -0.1
+            ],
+            [
+              2,
+              0,
+              -0.1
+            ],
+            [
+              2,
+              2.8,
+              -0.1
+            ],
+            [
+              1.8,
+              2.8,
+              -0.1
+            ],
+            [
+              1.8,
+              0,
+              0.1
+            ],
+            [
+              2,
+              0,
+              0.1
+            ],
+            [
+              2,
+              2.8,
+              0.1
+            ],
+            [
+              1.8,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_wide_SillWall",
+          "points": [
+            [
+              0.2,
+              0,
+              -0.1
+            ],
+            [
+              1.8,
+              0,
+              -0.1
+            ],
+            [
+              1.8,
+              1.0,
+              -0.1
+            ],
+            [
+              0.2,
+              1.0,
+              -0.1
+            ],
+            [
+              0.2,
+              0,
+              0.1
+            ],
+            [
+              1.8,
+              0,
+              0.1
+            ],
+            [
+              1.8,
+              1.0,
+              0.1
+            ],
+            [
+              0.2,
+              1.0,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_wide_Header",
+          "points": [
+            [
+              0.2,
+              2.1,
+              -0.1
+            ],
+            [
+              1.8,
+              2.1,
+              -0.1
+            ],
+            [
+              1.8,
+              2.8,
+              -0.1
+            ],
+            [
+              0.2,
+              2.8,
+              -0.1
+            ],
+            [
+              0.2,
+              2.1,
+              0.1
+            ],
+            [
+              1.8,
+              2.1,
+              0.1
+            ],
+            [
+              1.8,
+              2.8,
+              0.1
+            ],
+            [
+              0.2,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_wide_Glass",
+          "points": [
+            [
+              0.2,
+              1.0,
+              -0.0075
+            ],
+            [
+              1.8,
+              1.0,
+              -0.0075
+            ],
+            [
+              1.8,
+              2.1,
+              -0.0075
+            ],
+            [
+              0.2,
+              2.1,
+              -0.0075
+            ],
+            [
+              0.2,
+              1.0,
+              0.0075
+            ],
+            [
+              1.8,
+              1.0,
+              0.0075
+            ],
+            [
+              1.8,
+              2.1,
+              0.0075
+            ],
+            [
+              0.2,
+              2.1,
+              0.0075
+            ]
+          ],
+          "glass": true
+        }
+      ],
+      "wall_size": [
+        2,
+        2.8,
+        0.2
+      ],
+      "opening": [
+        0.2,
+        1.0,
+        1.8,
+        2.1
+      ],
+      "closed_glass": true,
+      "pivot": [
+        0,
+        0,
+        0
+      ]
+    },
+    "window_double": {
+      "category": "window",
+      "triangles": 132,
+      "glb": "assets/city/variants/window_double.glb",
+      "sha256": "d16bd5fe2ae0a936a93b14130c4a15798fcdc69909ba357dc465382fdd6e9c50",
+      "colliders": [
+        {
+          "name": "window_double_Left",
+          "points": [
+            [
+              0,
+              0,
+              -0.1
+            ],
+            [
+              0.4,
+              0,
+              -0.1
+            ],
+            [
+              0.4,
+              2.8,
+              -0.1
+            ],
+            [
+              0,
+              2.8,
+              -0.1
+            ],
+            [
+              0,
+              0,
+              0.1
+            ],
+            [
+              0.4,
+              0,
+              0.1
+            ],
+            [
+              0.4,
+              2.8,
+              0.1
+            ],
+            [
+              0,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_double_Right",
+          "points": [
+            [
+              1.6,
+              0,
+              -0.1
+            ],
+            [
+              2,
+              0,
+              -0.1
+            ],
+            [
+              2,
+              2.8,
+              -0.1
+            ],
+            [
+              1.6,
+              2.8,
+              -0.1
+            ],
+            [
+              1.6,
+              0,
+              0.1
+            ],
+            [
+              2,
+              0,
+              0.1
+            ],
+            [
+              2,
+              2.8,
+              0.1
+            ],
+            [
+              1.6,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_double_SillWall",
+          "points": [
+            [
+              0.4,
+              0,
+              -0.1
+            ],
+            [
+              1.6,
+              0,
+              -0.1
+            ],
+            [
+              1.6,
+              0.8,
+              -0.1
+            ],
+            [
+              0.4,
+              0.8,
+              -0.1
+            ],
+            [
+              0.4,
+              0,
+              0.1
+            ],
+            [
+              1.6,
+              0,
+              0.1
+            ],
+            [
+              1.6,
+              0.8,
+              0.1
+            ],
+            [
+              0.4,
+              0.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_double_Header",
+          "points": [
+            [
+              0.4,
+              2.1,
+              -0.1
+            ],
+            [
+              1.6,
+              2.1,
+              -0.1
+            ],
+            [
+              1.6,
+              2.8,
+              -0.1
+            ],
+            [
+              0.4,
+              2.8,
+              -0.1
+            ],
+            [
+              0.4,
+              2.1,
+              0.1
+            ],
+            [
+              1.6,
+              2.1,
+              0.1
+            ],
+            [
+              1.6,
+              2.8,
+              0.1
+            ],
+            [
+              0.4,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_double_Mullion",
+          "points": [
+            [
+              0.97,
+              0.8,
+              -0.12
+            ],
+            [
+              1.03,
+              0.8,
+              -0.12
+            ],
+            [
+              1.03,
+              2.1,
+              -0.12
+            ],
+            [
+              0.97,
+              2.1,
+              -0.12
+            ],
+            [
+              0.97,
+              0.8,
+              0.12
+            ],
+            [
+              1.03,
+              0.8,
+              0.12
+            ],
+            [
+              1.03,
+              2.1,
+              0.12
+            ],
+            [
+              0.97,
+              2.1,
+              0.12
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "window_double_GlassL",
+          "points": [
+            [
+              0.4,
+              0.8,
+              -0.0075
+            ],
+            [
+              0.97,
+              0.8,
+              -0.0075
+            ],
+            [
+              0.97,
+              2.1,
+              -0.0075
+            ],
+            [
+              0.4,
+              2.1,
+              -0.0075
+            ],
+            [
+              0.4,
+              0.8,
+              0.0075
+            ],
+            [
+              0.97,
+              0.8,
+              0.0075
+            ],
+            [
+              0.97,
+              2.1,
+              0.0075
+            ],
+            [
+              0.4,
+              2.1,
+              0.0075
+            ]
+          ],
+          "glass": true
+        },
+        {
+          "name": "window_double_GlassR",
+          "points": [
+            [
+              1.03,
+              0.8,
+              -0.0075
+            ],
+            [
+              1.6,
+              0.8,
+              -0.0075
+            ],
+            [
+              1.6,
+              2.1,
+              -0.0075
+            ],
+            [
+              1.03,
+              2.1,
+              -0.0075
+            ],
+            [
+              1.03,
+              0.8,
+              0.0075
+            ],
+            [
+              1.6,
+              0.8,
+              0.0075
+            ],
+            [
+              1.6,
+              2.1,
+              0.0075
+            ],
+            [
+              1.03,
+              2.1,
+              0.0075
+            ]
+          ],
+          "glass": true
+        }
+      ],
+      "wall_size": [
+        2,
+        2.8,
+        0.2
+      ],
+      "opening": [
+        0.4,
+        0.8,
+        1.6,
+        2.1
+      ],
+      "closed_glass": true,
+      "pivot": [
+        0,
+        0,
+        0
+      ]
+    },
+    "window_arch": {
+      "category": "window",
+      "triangles": 528,
+      "glb": "assets/city/variants/window_arch.glb",
+      "sha256": "41068e8065727b104ab6d91ae73f89d02a6820bf91832aa5d8650c4a445d9cb4",
+      "colliders": [
+        {
+          "name": "ArchLeft",
+          "points": [
+            [
+              0,
+              0,
+              -0.1
+            ],
+            [
+              0.5,
+              0,
+              -0.1
+            ],
+            [
+              0.5,
+              2.8,
+              -0.1
+            ],
+            [
+              0,
+              2.8,
+              -0.1
+            ],
+            [
+              0,
+              0,
+              0.1
+            ],
+            [
+              0.5,
+              0,
+              0.1
+            ],
+            [
+              0.5,
+              2.8,
+              0.1
+            ],
+            [
+              0,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchRight",
+          "points": [
+            [
+              1.5,
+              0,
+              -0.1
+            ],
+            [
+              2,
+              0,
+              -0.1
+            ],
+            [
+              2,
+              2.8,
+              -0.1
+            ],
+            [
+              1.5,
+              2.8,
+              -0.1
+            ],
+            [
+              1.5,
+              0,
+              0.1
+            ],
+            [
+              2,
+              0,
+              0.1
+            ],
+            [
+              2,
+              2.8,
+              0.1
+            ],
+            [
+              1.5,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchBottom",
+          "points": [
+            [
+              0.5,
+              0,
+              -0.1
+            ],
+            [
+              1.5,
+              0,
+              -0.1
+            ],
+            [
+              1.5,
+              0.8,
+              -0.1
+            ],
+            [
+              0.5,
+              0.8,
+              -0.1
+            ],
+            [
+              0.5,
+              0,
+              0.1
+            ],
+            [
+              1.5,
+              0,
+              0.1
+            ],
+            [
+              1.5,
+              0.8,
+              0.1
+            ],
+            [
+              0.5,
+              0.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop00",
+          "points": [
+            [
+              0.5,
+              1.8,
+              -0.1
+            ],
+            [
+              0.5625,
+              2.0420614591379636,
+              -0.1
+            ],
+            [
+              0.5625,
+              2.8,
+              -0.1
+            ],
+            [
+              0.5,
+              2.8,
+              -0.1
+            ],
+            [
+              0.5,
+              1.8,
+              0.1
+            ],
+            [
+              0.5625,
+              2.0420614591379636,
+              0.1
+            ],
+            [
+              0.5625,
+              2.8,
+              0.1
+            ],
+            [
+              0.5,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop01",
+          "points": [
+            [
+              0.5625,
+              2.0420614591379636,
+              -0.1
+            ],
+            [
+              0.625,
+              2.130718913883074,
+              -0.1
+            ],
+            [
+              0.625,
+              2.8,
+              -0.1
+            ],
+            [
+              0.5625,
+              2.8,
+              -0.1
+            ],
+            [
+              0.5625,
+              2.0420614591379636,
+              0.1
+            ],
+            [
+              0.625,
+              2.130718913883074,
+              0.1
+            ],
+            [
+              0.625,
+              2.8,
+              0.1
+            ],
+            [
+              0.5625,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop02",
+          "points": [
+            [
+              0.625,
+              2.130718913883074,
+              -0.1
+            ],
+            [
+              0.6875,
+              2.1903123748999,
+              -0.1
+            ],
+            [
+              0.6875,
+              2.8,
+              -0.1
+            ],
+            [
+              0.625,
+              2.8,
+              -0.1
+            ],
+            [
+              0.625,
+              2.130718913883074,
+              0.1
+            ],
+            [
+              0.6875,
+              2.1903123748999,
+              0.1
+            ],
+            [
+              0.6875,
+              2.8,
+              0.1
+            ],
+            [
+              0.625,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop03",
+          "points": [
+            [
+              0.6875,
+              2.1903123748999,
+              -0.1
+            ],
+            [
+              0.75,
+              2.2330127018922195,
+              -0.1
+            ],
+            [
+              0.75,
+              2.8,
+              -0.1
+            ],
+            [
+              0.6875,
+              2.8,
+              -0.1
+            ],
+            [
+              0.6875,
+              2.1903123748999,
+              0.1
+            ],
+            [
+              0.75,
+              2.2330127018922195,
+              0.1
+            ],
+            [
+              0.75,
+              2.8,
+              0.1
+            ],
+            [
+              0.6875,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop04",
+          "points": [
+            [
+              0.75,
+              2.2330127018922195,
+              -0.1
+            ],
+            [
+              0.8125,
+              2.263512405443479,
+              -0.1
+            ],
+            [
+              0.8125,
+              2.8,
+              -0.1
+            ],
+            [
+              0.75,
+              2.8,
+              -0.1
+            ],
+            [
+              0.75,
+              2.2330127018922195,
+              0.1
+            ],
+            [
+              0.8125,
+              2.263512405443479,
+              0.1
+            ],
+            [
+              0.8125,
+              2.8,
+              0.1
+            ],
+            [
+              0.75,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop05",
+          "points": [
+            [
+              0.8125,
+              2.263512405443479,
+              -0.1
+            ],
+            [
+              0.875,
+              2.2841229182759273,
+              -0.1
+            ],
+            [
+              0.875,
+              2.8,
+              -0.1
+            ],
+            [
+              0.8125,
+              2.8,
+              -0.1
+            ],
+            [
+              0.8125,
+              2.263512405443479,
+              0.1
+            ],
+            [
+              0.875,
+              2.2841229182759273,
+              0.1
+            ],
+            [
+              0.875,
+              2.8,
+              0.1
+            ],
+            [
+              0.8125,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop06",
+          "points": [
+            [
+              0.875,
+              2.2841229182759273,
+              -0.1
+            ],
+            [
+              0.9375,
+              2.2960783708246106,
+              -0.1
+            ],
+            [
+              0.9375,
+              2.8,
+              -0.1
+            ],
+            [
+              0.875,
+              2.8,
+              -0.1
+            ],
+            [
+              0.875,
+              2.2841229182759273,
+              0.1
+            ],
+            [
+              0.9375,
+              2.2960783708246106,
+              0.1
+            ],
+            [
+              0.9375,
+              2.8,
+              0.1
+            ],
+            [
+              0.875,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop07",
+          "points": [
+            [
+              0.9375,
+              2.2960783708246106,
+              -0.1
+            ],
+            [
+              1.0,
+              2.3,
+              -0.1
+            ],
+            [
+              1.0,
+              2.8,
+              -0.1
+            ],
+            [
+              0.9375,
+              2.8,
+              -0.1
+            ],
+            [
+              0.9375,
+              2.2960783708246106,
+              0.1
+            ],
+            [
+              1.0,
+              2.3,
+              0.1
+            ],
+            [
+              1.0,
+              2.8,
+              0.1
+            ],
+            [
+              0.9375,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop08",
+          "points": [
+            [
+              1.0,
+              2.3,
+              -0.1
+            ],
+            [
+              1.0625,
+              2.2960783708246106,
+              -0.1
+            ],
+            [
+              1.0625,
+              2.8,
+              -0.1
+            ],
+            [
+              1.0,
+              2.8,
+              -0.1
+            ],
+            [
+              1.0,
+              2.3,
+              0.1
+            ],
+            [
+              1.0625,
+              2.2960783708246106,
+              0.1
+            ],
+            [
+              1.0625,
+              2.8,
+              0.1
+            ],
+            [
+              1.0,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop09",
+          "points": [
+            [
+              1.0625,
+              2.2960783708246106,
+              -0.1
+            ],
+            [
+              1.125,
+              2.2841229182759273,
+              -0.1
+            ],
+            [
+              1.125,
+              2.8,
+              -0.1
+            ],
+            [
+              1.0625,
+              2.8,
+              -0.1
+            ],
+            [
+              1.0625,
+              2.2960783708246106,
+              0.1
+            ],
+            [
+              1.125,
+              2.2841229182759273,
+              0.1
+            ],
+            [
+              1.125,
+              2.8,
+              0.1
+            ],
+            [
+              1.0625,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop10",
+          "points": [
+            [
+              1.125,
+              2.2841229182759273,
+              -0.1
+            ],
+            [
+              1.1875,
+              2.263512405443479,
+              -0.1
+            ],
+            [
+              1.1875,
+              2.8,
+              -0.1
+            ],
+            [
+              1.125,
+              2.8,
+              -0.1
+            ],
+            [
+              1.125,
+              2.2841229182759273,
+              0.1
+            ],
+            [
+              1.1875,
+              2.263512405443479,
+              0.1
+            ],
+            [
+              1.1875,
+              2.8,
+              0.1
+            ],
+            [
+              1.125,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop11",
+          "points": [
+            [
+              1.1875,
+              2.263512405443479,
+              -0.1
+            ],
+            [
+              1.25,
+              2.2330127018922195,
+              -0.1
+            ],
+            [
+              1.25,
+              2.8,
+              -0.1
+            ],
+            [
+              1.1875,
+              2.8,
+              -0.1
+            ],
+            [
+              1.1875,
+              2.263512405443479,
+              0.1
+            ],
+            [
+              1.25,
+              2.2330127018922195,
+              0.1
+            ],
+            [
+              1.25,
+              2.8,
+              0.1
+            ],
+            [
+              1.1875,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop12",
+          "points": [
+            [
+              1.25,
+              2.2330127018922195,
+              -0.1
+            ],
+            [
+              1.3125,
+              2.1903123748999,
+              -0.1
+            ],
+            [
+              1.3125,
+              2.8,
+              -0.1
+            ],
+            [
+              1.25,
+              2.8,
+              -0.1
+            ],
+            [
+              1.25,
+              2.2330127018922195,
+              0.1
+            ],
+            [
+              1.3125,
+              2.1903123748999,
+              0.1
+            ],
+            [
+              1.3125,
+              2.8,
+              0.1
+            ],
+            [
+              1.25,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop13",
+          "points": [
+            [
+              1.3125,
+              2.1903123748999,
+              -0.1
+            ],
+            [
+              1.375,
+              2.130718913883074,
+              -0.1
+            ],
+            [
+              1.375,
+              2.8,
+              -0.1
+            ],
+            [
+              1.3125,
+              2.8,
+              -0.1
+            ],
+            [
+              1.3125,
+              2.1903123748999,
+              0.1
+            ],
+            [
+              1.375,
+              2.130718913883074,
+              0.1
+            ],
+            [
+              1.375,
+              2.8,
+              0.1
+            ],
+            [
+              1.3125,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop14",
+          "points": [
+            [
+              1.375,
+              2.130718913883074,
+              -0.1
+            ],
+            [
+              1.4375,
+              2.0420614591379636,
+              -0.1
+            ],
+            [
+              1.4375,
+              2.8,
+              -0.1
+            ],
+            [
+              1.375,
+              2.8,
+              -0.1
+            ],
+            [
+              1.375,
+              2.130718913883074,
+              0.1
+            ],
+            [
+              1.4375,
+              2.0420614591379636,
+              0.1
+            ],
+            [
+              1.4375,
+              2.8,
+              0.1
+            ],
+            [
+              1.375,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchTop15",
+          "points": [
+            [
+              1.4375,
+              2.0420614591379636,
+              -0.1
+            ],
+            [
+              1.5,
+              1.8,
+              -0.1
+            ],
+            [
+              1.5,
+              2.8,
+              -0.1
+            ],
+            [
+              1.4375,
+              2.8,
+              -0.1
+            ],
+            [
+              1.4375,
+              2.0420614591379636,
+              0.1
+            ],
+            [
+              1.5,
+              1.8,
+              0.1
+            ],
+            [
+              1.5,
+              2.8,
+              0.1
+            ],
+            [
+              1.4375,
+              2.8,
+              0.1
+            ]
+          ],
+          "glass": false
+        },
+        {
+          "name": "ArchGlass",
+          "points": [
+            [
+              0.5,
+              0.8,
+              -0.0075
+            ],
+            [
+              1.5,
+              0.8,
+              -0.0075
+            ],
+            [
+              1.5,
+              1.8,
+              -0.0075
+            ],
+            [
+              1.4375,
+              2.0420614591379636,
+              -0.0075
+            ],
+            [
+              1.375,
+              2.130718913883074,
+              -0.0075
+            ],
+            [
+              1.3125,
+              2.1903123748999,
+              -0.0075
+            ],
+            [
+              1.25,
+              2.2330127018922195,
+              -0.0075
+            ],
+            [
+              1.1875,
+              2.263512405443479,
+              -0.0075
+            ],
+            [
+              1.125,
+              2.2841229182759273,
+              -0.0075
+            ],
+            [
+              1.0625,
+              2.2960783708246106,
+              -0.0075
+            ],
+            [
+              1.0,
+              2.3,
+              -0.0075
+            ],
+            [
+              0.9375,
+              2.2960783708246106,
+              -0.0075
+            ],
+            [
+              0.875,
+              2.2841229182759273,
+              -0.0075
+            ],
+            [
+              0.8125,
+              2.263512405443479,
+              -0.0075
+            ],
+            [
+              0.75,
+              2.2330127018922195,
+              -0.0075
+            ],
+            [
+              0.6875,
+              2.1903123748999,
+              -0.0075
+            ],
+            [
+              0.625,
+              2.130718913883074,
+              -0.0075
+            ],
+            [
+              0.5625,
+              2.0420614591379636,
+              -0.0075
+            ],
+            [
+              0.5,
+              1.8,
+              -0.0075
+            ],
+            [
+              0.5,
+              0.8,
+              0.0075
+            ],
+            [
+              1.5,
+              0.8,
+              0.0075
+            ],
+            [
+              1.5,
+              1.8,
+              0.0075
+            ],
+            [
+              1.4375,
+              2.0420614591379636,
+              0.0075
+            ],
+            [
+              1.375,
+              2.130718913883074,
+              0.0075
+            ],
+            [
+              1.3125,
+              2.1903123748999,
+              0.0075
+            ],
+            [
+              1.25,
+              2.2330127018922195,
+              0.0075
+            ],
+            [
+              1.1875,
+              2.263512405443479,
+              0.0075
+            ],
+            [
+              1.125,
+              2.2841229182759273,
+              0.0075
+            ],
+            [
+              1.0625,
+              2.2960783708246106,
+              0.0075
+            ],
+            [
+              1.0,
+              2.3,
+              0.0075
+            ],
+            [
+              0.9375,
+              2.2960783708246106,
+              0.0075
+            ],
+            [
+              0.875,
+              2.2841229182759273,
+              0.0075
+            ],
+            [
+              0.8125,
+              2.263512405443479,
+              0.0075
+            ],
+            [
+              0.75,
+              2.2330127018922195,
+              0.0075
+            ],
+            [
+              0.6875,
+              2.1903123748999,
+              0.0075
+            ],
+            [
+              0.625,
+              2.130718913883074,
+              0.0075
+            ],
+            [
+              0.5625,
+              2.0420614591379636,
+              0.0075
+            ],
+            [
+              0.5,
+              1.8,
+              0.0075
+            ]
+          ],
+          "glass": true
+        }
+      ],
+      "wall_size": [
+        2,
+        2.8,
+        0.2
+      ],
+      "opening": [
+        0.5,
+        0.8,
+        1.5,
+        2.3
+      ],
+      "closed_glass": true,
+      "pivot": [
+        0,
+        0,
+        0
+      ],
+      "arc_segments": 16
+    },
+    "door_panelled": {
+      "category": "door_leaf",
+      "triangles": 84,
+      "glb": "assets/city/variants/door_panelled.glb",
+      "sha256": "f6bf974927a1b2f9d4bba4197e5ea640be7e98636a8f9017981ce688ba73c35f",
+      "colliders": [],
+      "leaf_size": [
+        0.96,
+        2.06,
+        0.045
+      ],
+      "pivot": "hinge bottom",
+      "compatible_scene": "m1_door.gd",
+      "closed_collision": "single full leaf box; glass remains solid"
+    },
+    "door_glazed": {
+      "category": "door_leaf",
+      "triangles": 84,
+      "glb": "assets/city/variants/door_glazed.glb",
+      "sha256": "f9dba5491edc2bc062647b2792636888e30604d700cd3713e04ab389fe875c73",
+      "colliders": [],
+      "leaf_size": [
+        0.96,
+        2.06,
+        0.045
+      ],
+      "pivot": "hinge bottom",
+      "compatible_scene": "m1_door.gd",
+      "closed_collision": "single full leaf box; glass remains solid"
+    },
+    "door_metal": {
+      "category": "door_leaf",
+      "triangles": 84,
+      "glb": "assets/city/variants/door_metal.glb",
+      "sha256": "624db7f384cc5fc7e5cd064dfd02e426279af2ef7d7166efd7d7da72b9bb3cc6",
+      "colliders": [],
+      "leaf_size": [
+        0.96,
+        2.06,
+        0.045
+      ],
+      "pivot": "hinge bottom",
+      "compatible_scene": "m1_door.gd",
+      "closed_collision": "single full leaf box; glass remains solid"
+    }
+  },
+  "surfaces": {
+    "plaster_white": {
+      "label": "B\u00edl\u00e1 om\u00edtka",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/plaster_white_albedo.png",
+        "normal": "assets/city/materials_v2/plaster_white_normal.png",
+        "roughness": "assets/city/materials_v2/plaster_white_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "plaster_sand": {
+      "label": "P\u00edskov\u00e1 om\u00edtka",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/plaster_sand_albedo.png",
+        "normal": "assets/city/materials_v2/plaster_sand_normal.png",
+        "roughness": "assets/city/materials_v2/plaster_sand_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "plaster_sage": {
+      "label": "\u0160alv\u011bjov\u00e1 om\u00edtka",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/plaster_sage_albedo.png",
+        "normal": "assets/city/materials_v2/plaster_sage_normal.png",
+        "roughness": "assets/city/materials_v2/plaster_sage_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "brick_white": {
+      "label": "B\u00edl\u00e1 cihla",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/brick_white_albedo.png",
+        "normal": "assets/city/materials_v2/brick_white_normal.png",
+        "roughness": "assets/city/materials_v2/brick_white_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "wood_oak": {
+      "label": "Sv\u011btl\u00fd dub",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/wood_oak_albedo.png",
+        "normal": "assets/city/materials_v2/wood_oak_normal.png",
+        "roughness": "assets/city/materials_v2/wood_oak_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "wood_dark": {
+      "label": "Tmav\u00e9 d\u0159evo",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/wood_dark_albedo.png",
+        "normal": "assets/city/materials_v2/wood_dark_normal.png",
+        "roughness": "assets/city/materials_v2/wood_dark_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "tile_white": {
+      "label": "B\u00edl\u00e1 dla\u017eba",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/tile_white_albedo.png",
+        "normal": "assets/city/materials_v2/tile_white_normal.png",
+        "roughness": "assets/city/materials_v2/tile_white_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "tile_terracotta": {
+      "label": "Terakotov\u00e1 dla\u017eba",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/tile_terracotta_albedo.png",
+        "normal": "assets/city/materials_v2/tile_terracotta_normal.png",
+        "roughness": "assets/city/materials_v2/tile_terracotta_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "stone_grey": {
+      "label": "\u0160ed\u00fd k\u00e1men",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/stone_grey_albedo.png",
+        "normal": "assets/city/materials_v2/stone_grey_normal.png",
+        "roughness": "assets/city/materials_v2/stone_grey_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "concrete_dark": {
+      "label": "Tmav\u00fd beton",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/concrete_dark_albedo.png",
+        "normal": "assets/city/materials_v2/concrete_dark_normal.png",
+        "roughness": "assets/city/materials_v2/concrete_dark_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "wallpaper_stripe": {
+      "label": "Pruhovan\u00e1 tapeta",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/wallpaper_stripe_albedo.png",
+        "normal": "assets/city/materials_v2/wallpaper_stripe_normal.png",
+        "roughness": "assets/city/materials_v2/wallpaper_stripe_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    },
+    "parquet_oak": {
+      "label": "Dubov\u00e9 parkety",
+      "tile_m": 1,
+      "size": [
+        256,
+        256
+      ],
+      "maps": {
+        "albedo": "assets/city/materials_v2/parquet_oak_albedo.png",
+        "normal": "assets/city/materials_v2/parquet_oak_normal.png",
+        "roughness": "assets/city/materials_v2/parquet_oak_roughness.png"
+      },
+      "normal": "OpenGL +Y",
+      "original": true
+    }
+  },
+  "mapped_materials_native": 18,
+  "total_materials_native": 20,
+  "original_files_untouched": true
+}

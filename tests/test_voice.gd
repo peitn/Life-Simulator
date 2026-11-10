@@ -7,6 +7,7 @@ extends "res://tests/test_base.gd"
 
 const VoiceSynth := preload("res://scripts/audio/voice_synth.gd")
 const Schema := preload("res://scripts/character/character_schema.gd")
+const Codec := preload("res://scripts/character/character_codec.gd")
 const Validator := preload("res://scripts/character/character_validator.gd")
 const Randomizer := preload("res://scripts/character/character_randomizer.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
@@ -46,6 +47,7 @@ func _run() -> void:
 	_test_robustness()
 	_test_determinism_and_sanity()
 	_test_measurable_effects()
+	_test_resonance()
 	_test_independence()
 	_test_performance_and_cache()
 	_test_validation_and_randomizer()
@@ -128,6 +130,8 @@ func _test_params() -> void:
 	check(mono, "výška roste monotónně s posuvníkem")
 	check(float(VoiceSynth.params({"timbre": -1.0})["tract"]) < 1.0 and float(VoiceSynth.params({"timbre": 1.0})["tract"]) > 1.0,
 		"barva: tmavá = delší trakt (nižší formanty), jasná = kratší")
+	check(float(VoiceSynth.params({"resonance": 1.0})["bw_scale"]) < 1.0 and float(VoiceSynth.params({"resonance": -1.0})["bw_scale"]) > 1.0,
+		"rezonance mění šířku formantů nezávisle na F0")
 	check(float(VoiceSynth.params({"tempo": 1.0})["rate"]) > float(VoiceSynth.params({"tempo": -1.0})["rate"]) * 2.0,
 		"tempo ±1 mění rychlost řeči víc než 2×")
 	check(VoiceSynth.STYLES.size() == 5 and VoiceSynth.STYLE_MODS.size() == 5, "5 stylů řeči (klidně, vesele, naštvaně, smutně, šeptem)")
@@ -221,6 +225,35 @@ func _test_measurable_effects() -> void:
 	check(happy > sadf, "vesele zní výš než smutně", "%.0f vs %.0f Hz" % [happy, sadf])
 
 
+func _test_resonance() -> void:
+	section("Rezonance – mění spektrum, ne výšku; společný parametr TTS a beze slov")
+	var low := {"pitch": 0.1, "resonance": -0.9}
+	var high := {"pitch": 0.1, "resonance": 0.9}
+	check(is_equal_approx(float(VoiceSynth.params(low)["f0"]), float(VoiceSynth.params(high)["f0"])),
+		"změna rezonance nemění základní tón hlasu")
+	var a := VoiceSynth.render(low, "klidne", 7, 0.65)
+	var b := VoiceSynth.render(high, "klidne", 7, 0.65)
+	check(a != b and _rms(a) > 0.001 and _rms(b) > 0.001,
+		"bezeslovný hlas má měřitelně jinou rezonanci")
+	var ta := VoiceSynth.speak_buffer("Ahoj, jak se máš?", low)
+	var tb := VoiceSynth.speak_buffer("Ahoj, jak se máš?", high)
+	check(ta != tb and _rms(ta) > 0.001 and _rms(tb) > 0.001,
+		"česká řeč TTS reaguje na stejný posuvník rezonance")
+	check(VoiceSynth.tts_cache_key("Ahoj", low, "klidne") != VoiceSynth.tts_cache_key("Ahoj", high, "klidne")
+		and VoiceSynth.cache_key(low, "klidne", 7, 0.65) != VoiceSynth.cache_key(high, "klidne", 7, 0.65),
+		"cache pro obě technologie rozeznává rezonanci")
+	check(VoiceSynth.normalized({"resonance": NAN})["resonance"] == 0.0
+		and VoiceSynth.normalized({"resonance": 5.0})["resonance"] == 1.0,
+		"rezonance je validovaná a konečná")
+	var legacy: Dictionary = Schema.defaults()
+	legacy["v"] = 19
+	legacy["voice"].erase("resonance")
+	var migrated := Codec.migrate(legacy)
+	check(migrated["ok"] and migrated["data"]["v"] == Schema.VERSION
+		and is_equal_approx(float(migrated["data"]["voice"].get("resonance", -9.0)), 0.0),
+		"starší hlas ve verzi 19 se bezpečně migruje s neutrální rezonancí")
+
+
 func _test_independence() -> void:
 	section("Hlas je nezávislý na identitě, těle a jménu")
 	var rng := RandomNumberGenerator.new()
@@ -264,7 +297,7 @@ func _test_validation_and_randomizer() -> void:
 	var base := Randomizer.generate(rng)
 	check(Validator.validate(base, {"mode": "strict", "mental_health": "full"})["ok"], "náhodná postava projde přísnou validací")
 	var rejected := 0
-	var cases: Array = [["pitch", 1.5], ["pitch", NAN], ["timbre", -1.01], ["tempo", "rychle"], ["roughness", 1.2], ["roughness", -0.1], ["pitch", INF], ["pitch", null]]
+	var cases: Array = [["pitch", 1.5], ["pitch", NAN], ["timbre", -1.01], ["tempo", "rychle"], ["roughness", 1.2], ["roughness", -0.1], ["pitch", INF], ["pitch", null], ["resonance", 1.2], ["resonance", NAN]]
 	for c in cases:
 		var d: Dictionary = base.duplicate(true)
 		d["voice"][c[0]] = c[1]
@@ -357,7 +390,7 @@ func _test_creator_ui() -> void:
 		return
 	ve.auto_preview = false
 	var sliders: Array = ve.find_children("VoiceSlider_*", "HSlider", true, false)
-	check(sliders.size() == 4, "4 posuvníky hlasu (výška, barva, tempo, chraplavost)")
+	check(sliders.size() == 5 and ve.slider("resonance") != null, "5 posuvníků hlasu včetně rezonance")
 	var narrow := true
 	var focus := true
 	for s in sliders:
@@ -366,6 +399,7 @@ func _test_creator_ui() -> void:
 	check(narrow and focus, "posuvníky se vejdou na úzkou obrazovku a jdou ovládat klávesnicí/gamepadem")
 	check(ve.style_button().item_count == 5, "výběr stylu ukázky má 5 stylů")
 	var session = creator._session
+	check(is_equal_approx(ve.slider("resonance").value, 0.0), "neutrální rezonance zachovává původní zvuk")
 	var living: int = world.sims.size()
 	ve.slider("pitch").value = -0.62
 	check(is_equal_approx(float(session.draft()["voice"]["pitch"]), -0.62), "posuvník výšky mění návrh postavy")
@@ -382,6 +416,12 @@ func _test_creator_ui() -> void:
 	creator._on_redo()
 	creator._on_redo()
 	check(is_equal_approx(float(session.draft()["voice"]["timbre"]), 0.45), "Znovu obnoví změny")
+	ve.slider("resonance").value = 0.64
+	check(is_equal_approx(float(session.draft()["voice"]["resonance"]), 0.64), "rezonance je uložená v návrhu postavy")
+	creator._on_undo()
+	check(is_equal_approx(ve.slider("resonance").value, 0.0), "Zpět vrací jen rezonanci")
+	creator._on_redo()
+	check(is_equal_approx(ve.slider("resonance").value, 0.64), "Znovu obnoví rezonanci")
 	var st1: AudioStreamWAV = ve.preview_stream()
 	var renders: int = ve.renders
 	var st2: AudioStreamWAV = ve.preview_stream()
@@ -442,12 +482,15 @@ func _test_live_editor_apply() -> void:
 	ve.auto_preview = false
 	check(is_equal_approx(ve.slider("pitch").value, float(before["data"]["voice"]["pitch"])), "posuvník ukazuje uložený hlas")
 	ve.slider("roughness").value = 0.83
+	ve.slider("resonance").value = -0.4
 	check(world.read_character_edit(key)["data"] == before["data"], "před Použít se živá postava nemění")
 	editor._on_apply()
 	var after: Dictionary = world.read_character_edit(key)
-	check(int(after["revision"]) == int(before["revision"]) + 1 and is_equal_approx(float(after["data"]["voice"]["roughness"]), 0.83),
+	check(int(after["revision"]) == int(before["revision"]) + 1 and is_equal_approx(float(after["data"]["voice"]["roughness"]), 0.83)
+		and is_equal_approx(float(after["data"]["voice"]["resonance"]), -0.4),
 		"Použít uloží hlas jako novou revizi")
-	check(is_equal_approx(float(target.look["voice"]["roughness"]), 0.83), "živá postava mluví novým hlasem (veřejný vzhled)")
+	check(is_equal_approx(float(target.look["voice"]["roughness"]), 0.83)
+		and is_equal_approx(float(target.look["voice"]["resonance"]), -0.4), "živá postava mluví novým hlasem (veřejný vzhled)")
 	var others_same := true
 	for g in ["identity", "body", "face", "personality", "mind"]:
 		others_same = others_same and after["data"][g] == before["data"][g]

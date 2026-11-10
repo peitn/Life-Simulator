@@ -1,0 +1,20 @@
+# H3 bounded three-process runner — 31 October 2026 (acceptance FAIL)
+
+Run: `main-fallback-1793423819-16985`. Main v3 lease acquired 05:16:59 UTC after checking live CHECKPOINT, implementation sequence, lock v3, automation history and hashes. Last proven productive PRIMARY step remains 2026-10-30 13:57:45 UTC (>75min). Existing lock was free, no reclaim. Initial Godot remote backup succeeded: project 405732 KB and library 123493 KB.
+
+## Exactly what changed
+NEW `tests/diagnostics/h3_bounded_runner.py`, SHA256 `41671a9fbd535fb8b4e0fd636d89b804e34671a52e315e856ec03ff9defb0354`. It runs the unchanged `tests/diagnostics/h3_three_process.FAILING.tscn` in an independent Godot parent process, bounds execution to <=105 seconds, captures stdout/stderr in temporary regular files, records exit/timeout and observed descendant PIDs (with /proc starttime), terminates verified survivors and writes an atomic JSON result under /tmp. Preflight requires the expected fixture SHA and main lease ownership. No production networking or fixture code changed; the fixture SHA remained `0b4362df26ba23292a287a774d1fd41da20656ab7fdbecdf60a8022404f88af3`. Output contains only fictional test data; no real user secrets.
+
+The Godot connector call launching the background Python runner timed out after 25s despite printing PID 17078. Independent /proc inspection showed runner PID 17078, parent Godot PID 17080 and three child Godot PIDs 17101, 17122, 17123 actually running. The launch-call timeout is NOT the fixture's result. The independent result JSON `/tmp/lifesim_h3_1793423819_16985.json` was later read via Godot and contains the completed result.
+
+## Verified tests / stderr / exit
+- Python AST parse of new runner: PASS, exit 0. Runner SHA verified.
+- Real three-process H3 fixture under bounded runner: **6 PASS / 11 FAIL, exit_code=1, timed_out=false, elapsed=72.28s**, stdout 12784 chars, stderr 976 chars. Runner saw 3 descendants; `children_cleaned=[]` and `children_forced=[]` means all were already gone, not that they were orphaned. Fresh v3 inspect confirmed `other_godot_processes=[]`. This validates the bounded runner's ability to capture an actual failure, **not H3 acceptance**.
+- Server initial ACL gate: `acl=false, player_present=false, record=false` after owner's initial-read marker. Owner/observer disconnected; rejoined owner did receive its private snapshot. Initial owner readiness/read and observer privacy/reconnect assertions remain FAIL, so no privacy-complete claim.
+- Existing in-process real ENet regression: **97/97 PASS**, exit=0, timed_out=false, 19.7s. Godot static check: **60/60 PASS**. Known 20 ObjectDB leaked-at-exit warning; three-process stderr additionally includes inactive multiplayer `get_unique_id()` errors. No UI edits or render requirement.
+- Two skeptical Gemini reviews: first validly raised potential orphan-child tracking gaps, but incorrectly claimed Python reading regular log files would block on inherited descriptors and incorrectly inferred no JSON existed. Second recognized the completed failing result but incorrectly treated `children_cleaned=[]` as unreaped children and active owned lock as a leak. These claims were checked against actual /proc, JSON and coordinator state and rejected. Real residual risk: a child that exits/reparents between the 250ms descendant scans can escape tracking; do not claim a formal zero-orphan guarantee.
+
+## Completion status and next SINGLE step
+The bounded process runner itself was implemented, AST-validated and used successfully to capture a trustworthy failing integration result. **H3 remains PARTIAL / three-process acceptance FAIL**. Next: correlate the existing server initial peer/character-spawn timeline with the owner's first puppet-visibility wait to determine why the ACL gate is reached after disconnect; do not alter production RPCs without a reproducible cause.
+
+No city-owned paths, Blender, GitHub, AI Room Relay or production files touched. Final backup and release are recorded separately in run history; do not claim them until verified.

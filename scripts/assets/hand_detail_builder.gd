@@ -7,13 +7,13 @@ extends RefCounted
 static var _skin_mesh: ArrayMesh
 static var _nail_mesh: ArrayMesh
 const SIDES := [-1.0, 1.0]
-const CIRCUMFERENCE := 10
+const CIRCUMFERENCE := 16
 ## Ten independent GPU morphs: five curls per hand, not a new 30-bone rig.
 const DIGIT_COUNT := 10
-const SKIN_PER_DIGIT := 51
+const SKIN_PER_DIGIT := 161
 const NAIL_PER_DIGIT := 9
-const RINGS := [0.0, 0.24, 0.5, 0.77, 0.92]
-const RADII := [0.95, 1.0, 0.94, 0.78, 0.53]
+const RINGS := [0.0, 0.12, 0.30, 0.43, 0.49, 0.55, 0.70, 0.77, 0.84, 0.93]
+const RADII := [0.98, 1.02, 0.91, 0.99, 1.03, 0.91, 0.83, 0.88, 0.75, 0.43]
 const DIGIT_LENGTHS := [0.060, 0.065, 0.060, 0.048]
 const DIGIT_Y := [0.824, 0.817, 0.817, 0.824]
 const DIGIT_X := [-0.015, -0.005, 0.006, 0.016]
@@ -105,7 +105,7 @@ static func _finger(skin: Dictionary, nail: Dictionary,
             var s:=sin(angle)
             var radial:Vector3=(u*c+v*s)
             var radius: float=r*RADII[ring]
-            var point:=center+radial*radius
+            var point:=center+u*c*radius+v*s*radius*(0.86 if s>0.0 else 1.0)
             var normal: Vector3=(radial+axis*0.10*(t-.5)).normalized()
             _vertex(skin,point,normal,bone,Vector2(float(j)/CIRCUMFERENCE,t))
     for ring in RINGS.size()-1:
@@ -139,7 +139,7 @@ static func _finger(skin: Dictionary, nail: Dictionary,
         var x:float=float(o.x)
         var y:float=float(o.y)
         var pos:=plate_center+u*x*nail_half_width+axis*y*nail_length*.5
-        pos+=plate_front*(1.08-0.08*x*x)
+        pos+=plate_front*(1.08-0.22*x*x)
         rim_ids.append(_vertex(nail,pos,v,bone,Vector2((x+1.0)*.5,(y+1.12)/2.2)))
     for k in rim_ids.size():
         _tri(nail,center_id,int(rim_ids[(k+1)%rim_ids.size()]),int(rim_ids[k]))

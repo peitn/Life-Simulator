@@ -1,5 +1,5 @@
 extends "res://tests/test_base.gd"
-## Thirty simulated days with real on-disk checkpoints and full reload of seven Sims.
+## Thirty simulated days with real on-disk checkpoints and full reload of seven characters.
 ## Isolated test slots, never user://saves/ from a player's actual game.
 const Main := preload("res://main.gd")
 const SaveGame := preload("res://scripts/save/game_save.gd")

@@ -59,7 +59,7 @@
       "body",
       "character_head"
     ],
-    "glb_bytes": 3438116,
+    "glb_bytes": 4803360,
     "lsx_crc": {
       "body": "fb77b75a",
       "character_head": "d674db1b"
@@ -104,8 +104,6 @@
         "_inbetweens": [
           "nose_length_pos_mid",
           "nose_length_neg_mid",
-          "nose_tip_angle_pos_mid",
-          "nose_tip_angle_neg_mid",
           "ex_blink_l_pos_mid",
           "ex_blink_r_pos_mid"
         ],
@@ -282,21 +280,21 @@
       },
       "fine_tris": 6928.0,
       "hair_morphs": {
-        "hair_long__hair_long__hair_main": 31,
+        "hair_long__hair_long__hair_main": 25,
         "hair_short__hair_short__hair_main": 8
       },
       "head": {
-        "faces": 5244,
+        "faces": 9520,
         "keys": {
           "eyes": 9,
-          "head": 86,
+          "head": 84,
           "lashes": 21,
           "mouth": 7
         },
-        "morphs": 93,
-        "topo_verts": 5472,
-        "tris": 9934,
-        "verts": 5720
+        "morphs": 91,
+        "topo_verts": 9656,
+        "tris": 18302,
+        "verts": 10136
       },
       "height": 1.78,
       "key_resid": {
@@ -454,16 +452,17 @@
       },
       "neck_cut_tris": 192,
       "neck_lifted_verts": 547,
-      "seam_cap_verts": 11,
-      "seam_head_verts": 427,
+      "seam_cap_verts": 13,
+      "seam_head_verts": 812,
       "seam_loop_verts": 16
     },
     "morphs": 10,
     "ok": true,
     "parts": 18,
+    "realism_revision": "2026-10-30-v3",
     "source": "tools/blender/char.py + scripts/assets/head_builder.gd",
-    "tris": 19050,
-    "verts": 10478
+    "tris": 27418,
+    "verts": 14894
   },
   "fridge": {
     "aabb_max": [

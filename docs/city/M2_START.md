@@ -1,18 +1,10 @@
-# M2 in progress — furniture and fixtures
-Updated 28 October 2026. The original sofa, single bed, double bed and fridge are now adapted into reusable city scenes. Full evidence: M2_FURNITURE_SLICE_20261028.md.
+# M2 completed — authoritative successor to the initial slice
+29 October 2026. Acceptance: M2_ACCEPTANCE_20261029.md.
 
-Completed: measured geometry/pivots, conservative collision, transformed use/pose points, actual triangle-sampled surface markers, inherited SmartObject reservation authority with stable physical slots, real SimAgent action/cancel/leave-world tests, and inspected front/rear/top renders. Sofa sleep reserves the entire sofa and is separate from two-seat relaxation.
+M2 now has 15 reusable furniture/fixture scenes: 4 original-model adapters + 11 authored fixtures. All 9 existing starter furniture placements/action contracts have reusable equivalents. There are also 3 new window walls,3 hinged-door variants,18 mapped surfaces and a decorative furniture composer with 11 editable templates.
 
-Scenes:
-- scenes/city/m2_sofa.tscn
-- scenes/city/m2_bed_single.tscn
-- scenes/city/m2_bed_double.tscn
-- scenes/city/m2_fridge.tscn
+Open res://scenes/city/m2_catalog_showcase.tscn (F6) for real SimAgent interactions and variants. Open res://scenes/city/furniture_editor.tscn for custom authoring; both have reciprocal navigation, and the older m2_showcase has launch buttons.
 
-Original source hashes remain unchanged and are recorded in m2_furniture_manifest.json. Assets are reused rather than regenerated. The old 4200-triangle double bed is an explicit measured reuse exception to the simple-module target, not an optimization claim.
+1719 actual positive assertions; 3 deliberate negative controls detected. Logs m2-final-{core,ui,regression,negative}-20261029.json. 12 final v2 Godot captures inspected. Blender lifesim-city-m2-complete-kit v1.1 reopens16 model collections/134 meshes (15 catalogue models + editor example); variants kit has20materials/54packedimages.
 
-NEXT SINGLE IMPLEMENTATION: inspect the starter stove geometry and existing cook action in WorldBuilder/ActionLibrary, then create a reusable city-owned stove fixture with measured bounds, front access, collision and occupied-use rejection. Follow with other required kitchen and bathroom fixtures. Do not mark all of M2 complete after this four-asset slice.
-
-Use the existing users/reserve/release and production action APIs; no duplicate reservation/action service. Main WorldBuilder replacement, navmesh, custom-lot saving, client replication and build UI remain coordinated later integration gates.
-
-Backup status: complete current Godot project + NPC snapshot and asset-library backup are working again. Keep a complete final snapshot after each verified change; server history cleanup is already configured. Preserve the shared v3 lease, city namespaces, checks, independent review and real captures. M1 remains complete; M3–M7 are pending.
+M2 is complete in the city asset/interaction/authoring boundary. Main starter-world replacement, collision-aware routing, live multiplayer replication and lot/build persistence remain the planned M6/M7 handoff; custom drafts remain decorative. M3 is next: lots/terrain/sidewalks/curbs/roads. No new GitHub or room publication was performed.

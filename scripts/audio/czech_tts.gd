@@ -162,10 +162,12 @@ static func voice_params(voice: Variant) -> Dictionary:
 	var v: Dictionary = voice if voice is Dictionary else {}
 	var pitch := _num(v, "pitch", 0.0, -1.0, 1.0)
 	var timbre := _num(v, "timbre", 0.0, -1.0, 1.0)
+	var resonance := _num(v, "resonance", 0.0, -1.0, 1.0)
 	var tempo := _num(v, "tempo", 0.0, -1.0, 1.0)
 	var rough := _num(v, "roughness", 0.2, 0.0, 1.0)
 	return {"f0": BASE_F0 * pow(2.0, pitch * PITCH_OCTAVES), "tract": pow(2.0, timbre * TRACT_OCTAVES),
-		"bright": 0.5 + 0.5 * timbre, "tempo": pow(2.0, tempo * TEMPO_OCTAVES), "rough": rough}
+		"bright": 0.5 + 0.5 * timbre, "bw_scale": pow(2.0, -0.6 * resonance),
+		"tempo": pow(2.0, tempo * TEMPO_OCTAVES), "rough": rough}
 
 
 ## Sanitised, length-capped text that the synthesiser actually speaks.
@@ -753,7 +755,7 @@ static func render_plan(pl: Dictionary, voice: Variant, sr: int = SR) -> PackedF
 	var shim_sd := 0.025 + 0.075 * rough * rough
 	# Mild creak (alternating periods) only for very rough voices – never a growl.
 	var creak := clampf((rough - 0.6) / 0.4, 0.0, 1.0) * 0.18
-	var bw_mul := 1.0 + 0.6 * clampf(float(mods["breath"]), 0.0, 0.5)
+	var bw_mul := (1.0 + 0.6 * clampf(float(mods["breath"]), 0.0, 0.5)) * float(vp["bw_scale"])
 	var f5 := minf(F5 * tract, nyq * 0.95)
 	var step_h := 6.75 / oq
 	# Synthesis state.
@@ -810,12 +812,12 @@ static func render_plan(pl: Dictionary, voice: Variant, sr: int = SR) -> PackedF
 	var nw1 := 0.0
 	var nw2 := 0.0
 	var fgain := 1.0
-	var r5 := exp(-PI * FORMANT_BW[4] * inv)
+	var r5 := exp(-PI * FORMANT_BW[4] * float(vp["bw_scale"]) * inv)
 	r5b = 2.0 * r5 * cos(TAU * f5 * inv)
 	r5c = -r5 * r5
 	r5a = 1.0 - r5b - r5c
 	var f6 := minf(F6 * tract, nyq * 0.97)
-	var r6 := exp(-PI * B6 * inv)
+	var r6 := exp(-PI * B6 * float(vp["bw_scale"]) * inv)
 	var r6b := 2.0 * r6 * cos(TAU * f6 * inv)
 	var r6c := -r6 * r6
 	var r6a := 1.0 - r6b - r6c
@@ -824,7 +826,7 @@ static func render_plan(pl: Dictionary, voice: Variant, sr: int = SR) -> PackedF
 	var bw1b: float = FORMANT_BW[0] * bw_mul
 	var bw2b: float = FORMANT_BW[1] * bw_mul
 	var bw3b: float = FORMANT_BW[2] * bw_mul
-	var bw4b: float = FORMANT_BW[3]
+	var bw4b: float = FORMANT_BW[3] * float(vp["bw_scale"])
 	var av0 := 0.0
 	var av1 := 0.0
 	var ah0 := 0.0

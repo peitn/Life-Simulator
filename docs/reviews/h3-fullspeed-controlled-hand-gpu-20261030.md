@@ -1,0 +1,19 @@
+# H3: controlled 1.0× timeline, isolated-hand Mesa GPU comparison — 2026-10-30
+
+Run: `main-fallback-1793329928-134787` (v3 main lease). Prior MAIN completed run `main-realism-1793318998-116142` at 01:15:32 UTC, >75 minutes before this run. `main-realism-detail-1793323740-12801` remained `running` with last heartbeat 01:37:36 UTC and an expired lease beyond the 20-minute grace. `G.acquire("main",run_id)` atomically archived it via the v3 coordinator (no manual lock deletion); `G.owns` and history were checked. Initial remote backup: project 405260 KB, library 9115 KB.
+
+## Exact changes
+- NEW `tests/test_h3_reverse_hand_gpu_fullspeed.gd` SHA256 `ada58fa6c51a984d1a2c2011541348101eb907b61d73cab318623f6bbb59900c`, cloned from pinned `test_h3_reverse_hand_only_gpu.gd` SHA256 `fb0a08999ed3f7c72671ad6668635dc680f795a540bcf2e03851de59b9cc084c`. Engine.time_scale=1.0; both independent AnimationPlayers explicitly paused and advanced by fixed 1/60 second increments; a separate Xvfb/Mesa OpenGL process renders each target. ROI uses projected hand center (96×96), not the full image. Actual skinning selects 416 weighted triangles. Requires draft/live silhouette IoU>0.95 and RGB<0.04, plus negative rotation control requiring BOTH IoU<0.95 and RGB>0.005. The target time must be within one 60Hz tick + 0.002s. Runtime states and injected rotation restored.
+- NEW this review. APPEND to `CHECKPOINT.md` and `DEVLOG.md` with exact evidence.
+
+## Actual Godot execution and caveat
+An initial uncontrolled real-time Engine.time_scale=1.0 child **FAILED 15/16**, exit1: software Mesa took a large wall-clock step, reverse_time=0.10 at requested 0.05, so the timing assertion correctly rejected it. This failure is retained, NOT counted as success. Changed to controlled 60Hz AnimationPlayer.advance() under time_scale=1.0; this tests GPU pose agreement at a 1× animation timeline but **does not measure real-time GPU scheduling, FPS, frame pacing or hardware/browser performance**.
+
+After Gemini audit corrections, five independent final Mesa children at requested 0.02/0.04/0.06/0.08/0.10s: actual reverse times 0.033333/0.05/0.066667/0.083333/0.116667s, each **16/16 PASS, exit0, no timeout** (80/80 total). Foreground pixel counts in actual 96×96 ROI: 2140, 2177, 2152, 2152, 2137 (four distinct counts); preview/live bone delta0, mask IoU1, RGB0 at every sample. The intentional 1.1-radian hand rotation was detected with ROI IoU about0.90 and RGB about0.02; original rotation restored. Baseline existing `test_h3_reverse_hand_only_gpu.gd` also **16/16 PASS**, exit0/no timeout. Godot static checker **60/60 OK**. Existing stderr: ObjectDB20, XKB/DBus/audio missing and Compatibility renderer warnings; no new script/shader failure. All test runs use Mesa llvmpipe, not consumer GPU.
+
+## Skeptical Gemini audit
+Audit #1 of source+actual initial results identified three valid gaps: loose time tolerance, unused ROI center/full-image compare, and overly weak negative-control OR. All three corrected and the revised test rerun. Audit #2 reviewed final source and five results; found no concrete remaining blocker, while noting hardcoded viewport/ROI bounds, pause-state assumptions and no real-time GPU proof. Both responses critically evaluated; manual 60Hz steps are not evidence of natural full-speed frame continuity.
+
+## Limits and next one step
+No production code, UI, Blender, city-owned files, GitHub or AI Room changes. Test compares two models rendered through the same software pipeline, a 416-triangle skin-weight subset, five sampled phases, and coarse silhouette/RGB; not full IK/physics, true full-hand anatomical segmentation, real GPU performance, or complete H3/H6 signoff.
+**NEXT SINGLE STEP:** actual real-time GPU/browser frame-pacing and hand-silhouette continuity measurement on a hardware-backed renderer (or explicitly report hardware unavailable), without weakening timing thresholds.

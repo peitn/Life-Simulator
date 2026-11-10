@@ -44,11 +44,15 @@ const THOUGHT_RATE := [0.0, 0.4, 1.0, 1.6]
 ## text-to-speech of the visible speech-bubble lines, or no character voices at all.
 const VOICE_WORDLESS := "wordless"
 const VOICE_TTS := "tts"
+## Requires local CPU Piper voices; never silently falls back to robotic TTS.
+const VOICE_NEURAL := "tts_neural"
 const VOICE_OFF := "off"
-const VOICE_MODES := [VOICE_WORDLESS, VOICE_TTS, VOICE_OFF]
-const VOICE_LABELS := {"wordless": "Beze slov", "tts": "Řeč z textu", "off": "Vypnuto"}
+const VOICE_MODES := [VOICE_WORDLESS, VOICE_TTS, VOICE_NEURAL, VOICE_OFF]
+const VOICE_LABELS := {"wordless": "Beze slov", "tts": "Řeč z textu (syntetická)",
+	"tts_neural": "Přirozenější řeč (Piper, lokální)", "off": "Vypnuto"}
 
 const DEFAULTS := {
+	"audio_enabled": true,
 	"mental_health": "full",
 	"intrusive_thoughts": 2,
 	"distortion_fx": true,
@@ -75,6 +79,12 @@ var persist := true
 
 func _ready() -> void:
 	load_settings()
+	_sync_audio_bus()
+
+func _sync_audio_bus() -> void:
+	var bus := AudioServer.get_bus_index("Master")
+	if bus >= 0:
+		AudioServer.set_bus_mute(bus, not bool(values.get("audio_enabled", true)))
 
 
 func load_settings() -> void:
@@ -126,6 +136,8 @@ func set_value(key: String, v: Variant, save := true) -> bool:
 				return false
 			nv = v
 	values[key] = nv
+	if key == "audio_enabled":
+		_sync_audio_bus()
 	changed.emit(key)
 	if save:
 		save_settings()
@@ -142,6 +154,7 @@ func get_value(key: String) -> Variant:
 
 func reset() -> void:
 	values = DEFAULTS.duplicate()
+	_sync_audio_bus()
 	for k in values:
 		changed.emit(k)
 

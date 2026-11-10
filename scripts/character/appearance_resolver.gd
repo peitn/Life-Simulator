@@ -163,6 +163,7 @@ static func resolve(snap: Dictionary) -> Dictionary:
 		"top": top,
 		"bottom": bottom,
 		"outfit_category": outfit_cat,
+		"garment_designs": outfit.get("designs", {}).duplicate(true) if outfit.get("designs", {}) is Dictionary else {},
 		"outfit_top": String(outfit.get("top", "tricko")),
 		"outfit_bottom": String(outfit.get("bottom", "dziny")),
 		"outfit_shoes": String(outfit.get("shoes", "tenisky")),

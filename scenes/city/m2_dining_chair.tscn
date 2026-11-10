@@ -1,0 +1,134 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/city/m2_fixture.gd" id="1_1dbjm"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_nyfni"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_nmb2j"]
+size = Vector3(0.46, 0.065, 0.46)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_y8a4p"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_cnhwh"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gx4wp"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_ouwa2"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cj5p7"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_m28xy"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w61ko"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_hqopg"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_db7te"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_r8khp"]
+size = Vector3(0.46, 0.46, 0.055)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2nniy"]
+size = Vector3(0.46, 0.065, 0.46)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cw264"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4e50u"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_xnqaf"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5oixr"]
+size = Vector3(0.06, 0.4275, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4s600"]
+size = Vector3(0.46, 0.46, 0.055)
+
+[node name="M2_dining_chair" type="Node3D" unique_id=1638906953]
+script = ExtResource("1_1dbjm")
+furniture_kind = "dining_chair"
+
+[node name="Model" type="Node3D" parent="." unique_id=1945527446]
+
+[node name="Seat" type="MeshInstance3D" parent="Model" unique_id=1668172573]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.46, 0)
+material_override = SubResource("StandardMaterial3D_nyfni")
+mesh = SubResource("BoxMesh_nmb2j")
+
+[node name="Leg-1-1" type="MeshInstance3D" parent="Model" unique_id=251371187]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.17, 0.21375, -0.17)
+material_override = SubResource("StandardMaterial3D_y8a4p")
+mesh = SubResource("BoxMesh_cnhwh")
+
+[node name="Leg-11" type="MeshInstance3D" parent="Model" unique_id=1402215809]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.17, 0.21375, 0.17)
+material_override = SubResource("StandardMaterial3D_gx4wp")
+mesh = SubResource("BoxMesh_ouwa2")
+
+[node name="Leg1-1" type="MeshInstance3D" parent="Model" unique_id=1426153325]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17, 0.21375, -0.17)
+material_override = SubResource("StandardMaterial3D_cj5p7")
+mesh = SubResource("BoxMesh_m28xy")
+
+[node name="Leg11" type="MeshInstance3D" parent="Model" unique_id=1422840571]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17, 0.21375, 0.17)
+material_override = SubResource("StandardMaterial3D_w61ko")
+mesh = SubResource("BoxMesh_hqopg")
+
+[node name="Back" type="MeshInstance3D" parent="Model" unique_id=1237305132]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.73, -0.2)
+material_override = SubResource("StandardMaterial3D_db7te")
+mesh = SubResource("BoxMesh_r8khp")
+
+[node name="Collision" type="StaticBody3D" parent="." unique_id=190384127]
+collision_mask = 3
+
+[node name="Seat" type="CollisionShape3D" parent="Collision" unique_id=1481438009]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.46, 0)
+shape = SubResource("BoxShape3D_2nniy")
+
+[node name="Leg-1-1" type="CollisionShape3D" parent="Collision" unique_id=1227670461]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.17, 0.21375, -0.17)
+shape = SubResource("BoxShape3D_cw264")
+
+[node name="Leg-11" type="CollisionShape3D" parent="Collision" unique_id=1492642444]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.17, 0.21375, 0.17)
+shape = SubResource("BoxShape3D_4e50u")
+
+[node name="Leg1-1" type="CollisionShape3D" parent="Collision" unique_id=2031479063]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17, 0.21375, -0.17)
+shape = SubResource("BoxShape3D_xnqaf")
+
+[node name="Leg11" type="CollisionShape3D" parent="Collision" unique_id=1428063423]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17, 0.21375, 0.17)
+shape = SubResource("BoxShape3D_5oixr")
+
+[node name="Back" type="CollisionShape3D" parent="Collision" unique_id=1732169532]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.73, -0.2)
+shape = SubResource("BoxShape3D_4s600")
+
+[node name="Points" type="Node3D" parent="." unique_id=133684610]

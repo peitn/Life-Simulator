@@ -1,0 +1,102 @@
+{
+	"count": 16,
+	"results": [
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/m2_showcase.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/m2_surfaces.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/build_m2_fixtures.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/validate_m2_suite.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/build_city_variants.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/m2_fixture.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/validate_furniture_editor.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/validate_city_variants.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/validate_m2_catalogue.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/furniture_document.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/validate_m2_fixture_agents.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/capture_m2_complete.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/m2_fixture_builder.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/m2_catalog_showcase.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/validate_m2_fixtures.gd"
+		},
+		{
+			"exit": 0,
+			"log": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n",
+			"ok": true,
+			"path": "scripts/city/furniture_editor.gd"
+		}
+	],
+	"run_id": "city-m2-complete-1793307317"
+}

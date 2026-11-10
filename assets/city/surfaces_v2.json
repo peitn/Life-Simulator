@@ -1,0 +1,182 @@
+{
+  "plaster_white": {
+    "label": "B\u00edl\u00e1 om\u00edtka",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/plaster_white_albedo.png",
+      "normal": "assets/city/materials_v2/plaster_white_normal.png",
+      "roughness": "assets/city/materials_v2/plaster_white_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "plaster_sand": {
+    "label": "P\u00edskov\u00e1 om\u00edtka",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/plaster_sand_albedo.png",
+      "normal": "assets/city/materials_v2/plaster_sand_normal.png",
+      "roughness": "assets/city/materials_v2/plaster_sand_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "plaster_sage": {
+    "label": "\u0160alv\u011bjov\u00e1 om\u00edtka",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/plaster_sage_albedo.png",
+      "normal": "assets/city/materials_v2/plaster_sage_normal.png",
+      "roughness": "assets/city/materials_v2/plaster_sage_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "brick_white": {
+    "label": "B\u00edl\u00e1 cihla",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/brick_white_albedo.png",
+      "normal": "assets/city/materials_v2/brick_white_normal.png",
+      "roughness": "assets/city/materials_v2/brick_white_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "wood_oak": {
+    "label": "Sv\u011btl\u00fd dub",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/wood_oak_albedo.png",
+      "normal": "assets/city/materials_v2/wood_oak_normal.png",
+      "roughness": "assets/city/materials_v2/wood_oak_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "wood_dark": {
+    "label": "Tmav\u00e9 d\u0159evo",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/wood_dark_albedo.png",
+      "normal": "assets/city/materials_v2/wood_dark_normal.png",
+      "roughness": "assets/city/materials_v2/wood_dark_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "tile_white": {
+    "label": "B\u00edl\u00e1 dla\u017eba",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/tile_white_albedo.png",
+      "normal": "assets/city/materials_v2/tile_white_normal.png",
+      "roughness": "assets/city/materials_v2/tile_white_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "tile_terracotta": {
+    "label": "Terakotov\u00e1 dla\u017eba",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/tile_terracotta_albedo.png",
+      "normal": "assets/city/materials_v2/tile_terracotta_normal.png",
+      "roughness": "assets/city/materials_v2/tile_terracotta_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "stone_grey": {
+    "label": "\u0160ed\u00fd k\u00e1men",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/stone_grey_albedo.png",
+      "normal": "assets/city/materials_v2/stone_grey_normal.png",
+      "roughness": "assets/city/materials_v2/stone_grey_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "concrete_dark": {
+    "label": "Tmav\u00fd beton",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/concrete_dark_albedo.png",
+      "normal": "assets/city/materials_v2/concrete_dark_normal.png",
+      "roughness": "assets/city/materials_v2/concrete_dark_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "wallpaper_stripe": {
+    "label": "Pruhovan\u00e1 tapeta",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/wallpaper_stripe_albedo.png",
+      "normal": "assets/city/materials_v2/wallpaper_stripe_normal.png",
+      "roughness": "assets/city/materials_v2/wallpaper_stripe_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  },
+  "parquet_oak": {
+    "label": "Dubov\u00e9 parkety",
+    "tile_m": 1,
+    "size": [
+      256,
+      256
+    ],
+    "maps": {
+      "albedo": "assets/city/materials_v2/parquet_oak_albedo.png",
+      "normal": "assets/city/materials_v2/parquet_oak_normal.png",
+      "roughness": "assets/city/materials_v2/parquet_oak_roughness.png"
+    },
+    "normal": "OpenGL +Y",
+    "original": true
+  }
+}

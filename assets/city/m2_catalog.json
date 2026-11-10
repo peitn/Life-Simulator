@@ -8,37 +8,188 @@
       "kind": "sofa",
       "scene": "scenes/city/m2_sofa.tscn",
       "seated_capacity": 2,
-      "sleep_exclusive": true
+      "sleep_exclusive": true,
+      "category": "furniture",
+      "capacity": 2
     },
     {
       "actions": [
-        "sleep"
+        "sleep",
+        "nap",
+        "hide"
       ],
       "capacity": 1,
       "kind": "bed_single",
-      "scene": "scenes/city/m2_bed_single.tscn"
+      "scene": "scenes/city/m2_bed_single.tscn",
+      "category": "furniture"
     },
     {
       "actions": [
-        "sleep"
+        "sleep",
+        "nap",
+        "hide"
       ],
       "capacity": 2,
       "kind": "bed_double",
-      "scene": "scenes/city/m2_bed_double.tscn"
+      "scene": "scenes/city/m2_bed_double.tscn",
+      "category": "furniture"
     },
     {
       "actions": [
-        "snack"
+        "snack",
+        "drink"
       ],
       "capacity": 1,
       "kind": "fridge",
-      "scene": "scenes/city/m2_fridge.tscn"
+      "scene": "scenes/city/m2_fridge.tscn",
+      "category": "furniture"
+    },
+    {
+      "kind": "stove",
+      "category": "fixture",
+      "scene": "scenes/city/m2_stove.tscn",
+      "capacity": 1,
+      "actions": [
+        "cook"
+      ],
+      "decorative": false
+    },
+    {
+      "kind": "counter",
+      "category": "fixture",
+      "scene": "scenes/city/m2_counter.tscn",
+      "capacity": 0,
+      "actions": [],
+      "decorative": true
+    },
+    {
+      "kind": "sink",
+      "category": "fixture",
+      "scene": "scenes/city/m2_sink.tscn",
+      "capacity": 0,
+      "actions": [],
+      "decorative": true
+    },
+    {
+      "kind": "shower",
+      "category": "fixture",
+      "scene": "scenes/city/m2_shower.tscn",
+      "capacity": 1,
+      "actions": [
+        "shower"
+      ],
+      "decorative": false
+    },
+    {
+      "kind": "toilet",
+      "category": "fixture",
+      "scene": "scenes/city/m2_toilet.tscn",
+      "capacity": 0,
+      "actions": [],
+      "decorative": true
+    },
+    {
+      "kind": "bathtub",
+      "category": "fixture",
+      "scene": "scenes/city/m2_bathtub.tscn",
+      "capacity": 0,
+      "actions": [],
+      "decorative": true
+    },
+    {
+      "kind": "dining_table",
+      "category": "fixture",
+      "scene": "scenes/city/m2_dining_table.tscn",
+      "capacity": 0,
+      "actions": [],
+      "decorative": true
+    },
+    {
+      "kind": "dining_chair",
+      "category": "fixture",
+      "scene": "scenes/city/m2_dining_chair.tscn",
+      "capacity": 0,
+      "actions": [],
+      "decorative": true
+    },
+    {
+      "kind": "bookshelf",
+      "category": "fixture",
+      "scene": "scenes/city/m2_bookshelf.tscn",
+      "capacity": 1,
+      "actions": [
+        "read"
+      ],
+      "decorative": false
+    },
+    {
+      "kind": "treadmill",
+      "category": "fixture",
+      "scene": "scenes/city/m2_treadmill.tscn",
+      "capacity": 1,
+      "actions": [
+        "workout"
+      ],
+      "decorative": false
+    },
+    {
+      "kind": "tv",
+      "category": "fixture",
+      "scene": "scenes/city/m2_tv.tscn",
+      "capacity": 2,
+      "actions": [
+        "watch_tv"
+      ],
+      "decorative": false
+    },
+    {
+      "kind": "window_wide",
+      "category": "window",
+      "scene": "scenes/city/m2_window_wide.tscn",
+      "actions": []
+    },
+    {
+      "kind": "window_double",
+      "category": "window",
+      "scene": "scenes/city/m2_window_double.tscn",
+      "actions": []
+    },
+    {
+      "kind": "window_arch",
+      "category": "window",
+      "scene": "scenes/city/m2_window_arch.tscn",
+      "actions": []
+    },
+    {
+      "kind": "door_panelled",
+      "category": "door",
+      "scene": "scenes/city/m2_door_panelled.tscn",
+      "actions": []
+    },
+    {
+      "kind": "door_glazed",
+      "category": "door",
+      "scene": "scenes/city/m2_door_glazed.tscn",
+      "actions": []
+    },
+    {
+      "kind": "door_metal",
+      "category": "door",
+      "scene": "scenes/city/m2_door_metal.tscn",
+      "actions": []
     }
   ],
   "installed_in_starter_world": false,
-  "next": "stove/cook fixture; then remaining kitchen/bathroom fixtures",
-  "scope_report": "docs/city/M2_FURNITURE_SLICE_20261028.md",
+  "next": "M3 lots, terrain and street modules; main runtime/build-mode integration remains M6/M7",
+  "scope_report": "docs/city/M2_ACCEPTANCE_20261029.md",
   "source_manifest": "docs/city/m2_furniture_manifest.json",
-  "stage": "M2 in progress",
-  "version": "1.0"
+  "stage": "M2 complete in city asset/interaction/authoring scope",
+  "version": "2.0",
+  "source_manifests": [
+    "docs/city/m2_furniture_manifest.json",
+    "docs/city/m2_fixtures_manifest.json",
+    "docs/city/variants_manifest.json"
+  ],
+  "showcase": "scenes/city/m2_catalog_showcase.tscn",
+  "editor": "scenes/city/furniture_editor.tscn"
 }

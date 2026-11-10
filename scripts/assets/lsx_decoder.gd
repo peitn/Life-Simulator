@@ -525,55 +525,86 @@ static func build_scene(decoded: Dictionary, extra: Array = []) -> Node3D:
 			if skip.has(grp):
 				continue
 			var pname := String(part.get("name", "part"))
-			var instances: Array = []
-			if String(part.get("prim", "tri")) == "quad":
-				var q := decode_quad_part(part, blob, skinned, morph_names, src_bones.size())
-				if q.is_empty():
-					root.free()
-					return null
-				for s in q["surfaces"]:
-					var mname := String(s["mat"])
-					if skinned:
-						_remap_bones(s["arrays"], bone_map)
-					instances.append([_mesh_instance("%s__%s__%s" % [grp if grp != "" else "main", pname, mname],
-						s["arrays"], s["blend"], morph_names, mats.get(mname)), s["arrays"]])
-			else:
-				var arrays := decode_part(part, blob, skinned, src_bones.size() if skinned else 256)
-				if arrays.is_empty():
-					root.free()
-					return null
-				var blend: Array = []
-				if part.has("morphs"):
-					var ms := decode_morphs(part, blob, int(part.get("nv", 0)), morph_names)
-					if ms.has("__error"):
-						root.free()
-						return null
-					var base_v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-					for nm in morph_names:
-						var tv := base_v.duplicate()
-						if ms.has(nm):
-							var dd: PackedVector3Array = ms[nm]
-							for i in tv.size():
-								tv[i] += dd[i]
-						var ba := []
-						ba.resize(Mesh.ARRAY_MAX)
-						ba[Mesh.ARRAY_VERTEX] = tv
-						# Trojúhelníkové části nemají topologii pro přepočet – normály zůstávají ze základu.
-						ba[Mesh.ARRAY_NORMAL] = arrays[Mesh.ARRAY_NORMAL]
-						blend.append(ba)
+			var surfs: Variant = _part_surfaces(part, blob, skinned, morph_names, src_bones.size())
+			if surfs == null:
+				root.free()
+				return null
+			for s in surfs:
+				var mname := String(s[0])
 				if skinned:
-					_remap_bones(arrays, bone_map)
-				var mname := String(part.get("mat", ""))
-				instances.append([_mesh_instance("%s__%s__%s" % [grp if grp != "" else "main", pname, mname],
-					arrays, blend, morph_names, mats.get(mname)), arrays])
-			for pair in instances:
-				var mi: MeshInstance3D = pair[0]
+					_remap_bones(s[1], bone_map)
+				var mi := _mesh_instance("%s__%s__%s" % [grp if grp != "" else "main", pname, mname],
+					s[1], s[2], morph_names, mats.get(mname))
 				parent_node.add_child(mi)
 				mi.owner = root
 				if skinned:
 					mi.skin = skin
 					mi.skeleton = NodePath("..")
 	return root
+
+
+## Povrchy jedné části jako čistá pole: [[materiál, arrays, blend], …] (bez uzlů a bez ArrayMesh),
+## null při poškozených datech. Sdílí ho build_scene() i scene_arrays().
+static func _part_surfaces(part: Dictionary, blob: PackedByteArray, skinned: bool, morph_names: Array, bone_count: int) -> Variant:
+	var out: Array = []
+	if String(part.get("prim", "tri")) == "quad":
+		var q := decode_quad_part(part, blob, skinned, morph_names, bone_count)
+		if q.is_empty():
+			return null
+		for s in q["surfaces"]:
+			out.append([String(s["mat"]), s["arrays"], s["blend"]])
+		return out
+	var arrays := decode_part(part, blob, skinned, bone_count if skinned else 256)
+	if arrays.is_empty():
+		return null
+	var blend: Array = []
+	if part.has("morphs"):
+		var ms := decode_morphs(part, blob, int(part.get("nv", 0)), morph_names)
+		if ms.has("__error"):
+			return null
+		var base_v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for nm in morph_names:
+			var tv := base_v.duplicate()
+			if ms.has(nm):
+				var dd: PackedVector3Array = ms[nm]
+				for i in tv.size():
+					tv[i] += dd[i]
+			var ba := []
+			ba.resize(Mesh.ARRAY_MAX)
+			ba[Mesh.ARRAY_VERTEX] = tv
+			# Trojúhelníkové části nemají topologii pro přepočet – normály zůstávají ze základu.
+			ba[Mesh.ARRAY_NORMAL] = arrays[Mesh.ARRAY_NORMAL]
+			blend.append(ba)
+	out.append([String(part.get("mat", "")), arrays, blend])
+	return out
+
+
+## Části jednoho assetu jako čistá pole – stejná data, jaká build_scene() vloží do ArrayMesh, ale bez
+## uzlů a bez volání RenderingServeru, takže to smí běžet ve WorkerThreadPool (C5 šatník, H3).
+## Jen pro samostatný asset (kosti v jeho vlastním pořadí). Vrací
+## [{"name": "<skupina>__<část>__<materiál>", "arrays", "blend", "morphs"}] nebo [] při poškozených datech.
+static func scene_arrays(decoded: Dictionary) -> Array:
+	if decoded.is_empty():
+		return []
+	var h: Dictionary = decoded["head"]
+	var blob: PackedByteArray = decoded["blob"]
+	var bones: Array = h.get("bones", [])
+	for i in bones.size():
+		if int((bones[i] as Dictionary).get("parent", -1)) >= i:
+			return []
+	var skinned := not bones.is_empty()
+	var morph_names: Array = h.get("morphs", [])
+	var out: Array = []
+	for part in h.get("parts", []):
+		var grp := String(part.get("group", ""))
+		var pname := String(part.get("name", "part"))
+		var surfs: Variant = _part_surfaces(part, blob, skinned, morph_names, bones.size())
+		if surfs == null:
+			return []
+		for s in surfs:
+			out.append({"name": "%s__%s__%s" % [grp if grp != "" else "main", pname, String(s[0])],
+				"arrays": s[1], "blend": s[2], "morphs": morph_names})
+	return out
 
 
 ## Přečísluje kosti v polích povrchu podle mapy (index v assetu → index v kostře scény).

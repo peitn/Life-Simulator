@@ -99,7 +99,7 @@ func _process(delta: float) -> void:
 	position = position.lerp(net_pos, clampf(delta * FOLLOW_RATE, 0.0, 1.0))
 	rotation.y = lerp_angle(rotation.y, net_rot, clampf(delta * FOLLOW_RATE, 0.0, 1.0))
 	if visual != null:
-		visual.apply(net_posture, float(net_mood), net_emotion, sim_name, net_label, net_speech)
+		visual.apply(net_posture, float(net_mood), net_emotion, sim_name, net_label, net_speech, false, String(current_action.get("id", "")))
 
 
 func _on_net_action(old: String, nw: String) -> void:

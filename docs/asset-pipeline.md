@@ -141,3 +141,23 @@ C5 is made in Blender via tools/blender/clothing_c5.py, moved through tools/blen
 Original textures include seven 128x128 tileable albedo maps and seven tangent-space normal maps. Files live in assets/textures/clothing_c5 and have persistent Blender/Godot library copies. ClothingWardrobe adds missing UVs and tangents to decoded LSX meshes, creates per-character material tint instances, and remaps LSX bone indices onto the original avatar Skin bind order before attachment. Do not assume skeleton bone index equals Skin bind index. The export presets explicitly include the wardrobe PNGs and .lsx raw files.
 
 Visual QA is reproducible via tools/blender/clothing_c5_render.py, producing previews/c5_qa_*.b64. Check front/back and body/pose extremes before closing the task; the current hoodie hood and sleeve joins remain prototype-quality.
+
+
+## Background garment builds (7 Nov 2026)
+`LSX.scene_arrays(decoded)` returns the same per-part arrays that `build_scene()` puts into
+ArrayMeshes, without nodes or RenderingServer calls. `ClothingWardrobe` uses it on a worker thread
+(`_build_kind` → `_textured_pack`), then creates the ArrayMeshes and shared materials on the main
+thread (`_realize`). Calling RenderingServer queries (e.g. `ArrayMesh.surface_get_arrays`) from a
+worker can deadlock against a main thread that waits for that worker, so worker code must stay
+array-only. Garment meshes no longer take a round trip through an intermediate ArrayMesh, so normals
+and weights are no longer quantised twice (differences are below 1e-4 and all garment tests pass).
+
+
+## Hair shell as placeholder (8 Nov 2026)
+When strand cards are available, the GLB hair shell (`hair_main`) is only shown while `HairRig`
+builds a style in the background. Its albedo comes from `SimVisual.helmet_placeholder_color()`:
+the same numbers the cards send to `hair.gdshader` (natural colour → `srgb_to_linear`, grey blend)
+used as albedo and darkened by `HELMET_SHADE` (0.5) in linear light. This is an empirical match,
+verified by the rendered H3 test for dark and grey hair under the preview light in GL Compatibility.
+Without cards (e.g. no shader) the shell is the real hair and keeps the resolver colour. Not yet
+measured: Forward+ and night lighting.

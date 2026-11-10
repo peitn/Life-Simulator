@@ -1,0 +1,204 @@
+{
+  "version": 1,
+  "run_id": "city-m2-complete-1793307317",
+  "stage": "M2 complete in city asset/interaction/authoring scope",
+  "positive_assertions": 1719,
+  "suites": {
+    "core": {
+      "cases": 5,
+      "targets": [
+        {
+          "target": "scripts/city/validate_m2_furniture.gd",
+          "assertions": 141
+        },
+        {
+          "target": "scripts/city/validate_m2_agents.gd",
+          "assertions": 49
+        },
+        {
+          "target": "scripts/city/validate_m2_lifecycle.gd",
+          "assertions": 489
+        },
+        {
+          "target": "scripts/city/validate_m2_fixtures.gd",
+          "assertions": 297
+        },
+        {
+          "target": "scripts/city/validate_m2_fixture_agents.gd",
+          "assertions": 244
+        }
+      ]
+    },
+    "ui": {
+      "cases": 3,
+      "targets": [
+        {
+          "target": "scripts/city/validate_furniture_editor.gd",
+          "assertions": 97
+        },
+        {
+          "target": "scripts/city/validate_m2_catalogue.gd",
+          "assertions": 90
+        },
+        {
+          "target": "scripts/city/validate_city_variants.gd",
+          "assertions": 76
+        }
+      ]
+    },
+    "regression": {
+      "cases": 2,
+      "targets": [
+        {
+          "target": "tests/test_assets.tscn",
+          "assertions": 155
+        },
+        {
+          "target": "tests/test_full_playable_slice.tscn",
+          "assertions": 81
+        }
+      ]
+    },
+    "negative": {
+      "cases": 3,
+      "targets": []
+    }
+  },
+  "changed_gdscript_compilation_count": 16,
+  "captures": {
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-catalogue-shower.jpg": "36f0d3ba95fa437c45457e20965dae597cc261dbda9fd7afa7384fd2bc5680fa",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-catalogue-stove.jpg": "cfb2c73928dc7e6f06710ad25ad07935d6dc177cebfe31ca3714723a947aace0",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-catalogue-treadmill.jpg": "3e58c89802251fa5e8be8b44e5846d07e8dfbd69441568006857204459bbd9f9",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-catalogue-tv.jpg": "d6f1823c0c41e5926e4a24915ef68752dacfca1031b409cee8375ae82c33f16e",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-editor-1280.jpg": "696ca4f0678cbe7ea8a9077a2937709a3760a429783486b5d775c4895a79e35a",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-editor-390.jpg": "907ad4a43697abd7cc431404604e29d4d3f1b6f5d902c58f444a69ba9f520643",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-furniture-front.jpg": "7262d763f7afb4fdb6bd7f4230aef5ff92a5477d47ac52b6f2df85e116883d75",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-furniture-rear.jpg": "a8e28bcb0b40e6dd5d5bf276614ffe7dcec41a99ece51b1fce0b48e80ea02c94",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-furniture-top.jpg": "9b5fdf59a65974e4ef64fbe2250bca731223cc9179dfecd9e8b8790de7703cf8",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-variants-front.jpg": "4e8654d2cc3569bedbc433e029dd5267314a78464473b3cfd9a8659b2b508ede",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-variants-rear.jpg": "1567ad98b96e6e2129ee39fe220ff8a3da0673f0a89aa6b36ea5bb5c45395f4a",
+    "docs/city/m2-final-city-m2-complete-1793307317-v2-variants-top.jpg": "bec62024134e190d4fedc60d4372f9f2bbc7c78c20d90708d3b16f824a48bb66"
+  },
+  "sha256": {
+    "scripts/city/m2_showcase.gd": "c25cf077d38dc573f6700ef7b3f775ef157434f28145caeaa6c966a05f46cb77",
+    "scripts/city/m2_surfaces.gd": "82289bf9323219066b32bd7923f1432e6e23b69981f259e3d423f02164a18b3f",
+    "scripts/city/build_m2_fixtures.gd": "a9204b7d2c219d188c1dbad70024227d2f26108d11baef97503e1527998c1bbc",
+    "scripts/city/validate_m2_suite.gd": "06276c7ae3013f3a3aaeb25c3076017bc86e863dab549a14aa6f72d79cb9c0d9",
+    "scripts/city/build_city_variants.gd": "5032263c60a184f4d01a5392c39e23510d7ad4aec804dc22cc7bdcd9a5caa288",
+    "scripts/city/m2_fixture.gd": "b7280d227723ceee562dfe9c957e9427b24e0535aeee842221604cc771958fca",
+    "scripts/city/validate_furniture_editor.gd": "539c9cc8fa5fa44619d00b194bc6b12c716c8ae779f8259bf039fc772c9d94fb",
+    "scripts/city/validate_city_variants.gd": "4cad22184a917f987ddbbdcc4ae471ec16165dad50d775e089a2cfc64b9b06c6",
+    "scripts/city/validate_m2_catalogue.gd": "9ee80e9641ed4830a95c9e7a6988d4959461efc2629b7cb54cde5a80e0b7bc7f",
+    "scripts/city/furniture_document.gd": "5a0c31d0237156e0eaa51dad275c6e6f48aac544b74534ab6c6d984ce47a1f1a",
+    "scripts/city/validate_m2_fixture_agents.gd": "d9ddfc4ab55a1f8e54e0a3dd416ce2044c30350b5c69aba12d288e25a3c8a832",
+    "scripts/city/capture_m2_complete.gd": "1ad9115eac5aa5817648bd41d7fd2d59c5f2e90261fba14cb5691e84f0a0dce0",
+    "scripts/city/m2_fixture_builder.gd": "8b35ae0224c2611f5951de6cda6c27bb86de7b6a5827448856f714773ccbca74",
+    "scripts/city/m2_catalog_showcase.gd": "adc50c697f445f30cc3251899dbea0950c6e49a9cc4ab561cb8de4833a2438dc",
+    "scripts/city/validate_m2_fixtures.gd": "2b4f215b6aee74cd25d622d2d05e54b3f0d2e703f039f16a7d1861d7673d5fb9",
+    "scripts/city/furniture_editor.gd": "a85a3acb9fdd6c1d5312f69116e68fa7c6283fe010ac6c8f5b3d53b65232abf2",
+    "assets/city/fixtures/stove.glb": "40bad792b83c4df487f6022646d696131326645f1654a25287acde8dcc65287b",
+    "assets/city/fixtures/counter.glb": "e1fbeaee9eeb5731e045608f1ac37aacc9585514c2a9c212c6888a6f180d30bb",
+    "assets/city/fixtures/sink.glb": "f73212a26dde2bfddc204c9fdf9d71d812c115e19f1df591b5145ccb280e2da9",
+    "assets/city/fixtures/shower.glb": "e71ed6a5b824aeaf9e855300657be1aef4c9ccc1a642f276f3b2bb31879eb7f7",
+    "assets/city/fixtures/toilet.glb": "a5a150f4ffe5ab479b12712b83a7f9b7fe7634dd5f84130286d9b9b140c9ab10",
+    "assets/city/fixtures/bathtub.glb": "020a123b60c396a386da656747bd86699e7164b1a510ad253f71bc61a2998c0e",
+    "assets/city/fixtures/dining_table.glb": "439d096b1ecf75afa23da1f51292189df78ffe81168de832ac530208942cd847",
+    "assets/city/fixtures/dining_chair.glb": "dcca01f1a4dcddd52bb941b6543fa7087a381bd38cc67a7855d7019fd3c8f8fd",
+    "assets/city/fixtures/bookshelf.glb": "544706583153d7c3161b71aaa361c2fac9e838b80bcae1bd49ed6695dde75f38",
+    "assets/city/fixtures/treadmill.glb": "2def3daa2a8f4ff988aee3be5102c5eea7bc6ed138f99f796f794d0ad2ea81c6",
+    "assets/city/fixtures/tv.glb": "4c1e779b7117c476d3947364b2debe965919b1e54742e87f2f14af00ffb1ab5f",
+    "assets/city/variants/window_wide.glb": "f311107442f82b7821b35624ac3b0135a72bd87317bcec5726d116c7a54eb99c",
+    "assets/city/variants/window_double.glb": "d16bd5fe2ae0a936a93b14130c4a15798fcdc69909ba357dc465382fdd6e9c50",
+    "assets/city/variants/window_arch.glb": "41068e8065727b104ab6d91ae73f89d02a6820bf91832aa5d8650c4a445d9cb4",
+    "assets/city/variants/door_panelled.glb": "f6bf974927a1b2f9d4bba4197e5ea640be7e98636a8f9017981ce688ba73c35f",
+    "assets/city/variants/door_glazed.glb": "f9dba5491edc2bc062647b2792636888e30604d700cd3713e04ab389fe875c73",
+    "assets/city/variants/door_metal.glb": "624db7f384cc5fc7e5cd064dfd02e426279af2ef7d7166efd7d7da72b9bb3cc6",
+    "assets/city/materials_v2/plaster_white_albedo.png": "406a0308c510aa1303f06964d9e08b5f456cf319e46984e25f85f1037973ddad",
+    "assets/city/materials_v2/plaster_white_normal.png": "6ab005b39c04c013c8cc344372190062026321c89cf014fae53228432fe4d155",
+    "assets/city/materials_v2/plaster_white_roughness.png": "254e0644824c9618017a4c2bab71117a8f00e10070cdb78882f2c0af11921508",
+    "assets/city/materials_v2/plaster_sand_albedo.png": "dd8b6c3066949853e40911463f045136d3e561d9ca12ee256da4e4dcf5b272eb",
+    "assets/city/materials_v2/plaster_sand_normal.png": "6ab005b39c04c013c8cc344372190062026321c89cf014fae53228432fe4d155",
+    "assets/city/materials_v2/plaster_sand_roughness.png": "254e0644824c9618017a4c2bab71117a8f00e10070cdb78882f2c0af11921508",
+    "assets/city/materials_v2/plaster_sage_albedo.png": "89b3028f645ec2439da9350ed63eb4c1a6df413b19869e57f2d037d2eb421ad9",
+    "assets/city/materials_v2/plaster_sage_normal.png": "6ab005b39c04c013c8cc344372190062026321c89cf014fae53228432fe4d155",
+    "assets/city/materials_v2/plaster_sage_roughness.png": "254e0644824c9618017a4c2bab71117a8f00e10070cdb78882f2c0af11921508",
+    "assets/city/materials_v2/brick_white_albedo.png": "f83025d6481bf452cad73f03d95ed842b4cd4c2470ea0bcbd31e012b10d8885f",
+    "assets/city/materials_v2/brick_white_normal.png": "352f42ee2e19257fb01ee56ba192fad264f1b196b9ec95bf53078c014eca0382",
+    "assets/city/materials_v2/brick_white_roughness.png": "6af098ea96c60a693928fe044139cc9f4ffc1c10d9ebe92a3b141ae1d656bb05",
+    "assets/city/materials_v2/wood_oak_albedo.png": "febb7429fc76100f48f18e354151057a21425ca52dd2b4e6f8e17781829097d3",
+    "assets/city/materials_v2/wood_oak_normal.png": "53b617b00d27b87152497b91784fa1a7ebf0cbb690810f3bfd3ed0c574b0edef",
+    "assets/city/materials_v2/wood_oak_roughness.png": "858d2eeeb56e3f720a7ad7332ac1f32b428dac14bfca03e4e21f017b3d874c2b",
+    "assets/city/materials_v2/wood_dark_albedo.png": "3bc619051bea7b3ded4c7c268b129687f4c53848fbf91aa5cdbd23970527c643",
+    "assets/city/materials_v2/wood_dark_normal.png": "53b617b00d27b87152497b91784fa1a7ebf0cbb690810f3bfd3ed0c574b0edef",
+    "assets/city/materials_v2/wood_dark_roughness.png": "858d2eeeb56e3f720a7ad7332ac1f32b428dac14bfca03e4e21f017b3d874c2b",
+    "assets/city/materials_v2/tile_white_albedo.png": "f413b9aac2cf14d6c7e8f654515c5e4a7d7bece1627038b6b6db813c2904e2a3",
+    "assets/city/materials_v2/tile_white_normal.png": "f28ce9454e94f263a767f8730e9aefbcaf25fdb46f6e26a09e953d2fdb82caff",
+    "assets/city/materials_v2/tile_white_roughness.png": "7c5978b2bf5d0eaf67bb916d307e4c6c77f74aecd89483605578427ab858210d",
+    "assets/city/materials_v2/tile_terracotta_albedo.png": "68f849a6d43df1e3ae29a4758dddd9d3629a24ec434dfe09c82050b76cef6d56",
+    "assets/city/materials_v2/tile_terracotta_normal.png": "f28ce9454e94f263a767f8730e9aefbcaf25fdb46f6e26a09e953d2fdb82caff",
+    "assets/city/materials_v2/tile_terracotta_roughness.png": "7c5978b2bf5d0eaf67bb916d307e4c6c77f74aecd89483605578427ab858210d",
+    "assets/city/materials_v2/stone_grey_albedo.png": "cfedca738ff5d48f12091678b5f65977bb4fd57ad1a9e708850becee5a0337d7",
+    "assets/city/materials_v2/stone_grey_normal.png": "def3d02ead36369befa6b3ea81720c224ed1c58abb5576345ebd1f2fc4bb51db",
+    "assets/city/materials_v2/stone_grey_roughness.png": "8fbfa16a2de4d231826cc2b9dd6d5aa15ac46a9d5ee6fcda524a091906ad12e7",
+    "assets/city/materials_v2/concrete_dark_albedo.png": "0003ffd7b3cfbb52bd1940eeda705cd9eb80b09d558556f65fcea1bf0c5a03ef",
+    "assets/city/materials_v2/concrete_dark_normal.png": "0d85a02c0cb1b8f8b1a77e3cc657d894143e2bf06dd0e324017c1abe0be4d573",
+    "assets/city/materials_v2/concrete_dark_roughness.png": "3aa72cfd61ce3424efda127f96567dc026549c8d8bb82d1b7fdc0df871391862",
+    "assets/city/materials_v2/wallpaper_stripe_albedo.png": "e958cfa7074afadee8697f329dbc3a957a8b2fa5411b02676ec4f79ae1c57f25",
+    "assets/city/materials_v2/wallpaper_stripe_normal.png": "fa34f081943f1f675a2f6bfe6fd8cef7be03a89ceb3cc551f649a4ad4bf7adaa",
+    "assets/city/materials_v2/wallpaper_stripe_roughness.png": "409fa557c013c0c0e425ede296c69b4489d8877531631fc88f66dd3762f220e8",
+    "assets/city/materials_v2/parquet_oak_albedo.png": "70c6af3f2f33f678aa9f6253d7f1217238f3d39da187f05b84e597d1c2779efe",
+    "assets/city/materials_v2/parquet_oak_normal.png": "77591e03482a2086bac984979896b2725b7ee3656b31b04bdb5d5d7d29067697",
+    "assets/city/materials_v2/parquet_oak_roughness.png": "858d2eeeb56e3f720a7ad7332ac1f32b428dac14bfca03e4e21f017b3d874c2b",
+    "assets/city/m2_catalog.json": "2aa1a7254bc82500d9e74666914b485e643741898ec6df49e8b9e3b0b9200965",
+    "assets/city/m2_fixture_catalog.json": "5dc975179a55346b8f4019a592cd6545b3e19fa7af5935eb458ad25f7a85791d",
+    "assets/city/surfaces_v2.json": "ce59d4a9a3f96b6a140eac1b7d5e3a4df7ce930335814fa1904a963c81de4fea",
+    "tools/blender/city/import_m2_kit.py": "eaa3f59e00d95594d65f39dbcb47d8e69768e4efeab1316e3d157c16b18b7789",
+    "tools/blender/city/authoring_variants.py": "eb709972a5761936b2cbb91fcb9e2b05fde41651b06f6229f6f9562e4a02a00e",
+    "scenes/city/m2_sofa.tscn": "1d2dd3ccfccce8cc13447bbfaa30358201a248f2f4fb2ebf81ce2715a3b6d76f",
+    "scenes/city/m2_bed_single.tscn": "10f30272bee7ec72c4ec6ddc513388fe02b9a5a4b671ab4e752090dbaeec503d",
+    "scenes/city/m2_bed_double.tscn": "55523773c3a37b412e74f57303c5c2e5eabfa9eafe627751919dd2d582f5732d",
+    "scenes/city/m2_fridge.tscn": "21045c39a884b4d262a28c00801648eb5da42f0f9774fc7420c34f672d6f847f",
+    "scenes/city/m2_showcase.tscn": "0a75e278f0c4a2195ce1676866c4bc65b14851c2afea12bcad902fda83653d04",
+    "scenes/city/m2_stove.tscn": "ee2cc56f9fecf169dc89d450547d1ae7ed0567c780a7790f1b2f577fb8c4ec9e",
+    "scenes/city/m2_counter.tscn": "1684772bf3131b134065ab2d469ad341954c41b33e4449ed333933e9296444bd",
+    "scenes/city/m2_sink.tscn": "2933ed893f07daecedb32a2cf6e6c27c62444c5258f3757388a5ce4539732ddd",
+    "scenes/city/m2_shower.tscn": "6e6254304ff78b903496a3161e4bf4a55c6a60c3278a8316e0f0e7c83fcf652b",
+    "scenes/city/m2_toilet.tscn": "026dd5ceeb1a221b12bd7425bfa8cb2d87bb98ac4274572611b5e811f165a3bd",
+    "scenes/city/m2_bathtub.tscn": "275ce16734516e798563f5d56d729d4dd2e6963c7ad87a7f648200fe5d9719bf",
+    "scenes/city/m2_dining_table.tscn": "7bfecc96d555ff789078a1409eaa808b9189ede7b9e50eaf0d63644662990961",
+    "scenes/city/m2_dining_chair.tscn": "ba3ff9d381f9420e524ce2da8650b8a6aec6a4582a30bac680897686948e4e23",
+    "scenes/city/m2_bookshelf.tscn": "086f521ffbabc4d78da4f1a66b8d8c14a022ea70ef4257c0c951a8c3572e171d",
+    "scenes/city/m2_treadmill.tscn": "087d02c6391f0b65a01d8448524c03c50b91ef3e743b1c53de238fcc7e6daebb",
+    "scenes/city/m2_tv.tscn": "2d2280e298f2fc51b3c8a11b39f59239f7fb432c58ec43f443bdecdcc7f099c0",
+    "scenes/city/m2_window_wide.tscn": "2a0933614bce32ca7f29dbd1713c5a5cfc9a2fd7fbff752e7e0fca9408fbfade",
+    "scenes/city/m2_window_double.tscn": "b0cbe94b6afbd6a8692c9054907c7fa207306d8755bd092759facd2fd0022c67",
+    "scenes/city/m2_window_arch.tscn": "e4063aeacf0d74f600500ba5a5228a1a9fd923508be1510a71a19ffd92db8f50",
+    "scenes/city/m2_door_panelled.tscn": "ae99a529686f4df44f9087e3376075cdabe03d0d24607df5c3dc79eac391eccc",
+    "scenes/city/m2_door_glazed.tscn": "09673d9b4805381e850361e6b3044e4d7742520b9a55611bfb1258b2c8774972",
+    "scenes/city/m2_door_metal.tscn": "3892eadd99a51865b05a8f374b69578713de0262ea019d23c32853b8c868034f",
+    "scenes/city/m2_catalog_showcase.tscn": "8995c9d28bd532bae9937a6ec49bbaccb863c69cc2252540f8e6fdd1c7544ca2",
+    "scenes/city/furniture_editor.tscn": "8c70a25cfc0b345ae2ac58c0cac639e13698d319da559629200ec6ebbf09d399"
+  },
+  "blender": {
+    "kit": "lifesim-city-m2-complete-kit",
+    "version": "1.1",
+    "files": 22,
+    "native_models": 16,
+    "meshes": 134,
+    "variants_kit": "lifesim-city-authoring-variants-v1",
+    "materials": 20,
+    "packed_images": 54,
+    "native_manifest": "docs/city/m2_blender_native_manifest.json"
+  },
+  "cleanup": [
+    "docs/city/backups/city-m2-complete-1793307317/variants.tar.xz",
+    "temporary-export/m2-current-1793307317.zip",
+    "temporary-export/m2-qa-1793307317.zip",
+    "temporary-export/m2-qa-v2-1793307317.zip",
+    "temporary-export/m2-assets-1793307317.zip",
+    "temporary-export/city-blender-sync-1793201167-a6c4d28e.zip"
+  ],
+  "backup": "Full final Godot backup requested after completed lease record; final tool response records actual upload outcome.",
+  "next": "M3 lot/terrain/street inventory and first sidewalk/curb module",
+  "main_integration_gate": "M6/M7"
+}

@@ -35,6 +35,7 @@ static func apply_to_character(character: Dictionary, style: String, slot: Strin
 	var c: Dictionary = result["clothing"]
 	var original: Dictionary = c.get(slot, Schema.default_outfits()[slot]).duplicate(true)
 	original.merge(outfit(style), true)
+	original["designs"] = {}
 	c[slot] = original
 	c["active"] = slot
 	return result

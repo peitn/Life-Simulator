@@ -13,7 +13,7 @@ uniform float hairline : hint_range(0.0, 1.0) = 0.0;
 uniform float density : hint_range(0.0, 1.0) = 1.0;
 // 1 = vlasy na hlavě (víc pramenů na kartu), 0 = obočí a vousy
 uniform float fine = 1.0;
-uniform float roughness_base = 0.42;
+uniform float roughness_base = 0.64;
 
 varying vec4 attr;
 
@@ -74,7 +74,10 @@ void fragment() {
 		float cov = kind == 4 ? mix(0.30, 0.62, 1.0 - layer) : mix(0.42, 0.55, 1.0 - layer);
 		a = smoothstep(cov, cov + 0.08, nz);
 		a *= smoothstep(0.42, 0.62, rnd + (vnoise(uv * 700.0) - 0.5) * 0.22);
-		if (kind == 4) a = max(a, step(0.999, 1.0 - layer));
+		// Dense root undercoat prevents disconnected rectangular scalp patches.
+        // Retain the existing hairline/recession mask at the boundary.
+        if (layer < .01) a = max(a, smoothstep(.46,.64,rnd));
+        if (kind == 4) a = max(a, step(0.999, 1.0 - layer));
 		greyed = h21(floor(q * 0.6)) < grey;
 		shade = (0.78 + 0.3 * nz) * mix(0.65, 1.0, layer);
 		spec_k = 0.5;
@@ -106,7 +109,7 @@ void fragment() {
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ALPHA_ANTIALIASING_EDGE = 0.3;
 	ROUGHNESS = roughness_base + (greyed ? 0.06 : 0.0);
-	SPECULAR = 0.35 * spec_k;
+	SPECULAR = 0.24 * spec_k;
 	ANISOTROPY = 0.75 * spec_k;
 	ANISOTROPY_FLOW = vec2(1.0, 0.0);
 	BACKLIGHT = col * 0.35;

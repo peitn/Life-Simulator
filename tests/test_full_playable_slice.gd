@@ -4,9 +4,26 @@ extends "res://tests/test_base.gd"
 const Main := preload("res://main.gd")
 const Assets := preload("res://scripts/assets/asset_library.gd")
 const SaveGame := preload("res://scripts/save/game_save.gd")
+const CharacterData := preload("res://scripts/character/character_data.gd")
 
 var world: Node
 var clock: Node
+
+# H3: inspect the actual spawned SimAgent Skeleton3D, not just appearance dictionaries.
+func _actual_hand_rig(sim, expected_scale: float) -> bool:
+    if sim == null or not is_instance_valid(sim):
+        return false
+    var visual = sim.visual
+    if visual == null or not is_instance_valid(visual):
+        return false
+    var skeleton: Skeleton3D = visual._skeleton()
+    if skeleton == null or visual._hand_detail_nodes.size() < 2:
+        return false
+    for bone_name in ["hand_l", "hand_r"]:
+        var bone_index: int = skeleton.find_bone(bone_name)
+        if bone_index < 0 or not skeleton.get_bone_pose_scale(bone_index).is_equal_approx(Vector3.ONE * expected_scale):
+            return false
+    return true
 
 func _ready() -> void:
     watchdog_seconds = 85.0
@@ -15,7 +32,8 @@ func _ready() -> void:
     clock.total_minutes = 480.0
     clock._last_day = clock.get_day()
     clock._last_hour = clock.get_hour()
-    Assets.enabled = false
+    # This H3 integration also verifies real spawned Skeleton3D rigs; load authored assets.
+    Assets.enabled = true
     world = Main.new()
     world.net_config = {"mode":"offline","hud":true,"camera":false,"visuals":false,
         "audio":false,"autoload":false,"autosave":true,
@@ -107,15 +125,23 @@ func _run() -> void:
     # Body proportions and gender/grammar remain independent of each other.
     var isolated: Dictionary = creator._session.draft()
     isolated["body"]["bust"] = 0.13
+    isolated["body"]["hand_size"] = -0.6
     isolated["personality"]["trait_levels"] = {"uzkostlivy": 0.73}
     isolated["mind"]["predispositions"] = {"anxiety": 0.65}
     isolated["mind"]["morning_worse"] = true
+    isolated["identity"]["attracted_to"] = ["zeny"]
+    isolated["story"]["hometown"] = "HiddenTown"
+    isolated["voice"]["resonance"] = -0.47
     check(creator._session.replace_draft(isolated, "H3 independent axes"),
         "creator accepts independent body, continuous trait and private psyche draft")
     creator._refresh()
     var data: Dictionary = creator._session.draft()
     var before_uid: String = String(data["uid"])
     var public_draft: Dictionary = creator._visual_preview.public_snapshot()
+    var first_render_params: Dictionary = creator._visual_preview.visual.look_params.duplicate(true)
+    check(is_equal_approx(float(public_draft["body"]["hand_size"]), -0.6)
+        and is_equal_approx(float(first_render_params["hand_scale"]), 0.88),
+        "first creator 3D preview resolves schema-v18 smaller hands")
     check(data["identity"]["grammar"] == "f" and data["identity"]["gender_identity"] == "nebinarni",
         "grammatical gender is independent from gender identity")
     check(data["identity"]["first_name"] == "Nora" and int(data["body"]["age"]) == 29,
@@ -143,6 +169,13 @@ func _run() -> void:
         and stored["data"]["identity"]["grammar"] == "f", "identity axes survive authoritative spawn")
     check(absf(float(stored["data"]["mind"]["self_defectiveness"]) - 0.77) < 0.001 and absf(selected.self_defectiveness_belief - 0.77) < 0.001, "creator commits private inner belief into live agent")
     check(selected.look == public_draft, "spawned appearance exactly matches creator's preview")
+    check(stored["data"]["identity"]["attracted_to"] == ["zeny"]
+        and stored["data"]["story"]["hometown"] == "HiddenTown",
+        "creator private romantic attraction and backstory survive authoritative spawn")
+    check(is_equal_approx(float(stored["data"]["voice"]["resonance"]), -0.47)
+        and is_equal_approx(float(selected.look["voice"]["resonance"]), -0.47),
+        "schema-v20 public voice resonance survives creator preview to household")
+    check(_actual_hand_rig(selected, 0.88), "first actual spawned SimAgent has two scaled hand bones and skinned hand meshes")
     check(is_equal_approx(float(stored["data"]["body"]["bust"]), 0.13),
         "body proportion survives creation independently of grammar and identity")
     check(is_equal_approx(float(stored["data"]["personality"]["trait_levels"]["uzkostlivy"]), 0.73),
@@ -160,6 +193,14 @@ func _run() -> void:
         "public legacy trait labels retained; private continuous traits, psyche and UID excluded")
     check(selected.look.get("mind", {}).is_empty() and not selected.look.has("uid"),
         "spawn distributes no private mind/UID")
+    check(not selected.look.get("identity", {}).has("gender_identity")
+        and not selected.look.get("identity", {}).has("attracted_to")
+        and not selected.look.has("story"),
+        "spawn public appearance excludes private gender identity, attraction and story")
+    var authoritative_cd = CharacterData.new()
+    authoritative_cd.set_from_dict(stored["data"])
+    check(authoritative_cd.public_snapshot() == selected.look,
+        "actual spawned look equals strict public projection of canonical server record")
     check(not is_instance_valid(creator), "committed creator UI is freed")
     var duplicate: Dictionary = stored["data"].duplicate(true)
     check(not world.create_offline_character(duplicate).get("ok", false),
@@ -178,11 +219,21 @@ func _run() -> void:
     second_draft["identity"]["first_name"] = "Mira"
     second_draft["identity"]["last_name"] = "Druhá"
     second_draft["body"]["bust"] = 0.61
+    second_draft["body"]["hand_size"] = 0.8
     second_draft["personality"]["trait_levels"] = {"uzkostlivy": 0.21}
     second_draft["mind"]["predispositions"] = {"anxiety": 0.18}
     second_draft["mind"]["morning_worse"] = false
     check(second_creator._session.replace_draft(second_draft, "H3 second resident"),
         "second resident draft is independently validated")
+    second_creator._refresh()
+    var second_public: Dictionary = second_creator._visual_preview.public_snapshot()
+    var second_render_params: Dictionary = second_creator._visual_preview.visual.look_params.duplicate(true)
+    check(is_equal_approx(float(second_public["body"]["hand_size"]), 0.8)
+        and is_equal_approx(float(second_render_params["hand_scale"]), 1.16)
+        and not is_equal_approx(float(second_render_params["hand_scale"]), float(first_render_params["hand_scale"])),
+        "second preview parameters resolve independent larger hands")
+    check(not second_public.has("mind") and not second_public.has("uid"),
+        "second preview never exposes private mind or UID")
     second_creator._on_create()
     await get_tree().process_frame
     check(world.sims.size() == before_count + 2, "second creator adds exactly one additional resident")
@@ -193,6 +244,13 @@ func _run() -> void:
         finish("test_full_playable_slice")
         return
     var second_node_name: String = String(second_sim.name)
+    check(second_sim.look == second_public and second_sim.visual.look_params == second_render_params,
+        "second spawned appearance parameters match creator preview")
+    check(_actual_hand_rig(second_sim, 1.16) and _actual_hand_rig(selected, 0.88),
+        "two simultaneously spawned SimAgent skeletons retain distinct left/right hand scales")
+    check(selected.visual.look_params == first_render_params
+        and not is_equal_approx(float(selected.visual.look_params["hand_scale"]), float(second_sim.visual.look_params["hand_scale"])),
+        "first spawned appearance parameters retain smaller hands")
     var second_private: Dictionary = world.read_character_edit(second_node_name)
     var first_private: Dictionary = world.read_character_edit(node_name)
     check(second_private.get("ok", false) and first_private.get("ok", false)
@@ -252,7 +310,21 @@ func _run() -> void:
         and is_equal_approx(float(reloaded_private["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.73)
         and is_equal_approx(float(reloaded_private["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.65),
         "disk reload preserves private psyche and continuous trait values")
+    check(reloaded_private["data"]["identity"]["attracted_to"] == ["zeny"]
+        and reloaded_private["data"]["story"]["hometown"] == "HiddenTown"
+        and is_equal_approx(float(reloaded_private["data"]["voice"]["resonance"]), -0.47),
+        "manual disk reload retains private attraction, story and public voice resonance")
     var second_reloaded: Dictionary = world.read_character_edit(second_node_name)
+    var second_loaded_visual: Node3D = null
+    for resident in world.sims:
+        if String(resident.name) == second_node_name:
+            second_loaded_visual = resident.visual
+    check(second_loaded_visual != null and second_loaded_visual.look_params == second_render_params,
+        "manual disk reload preserves second appearance parameters and hand scale")
+    var first_loaded_sim = world.find_sim(node_name)
+    var second_loaded_sim = world.find_sim(second_node_name)
+    check(_actual_hand_rig(first_loaded_sim, 0.88) and _actual_hand_rig(second_loaded_sim, 1.16),
+        "manual disk reload rebuilds two real SimAgent hand rigs with independent bone scales")
     check(second_reloaded.get("ok", false)
         and is_equal_approx(float(second_reloaded["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.18)
         and is_equal_approx(float(second_reloaded["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.21)
@@ -283,10 +355,26 @@ func _run() -> void:
         and is_equal_approx(float(restarted_private["data"]["body"]["bust"]), 0.13)
         and is_equal_approx(float(restarted_private["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.73),
         "cold-start autosave resume preserves independent body, trait and psyche axes")
+    check(restarted_private["data"]["identity"]["attracted_to"] == ["zeny"]
+        and restarted_private["data"]["story"]["hometown"] == "HiddenTown"
+        and is_equal_approx(float(world.get_selected_sim().look["voice"]["resonance"]), -0.47)
+        and not world.get_selected_sim().look.get("identity", {}).has("attracted_to")
+        and not world.get_selected_sim().look.has("story"),
+        "cold-start preserves private attraction/story without leaking them and restores public voice")
     check(not world.get_selected_sim().look.has("mind")
         and not world.get_selected_sim().look.has("uid"),
         "cold-start public appearance remains private-data-free")
     var second_restarted: Dictionary = world.read_character_edit(second_node_name)
+    var second_cold_visual: Node3D = null
+    for resident in world.sims:
+        if String(resident.name) == second_node_name:
+            second_cold_visual = resident.visual
+    check(second_cold_visual != null and second_cold_visual.look_params == second_render_params
+        and is_equal_approx(float(second_cold_visual.look_params["hand_scale"]), 1.16),
+        "new Main autoload preserves second appearance parameters and hand scale")
+    check(_actual_hand_rig(world.find_sim(node_name), 0.88)
+        and _actual_hand_rig(world.find_sim(second_node_name), 1.16),
+        "new Main autoload reconstructs both actual Skeleton3D hand scales")
     check(second_restarted.get("ok", false)
         and is_equal_approx(float(second_restarted["data"]["mind"]["predispositions"].get("anxiety", -1.0)), 0.18)
         and is_equal_approx(float(second_restarted["data"]["personality"]["trait_levels"].get("uzkostlivy", -1.0)), 0.21)

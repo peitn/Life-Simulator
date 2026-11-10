@@ -24,3 +24,7 @@ func _ready() -> void:
 	var layer:=CanvasLayer.new();add_child(layer);var caption:=Label.new()
 	caption.text="Life Simulator — nábytek M2\nZelená: přístup | Modrá: skutečný povrch sedáku / lůžka"
 	caption.position=Vector2(18,16);caption.add_theme_font_size_override("font_size",18);layer.add_child(caption)
+	var controls:=HBoxContainer.new();controls.position=Vector2(18,72);layer.add_child(controls)
+	for entry in [["Kompletní katalog M2","m2_catalog_showcase"],["Dílna nábytku","furniture_editor"]]:
+		var button:=Button.new();button.text=entry[0];button.accessibility_name=entry[0];controls.add_child(button)
+		button.pressed.connect(func():get_tree().change_scene_to_file("res://scenes/city/"+entry[1]+".tscn"))

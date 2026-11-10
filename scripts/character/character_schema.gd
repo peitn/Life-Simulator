@@ -69,7 +69,9 @@ extends RefCounted
 ##     scales palms, digits and nails together (±20 % at the hand joint, 0 = neutral). Public (visible).
 ##     Migrace v17 → v18 doplní 0; the anatomy run originally shipped this as "v9" on the rolled-back
 ##     server, which collided with psyche A's v9, so it is chained after v17 here.
-const VERSION := 18
+## v19: bounded portable clothing recipes per outfit, visible and replicated.
+## v20: voice.resonance – independent spectral resonance control; default 0 preserves old sound.
+const VERSION := 20
 
 const GRAMMAR := {"m": "on", "f": "ona", "n": "ono", "pl": "oni"}
 
@@ -427,6 +429,7 @@ const GROUPS := {
 	"voice": {"public": true, "fields": {
 		"pitch": ["f", -1.0, 1.0, 0.0],
 		"timbre": ["f", -1.0, 1.0, 0.0],        # tmavý … jasný
+		"resonance": ["f", -1.0, 1.0, 0.0],  # široké/měkké … úzké/zdůrazněné formanty
 		"tempo": ["f", -1.0, 1.0, 0.0],
 		"roughness": ["f", 0.0, 1.0, 0.2],
 	}},
@@ -548,11 +551,11 @@ static func defaults() -> Dictionary:
 
 static func default_outfits() -> Dictionary:
 	return {
-		"bezne": {"top": "tricko", "bottom": "dziny", "shoes": "tenisky", "top_color": "#5b6b7a", "bottom_color": "#2f3a4a"},
-		"pracovni": {"top": "kosile", "bottom": "kalhoty", "shoes": "polobotky", "top_color": "#c9cdd2", "bottom_color": "#35383d"},
-		"spolecenske": {"top": "sako", "bottom": "oblekove", "shoes": "polobotky", "top_color": "#23262b", "bottom_color": "#23262b"},
-		"spani": {"top": "pyzamo", "bottom": "pyzamo", "shoes": "bosy", "top_color": "#7d8fa3", "bottom_color": "#7d8fa3"},
-		"sport": {"top": "sportovni", "bottom": "teplaky", "shoes": "tenisky", "top_color": "#3f7f6a", "bottom_color": "#2b2f33"},
+		"bezne": {"top": "tricko", "bottom": "dziny", "shoes": "tenisky", "designs": {}, "top_color": "#5b6b7a", "bottom_color": "#2f3a4a"},
+		"pracovni": {"top": "kosile", "bottom": "kalhoty", "shoes": "polobotky", "designs": {}, "top_color": "#c9cdd2", "bottom_color": "#35383d"},
+		"spolecenske": {"top": "sako", "bottom": "oblekove", "shoes": "polobotky", "designs": {}, "top_color": "#23262b", "bottom_color": "#23262b"},
+		"spani": {"top": "pyzamo", "bottom": "pyzamo", "shoes": "bosy", "designs": {}, "top_color": "#7d8fa3", "bottom_color": "#7d8fa3"},
+		"sport": {"top": "sportovni", "bottom": "teplaky", "shoes": "tenisky", "designs": {}, "top_color": "#3f7f6a", "bottom_color": "#2b2f33"},
 	}
 
 

@@ -2,6 +2,8 @@ extends Control
 ## Transactional offline and authenticated owner-only native ENet editor.
 ## Private reads, correlated Apply and canonical private readback are owner-only;
 ## only validated public appearance changes are broadcast to other players.
+const ClothingStudio := preload("res://scripts/ui/clothing_studio.gd")
+const GarmentDesign := preload("res://scripts/clothing/garment_design.gd")
 const Session := preload("res://scripts/character/character_edit_session.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const SliderEditor := preload("res://scripts/ui/personality_slider_editor.gd")
@@ -11,6 +13,7 @@ const Preview := preload("res://scripts/ui/character_preview.gd")
 const Wardrobe := preload("res://scripts/assets/subculture_wardrobe.gd")
 const Schema := preload("res://scripts/character/character_schema.gd")
 
+var _clothing_studio: Control
 var main: Node
 var _session := Session.new()
 var _target := ""
@@ -136,6 +139,11 @@ func _ready() -> void:
         picker.item_selected.connect(_on_item_selected.bind(String(entry[0])))
         line.add_child(picker)
         _item_buttons[String(entry[0])] = picker
+    var studio_button := Button.new()
+    studio_button.name = "OpenClothingStudio"
+    studio_button.text = "Dílna oblečení — vytvořit vlastní kus"
+    studio_button.pressed.connect(_open_clothing_studio)
+    row.add_child(studio_button)
     _sliders = SliderEditor.new()
     _sliders.custom_minimum_size = Vector2(0, 420)
     _sliders.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -268,6 +276,7 @@ func _update_action_columns() -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
+    if is_instance_valid(_clothing_studio): return
     if not _session.is_open() and not _network_read:
         return
     var key := event as InputEventKey
@@ -642,6 +651,7 @@ func _on_item_selected(index: int, field: String) -> void:
         _refresh()
         return
     outfit[field] = String(metadata)
+    if outfit.get("designs", {}) is Dictionary: outfit.get("designs", {}).erase(field)
     if field == "top" and metadata != "saty" and outfit.get("bottom") == "zadne":
         outfit["bottom"] = "kalhoty"
     draft["clothing"]["active"] = slot
@@ -755,3 +765,21 @@ func _on_cancel() -> void:
 func _exit_tree() -> void:
     _stop_network_read()
     _session.cancel()
+
+
+func _open_clothing_studio() -> void:
+    if not _draft_mutable() or is_instance_valid(_clothing_studio): return
+    var slot := _slot.get_item_text(_slot.selected) if _slot.selected >= 0 else "bezne"
+    var studio := ClothingStudio.new()
+    studio.open_design(_session.draft(), "top", slot)
+    studio.design_applied.connect(_on_custom_garment.bind(slot))
+    add_child(studio)
+    _clothing_studio = studio
+
+func _on_custom_garment(recipe: Dictionary, slot: String) -> void:
+    if not _draft_mutable(): return
+    var draft := GarmentDesign.put_on_character(_session.draft(), recipe, slot)
+    if draft.is_empty(): return
+    if _session.replace_draft(draft, "Custom garment " + str(recipe.name)):
+        _status.text = "Vlastní oblečení je v návrhu. Na živou postavu se přenese tlačítkem Použít."
+        _refresh()

@@ -19,9 +19,18 @@ const NOTICE_TIME := 4.0
 var main: Node
 var _time_label: Label
 var _speed_label: Label
+var _audio_toggle: Button
 var _name_label: Label
+const ClothingStudio := preload("res://scripts/ui/clothing_studio.gd")
+const StudioCharacterData := preload("res://scripts/character/character_data.gd")
+var _clothing_studio: Control
 var _edit_button: Button
 var _create_button: Button
+var _needs_panel: PanelContainer
+var _mobile_panel_toggle: Button
+var _compact_panel_mode := false
+var _compact_panel_open := true
+var _force_compact_preview := false
 var _anatomy_button: Button
 const ANATOMY_DISPLAY := ["off","bones","muscles","cartilage","fat","all"]
 const ANATOMY_LABELS := ["Vypnuto","Kostra","Svaly","Chrupavky","Tuk","Všechny vrstvy"]
@@ -49,6 +58,8 @@ var _thought_box: VBoxContainer
 var _thought_seen := ""
 var _cmd_title: Label
 var _cmd_list: ItemList
+var _world_popup: PopupMenu
+var _world_action_refs: Array = []
 var _chat_panel: PanelContainer
 var _chat_log: Label
 var _chat_edit: LineEdit
@@ -58,6 +69,26 @@ var _refresh := 0.0
 var _notice_left := 0.0
 var _cmd_for := ""
 var _cmd_refresh := 0.0
+
+
+func _refresh_audio_toggle() -> void:
+	if _audio_toggle == null:
+		return
+	var gs := get_node_or_null("/root/GameSettings")
+	var enabled: bool = bool(gs.get_value("audio_enabled")) if gs != null else not AudioServer.is_bus_mute(0)
+	_audio_toggle.text = "♪ Zvuk: ZAP" if enabled else "♪ Zvuk: VYP"
+	_audio_toggle.button_pressed = not enabled
+
+
+func _on_audio_toggle() -> void:
+	var gs := get_node_or_null("/root/GameSettings")
+	var new_state := AudioServer.is_bus_mute(0)
+	if gs != null:
+		new_state = not bool(gs.get_value("audio_enabled"))
+		gs.set_value("audio_enabled", new_state)
+	else:
+		AudioServer.set_bus_mute(0, not new_state)
+	_refresh_audio_toggle()
 
 
 func _ready() -> void:
@@ -71,26 +102,47 @@ func _ready() -> void:
 	_intimacy_fade.visible = false
 	add_child(_intimacy_fade)
 	var top := PanelContainer.new()
+	# This is read-only decoration: it must never steal world mouse clicks.
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.position = Vector2(16, 16)
 	add_child(top)
 	var tv := VBoxContainer.new()
+	tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(tv)
 	_time_label = Label.new()
+	_time_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_time_label.add_theme_font_size_override("font_size", 22)
 	tv.add_child(_time_label)
 	_speed_label = Label.new()
+	_speed_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tv.add_child(_speed_label)
+	# Prominent sound control for touch/browser, independent of voice mode.
+	_audio_toggle = Button.new()
+	_audio_toggle.name = "SoundToggle"
+	_audio_toggle.tooltip_text = "Zapnout nebo vypnout veškerý herní zvuk"
+	_audio_toggle.accessibility_name = "Přepnout zvuk hry"
+	_audio_toggle.pressed.connect(_on_audio_toggle)
+	tv.add_child(_audio_toggle)
+	_refresh_audio_toggle()
+	var settings := get_node_or_null("/root/GameSettings")
+	if settings != null:
+		settings.changed.connect(func(key: String) -> void:
+			if key == "audio_enabled":
+				_refresh_audio_toggle())
 	var help := Label.new()
-	help.text = "Mezerník pauza · 1–4 rychlost · P nouzová pauza · Tab další postava · F zaměřit · WASD/QE kamera · Enter chat"
+	help.text = "Myš: kliknout na nábytek/postavu · levé táhnout = posun · pravé táhnout = otočení · kolečko = zoom\nMezerník pauza · 1–4 rychlost · Tab postava · F zaměřit · WASD/QE kamera · Enter chat"
+	help.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	help.add_theme_font_size_override("font_size", 12)
 	help.modulate = Color(1, 1, 1, 0.7)
 	tv.add_child(help)
 	_roster_label = Label.new()
+	_roster_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_roster_label.add_theme_font_size_override("font_size", 13)
 	tv.add_child(_roster_label)
 
 	var panel := PanelContainer.new()
 	panel.name = "NeedsAndCommandsPanel"
+	_needs_panel = panel
 	panel.anchor_left = 1.0
 	panel.anchor_right = 1.0
 	panel.offset_left = -340
@@ -99,6 +151,20 @@ func _ready() -> void:
 	panel.anchor_bottom = 1.0
 	panel.offset_bottom = -16
 	add_child(panel)
+	# On narrow browser screens a permanently open 324px sidebar covers almost
+	# every world object. Keep one reachable toggle and start with 3D visible.
+	_mobile_panel_toggle = Button.new()
+	_mobile_panel_toggle.name = "MobilePanelToggle"
+	_mobile_panel_toggle.text = "☰ Ovládání"
+	_mobile_panel_toggle.anchor_left = 1.0
+	_mobile_panel_toggle.anchor_right = 1.0
+	_mobile_panel_toggle.offset_left = -152
+	_mobile_panel_toggle.offset_right = -8
+	_mobile_panel_toggle.offset_top = 8
+	_mobile_panel_toggle.offset_bottom = 52
+	_mobile_panel_toggle.visible = false
+	_mobile_panel_toggle.pressed.connect(_toggle_compact_panel)
+	add_child(_mobile_panel_toggle)
 	# The needs/action panel must remain usable in a portrait or small window.
 	# Keep commands reachable by scrolling instead of clipping below the screen.
 	var controls_scroll := ScrollContainer.new()
@@ -106,7 +172,7 @@ func _ready() -> void:
 	controls_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(controls_scroll)
 	var v := VBoxContainer.new()
-	v.custom_minimum_size = Vector2(300, 0)
+	v.custom_minimum_size = Vector2(0, 0)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	controls_scroll.add_child(v)
 	_name_label = Label.new()
@@ -122,6 +188,11 @@ func _ready() -> void:
 	_create_button.text = "Vytvořit vlastní postavu"
 	_create_button.pressed.connect(_on_create_character)
 	v.add_child(_create_button)
+	var studio_button := Button.new()
+	studio_button.name = "OpenClothingStudio"
+	studio_button.text = "Dílna oblečení"
+	studio_button.pressed.connect(_open_clothing_studio)
+	v.add_child(studio_button)
 	# The very same animated SimVisual object used by the in-game character,
 	# not a static gallery. Purely local visualization, never server commands.
 	_anatomy_button = Button.new()
@@ -154,12 +225,12 @@ func _ready() -> void:
 		var row := HBoxContainer.new()
 		var l := Label.new()
 		l.text = Needs.LABELS[k]
-		l.custom_minimum_size = Vector2(100, 0)
+		l.custom_minimum_size = Vector2(80, 0)
 		row.add_child(l)
 		var bar := ProgressBar.new()
 		bar.max_value = 100.0
 		bar.show_percentage = false
-		bar.custom_minimum_size = Vector2(200, 18)
+		bar.custom_minimum_size = Vector2(120, 18)
 		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(bar)
 		v.add_child(row)
@@ -189,10 +260,14 @@ func _ready() -> void:
 	_cmd_title.text = "Příkazy"
 	v.add_child(_cmd_title)
 	_cmd_list = ItemList.new()
-	_cmd_list.custom_minimum_size = Vector2(300, 180)
+	_cmd_list.custom_minimum_size = Vector2(120, 180)
 	_cmd_list.item_activated.connect(_on_cmd_activated)
 	_cmd_list.item_clicked.connect(func(idx: int, _pos: Vector2, _btn: int): _on_cmd_activated(idx))
 	v.add_child(_cmd_list)
+	_world_popup = PopupMenu.new()
+	_world_popup.name = "WorldObjectActions"
+	_world_popup.id_pressed.connect(_on_world_action_selected)
+	add_child(_world_popup)
 
 	# Chat (jen v multiplayeru)
 	_chat_panel = PanelContainer.new()
@@ -229,6 +304,7 @@ func _ready() -> void:
 	add_child(_thought_box)
 
 	_notice_label = Label.new()
+	_notice_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_notice_label.anchor_left = 0.5
 	_notice_label.anchor_right = 0.5
 	_notice_label.offset_left = -300
@@ -242,7 +318,37 @@ func _ready() -> void:
 	if main != null and main.net != null:
 		main.net.chat_received.connect(_on_chat)
 		main.net.notice.connect(show_notice)
-		main.net.disconnected.connect(show_notice)
+		main.net.disconnected.connect(_on_net_disconnected)
+	get_viewport().size_changed.connect(_fit_controls_panel)
+	_fit_controls_panel()
+
+
+## A narrow-screen HUD must remain inside the touch / mouse viewport.
+func _fit_controls_panel() -> void:
+	if _needs_panel == null:
+		return
+	var width := get_viewport().get_visible_rect().size.x
+	var inset := 8.0 if width < 520.0 else 16.0
+	var panel_width := minf(324.0, maxf(160.0, width - 2.0 * inset))
+	_needs_panel.offset_right = -inset
+	_needs_panel.offset_left = -inset - panel_width
+	var should_compact := width < 650.0 and (OS.has_feature("web") or OS.has_feature("mobile") or _force_compact_preview)
+	if should_compact and not _compact_panel_mode:
+		_compact_panel_open = false
+	if not should_compact:
+		_compact_panel_open = true
+	_compact_panel_mode = should_compact
+	_needs_panel.visible = not should_compact or _compact_panel_open
+	if _mobile_panel_toggle != null:
+		_mobile_panel_toggle.visible = should_compact
+		_mobile_panel_toggle.text = "✕ Skrýt panel" if _compact_panel_open else "☰ Ovládání"
+
+
+func _toggle_compact_panel() -> void:
+	if not _compact_panel_mode:
+		return
+	_compact_panel_open = not _compact_panel_open
+	_fit_controls_panel()
 
 
 func _on_anatomy_view() -> void:
@@ -465,6 +571,42 @@ func focus_chat() -> void:
 		_chat_edit.grab_focus()
 
 
+## H4a: po výpadku spojení nabídne návrat ke stejné postavě (server ji chvíli drží).
+var _reconnect_button: Button = null
+
+
+func _on_net_disconnected(reason: String) -> void:
+	show_notice(reason)
+	if main == null or main.net == null or not main.net.can_resume():
+		return
+	if _reconnect_button == null:
+		_reconnect_button = Button.new()
+		_reconnect_button.name = "ReconnectButton"
+		_reconnect_button.text = "Znovu připojit – tvoje postava chvíli počká"
+		_reconnect_button.anchor_left = 0.5
+		_reconnect_button.anchor_right = 0.5
+		_reconnect_button.offset_left = -190
+		_reconnect_button.offset_right = 190
+		_reconnect_button.offset_top = 60
+		_reconnect_button.offset_bottom = 100
+		_reconnect_button.focus_mode = Control.FOCUS_ALL
+		_reconnect_button.add_theme_font_size_override("font_size", 18)
+		_reconnect_button.pressed.connect(_on_reconnect_pressed)
+		add_child(_reconnect_button)
+	_reconnect_button.disabled = false
+	_reconnect_button.visible = true
+	_reconnect_button.grab_focus.call_deferred()
+
+
+func _on_reconnect_pressed() -> void:
+	if _reconnect_button == null:
+		return
+	_reconnect_button.disabled = true
+	if main == null or not main.reconnect():
+		_reconnect_button.disabled = false
+		show_notice("Znovu připojit teď nejde – spusť připojení z menu.")
+
+
 func show_notice(text: String) -> void:
 	_notice_label.text = text
 	_notice_left = NOTICE_TIME
@@ -561,6 +703,43 @@ static func _cmd_allowed(a: Dictionary, gs: Node) -> bool:
 func _add_cmd(text: String, meta: Array) -> void:
 	var idx := _cmd_list.add_item(text)
 	_cmd_list.set_item_metadata(idx, meta)
+
+
+## Called only after main's world-picker found a known SmartObject.
+## Action choices stay within the normal NetSession authority/validation path.
+func open_world_object_actions(index: int, screen: Vector2i) -> void:
+	if main == null or main.net == null or _world_popup == null:
+		return
+	var objs: Array = main.get_smart_objects()
+	if index < 0 or index >= objs.size() or main.get_selected_sim() == null:
+		return
+	_world_popup.clear()
+	_world_action_refs.clear()
+	var tag: String = String(objs[index].object_tag)
+	var gs := get_node_or_null("/root/GameSettings")
+	for action in ActionLibrary.ACTIONS:
+		if String(action.get("object", "")) != tag or not _cmd_allowed(action, gs):
+			continue
+		var option_id := _world_action_refs.size()
+		_world_action_refs.append({"action_id": String(action["id"]), "target_index": index})
+		_world_popup.add_item(String(action.get("label", action["id"])), option_id)
+	if _world_action_refs.is_empty():
+		show_notice("Pro tento objekt teď není dostupná žádná akce.")
+		return
+	var screen_size: Vector2 = get_viewport().get_visible_rect().size
+	_world_popup.position = Vector2i(clampi(screen.x, 0, maxi(0, int(screen_size.x) - 220)),
+		clampi(screen.y, 0, maxi(0, int(screen_size.y) - 160)))
+	_world_popup.popup()
+
+
+func _on_world_action_selected(id: int) -> void:
+	if main == null or main.net == null or id < 0 or id >= _world_action_refs.size():
+		return
+	var sim = main.get_selected_sim()
+	if sim == null:
+		return
+	var ref: Dictionary = _world_action_refs[id]
+	main.net.request_command(String(sim.name), String(ref["action_id"]), int(ref["target_index"]))
 
 
 func _on_cmd_activated(idx: int) -> void:
@@ -722,3 +901,17 @@ func _render_roster() -> void:
 		lines.append("  %s → %s (hlas: %s)" % [p.get("name", "?"),
 			s.sim_name if s != null else "divák", main.clock.SPEED_NAMES[clampi(int(p.get("vote", 1)), 0, 4)]])
 	_roster_label.text = "\n".join(lines)
+
+
+func _open_clothing_studio() -> void:
+	if is_instance_valid(_clothing_studio) or is_instance_valid(_character_editor) or is_instance_valid(_character_creator): return
+	var source: Dictionary = StudioCharacterData.create().to_dict()
+	source["identity"]["first_name"] = "Alex"
+	if main != null:
+		var sim = main.get_selected_sim()
+		if sim != null and sim.get("look") is Dictionary: source = sim.look.duplicate(true)
+	var studio := ClothingStudio.new()
+	studio.allow_apply = false
+	studio.open_design(source)
+	add_child(studio)
+	_clothing_studio = studio

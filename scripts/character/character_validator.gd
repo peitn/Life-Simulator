@@ -19,6 +19,7 @@ extends RefCounted
 ## (review ChatGPT 48): `data` NIKDY není prázdný – když vstup nejde použít vůbec (není slovník, obří,
 ## neznámá novější verze), `fatal` = true a `data` jsou bezpečné výchozí hodnoty (ok = false).
 
+const GarmentDesign := preload("res://scripts/clothing/garment_design.gd")
 const Schema := preload("res://scripts/character/character_schema.gd")
 const Traits := preload("res://scripts/sim/traits.gd")
 
@@ -632,6 +633,23 @@ class _V:
 						d[key] = String(o[key]).to_lower()
 					else:
 						err("%s.%s" % [p, key], "není barva #rrggbb")
+			d["designs"] = {}
+			var designs = o.get("designs", {})
+			if not designs is Dictionary or designs.size() > 3:
+				err(p + ".designs", "neplatná sada návrhů oblečení")
+			else:
+				for kind in designs:
+					if kind not in ["top", "bottom", "shoes"]:
+						err(p + ".designs", "neznámý druh návrhu")
+						continue
+					var parsed: Dictionary = GarmentDesign.validate(designs[kind])
+					if not parsed.ok:
+						err(p + ".designs." + str(kind), "neplatné parametry návrhu")
+						continue
+					if parsed.data.kind != kind or parsed.data.base != d[kind] or d[kind] in ["zadne", "bosy"]:
+						err(p + ".designs." + str(kind), "návrh neodpovídá zvolenému kusu oblečení")
+						continue
+					d["designs"][kind] = parsed.data
 			if d["bottom"] == "zadne" and d["top"] != "saty":
 				if strict:
 					err(p + ".bottom", "bez spodního dílu jen se šaty")

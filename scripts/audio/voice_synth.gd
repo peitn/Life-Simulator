@@ -89,6 +89,7 @@ static func normalized(voice: Variant) -> Dictionary:
 	return {
 		"pitch": _num(v, "pitch", 0.0, -1.0, 1.0),
 		"timbre": _num(v, "timbre", 0.0, -1.0, 1.0),
+		"resonance": _num(v, "resonance", 0.0, -1.0, 1.0),
 		"tempo": _num(v, "tempo", 0.0, -1.0, 1.0),
 		"roughness": _num(v, "roughness", 0.2, 0.0, 1.0),
 	}
@@ -101,6 +102,7 @@ static func params(voice: Variant) -> Dictionary:
 		"f0": BASE_F0 * pow(2.0, n["pitch"] * PITCH_OCTAVES),
 		"tract": pow(2.0, n["timbre"] * TRACT_OCTAVES),
 		"bright": 0.5 + 0.5 * n["timbre"],
+		"bw_scale": pow(2.0, -0.6 * n["resonance"]),
 		"rate": BASE_RATE * pow(2.0, n["tempo"] * TEMPO_OCTAVES),
 		"rough": n["roughness"],
 	}
@@ -235,10 +237,11 @@ static func render(voice: Variant, style: Variant = "klidne", variant: int = 0, 
 	var g2: float = FORMANT_GAIN[1]
 	var g3: float = FORMANT_GAIN[2]
 	var g4: float = FORMANT_GAIN[3]
-	var bw1: float = float(FORMANT_BW[0]) * (1.0 + 0.8 * breath)
-	var bw2: float = float(FORMANT_BW[1]) * (1.0 + 0.8 * breath)
-	var bw3: float = float(FORMANT_BW[2]) * (1.0 + 0.8 * breath)
-	var bw4: float = float(FORMANT_BW[3]) * (1.0 + 0.8 * breath)
+	var bw_scale: float = p["bw_scale"]
+	var bw1: float = float(FORMANT_BW[0]) * (1.0 + 0.8 * breath) * bw_scale
+	var bw2: float = float(FORMANT_BW[1]) * (1.0 + 0.8 * breath) * bw_scale
+	var bw3: float = float(FORMANT_BW[2]) * (1.0 + 0.8 * breath) * bw_scale
+	var bw4: float = float(FORMANT_BW[3]) * (1.0 + 0.8 * breath) * bw_scale
 	var cz1 := 0.0
 	var cz2 := 0.0
 	var ca1 := 0.0
@@ -420,8 +423,8 @@ static func render_for_character(data: Dictionary, style: Variant = "klidne", va
 ## Klíč cache: kvantizace 0,02 (posuvník s krokem 0,01 nemusí přepočítávat každý pixel).
 static func cache_key(voice: Variant, style: Variant, variant: int, dur: float) -> String:
 	var n := normalized(voice)
-	return "%d|%d|%d|%d|%s|%d|%d" % [roundi(n["pitch"] * 50.0), roundi(n["timbre"] * 50.0),
-		roundi(n["tempo"] * 50.0), roundi(n["roughness"] * 50.0), style_or_default(style),
+	return "%d|%d|%d|%d|%d|%s|%d|%d" % [roundi(n["pitch"] * 50.0), roundi(n["timbre"] * 50.0),
+		roundi(n["tempo"] * 50.0), roundi(n["roughness"] * 50.0), roundi(n["resonance"] * 50.0), style_or_default(style),
 		variant, roundi(dur * 100.0)]
 
 
@@ -488,11 +491,10 @@ static func tts_f0_contour(text: Variant, voice: Variant = {}, style: Variant = 
 static func tts_cache_key(text: Variant, voice: Variant, style: Variant, sr: int = CzechTTS.SR) -> String:
 	var n := quantized(voice)
 	var clean := CzechTTS.G2P.normalize(CzechTTS.clean_text(text))
-	return "tts|%d|%d|%d|%d|%s|%d|%d|%d" % [roundi(n["pitch"] * 50.0), roundi(n["timbre"] * 50.0),
-		roundi(n["tempo"] * 50.0), roundi(n["roughness"] * 50.0), tts_style_or_default(style),
+	return "tts|%d|%d|%d|%d|%d|%s|%d|%d|%d" % [roundi(n["pitch"] * 50.0), roundi(n["timbre"] * 50.0),
+		roundi(n["tempo"] * 50.0), roundi(n["roughness"] * 50.0), roundi(n["resonance"] * 50.0), tts_style_or_default(style),
 		CzechTTS.text_hash(clean), clean.length(), clampi(sr, 8000, 48000)]
 
 
 static func tts_style_for_emotion(emotion: Variant) -> String:
 	return String(EMOTION_STYLE.get(String(emotion) if typeof(emotion) == TYPE_STRING else "", "klidne"))
-

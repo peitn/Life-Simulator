@@ -4,6 +4,8 @@ extends Control
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const Validator := preload("res://scripts/character/character_validator.gd")
 const Schema := preload("res://scripts/character/character_schema.gd")
+const ClothingStudio := preload("res://scripts/ui/clothing_studio.gd")
+const GarmentDesign := preload("res://scripts/clothing/garment_design.gd")
 const Session := preload("res://scripts/character/character_edit_session.gd")
 const Wardrobe := preload("res://scripts/assets/subculture_wardrobe.gd")
 const Preview := preload("res://scripts/ui/character_preview.gd")
@@ -11,6 +13,7 @@ const SliderEditor := preload("res://scripts/ui/personality_slider_editor.gd")
 const AppearanceEditor := preload("res://scripts/ui/appearance_slider_editor.gd")
 const VoiceEditor := preload("res://scripts/ui/voice_editor.gd")
 
+var _clothing_studio: Control
 var main: Node
 var _session := Session.new()
 var _first: LineEdit
@@ -117,6 +120,11 @@ func _ready() -> void:
         _style.set_item_metadata(_style.item_count - 1, String(id))
     _label_field(body, "Styl oblečení", _style)
     _style.item_selected.connect(_on_style_selected)
+    var studio_button := Button.new()
+    studio_button.name = "OpenClothingStudio"
+    studio_button.text = "Dílna oblečení — vytvořit vlastní kus"
+    studio_button.pressed.connect(_open_clothing_studio)
+    body.add_child(studio_button)
     _trait = OptionButton.new()
     _trait.name = "StartingTrait"
     for id in Schema.TRAIT_SLIDERS:
@@ -330,3 +338,17 @@ func _on_cancel() -> void:
 
 func _exit_tree() -> void:
     _session.cancel()
+
+
+func _open_clothing_studio() -> void:
+    if not _session.is_open() or is_instance_valid(_clothing_studio): return
+    var studio := ClothingStudio.new()
+    studio.open_design(_session.draft(), "top", "bezne")
+    studio.design_applied.connect(_on_custom_garment)
+    add_child(studio)
+    _clothing_studio = studio
+
+func _on_custom_garment(recipe: Dictionary) -> void:
+    if not _session.is_open(): return
+    var draft := GarmentDesign.put_on_character(_session.draft(), recipe, "bezne")
+    if not draft.is_empty(): _push(draft, "Custom garment " + str(recipe.name))

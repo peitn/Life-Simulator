@@ -31,7 +31,7 @@ func run() -> void:
         quit(2)
         return
     var sk: Skeleton3D=v._skeleton()
-    var expected: Dictionary={"Anatomy_fingers_skin":510,"Anatomy_fingers_nails":90}
+    var expected: Dictionary={"Anatomy_fingers_skin":1610,"Anatomy_fingers_nails":90}
     for m in nodes:
         var name:String=String(m.name)
         check(expected.has(name),"expected skin/nail mesh "+name)

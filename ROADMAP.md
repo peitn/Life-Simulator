@@ -221,3 +221,20 @@ Principles (including ChatGPT's comments, message 38):
 
 
 - 28 Oct 2026: `test_extreme_fictional_household` watchdog finding closed by sharding (see docs/reviews/extreme-household-sharding-20261028.md); simulation speed unchanged. Next: H3 second-creator preview parity.
+
+- 5 Nov 2026: H3 late-observer failure diagnosed as a test-harness race; new regression test_world_observer_late_owner 17/17. Next: async/prebuilt hair in the three-process fixture.
+
+- 7 Nov 2026: H3 – asynchronní C5 šatník + prewarm vizuálu klienta; tři OS procesy s herní cestou 17/17 (test_h3_three_process_game). Další: _realize po kusech, víc seedů.
+
+- 7 Nov 2026 (večer): H3 – realizace sítí šatníku rozložená přes snímky (4 ms rozpočet), oprava lambda-capture ve fixture a odesílání do zavřeného ENet hostu při shutdown; test_wardrobe_async 41/41, 3 OS procesy 17/17 ×5. Další: parita náhled↔spawn s async placeholdery (render), pak H4 MP reconnect.
+
+- 8 Nov 2026: H3 – renderovaná parita náhled↔spawn na async cestě (test_h3_async_placeholder_render 78/78, Xvfb): finální postava pixelově = náhled editoru; placeholder oděvů bez chybějících částí těla; OPRAVENA barva helmy vlasů během async buildu karet. Známé: šaty čekají jako tričko+kalhoty, Forward+/noc neměřeno, občasné ENet „max channels: 0“ v _on_peer_disconnected. Další: H4 MP reconnect/persistence.
+
+- 8 Nov 2026 (večer): H4a – znovupřipojení v MP: postava odpojeného hráče čeká (hra 120 s), návrat jednorázovým rotovaným tokenem (server drží jen SHA-256), držené postavy nepřidělitelné a v limitu vlastních postav, úmyslný odchod bez držení, broadcasty jen připojeným ENet peerům (pryč „max channels: 0“). test_mp_reconnect 72/72. Další: H4b – serverové ukládání MP světa (vlastní/držené postavy přes restart serveru), pak DTLS.
+
+### Stav 9. 11. 2026 (ráno, run main-claude-1794208938-273195)
+- (d) multiplayer **H4b hotovo**: serverové ukládání MP světa (host i dedikovaný), obnova po restartu, návrat hráčů tokenem, zbytek lhůty se neprodlužuje, privátní data jen na serveru. Test test_h4b_server_persistence 110/110.
+- Další v (d): DTLS / šifrování tokenu, sdílené město pro více domácností. Tvorba postavy (0) zůstává funkčně hotová; otevřené vizuální QA položky viz AUDIT.
+
+
+- 9 Nov 2026 (večer): (c) **Drby a pomluvy** ✅ – GossipNetwork (svědectví → pravdivý drb, smyšlenky jen nízká poctivost + zášť, víra/zkreslení/sociální důkaz, odhalení zdroje, vyvracení, citlivý obsah podle nastavení a stigmatu posluchače, uložení). test_gossip 106/106. Další v (c): rivalita a manipulace nad sítí drbů, příkaz hráče „konfrontovat/popřít drb“; pak DTLS (d).

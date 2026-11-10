@@ -1,0 +1,108 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/city/m2_fixture.gd" id="1_rndx5"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_nq1h0"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_nbiwv"]
+size = Vector3(1.2, 0.88, 0.65)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_nlxu6"]
+resource_name = "dark"
+albedo_color = Color(0.045, 0.055, 0.065, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_nlecu"]
+size = Vector3(1.24, 0.045, 0.7)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_toddf"]
+resource_name = "enamel"
+albedo_color = Color(0.88, 0.9, 0.87, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_uhli3"]
+size = Vector3(0.57, 0.7, 0.025)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_axqoe"]
+resource_name = "steel"
+albedo_color = Color(0.55, 0.6, 0.65, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="BoxMesh" id="BoxMesh_cd0ko"]
+size = Vector3(0.14, 0.025, 0.035)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ade24"]
+resource_name = "enamel"
+albedo_color = Color(0.88, 0.9, 0.87, 1)
+roughness = 0.24
+
+[sub_resource type="BoxMesh" id="BoxMesh_fp300"]
+size = Vector3(0.57, 0.7, 0.025)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gcklc"]
+resource_name = "steel"
+albedo_color = Color(0.55, 0.6, 0.65, 1)
+metallic = 0.8
+roughness = 0.25
+
+[sub_resource type="BoxMesh" id="BoxMesh_vte4y"]
+size = Vector3(0.14, 0.025, 0.035)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_vo8xb"]
+size = Vector3(1.2, 0.88, 0.65)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_fsrdp"]
+size = Vector3(1.24, 0.045, 0.7)
+
+[node name="M2_counter" type="Node3D" unique_id=2040360926]
+script = ExtResource("1_rndx5")
+furniture_kind = "counter"
+
+[node name="Model" type="Node3D" parent="." unique_id=860851611]
+
+[node name="Cabinet" type="MeshInstance3D" parent="Model" unique_id=160524369]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+material_override = SubResource("StandardMaterial3D_nq1h0")
+mesh = SubResource("BoxMesh_nbiwv")
+
+[node name="Top" type="MeshInstance3D" parent="Model" unique_id=26548975]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9025, 0)
+material_override = SubResource("StandardMaterial3D_nlxu6")
+mesh = SubResource("BoxMesh_nlecu")
+
+[node name="Door" type="MeshInstance3D" parent="Model" unique_id=350751525]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.47, 0.34)
+material_override = SubResource("StandardMaterial3D_toddf")
+mesh = SubResource("BoxMesh_uhli3")
+
+[node name="Handle" type="MeshInstance3D" parent="Model" unique_id=261842872]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.73, 0.37)
+material_override = SubResource("StandardMaterial3D_axqoe")
+mesh = SubResource("BoxMesh_cd0ko")
+
+[node name="@MeshInstance3D@8" type="MeshInstance3D" parent="Model" unique_id=1343924685]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.47, 0.34)
+material_override = SubResource("StandardMaterial3D_ade24")
+mesh = SubResource("BoxMesh_fp300")
+
+[node name="@MeshInstance3D@9" type="MeshInstance3D" parent="Model" unique_id=564141426]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.73, 0.37)
+material_override = SubResource("StandardMaterial3D_gcklc")
+mesh = SubResource("BoxMesh_vte4y")
+
+[node name="Collision" type="StaticBody3D" parent="." unique_id=544789951]
+collision_mask = 3
+
+[node name="Cabinet" type="CollisionShape3D" parent="Collision" unique_id=895861877]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+shape = SubResource("BoxShape3D_vo8xb")
+
+[node name="Top" type="CollisionShape3D" parent="Collision" unique_id=1954969479]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9025, 0)
+shape = SubResource("BoxShape3D_fsrdp")
+
+[node name="Points" type="Node3D" parent="." unique_id=1185454807]

@@ -217,3 +217,32 @@ User requested to continue AND deliver ALL files to Life Simulator AI Room Relay
 New development C15: `scripts/assets/finger_phalange_subrig_c15.gd` reads actual original Blender v1 anatomy 194-bone landmark atlas, constructs **2 actual dynamically built Skeleton3D each with 14 hierarchical independently articulated bones** (28 distinct actual Godot bone transforms), attached under `BoneAttachment3D` to original player `hand_l/r` of 17-bone production actor. 28 real bone-following procedural 3D meshes, independent knuckle/phalange rotations, follows actual player forearm animation. `scripts/sim/sim_visual.gd` lazy optional `set_finger_skeletal_view` toggles C15 and hides existing actual finger/nail GPU morph surfaces, restoring exact vis when off; 20 C14 proximal/distal sliders animate true subordinate Skeleton3D bones while enabled, normal five hand presets still supported. `scripts/ui/character_preview.gd` toggle `Kostra článků prstů` inside existing individual-finger panel for actual isolated 3D creator/editor, no multiplayer/save/private state changes. **Not** a 28 joint physics solver, no contact forces/Elmer, no high-poly Blender GLB in runtime: new actual bone transforms but lightweight per-bone proxy cylinders.
 Added `tests/test_finger_phalange_subrig_c15.gd/.tscn` **39/39 PASS**: 14 real independent bones per hand, actual parent hierarchy and 28 bone meshes, separate joint rotations, opposite digits unaffected, whole subrig follows production animated left forearm, invalid bounds, reuses bones with toggle, exact original hand skin/nail visibility restored, preview controls real skeletal angle, strict privacy. Regression **C14 35/35; C13 24/24; C12 63/63; live anatomy 76/76; editor 61/61; playable 48/48; native ENet56/56; static Godot60/60**, all exit0. Report `docs/anatomy/C15_REAL_GODOT_FINGER_SUBRIG.md`, README updated. Documentation and Room C15 patch must be included after base 447-file archive; original source zip snapshot was generated before C15.
 Current Godot full remote backup may fail due prior Hugging Face private quota; previous source snapshots in /tmp cannot be mistaken for persistent remote backup. GitHub untouched and city-owned path writes untouched.
+
+
+## 5 November 2026 — H3 late-observer repro resolved (Claude run main-claude-1793906514-225497)
+The 13/15 `test_world_observer_repro.FAILING` result was a test-harness race (owner exited before the observer's
+450 ms check window ended; despawn on disconnect is intended). No production network change was needed. New passing
+regression `tests/test_world_observer_late_owner` 17/17. `h3_three_process.FAILING` (8/17 this run) is a separate
+problem: on its headless observer, first-time hair builds run synchronously and take 2.4–7.4 s per style
+(afro 7.4 s, long wavy 7.1 s), so frame gaps of many seconds dominate that fixture. Next H3 step: make the fixture
+use the same async hair path as the game (or prebuilt hair), then re-evaluate its remaining assertions.
+
+
+## 7 November 2026 — H3 three-process flow passes on the game asset path (Claude run main-claude-1794036109-242565)
+Root cause of the remaining `h3_three_process` failures: multi-second main-thread stalls on the first
+replicated character (synchronous C5 garments 1.5–7 s, model/detail meshes ~1–5 s, hair). Fixed in
+production: background wardrobe builds (array-only worker, meshes on the main thread), SimVisual
+placeholder clothes, client prewarm before `net.join()`, and an explicit `async_character_assets`
+config. New passing regression `tests/test_h3_three_process_game` 17/17 (twice); new
+`tests/test_wardrobe_async` 28/28. Next H3 step: time-slice `_realize` per piece and run the
+three-process test on more seeds/hosts; then close the remaining H3 gate items (preview ↔ spawned
+parity under async placeholders).
+
+
+## 7 November 2026 (evening) — frame-spread wardrobe realisation (Claude run main-claude-1794079342-248630)
+The ArrayMesh realisation of a finished background wardrobe build is time-sliced (4 ms per frame, at
+least one mesh) with the same cursor as the synchronous path (identical output). Fixture lambda
+lifetime error removed (WeakRef), and `NetSession.shutdown()` no longer sends into a closed ENet host.
+`test_wardrobe_async` 41/41, `test_h3_three_process_game` 17/17 ×5, 28 regression suites pass. Next H3
+step: rendered preview ↔ spawned parity with async placeholders; then H4 multiplayer reconnect/persistence.
+Review: docs/reviews/h3-wardrobe-realize-chunking-20261107.md.

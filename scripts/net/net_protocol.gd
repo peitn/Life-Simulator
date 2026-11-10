@@ -4,7 +4,7 @@ extends RefCounted
 
 ## 2 = duševní stav v soukromém detailu, nové akce (copingy, panická ataka, pomoc).
 ## 3 = vlastní postava (CharacterData) v hello, vzhled ve spawn datech místo hashe jména.
-const VERSION := 3
+const VERSION := 4
 const DEFAULT_PORT := 24565
 const MAX_CLIENTS := 8
 const MAX_NAME_LEN := 20

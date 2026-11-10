@@ -13,6 +13,9 @@ var camera: Camera3D
 var _target_distance := 18.0
 var _rotating := false
 var _panning := false
+var _left_world_drag := false
+var _left_initial := Vector2.ZERO
+var _left_threshold_passed := false
 
 
 func _ready() -> void:
@@ -25,10 +28,28 @@ func _ready() -> void:
 	_apply()
 
 
+func _input(event: InputEvent) -> void:
+	# Reset even if the pointer ends over a HUD element after a world drag.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_stop_left_world_drag.call_deferred()
+
+
+func _stop_left_world_drag() -> void:
+	_left_world_drag = false
+	_left_threshold_passed = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_RIGHT:
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			_left_world_drag = mb.pressed
+			if mb.pressed:
+				_left_initial = mb.position
+				_left_threshold_passed = false
+			else:
+				_left_threshold_passed = false
+		elif mb.button_index == MOUSE_BUTTON_RIGHT:
 			_rotating = mb.pressed
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
 			_panning = mb.pressed
@@ -38,7 +59,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_target_distance = minf(max_distance, _target_distance * 1.12)
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
-		if _rotating:
+		if _left_world_drag and not _left_threshold_passed:
+			_left_threshold_passed = mm.position.distance_to(_left_initial) > 10.0
+		if _left_world_drag and _left_threshold_passed:
+			_pan(Vector2(-mm.relative.x, -mm.relative.y) * 0.002 * distance)
+		elif _rotating:
 			yaw -= mm.relative.x * 0.005
 			pitch = clampf(pitch - mm.relative.y * 0.004, deg_to_rad(-85.0), deg_to_rad(-8.0))
 		elif _panning:

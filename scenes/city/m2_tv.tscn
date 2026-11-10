@@ -1,0 +1,162 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/city/m2_fixture.gd" id="1_w6i1u"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hv8yq"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_4mls2"]
+size = Vector3(1.8, 0.5, 0.45)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hhkhq"]
+resource_name = "dark"
+albedo_color = Color(0.045, 0.055, 0.065, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_l25s4"]
+size = Vector3(1.5, 0.85, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_b7unc"]
+resource_name = "screen"
+albedo_color = Color(0.06, 0.22, 0.32, 1)
+roughness = 0.65
+emission_enabled = true
+emission = Color(0.06, 0.16, 0.2, 1)
+emission_energy_multiplier = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_lspi8"]
+size = Vector3(1.4, 0.76, 0.012)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ousu3"]
+resource_name = "fabric"
+albedo_color = Color(0.23, 0.38, 0.46, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_e5d1m"]
+size = Vector3(2.1, 0.42, 0.85)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_y1m3n"]
+resource_name = "fabric"
+albedo_color = Color(0.23, 0.38, 0.46, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_8idg6"]
+size = Vector3(2.1, 0.48, 0.18)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lnhtt"]
+resource_name = "fabric"
+albedo_color = Color(0.23, 0.38, 0.46, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_p1ecp"]
+size = Vector3(0.14, 0.22, 0.85)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_i0pre"]
+resource_name = "fabric"
+albedo_color = Color(0.23, 0.38, 0.46, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_g4vf4"]
+size = Vector3(0.14, 0.22, 0.85)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_vt2eb"]
+size = Vector3(1.8, 0.5, 0.45)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nmmbd"]
+size = Vector3(1.5, 0.85, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_tlsjl"]
+size = Vector3(2.1, 0.42, 0.85)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4fe32"]
+size = Vector3(2.1, 0.48, 0.18)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_l4vwq"]
+size = Vector3(0.14, 0.22, 0.85)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dqnbq"]
+size = Vector3(0.14, 0.22, 0.85)
+
+[node name="M2_tv" type="Node3D" unique_id=1224454239]
+script = ExtResource("1_w6i1u")
+furniture_kind = "tv"
+
+[node name="Model" type="Node3D" parent="." unique_id=1560024200]
+
+[node name="Cabinet" type="MeshInstance3D" parent="Model" unique_id=1630736725]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+material_override = SubResource("StandardMaterial3D_hv8yq")
+mesh = SubResource("BoxMesh_4mls2")
+
+[node name="Television" type="MeshInstance3D" parent="Model" unique_id=1759227905]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.05)
+material_override = SubResource("StandardMaterial3D_hhkhq")
+mesh = SubResource("BoxMesh_l25s4")
+
+[node name="Screen" type="MeshInstance3D" parent="Model" unique_id=98131074]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.012)
+material_override = SubResource("StandardMaterial3D_b7unc")
+mesh = SubResource("BoxMesh_lspi8")
+
+[node name="BenchSeat" type="MeshInstance3D" parent="Model" unique_id=1632522509]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 2.1)
+material_override = SubResource("StandardMaterial3D_ousu3")
+mesh = SubResource("BoxMesh_e5d1m")
+
+[node name="BenchBack" type="MeshInstance3D" parent="Model" unique_id=1369434725]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.66, 2.44)
+material_override = SubResource("StandardMaterial3D_y1m3n")
+mesh = SubResource("BoxMesh_8idg6")
+
+[node name="Arm" type="MeshInstance3D" parent="Model" unique_id=1936446898]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, 2.1)
+material_override = SubResource("StandardMaterial3D_lnhtt")
+mesh = SubResource("BoxMesh_p1ecp")
+
+[node name="@MeshInstance3D@65" type="MeshInstance3D" parent="Model" unique_id=1471576942]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 2.1)
+material_override = SubResource("StandardMaterial3D_i0pre")
+mesh = SubResource("BoxMesh_g4vf4")
+
+[node name="Collision" type="StaticBody3D" parent="." unique_id=1848950435]
+collision_mask = 3
+
+[node name="Cabinet" type="CollisionShape3D" parent="Collision" unique_id=810065949]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+shape = SubResource("BoxShape3D_vt2eb")
+
+[node name="Television" type="CollisionShape3D" parent="Collision" unique_id=964503651]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.05)
+shape = SubResource("BoxShape3D_nmmbd")
+
+[node name="BenchSeat" type="CollisionShape3D" parent="Collision" unique_id=1942149417]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 2.1)
+shape = SubResource("BoxShape3D_tlsjl")
+
+[node name="BenchBack" type="CollisionShape3D" parent="Collision" unique_id=1894119227]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.66, 2.44)
+shape = SubResource("BoxShape3D_4fe32")
+
+[node name="Arm" type="CollisionShape3D" parent="Collision" unique_id=2000157589]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, 2.1)
+shape = SubResource("BoxShape3D_l4vwq")
+
+[node name="@CollisionShape3D@66" type="CollisionShape3D" parent="Collision" unique_id=209431188]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 2.1)
+shape = SubResource("BoxShape3D_dqnbq")
+
+[node name="Points" type="Node3D" parent="." unique_id=99878453]
+
+[node name="Use0" type="Marker3D" parent="Points" unique_id=1899854544]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0, 2.85)
+
+[node name="Pose0" type="Marker3D" parent="Points" unique_id=1606890460]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0, 2.04)
+
+[node name="Use1" type="Marker3D" parent="Points" unique_id=1004498068]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 2.85)
+
+[node name="Pose1" type="Marker3D" parent="Points" unique_id=1061182475]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 2.04)

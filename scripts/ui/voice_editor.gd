@@ -7,13 +7,15 @@ extends VBoxContainer
 
 const Schema := preload("res://scripts/character/character_schema.gd")
 const VoiceSynth := preload("res://scripts/audio/voice_synth.gd")
+const NeuralVoice := preload("res://scripts/audio/neural_voice.gd")
 
 signal voice_changed(key: String, value: float)
 
-const FIELDS := ["pitch", "timbre", "tempo", "roughness"]
+const FIELDS := ["pitch", "timbre", "resonance", "tempo", "roughness"]
 const LABELS := {
 	"pitch": "Výška hlasu",
 	"timbre": "Barva hlasu",
+	"resonance": "Rezonance hlasu",
 	"tempo": "Tempo řeči",
 	"roughness": "Chraplavost",
 }
@@ -21,6 +23,7 @@ const LABELS := {
 const WORDS := {
 	"pitch": ["hluboký", "střední", "vysoký"],
 	"timbre": ["tmavá, sytá", "neutrální", "jasná, ostrá"],
+	"resonance": ["měkká, rozptýlená", "přirozená", "výrazná, soustředěná"],
 	"tempo": ["pomalé, rozvážné", "běžné", "rychlé"],
 	"roughness": ["čistý", "lehce zastřený", "chraplavý"],
 }
@@ -64,6 +67,12 @@ var _question: Button
 var _tts_job := -1
 var _tts_out: Array = []
 var _tts_want := false
+var _neural_job := -1
+var _neural_out: Array = []
+var _neural_pending := ""
+var _neural_info: Label
+var neural_sentence_plays := 0
+var neural_sentence_renders := 0
 
 
 func _ready() -> void:
@@ -141,6 +150,26 @@ func _ready() -> void:
 		_sentence.text = SAMPLE_QUESTION
 		play_sentence())
 	tts_row.add_child(_question)
+	# Optional ONNX CPU preview. Separate from the procedural voice controls:
+	# Piper speaker choice is explicit and does not depend on identity or anatomy.
+	var neural_row := HFlowContainer.new()
+	neural_row.name = "VoiceNeuralPreviewRow"
+	add_child(neural_row)
+	for speaker in NeuralVoice.SPEAKERS:
+		var b := Button.new()
+		b.name = "VoiceNeural_" + speaker
+		b.text = "▶ Piper " + ("Kasandra" if speaker == "kasandra" else "Jirka")
+		b.tooltip_text = "Vlastní česká věta s neuronovou syntézou; tempo ze současného posuvníku"
+		b.disabled = not NeuralVoice.supported(speaker)
+		b.pressed.connect(play_neural_sentence.bind(speaker))
+		neural_row.add_child(b)
+	_neural_info = Label.new()
+	_neural_info.name = "VoiceNeuralInfo"
+	_neural_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_neural_info.text = ("Piper: dostupné 2 neuronové hlasy (CPU). Barva a rezonance formantového syntezátoru neovládají model Piper."
+		if NeuralVoice.supported("kasandra") and NeuralVoice.supported("jirka")
+		else "Piper není v tomto sestavení dostupný (např. v prohlížeči): potřeba CPU + Python + modely.")
+	add_child(_neural_info)
 	_player = AudioStreamPlayer.new()
 	_player.name = "VoicePreviewPlayer"
 	# Sběrnice UI existuje, když běží AudioManager; jinak zůstane Master.
@@ -228,8 +257,8 @@ func _update_summary() -> void:
 	if _summary == null:
 		return
 	var p := VoiceSynth.params(_voice)
-	_summary.text = "Základní tón ≈ %d Hz · %.1f slabik/s · %s" % [roundi(float(p["f0"])), float(p["rate"]),
-		_describe("roughness", float(_voice.get("roughness", 0.2)))]
+	_summary.text = "Základní tón ≈ %d Hz · %.1f slabik/s · rezonance: %s · %s" % [roundi(float(p["f0"])), float(p["rate"]),
+		_describe("resonance", float(_voice.get("resonance", 0.0))), _describe("roughness", float(_voice.get("roughness", 0.2)))]
 
 
 func _on_slider(value: float, key: String) -> void:
@@ -315,7 +344,7 @@ func play_preview() -> void:
 
 
 func is_rendering() -> bool:
-	return _job >= 0 or _tts_job >= 0
+	return _job >= 0 or _tts_job >= 0 or _neural_job >= 0
 
 
 func sentence_text() -> String:
@@ -361,6 +390,60 @@ static func _render_tts(text: String, voice: Dictionary, style: String, key: Str
 	out.append([key, VoiceSynth.speak(text, voice, style, VoiceSynth.SR)])
 
 
+## Local Piper preview – never silently switches to procedural voice.
+func play_neural_sentence(speaker: String) -> void:
+	if _player == null or not NeuralVoice.supported(speaker):
+		if _neural_info != null:
+			_neural_info.text = "Neuronový model Piper tu není dostupný."
+		return
+	if _neural_job >= 0:
+		_neural_pending = speaker
+		return
+	var key := "neural|" + NeuralVoice.key_for(sentence_text(), _voice, current_style(), speaker)
+	if _cache.has(key):
+		_start_player(_cache[key])
+		neural_sentence_plays += 1
+		return
+	_neural_out = []
+	_neural_pending = speaker
+	_neural_job = WorkerThreadPool.add_task(_render_neural.bind(sentence_text(), _voice.duplicate(true),
+		current_style(), speaker, key, _neural_out), false, "piper preview")
+	if _neural_info != null:
+		_neural_info.text = "Piper " + speaker + ": vytvářím hlas na CPU…"
+
+
+static func _render_neural(text: String, voice: Dictionary, style: String, speaker: String, key: String,
+		out: Array) -> void:
+	out.append([key, NeuralVoice.render(text, voice, style, speaker)])
+
+
+func _poll_neural() -> void:
+	if _neural_job < 0 or not WorkerThreadPool.is_task_completed(_neural_job):
+		return
+	WorkerThreadPool.wait_for_task_completion(_neural_job)
+	_neural_job = -1
+	if not _neural_out.is_empty():
+		var record: Array = _neural_out[0]
+		var stream: AudioStreamWAV = record[1]
+		if stream != null:
+			neural_sentence_renders += 1
+			_store(String(record[0]), stream)
+			if _neural_info != null:
+				_neural_info.text = "Piper: hotovo · %.1f s · %d Hz" % [stream.get_length(), stream.mix_rate]
+		else:
+			if _neural_info != null:
+				_neural_info.text = "Piper: chyba syntézy; starý robotický hlas se nespustil."
+	var requested := _neural_pending
+	_neural_pending = ""
+	if requested != "":
+		var wanted_key := "neural|" + NeuralVoice.key_for(sentence_text(), _voice, current_style(), requested)
+		if _cache.has(wanted_key):
+			_start_player(_cache[wanted_key])
+			neural_sentence_plays += 1
+		else:
+			play_neural_sentence(requested)
+
+
 func _store(key: String, stream: AudioStreamWAV) -> void:
 	_cache[key] = stream
 	_cache_order.erase(key)
@@ -402,6 +485,7 @@ static func _render_job(voice: Dictionary, style: String, variant: int, key: Str
 
 func _process(_delta: float) -> void:
 	_poll_tts()
+	_poll_neural()
 	if _job < 0 or not WorkerThreadPool.is_task_completed(_job):
 		return
 	WorkerThreadPool.wait_for_task_completion(_job)
@@ -441,6 +525,9 @@ func _exit_tree() -> void:
 	if _tts_job >= 0:
 		WorkerThreadPool.wait_for_task_completion(_tts_job)
 		_tts_job = -1
+	if _neural_job >= 0:
+		WorkerThreadPool.wait_for_task_completion(_neural_job)
+		_neural_job = -1
 
 
 func slider(key: String) -> HSlider:

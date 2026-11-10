@@ -24,6 +24,7 @@ extends Node
 const WavLoader := preload("res://scripts/audio/wav_loader.gd")
 const EngineSfx := preload("res://scripts/audio/engine_sfx.gd")
 const VoiceSynth := preload("res://scripts/audio/voice_synth.gd")
+const NeuralVoice := preload("res://scripts/audio/neural_voice.gd")
 const MUSIC_DIR := "res://audio/music/"
 const SFX_DIR := "res://audio/sfx/"
 const CROSSFADE := 3.0
@@ -645,7 +646,7 @@ func voice_mode() -> String:
 	var gs := get_node_or_null("/root/GameSettings")
 	if gs != null and gs.has_method("character_voice_mode"):
 		var m := String(gs.character_voice_mode())
-		if m in ["wordless", "tts", "off"]:
+		if m in ["wordless", "tts", "tts_neural", "off"]:
 			return m
 	return "wordless"
 
@@ -654,7 +655,7 @@ func voice_mode() -> String:
 ## public data (the visible speech text, look.voice and the displayed emotion), so it works the
 ## same on a host and on clients (SimPuppet), never from private state.
 func _on_speech(who: Node3D, text: String) -> void:
-	if voice_mode() != "tts" or main == null or who == null or not is_instance_valid(who) or not who.is_inside_tree():
+	if voice_mode() not in ["tts", "tts_neural"] or main == null or who == null or not is_instance_valid(who) or not who.is_inside_tree():
 		return
 	if speed_index >= 3 or typeof(text) != TYPE_STRING or text.strip_edges() == "":
 		return
@@ -688,8 +689,16 @@ static func public_emotion_of(who: Object) -> String:
 
 func request_tts_voice(who: Node3D, text: String, style: String) -> void:
 	var voice := chat_voice_of(who)
-	var key := VoiceSynth.tts_cache_key(text, voice, style, CHAT_VOICE_SR)
+	var neural := voice_mode() == "tts_neural"
+	var speaker := NeuralVoice.speaker_for_character(String(who.name)) if neural else ""
+	var key := ("neural|" + speaker + "|" + NeuralVoice.key_for(text, voice, style, speaker)
+		if neural else VoiceSynth.tts_cache_key(text, voice, style, CHAT_VOICE_SR))
 	stats["tts_requests"] += 1
+	# Browser builds cannot execute local Python. Do not play the old robotic
+	# sound as though it were the selected neural voice.
+	if neural and not NeuralVoice.supported(speaker):
+		stats["tts_dropped"] += 1
+		return
 	if _chat_cache.has(key):
 		stats["chat_cache_hits"] += 1
 		_chat_order.erase(key)
@@ -703,12 +712,19 @@ func request_tts_voice(who: Node3D, text: String, style: String) -> void:
 		stats["tts_dropped"] += 1
 		return
 	var out: Array = []
-	var task := WorkerThreadPool.add_task(_render_tts_job.bind(text, voice, style, out), false, "tts")
+	var task := WorkerThreadPool.add_task(_render_tts_job.bind(text, voice, style, speaker, out), false, "tts")
 	_chat_jobs.append({"task": task, "key": key, "out": out, "sim": who, "delay": 0.0,
 		"tts": true, "queued_at": _now})
 
 
-static func _render_tts_job(text: String, voice: Dictionary, style: String, out: Array) -> void:
+static func _render_tts_job(text: String, voice: Dictionary, style: String, speaker: String, out: Array) -> void:
+	if speaker != "":
+		# CPU process launched in a worker task. Null means unavailable/error, NOT
+		# permission to fall back to a misleading robotic sentence.
+		var result := NeuralVoice.render(text, voice, style, speaker)
+		if result != null:
+			out.append(result)
+		return
 	out.append(VoiceSynth.speak(text, voice, style, CHAT_VOICE_SR))
 
 
@@ -720,7 +736,7 @@ func _chat_job_still_relevant(job: Dictionary) -> bool:
 		# Raised voices stay on the recorded vox_argue_* takes: a line whose speaker just started an
 		# argument voice is not additionally spoken.
 		var arguing: bool = is_instance_valid(who) and _now - float(_voice_last.get(who, -100.0)) < VOICE_COOLDOWN
-		return speed_index < 3 and voice_mode() == "tts" and not arguing \
+		return speed_index < 3 and voice_mode() in ["tts", "tts_neural"] and not arguing \
 			and _now - float(job.get("queued_at", _now)) <= TTS_MAX_AGE
 	return not bool(job.get("cry_cue", false)) or (speed_index < 3 and
 		_now - float(job.get("queued_at", _now)) <= 4.0)

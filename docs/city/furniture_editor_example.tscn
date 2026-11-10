@@ -1,0 +1,175 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v17w3"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_pplms"]
+size = Vector3(1.6, 0.055, 0.9)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_syfd1"]
+size = Vector3(1.6, 0.055, 0.9)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mosuu"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_dfpl2"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_iu2ey"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p8bim"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_2wqtl"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_x6wyx"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m8rim"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_scou4"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7uqxr"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_oxby0"]
+resource_name = "wood"
+albedo_color = Color(0.42, 0.25, 0.12, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_iv1cu"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4lcgb"]
+size = Vector3(0.06, 0.7375, 0.06)
+
+[node name="CustomFurniture" type="Node3D" unique_id=204571252]
+metadata/furniture_draft = {
+"name": "Jídelní stůl",
+"parts": [{
+&"collide": true,
+"material": "wood",
+"name": "Top 1",
+"position": [0.0, 0.765, 0.0],
+&"rotation": [0, 0, 0],
+"shape": "box",
+"size": [1.6, 0.055, 0.9],
+&"tint": [1, 1, 1]
+}, {
+&"collide": true,
+"material": "wood",
+"name": "Leg-1-1 2",
+"position": [-0.69, 0.36875, -0.34],
+&"rotation": [0, 0, 0],
+"shape": "box",
+"size": [0.06, 0.7375, 0.06],
+&"tint": [1, 1, 1]
+}, {
+&"collide": true,
+"material": "wood",
+"name": "Leg-11 3",
+"position": [-0.69, 0.36875, 0.34],
+&"rotation": [0, 0, 0],
+"shape": "box",
+"size": [0.06, 0.7375, 0.06],
+&"tint": [1, 1, 1]
+}, {
+&"collide": true,
+"material": "wood",
+"name": "Leg1-1 4",
+"position": [0.69, 0.36875, -0.34],
+&"rotation": [0, 0, 0],
+"shape": "box",
+"size": [0.06, 0.7375, 0.06],
+&"tint": [1, 1, 1]
+}, {
+&"collide": true,
+"material": "wood",
+"name": "Leg11 5",
+"position": [0.69, 0.36875, 0.34],
+&"rotation": [0, 0, 0],
+"shape": "box",
+"size": [0.06, 0.7375, 0.06],
+&"tint": [1, 1, 1]
+}],
+"version": 1
+}
+
+[node name="Parts" type="Node3D" parent="." unique_id=1495635638]
+
+[node name="Part0" type="Node3D" parent="Parts" unique_id=68718430]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.765, 0)
+
+[node name="Top 1" type="MeshInstance3D" parent="Parts/Part0" unique_id=152867734]
+material_override = SubResource("StandardMaterial3D_v17w3")
+mesh = SubResource("BoxMesh_pplms")
+
+[node name="@StaticBody3D@223" type="StaticBody3D" parent="Parts/Part0" unique_id=605275092]
+collision_mask = 3
+
+[node name="@CollisionShape3D@224" type="CollisionShape3D" parent="Parts/Part0/@StaticBody3D@223" unique_id=388851570]
+shape = SubResource("BoxShape3D_syfd1")
+
+[node name="Part1" type="Node3D" parent="Parts" unique_id=1686529227]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.69, 0.36875, -0.34)
+
+[node name="Leg-1-1 2" type="MeshInstance3D" parent="Parts/Part1" unique_id=227330765]
+material_override = SubResource("StandardMaterial3D_mosuu")
+mesh = SubResource("BoxMesh_dfpl2")
+
+[node name="@StaticBody3D@225" type="StaticBody3D" parent="Parts/Part1" unique_id=2126248151]
+collision_mask = 3
+
+[node name="@CollisionShape3D@226" type="CollisionShape3D" parent="Parts/Part1/@StaticBody3D@225" unique_id=1346270036]
+shape = SubResource("BoxShape3D_iu2ey")
+
+[node name="Part2" type="Node3D" parent="Parts" unique_id=1782758517]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.69, 0.36875, 0.34)
+
+[node name="Leg-11 3" type="MeshInstance3D" parent="Parts/Part2" unique_id=313261127]
+material_override = SubResource("StandardMaterial3D_p8bim")
+mesh = SubResource("BoxMesh_2wqtl")
+
+[node name="@StaticBody3D@227" type="StaticBody3D" parent="Parts/Part2" unique_id=328703331]
+collision_mask = 3
+
+[node name="@CollisionShape3D@228" type="CollisionShape3D" parent="Parts/Part2/@StaticBody3D@227" unique_id=1279718857]
+shape = SubResource("BoxShape3D_x6wyx")
+
+[node name="Part3" type="Node3D" parent="Parts" unique_id=165159293]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.69, 0.36875, -0.34)
+
+[node name="Leg1-1 4" type="MeshInstance3D" parent="Parts/Part3" unique_id=2136482966]
+material_override = SubResource("StandardMaterial3D_m8rim")
+mesh = SubResource("BoxMesh_scou4")
+
+[node name="@StaticBody3D@229" type="StaticBody3D" parent="Parts/Part3" unique_id=1200710296]
+collision_mask = 3
+
+[node name="@CollisionShape3D@230" type="CollisionShape3D" parent="Parts/Part3/@StaticBody3D@229" unique_id=1785428848]
+shape = SubResource("BoxShape3D_7uqxr")
+
+[node name="Part4" type="Node3D" parent="Parts" unique_id=54510891]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.69, 0.36875, 0.34)
+
+[node name="Leg11 5" type="MeshInstance3D" parent="Parts/Part4" unique_id=981819435]
+material_override = SubResource("StandardMaterial3D_oxby0")
+mesh = SubResource("BoxMesh_iv1cu")
+
+[node name="@StaticBody3D@231" type="StaticBody3D" parent="Parts/Part4" unique_id=1487600169]
+collision_mask = 3
+
+[node name="@CollisionShape3D@232" type="CollisionShape3D" parent="Parts/Part4/@StaticBody3D@231" unique_id=282052477]
+shape = SubResource("BoxShape3D_4lcgb")

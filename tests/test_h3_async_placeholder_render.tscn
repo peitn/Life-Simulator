@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/test_h3_async_placeholder_render.gd" id="1"]
+
+[node name="TestH3AsyncPlaceholderRender" type="Node"]
+script = ExtResource("1")

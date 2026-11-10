@@ -12,7 +12,10 @@ const CharacterAnims := preload("res://scripts/assets/character_anims.gd")
 const AppearanceResolver := preload("res://scripts/character/appearance_resolver.gd")
 const BodyMorphs := preload("res://scripts/character/body_morphs.gd")
 const ClothingVariants := preload("res://scripts/assets/clothing_variants.gd")
+const GarmentMidriffShader := preload("res://shaders/garment_midriff.gdshader")
+const GarmentBuilder := preload("res://scripts/clothing/garment_builder.gd")
 const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
+const DetailMaterials := preload("res://scripts/assets/character_detail_materials.gd")
 const SkinLayers := preload("res://scripts/character/skin_layers.gd")
 const HairRig := preload("res://scripts/assets/hair_rig.gd")
 const HandDetailBuilder := preload("res://scripts/assets/hand_detail_builder.gd")
@@ -82,6 +85,12 @@ var _anatomy_view := "off"
 var _anatomy_restore: Array = []
 var _mats := {}                  # jméno materiálu -> vlastní kopie pro tuto postavu
 var _posture := "stand"
+var _action_id := ""
+var _read_book: Node3D = null
+var _held_phone: Node3D = null
+## Shower removes only visual garments; canonical wardrobe is never mutated.
+var _shower_garments_hidden := false
+var _shower_garment_restore: Dictionary = {}
 var _speed := 0.0                # vyhlazená rychlost (m/s)
 var _last_pos := Vector3.ZERO
 var _has_last := false
@@ -92,7 +101,7 @@ var _c5_infos: Array = []
 ## Procedural ten finger/nail meshes, shared geometry and per-actor materials.
 var _hand_detail_nodes: Array = []
 var _hand_skin_material: StandardMaterial3D
-var _hand_nail_material: StandardMaterial3D
+var _hand_nail_material: ShaderMaterial
 ## Private render-only hand pose; no CharacterData or multiplayer field.
 var _hand_pose_name := "open"
 ## Per-digit mode keeps legacy one-slider gestures mutually exclusive with
@@ -104,12 +113,20 @@ var _finger_skin_before_skeleton: Array = []
 ## Barefoot anatomy shares original foot bones and ten clothing/body morphs.
 var _foot_detail_nodes: Array = []
 var _foot_skin_material: StandardMaterial3D
-var _foot_nail_material: StandardMaterial3D
+var _foot_nail_material: ShaderMaterial
 ## Neutral, gender-independent anterior torso skin, paired areola/papillae
 ## and umbilical relief. Rendered only with explicit no-top clothing.
 var _torso_detail_nodes: Dictionary = {}
 var _torso_detail_materials: Dictionary = {}
+var _garment_midriff: MeshInstance3D
 var _c5_signature := ""
+## hair.gdshader `grey_color` (linear) – grey strands; the helmet placeholder blends towards it.
+const HELMET_GREY := Color(0.60, 0.59, 0.56)
+## Linear-light ratio finished strand cards / solid helmet under the same light (measured on dark and
+## grey hair in the H3 render test, 0.45–0.58 per channel).
+const HELMET_SHADE := 0.5
+## True while the outfit waits for ClothingWardrobe's background build (placeholder clothes shown).
+var _wardrobe_waiting := false
 var _face_mesh_cache: Array = []
 var _rest0: Array = []            # původní lokální klidové polohy kostí
 var _skin_copy: Skin = null       # vlastní kopie Skin (inverzní bind matice podle kloubů této postavy)
@@ -135,9 +152,8 @@ func _build_hand_details() -> void:
 	_hand_skin_material = StandardMaterial3D.new()
 	_hand_skin_material.resource_name = "hand_detail_skin"
 	_hand_skin_material.roughness = 0.62
-	_hand_nail_material = StandardMaterial3D.new()
+	_hand_nail_material = DetailMaterials.nails()
 	_hand_nail_material.resource_name = "hand_detail_nails"
-	_hand_nail_material.roughness = 0.32
 	for label in ["skin", "nails"]:
 		var mi := MeshInstance3D.new()
 		mi.name = "Anatomy_fingers_" + label
@@ -362,6 +378,14 @@ func _refresh_torso_visibility(lp: Dictionary) -> void:
 	var bare: bool = top_name == "zadne" and _anatomy_view == "off"
 	for part in _torso_detail_nodes.values():
 		(part as MeshInstance3D).visible = bare
+	if _garment_midriff != null:
+		_garment_midriff.visible = GarmentBuilder.needs_midriff(lp) and _anatomy_view == "off"
+		var hem := 1.06
+		for garment in _c5_nodes:
+			if String(garment.name) == "C5_top_shell":
+				hem = garment.mesh.get_aabb().position.y + .003
+		(_garment_midriff.material_override as ShaderMaterial).set_shader_parameter("hem_height", hem)
+
 
 
 func _build_foot_details() -> void:
@@ -383,9 +407,8 @@ func _build_foot_details() -> void:
 	_foot_skin_material = StandardMaterial3D.new()
 	_foot_skin_material.resource_name = "bare_foot_skin"
 	_foot_skin_material.roughness = 0.66
-	_foot_nail_material = StandardMaterial3D.new()
+	_foot_nail_material = DetailMaterials.nails()
 	_foot_nail_material.resource_name = "bare_foot_nails"
-	_foot_nail_material.roughness = 0.34
 	for label in ["skin", "nails"]:
 		var mi := MeshInstance3D.new()
 		mi.name = "Anatomy_foot_" + label
@@ -444,6 +467,8 @@ func apply_look(snap: Dictionary) -> void:
 	if _model != null:
 		_apply_model_variant()
 		_apply_colors()
+		# Newly built wardrobe meshes must inherit the shower-only visual mask.
+		_update_shower_garments(_action_id == "shower")
 		if prior_anatomy != "off":
 			set_anatomy_view(prior_anatomy)
 	elif _body_pivot != null and _body_pivot.get_child_count() >= 4:
@@ -537,6 +562,13 @@ func _part(mesh: Mesh, mat: Material, pos: Vector3, parent: Node3D) -> MeshInsta
 	return mi
 
 
+static func preferred_character_model(web: bool, headless: bool, hq_present: bool) -> String:
+	# The separately subdivided HQ import changed Skin bind order and shrank
+	# lid boundaries. The rebuilt canonical mesh supplies the same detailed,
+	# correctly bound character to native and web. Keep this API for callers.
+	return "character"
+
+
 func _build() -> void:
 	if _built:
 		return
@@ -544,7 +576,15 @@ func _build() -> void:
 	_body_pivot = Node3D.new()
 	_body_pivot.name = "Body"
 	add_child(_body_pivot)
-	_model = AssetLibrary.instantiate("character")
+	# Keep the original lightweight mesh for browser/WebGL and automated
+	# headless simulation. Native graphical builds use the independently
+	# authored higher-detail LOD without changing the 17-bone schema.
+	var model_choice := preferred_character_model(
+		OS.has_feature("web"), DisplayServer.get_name() == "headless",
+		AssetLibrary.has_model("character_hq"))
+	_model = AssetLibrary.instantiate(model_choice)
+	if _model == null and model_choice != "character":
+		_model = AssetLibrary.instantiate("character")
 	if _model != null:
 		_build_model()
 	else:
@@ -611,7 +651,7 @@ func _build_model() -> void:
 			# bez shaderu nebo bez klidových poloh v CUSTOM0 zůstane StandardMaterial3D s albedem z modelu.
 			var skin_mat: ShaderMaterial = SkinLayers.make_material() if mname == "skin_body" and AssetLibrary.is_skin_mesh(mi) \
 				and (mi.mesh as ArrayMesh).surface_get_format(0) & Mesh.ARRAY_FORMAT_CUSTOM0 else null
-			_mats[mname] = skin_mat if skin_mat != null else src.duplicate()
+			_mats[mname] = skin_mat if skin_mat != null else (DetailMaterials.make(mname) if DetailMaterials.supports(mname) else src.duplicate())
 		mi.material_override = _mats[mname]
 	_build_hair_parts()
 	_build_hand_details()
@@ -623,11 +663,75 @@ func _build_model() -> void:
 	_anim.name = "Anim"
 	_model.add_child(_anim)
 	_anim.root_node = NodePath("..")
-	_anim.add_animation_library("", CharacterAnims.library())
+	var clips: AnimationLibrary = CharacterAnims.library()
+	# Blender HQ GLBs may wrap the original armature in a named scene root.
+	# Retarget a *copy* of each animation to its actual Skeleton3D path;
+	# never mutate shared low-poly/preview animation resources.
+	var target_skel := _skeleton()
+	if target_skel != null:
+		var skeleton_path := String(_model.get_path_to(target_skel))
+		if skeleton_path != "Skeleton3D":
+			var rebound := AnimationLibrary.new()
+			for key in clips.get_animation_list():
+				var clip: Animation = clips.get_animation(key).duplicate(true)
+				for ti in clip.get_track_count():
+					var track_name := String(clip.track_get_path(ti))
+					if track_name.begins_with("Skeleton3D:"):
+						clip.track_set_path(ti, NodePath(skeleton_path + track_name.substr("Skeleton3D".length())))
+				rebound.add_animation(key, clip)
+			clips = rebound
+	_anim.add_animation_library("", clips)
 	_apply_model_variant()
 	_apply_colors()
 	set_hand_pose("relaxed")
 	_anim.play("idle")
+	_build_action_props()
+
+
+## Visual-only lightweight props, parented to the actual animated right hand.
+## The reading book and phone are hidden outside their corresponding actions.
+func _build_action_props() -> void:
+	var skel := _skeleton()
+	if skel == null or skel.find_bone("hand_r") < 0:
+		return
+	# The book previously inherited the right wrist's rotation: it ended up
+	# ~30 cm below and behind BOTH palms during the two-hand reading animation.
+	# Anchor it to the chest instead, midway between both animated hands.
+	var chest_mount := BoneAttachment3D.new()
+	chest_mount.name = "ActionPropBookChest"
+	chest_mount.bone_name = "chest"
+	skel.add_child(chest_mount)
+	_read_book = Node3D.new()
+	_read_book.name = "HeldOpenBook"
+	_read_book.position = Vector3(0.0, -0.04, 0.39)
+	_read_book.rotation_degrees = Vector3(5, 0, 0)
+	chest_mount.add_child(_read_book)
+	var mount := BoneAttachment3D.new()
+	mount.name = "ActionPropRightHand"
+	mount.bone_name = "hand_r"
+	skel.add_child(mount)
+	var paper := _mat(Color(0.91, 0.86, 0.73), 0.95)
+	var cover := _mat(Color(0.16, 0.25, 0.55), 0.65)
+	for side in [-1.0, 1.0]:
+		var leaf := BoxMesh.new()
+		leaf.size = Vector3(0.18, 0.012, 0.22)
+		_part(leaf, paper, Vector3(0.092 * side, 0.0, 0), _read_book)
+		var lid := BoxMesh.new()
+		lid.size = Vector3(0.184, 0.013, 0.23)
+		_part(lid, cover, Vector3(0.092 * side, -0.012, 0), _read_book)
+	_read_book.visible = false
+	_held_phone = Node3D.new()
+	_held_phone.name = "HeldPhone"
+	_held_phone.position = Vector3(0, 0.05, 0.09)
+	_held_phone.rotation_degrees = Vector3(25, 0, 0)
+	mount.add_child(_held_phone)
+	var phone := BoxMesh.new()
+	phone.size = Vector3(0.08, 0.014, 0.15)
+	_part(phone, _mat(Color(0.03, 0.04, 0.055), 0.2), Vector3.ZERO, _held_phone)
+	var display := BoxMesh.new()
+	display.size = Vector3(0.067, 0.002, 0.12)
+	_part(display, _mat(Color(0.22, 0.43, 0.71), 0.35), Vector3(0, 0.009, 0), _held_phone)
+	_held_phone.visible = false
 
 
 ## Vlasy, obočí a vousy z karet (C4b): uzly pod kostrou se stejným Skin jako hlava (kosti = bind indexy
@@ -736,8 +840,22 @@ func _apply_model_variant() -> void:
 		mi.visible = bool(show.get(grp, true))
 	# Ensure the first skinned torso exists BEFORE morphs and material updates.
 	# Ordinary dressed characters pay ZERO procedural torso construction cost.
-	if String(lp.get("outfit_top","tricko")) == "zadne" and 			_torso_detail_nodes.is_empty():
+	if (String(lp.get("outfit_top","tricko")) == "zadne" or GarmentBuilder.needs_midriff(lp)) and _torso_detail_nodes.is_empty():
 		_build_torso_details()
+	if GarmentBuilder.needs_midriff(lp) and _garment_midriff == null and _torso_detail_nodes.has("surface"):
+		var torso: MeshInstance3D = _torso_detail_nodes["surface"]
+		var skin_mesh: ArrayMesh = GarmentBuilder.midriff_mesh(torso.mesh)
+		if skin_mesh != null:
+			_garment_midriff = MeshInstance3D.new()
+			_garment_midriff.name = "Garment_midriff_skin"
+			_garment_midriff.mesh = skin_mesh
+			_skeleton().add_child(_garment_midriff)
+			_garment_midriff.skeleton = NodePath("..")
+			_garment_midriff.skin = torso.skin
+			var midriff_material := ShaderMaterial.new()
+			midriff_material.shader = GarmentMidriffShader
+			midriff_material.set_shader_parameter("skin_color", lp.get("skin", skin_color))
+			_garment_midriff.material_override = midriff_material
 	_apply_outfit(lp)
 	apply_body_shape(lp)
 	apply_face_shape(lp)
@@ -798,7 +916,16 @@ func _apply_c5_wardrobe(lp: Dictionary) -> void:
 		return
 	var signature := "%s/%s/%s" % [String(lp.get("outfit_top", "tricko")),
 		String(lp.get("outfit_bottom", "dziny")), String(lp.get("outfit_shoes", "tenisky"))]
+	signature += "/" + JSON.stringify(lp.get("garment_designs", {}), "", true)
 	if signature != _c5_signature:
+		# Game (ClothingWardrobe.async_load): a garment kind seen for the first time is built in the
+		# WorkerThreadPool instead of freezing this frame for seconds. Until then the previous outfit
+		# stays on, or – for a brand-new character – the plain GLB clothes (never a bare body).
+		if not ClothingWardrobe.ensure_kinds(ClothingWardrobe.kinds_for(lp), self):
+			_wardrobe_waiting = true
+			_show_wardrobe_placeholder(lp)
+			return
+		_wardrobe_waiting = false
 		for node in _c5_nodes:
 			if is_instance_valid(node):
 				(node as Node).get_parent().remove_child(node)
@@ -806,7 +933,7 @@ func _apply_c5_wardrobe(lp: Dictionary) -> void:
 		_c5_nodes.clear()
 		_c5_infos.clear()
 		_body_mesh_cache.clear()
-		var entries := ClothingWardrobe.active_parts(lp)
+		var entries := GarmentBuilder.parts(lp)
 		for entry in entries:
 			var mi := MeshInstance3D.new()
 			mi.name = "C5_" + String(entry.get("category", "")) + "_" + String(entry["name"])
@@ -814,7 +941,7 @@ func _apply_c5_wardrobe(lp: Dictionary) -> void:
 			skel.add_child(mi)
 			mi.skeleton = NodePath("..")
 			mi.skin = source_skin
-			mi.material_override = ClothingWardrobe.material_instance(entry, lp)
+			mi.material_override = GarmentBuilder.material(entry, lp)
 			mi.visible = true
 			_c5_nodes.append(mi)
 			_c5_infos.append(entry)
@@ -830,6 +957,39 @@ func _apply_c5_wardrobe(lp: Dictionary) -> void:
 		var mname := AssetLibrary.part_material_name(body_mi)
 		if mname in ["cloth_shirt", "cloth_pants", "shoe_leather"]:
 			body_mi.visible = false
+
+
+## Placeholder while the authored wardrobe builds in the background: the GLB's own shirt, trousers
+## and shoes (they carry the body morphs), shown per the outfit's coverage. If authored garments are
+## already on (outfit change), they stay until the new set is ready.
+func _show_wardrobe_placeholder(lp: Dictionary) -> void:
+	if not _c5_nodes.is_empty() or _model == null:
+		return
+	var top := String(lp.get("outfit_top", "tricko"))
+	var bottom := String(lp.get("outfit_bottom", "dziny"))
+	var shoes := String(lp.get("outfit_shoes", "tenisky"))
+	for body_mi in AssetLibrary.parts_in_group(_model, "body"):
+		match AssetLibrary.part_material_name(body_mi):
+			"cloth_shirt":
+				body_mi.visible = top != "zadne"
+			"cloth_pants":
+				body_mi.visible = bottom != "zadne" or top == "saty"
+			"shoe_leather":
+				body_mi.visible = shoes != "bosy"
+	for foot in _foot_detail_nodes:
+		foot.visible = shoes == "bosy"
+
+
+## ClothingWardrobe finished a garment kind in the background → rebuild the outfit from the CURRENT
+## look (if the outfit changed meanwhile, the new one is used). Runs on the main thread.
+func _on_wardrobe_ready(_kind: String) -> void:
+	if _wardrobe_waiting and _model != null and is_inside_tree():
+		_apply_model_variant()
+
+
+## Is the outfit still waiting for a background garment build (placeholder shown)? (tests)
+func wardrobe_waiting() -> bool:
+	return _wardrobe_waiting
 
 
 ## Obličej (C3): váhy blend shapes hlavy, očí a vlasů (vlasy převzaly morfy lebky při importu, takže sedí
@@ -894,6 +1054,7 @@ func apply_body_shape(lp: Dictionary) -> int:
 	shaped_parts.append_array(_hand_detail_nodes)
 	shaped_parts.append_array(_foot_detail_nodes)
 	shaped_parts.append_array(_torso_detail_nodes.values())
+	if _garment_midriff != null: shaped_parts.append(_garment_midriff)
 	for mi in shaped_parts:
 		for k in w:
 			var idx: int = mi.find_blend_shape_by_name(StringName(k))
@@ -968,10 +1129,21 @@ func _body_meshes() -> Array:
 	return _body_mesh_cache
 
 
+var _skeleton_cache: Skeleton3D = null
+
 func _skeleton() -> Skeleton3D:
+	if _skeleton_cache != null and is_instance_valid(_skeleton_cache):
+		return _skeleton_cache
 	if _model == null:
 		return null
-	return _model.get_node_or_null("Skeleton3D") as Skeleton3D
+	_skeleton_cache = _model.get_node_or_null("Skeleton3D") as Skeleton3D
+	if _skeleton_cache == null:
+		# Blender's native HQ scene wraps the armature under its original
+		# 'body' node; all bone-dependent systems must resolve it there.
+		var matches := _model.find_children("*", "Skeleton3D", true, false)
+		if not matches.is_empty():
+			_skeleton_cache = matches[0] as Skeleton3D
+	return _skeleton_cache
 
 
 static func _morph_bones() -> Dictionary:
@@ -981,19 +1153,21 @@ static func _morph_bones() -> Dictionary:
 
 func _apply_colors() -> void:
 	var set_col := func(mname: String, c: Color) -> void:
-		if _mats.has(mname) and _mats[mname] is StandardMaterial3D:
-			(_mats[mname] as StandardMaterial3D).albedo_color = c
+		if _mats.has(mname):
+			DetailMaterials.color(_mats[mname],c)
 	set_col.call("cloth_shirt", body_color)
 	set_col.call("cloth_pants", bottom_color)
 	set_col.call("skin_body", skin_color)
 	if _hand_skin_material != null:
 		_hand_skin_material.albedo_color = skin_color
 	if _hand_nail_material != null:
-		_hand_nail_material.albedo_color = skin_color.lerp(Color(0.95, 0.78, 0.79), 0.42)
+		DetailMaterials.color(_hand_nail_material,skin_color.lerp(Color(0.82, 0.65, 0.62), 0.20))
 	if _foot_skin_material != null:
 		_foot_skin_material.albedo_color = skin_color
 	if _foot_nail_material != null:
-		_foot_nail_material.albedo_color = skin_color.lerp(Color(0.95, 0.78, 0.79), 0.42)
+		DetailMaterials.color(_foot_nail_material,skin_color.lerp(Color(0.82, 0.65, 0.62), 0.20))
+	if _garment_midriff != null:
+		(_garment_midriff.material_override as ShaderMaterial).set_shader_parameter("skin_color", skin_color)
 	# Derived only from each character's resolved SKIN color; no sexuality,
 	# gender or sex-based assumptions, and no personal data propagation.
 	var tone: Dictionary = {
@@ -1006,8 +1180,11 @@ func _apply_colors() -> void:
 	for part in _torso_detail_materials:
 		var material: StandardMaterial3D = _torso_detail_materials[part]
 		material.albedo_color = tone.get(part,skin_color)
-	set_col.call("hair_main", hair_color)
 	var lp: Dictionary = look_params if not look_params.is_empty() else AppearanceResolver.resolve({})
+	# With strand cards the GLB "helmet" is only the placeholder while HairRig builds the style in the
+	# background; it must read as the same hair colour as the finished cards (H3 rendered parity,
+	# 8 Nov 2026: it showed light tan over dark-brown cards). Without cards it IS the hair: unchanged.
+	set_col.call("hair_main", helmet_placeholder_color(lp) if not _hair_parts.is_empty() else hair_color)
 	apply_skin(lp)
 	for part in _hair_mats:
 		HairRig.apply(_hair_mats[part], lp, part)
@@ -1027,6 +1204,27 @@ func _apply_colors() -> void:
 	set_col.call("eye_socket", skin_color.lerp(Color(0.72, 0.36, 0.36), 0.55))
 
 
+## Albedo for the GLB hair "helmet" while it stands in for HairRig strand cards. The cards feed the
+## resolver's natural colour through srgb_to_linear() into hair.gdshader (and blend per-strand grey in
+## that space); the helmet reuses exactly those numbers as its (sRGB) albedo and then darkens in linear
+## light by HELMET_SHADE. This is an EMPIRICAL match of what the cards look like on screen (strand
+## shading, gaps, the shader's colour handling), not a physical colour-space conversion – it is
+## verified by tests/test_h3_async_placeholder_render.gd (mean crown colour, dark and grey hair) under
+## the preview light rig in GL Compatibility; Forward+ and night lighting are not yet measured.
+static func helmet_placeholder_color(lp: Dictionary) -> Color:
+	var hv: Dictionary = lp.get("hair_look", {})
+	var base: Color = hv.get("natural", lp.get("hair", Color(0.3, 0.2, 0.12)))
+	var lin := base.srgb_to_linear()
+	var grey := clampf(float(hv.get("grey", 0.0)), 0.0, 1.0)
+	var c := Color(lin.r, lin.g, lin.b).lerp(HELMET_GREY, grey)
+	# Strand shading (0.62–1.12) and the gaps between cards make the cards darker than a solid shell
+	# lit the same way: scale in linear light by the measured ratio.
+	var l := c.srgb_to_linear()
+	c = Color(l.r * HELMET_SHADE, l.g * HELMET_SHADE, l.b * HELMET_SHADE).linear_to_srgb()
+	c.a = 1.0
+	return c
+
+
 ## Kůže (C4): chromofory a vrstvy do shaderu kůže. Vrací počet nastavených parametrů (0 = StandardMaterial3D).
 func apply_skin(lp: Dictionary) -> int:
 	var m = _mats.get("skin_body")
@@ -1042,24 +1240,69 @@ func skin_material() -> Material:
 
 var _crying := false
 
+## Shower state is cosmetic: do not change the saved outfit, body or multiplayer data.
+## Rebuilds of C5 meshes may replace nodes while showering; remove stale entries.
+func _update_shower_garments(in_shower: bool) -> void:
+	if _model == null:
+		return
+	if not in_shower and not _shower_garments_hidden:
+		return
+	var garments: Array = []
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		var mesh := mi as MeshInstance3D
+		if mesh.name.begins_with("C5_") or AssetLibrary.part_material_name(mesh) in [
+			"cloth_shirt", "cloth_pants", "shoe_leather"]:
+			garments.append(mesh)
+	if in_shower:
+		for mi in garments:
+			if not _shower_garment_restore.has(mi):
+				_shower_garment_restore[mi] = mi.visible
+			mi.visible = false
+		for foot in _foot_detail_nodes:
+			if is_instance_valid(foot):
+				foot.visible = true
+		_shower_garments_hidden = true
+	else:
+		for mi in _shower_garment_restore:
+			if is_instance_valid(mi):
+				(mi as MeshInstance3D).visible = bool(_shower_garment_restore[mi])
+		_shower_garment_restore.clear()
+		for foot in _foot_detail_nodes:
+			if is_instance_valid(foot):
+				foot.visible = String(look_params.get("outfit_shoes", "tenisky")) == "bosy"
+		_shower_garments_hidden = false
+
+
 ## posture: stand / sit / lie; mood_value −100..100; speech = replika (prázdná = nic).
-func apply(posture: String, mood_value: float, emotion: String, title: String, action_text: String, speech := "", is_crying: bool = false) -> void:
+func apply(posture: String, mood_value: float, emotion: String, title: String, action_text: String, speech := "", is_crying: bool = false, action_id: String = "") -> void:
 	if not _built:
 		_build()
+	var posture_changed := _posture != posture
 	_posture = posture
+	_action_id = action_id
+	_update_shower_garments(_action_id == "shower")
+	if _read_book != null:
+		_read_book.visible = _action_id == "read"
+	if _held_phone != null:
+		_held_phone.visible = _action_id in ["text_friend", "doomscroll"]
 	match posture:
 		"lie":
-			_body_pivot.rotation = Vector3(-PI / 2.0, 0, 0)
-			_body_pivot.position = Vector3(0, 0.62, 0.8)
+			if posture_changed:
+				_body_pivot.rotation = Vector3(-PI / 2.0, 0, 0)
+				# Face must clear the pillow (pillow ends near local z=-0.57).
+				# The footward shift is bounded by the end of the ~2.1 m mattress.
+				_body_pivot.position = Vector3(0, 0.79, 1.10)
 		"sit":
-			_body_pivot.rotation = Vector3.ZERO
-			# Model si sed „odehraje“ kostrou (pánev do výšky sedáku); primitiva se jen posunou.
-			# Delší/kratší nohy zvedají model (aby chodidla stála na zemi) – vsedě to vyrovnáme, pánev patří na sedák.
-			var lift := float(look_params.get("lift", 0.0)) * float(look_params.get("height_scale", 1.0))
-			_body_pivot.position = Vector3(0, -lift, 0) if _model != null else Vector3(0, -0.3, 0)
+			if posture_changed:
+				_body_pivot.rotation = Vector3.ZERO
+				# Start from the model's canonical seat pose. A real ankle contact
+				# correction then adapts to each character's morphed leg lengths.
+				var lift := float(look_params.get("lift", 0.0)) * float(look_params.get("height_scale", 1.0))
+				_body_pivot.position = Vector3(0, -lift, 0) if _model != null else Vector3(0, -0.3, 0)
 		_:
-			_body_pivot.rotation = Vector3.ZERO
-			_body_pivot.position = Vector3.ZERO
+			if posture_changed:
+				_body_pivot.rotation = Vector3.ZERO
+				_body_pivot.position = Vector3.ZERO
 	_update_anim()
 	_emotion = emotion
 	_crying = is_crying
@@ -1099,7 +1342,18 @@ func _update_anim() -> void:
 		"sit":
 			want = "sit"
 		_:
-			want = "walk" if _speed > WALK_THRESHOLD else "idle"
+			if _action_id == "read":
+				want = "read"
+			elif _action_id == "cook":
+				want = "cook"
+			elif _action_id in ["text_friend", "doomscroll"]:
+				want = "text"
+			elif _action_id in ["snack", "drink", "use_caffeine"]:
+				want = "eat"
+			elif _action_id == "workout":
+				want = "walk"
+			else:
+				want = "walk" if _speed > WALK_THRESHOLD else "idle"
 	if String(_anim.current_animation) != want:
 		_anim.play(want, BLEND)
 	if want == "walk":
@@ -1125,10 +1379,34 @@ func track_motion(delta: float) -> void:
 	_speed = lerpf(_speed, inst, clampf(delta * 8.0, 0.0, 1.0))
 
 
+## Adjust seated root height from both actual animated ankle bones, not
+## a fixed person's leg length. This is a small foot-floor contact solver,
+## not a claim of full-body IK; do not modify the authoritative SimAgent.
+func _seat_foot_contact(delta: float) -> void:
+	if _posture != "sit" or _model == null or _anim == null or delta <= 0.0:
+		return
+	var skel := _skeleton()
+	if skel == null:
+		return
+	var li := skel.find_bone("foot_l")
+	var ri := skel.find_bone("foot_r")
+	if li < 0 or ri < 0:
+		return
+	# The foot bone sits around 8 cm above the sole on the reference mesh.
+	var foot_y := minf(skel.to_global(skel.get_bone_global_pose(li).origin).y,
+		skel.to_global(skel.get_bone_global_pose(ri).origin).y)
+	var target_y := global_position.y + 0.08
+	var error := target_y - foot_y
+	var corrected_y := clampf(_body_pivot.position.y + error, -0.26, 0.12)
+	_body_pivot.position.y = lerpf(_body_pivot.position.y, corrected_y,
+		clampf(delta * 7.0, 0.0, 1.0))
+
+
 func _process(delta: float) -> void:
 	if _gem != null:
 		_gem.rotate_y(delta * 1.5)
 	track_motion(delta)
+	_seat_foot_contact(delta)
 	if _anim != null and _posture == "stand":
 		_update_anim()
 	if _model != null and expressions_enabled:

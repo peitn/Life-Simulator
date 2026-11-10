@@ -16,6 +16,7 @@ const SimPuppet := preload("res://scripts/sim/sim_puppet.gd")
 const WorldBuilder := preload("res://scripts/world/world_builder.gd")
 const DayNight := preload("res://scripts/world/day_night.gd")
 const CameraRig := preload("res://scripts/world/camera_rig.gd")
+const WorldInteractionPicker := preload("res://scripts/ui/world_interaction_picker.gd")
 const Hud := preload("res://scripts/ui/hud.gd")
 const NetSession := preload("res://scripts/net/net_session.gd")
 const Protocol := preload("res://scripts/net/net_protocol.gd")
@@ -30,7 +31,11 @@ const Validator := preload("res://scripts/character/character_validator.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const HouseholdDynamics := preload("res://scripts/sim/household_dynamics.gd")
+const GossipNetwork := preload("res://scripts/sim/gossip_network.gd")
+const Gossip_G := preload("res://scripts/core/grammar_cs.gd")
 const SaveGame := preload("res://scripts/save/game_save.gd")
+const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
+const SimVisualScript := preload("res://scripts/sim/sim_visual.gd")
 
 ## Startovní domácnost jako CharacterData (v2; jen pole odlišná od výchozích hodnot schématu;
 ## zbytek doplní validátor). Vzhled je explicitní – žádné odvozování ze jména ani z rodu.
@@ -87,7 +92,12 @@ const HOUSEHOLD := [
 		"story": {"family": "oba_rodice", "childhood": "stehovani", "past_work": ["studium", "it"], "hometown": "Ostrava"},
 		"mind": {"predispositions": {"anxiety": 0.6}}},
 ]
-const HOUSEHOLD_POS := [Vector3(-1.0, 0, 1.0), Vector3(1.5, 0, 0.5), Vector3(0.0, 0, -1.5)]
+const EIGHT_HOUSEHOLD_FILE := "res://data/households/extreme_young_adults8.json"
+## Existing three-resident baseline is retained for headless regression fixtures.
+## Visual desktop/web launches now use this fictional eight-resident scenario.
+const HOUSEHOLD_POS := [Vector3(-1.0, 0, 1.0), Vector3(1.5, 0, 0.5), Vector3(0.0, 0, -1.5),
+	Vector3(7.9, 0, -0.6), Vector3(11.1, 0, -0.6), Vector3(14.3, 0, -0.6),
+	Vector3(17.2, 0, -0.6), Vector3(18.35, 0, -0.6)]
 ## Kde se objeví postava, se kterou se hráč připojí (u vchodu).
 const ARRIVAL_POS := Vector3(2.5, 0, 3.5)
 
@@ -95,6 +105,9 @@ const ARRIVAL_POS := Vector3(2.5, 0, 3.5)
 ##  "name": String, "character": String (kód LSC1…), "clock": Node, "audio": bool, "hud": bool,
 ##  "camera": bool, "visuals": bool}
 var net_config := {}
+## H4a: konfigurace „Znovu připojit“ přežije reload scény (jen v paměti procesu; token se nikdy
+## neukládá na disk). Spotřebuje ji první _ready() bez net_config.
+static var _resume_config := {}
 
 var clock
 var net: Node
@@ -113,7 +126,9 @@ var psyche_fx: CanvasLayer
 var _audio: Node = null
 ## Život domácnosti mimo rozhovory (třenice, společné chvíle, události) – jen na autoritě.
 var dynamics = HouseholdDynamics.new()
+var gossip = GossipNetwork.new()
 var _test_mode := false
+var _eight_household_enabled := false
 var _test_days := 3
 ## Zátěžové testy (jen headless --test): jiná domácnost z JSON souboru, posun seedů, denní výpis.
 static var household_override: Array = []
@@ -127,12 +142,35 @@ var _save_elapsed := 0.0
 var _save_day_due := false
 var _save_loading := false
 var _save_notice := ""
+## H4b: serverové ukládání MP světa (jen autorita v síťovém režimu, soubor jen na serveru).
+const ServerWorldStore := preload("res://scripts/save/server_world_store.gd")
+const SERVER_AUTOSAVE_SECONDS := 120.0
+var _server_store = null
+var _server_autosave_seconds := SERVER_AUTOSAVE_SECONDS
+var _server_save_elapsed := 0.0
+var _server_day_due := false
+## Výsledek obnovy při startu serveru ({} = nic se neobnovovalo) – HUD, log a testy.
+var server_restore_result := {}
 
 const AUTOSAVE_REAL_SECONDS := 300.0
+const WORLD_CLICK_DRAG_PX := 10.0
+var _world_mouse_down := false
+var _world_mouse_down_at := Vector2.ZERO
+var _world_dragged := false
+var _last_touch_ms := -100000
 
 
 func _ready() -> void:
 	var cfg := net_config if not net_config.is_empty() else _config_from_args()
+	if net_config.is_empty() and not _resume_config.is_empty():
+		cfg = _resume_config
+		_resume_config = {}
+	# Desktop/web gameplay gets the 8-adult challenge, but isolated headless
+	# tests retain their original 3-person baseline unless explicitly opted in.
+	_eight_household_enabled = bool(cfg.get("eight_member_household",
+		DisplayServer.get_name() != "headless" and not _test_mode))
+	if not household_override.is_empty():
+		_eight_household_enabled = false
 	# Dedikovaný server spuštěný z příkazové řádky nic nevykresluje – 3D modely nenačítá.
 	if net_config.is_empty() and String(cfg.get("mode", "")) == "server":
 		AssetLibrary.enabled = false
@@ -140,9 +178,16 @@ func _ready() -> void:
 	if clock == null:
 		clock = get_node("/root/GameClock")
 	# Vlasy z karet: první sestavení účesu běží ve vlákně (hra se nezasekne při vstupu postavy s novým účesem);
-	# headless --test a testy zůstávají synchronní.
-	if bool(cfg.get("visuals", true)) and not _test_mode and AssetLibrary.enabled:
+	# headless --test a testy zůstávají synchronní. `async_character_assets` (výchozí = visuals) umožní
+	# testům zapnout přesně herní cestu i bez ostatních vizuálů.
+	var async_assets: bool = AssetLibrary.enabled and bool(cfg.get("async_character_assets",
+		bool(cfg.get("visuals", true)) and not _test_mode))
+	if async_assets:
 		load("res://scripts/assets/hair_rig.gd").async_build = true
+		# Same for the authored C5 wardrobe (H3, 7 Nov 2026): decoding a garment kind took 1.5–7 s on the
+		# main thread and could stall a joining client past the ENet timeout. Start all kinds now.
+		ClothingWardrobe.async_load = true
+		ClothingWardrobe.prewarm_async()
 
 	if bool(cfg.get("visuals", true)):
 		day_night = Node3D.new()
@@ -150,6 +195,7 @@ func _ready() -> void:
 		add_child(day_night)
 
 	var builder = WorldBuilder.new(self)
+	builder.include_eight_suite = _eight_household_enabled
 	builder.build()
 	smart_objects = builder.objects
 	if day_night != null:
@@ -181,6 +227,10 @@ func _ready() -> void:
 		and bool(cfg.get("network_character_editor", net_config.is_empty()))
 	net.character_edit_apply_rpc_enabled = edit_network
 	net.character_edit_read_ui_enabled = edit_network and mode == "client"
+	# H4a: ve hře postava odpojeného hráče čeká RECONNECT_GRACE_DEFAULT s na jeho návrat.
+	# Injektované testovací konfigurace mají výchozí 0 (staré chování), pokud si lhůtu nezapnou.
+	net.reconnect_grace_seconds = maxf(0.0, float(cfg.get("reconnect_grace",
+		NetSession.RECONNECT_GRACE_DEFAULT if net_config.is_empty() else 0.0)))
 	var port: int = int(cfg.get("port", Protocol.DEFAULT_PORT))
 	var pname: String = String(cfg.get("name", ""))
 	var code: String = String(cfg.get("character", ""))
@@ -194,15 +244,35 @@ func _ready() -> void:
 			push_error("Kód postavy nejde načíst: %s" % ", ".join(r["errors"]))
 	match mode:
 		"host", "server":
-			var err: int = net.host(port, pname, mode == "server", my_char)
+			# H4b: skutečná hra ukládá serverový svět (výchozí zapnuto); injektované testy jen opt-in.
+			var persist: bool = bool(cfg.get("server_persistence", net_config.is_empty()))
+			var stored := {}
+			if persist:
+				_server_store = ServerWorldStore.new(String(cfg.get("server_save_directory",
+					"user://server_world_extreme8" if _eight_household_enabled else "user://server_world")))
+				_server_autosave_seconds = maxf(5.0, float(cfg.get("server_autosave_seconds", SERVER_AUTOSAVE_SECONDS)))
+				stored = _server_store.load_data()
+				if not bool(stored.get("ok", false)) and String(stored.get("reason", "missing")) != "missing":
+					push_warning("Uložený svět serveru nejde načíst (%s) – začíná čerstvá domácnost." % String(stored.get("reason", "")))
+			var err: int = net.host(port, pname, mode == "server", my_char, not persist)
 			if err != OK:
 				push_error("Server se nepodařilo spustit na portu %d (chyba %d) – hraju offline." % [port, err])
 				net.start_offline(pname)
-			_spawn_household()
+				_server_store = null
+				_spawn_household()
+			else:
+				var host_sim := _restore_server_world(stored)
+				if persist and mode == "host":
+					net.register_local_host(pname, my_char, host_sim)
+				if _server_store != null:
+					clock.day_changed.connect(_mark_server_autosave_day)
 			net.assign_host_sim()
 		"client":
 			clock.running = true
-			var err2: int = net.join(String(cfg.get("address", "127.0.0.1")), port, pname, code)
+			if async_assets:
+				_prewarm_character_visual()
+			var err2: int = net.join(String(cfg.get("address", "127.0.0.1")), port, pname, code,
+				String(cfg.get("reconnect_token", "")))
 			if err2 != OK:
 				push_error("Připojení selhalo (chyba %d) – hraju offline." % err2)
 				net.start_offline(pname)
@@ -219,7 +289,9 @@ func _ready() -> void:
 	# Restore after default spawn, before HUD and camera observe the household.
 	# In injected tests autoload/autosave are explicitly opt-in; never load test
 	# fixtures or overwrite the player's real user://saves.
-	_save_manager = SaveGame.new(String(cfg.get("save_directory", "user://saves")))
+	# Independent save namespace avoids overwriting older three-person homes.
+	_save_manager = SaveGame.new(String(cfg.get("save_directory",
+		"user://saves_extreme8" if _eight_household_enabled else "user://saves")))
 	_save_enabled = not net.is_networked() and bool(cfg.get("autosave", net_config.is_empty() and not _test_mode and DisplayServer.get_name() != "headless"))
 	if not net.is_networked() and bool(cfg.get("autoload", net_config.is_empty() and not _test_mode and DisplayServer.get_name() != "headless")):
 		var pending: Dictionary = _save_manager.load_slot("autosave")
@@ -264,6 +336,46 @@ func _ready() -> void:
 	elif net_config.is_empty():
 		print("Life Simulator spuštěn (%s) – %d postavy, %d interaktivních objektů." % [
 			net.mode_name(), sims.size(), smart_objects.size()])
+
+
+## H4a: klientská konfigurace pro návrat ke stejné postavě ({} = návrat není možný).
+func resume_config() -> Dictionary:
+	if net == null or not net.can_resume():
+		return {}
+	var j: Dictionary = net.last_join
+	return {"mode": "client", "address": String(j.get("address", "127.0.0.1")), "port": int(j.get("port", Protocol.DEFAULT_PORT)),
+		"name": String(j.get("name", "")), "character": String(j.get("character", "")),
+		"reconnect_token": net.my_reconnect_token}
+
+
+## H4a: „Znovu připojit“ z HUD – znovu načte scénu a připojí se s jednorázovým tokenem.
+## Jen pro skutečnou hru (bez net_config); testy si nový klientský svět staví samy.
+func reconnect() -> bool:
+	var cfg := resume_config()
+	if cfg.is_empty() or not net_config.is_empty() or get_tree().current_scene != self:
+		return false
+	_resume_config = cfg
+	net.shutdown()
+	get_tree().reload_current_scene.call_deferred()
+	return true
+
+
+## Client only, BEFORE connecting: build one throw-away character visual so the character GLB,
+## skeleton, hand/foot detail meshes and shaders are cached. Without it the first replicated
+## character froze the client for 1–6 s right after the ENet handshake (measured in the H3
+## three-process test), long enough for the server to drop the peer. Hair and C5 garments are not
+## built here – they are asynchronous. Returns the main-thread time spent (ms).
+var prewarm_visual_ms := -1.0
+func _prewarm_character_visual() -> float:
+	var t0 := Time.get_ticks_usec()
+	var warm := Node3D.new()
+	warm.set_script(SimVisualScript)
+	warm.name = "PrewarmVisual"
+	add_child(warm)  # _ready → _build, synchronous
+	remove_child(warm)
+	warm.queue_free()
+	prewarm_visual_ms = (Time.get_ticks_usec() - t0) / 1000.0
+	return prewarm_visual_ms
 
 
 func _config_from_args() -> Dictionary:
@@ -334,11 +446,28 @@ static func household_characters() -> Array:
 
 func _spawn_household() -> void:
 	var chars := household_characters()
+	if _eight_household_enabled:
+		var raw = JSON.parse_string(FileAccess.get_file_as_string(EIGHT_HOUSEHOLD_FILE))
+		if raw is Array and raw.size() == 8:
+			# Preserve the validation/public-private schema path of normal spawns.
+			household_override = raw
+			chars = household_characters()
+			household_override = []
+		else:
+			push_error("Eight-person household fixture missing/invalid; kept old baseline")
 	for idx in chars.size():
 		var pos: Vector3 = HOUSEHOLD_POS[idx % HOUSEHOLD_POS.size()]
 		if idx >= HOUSEHOLD_POS.size():
 			pos += Vector3(0.6 * float(idx / HOUSEHOLD_POS.size()), 0, 0.5)
-		spawn_character(chars[idx], pos, 1000 + idx * 77 + _seed_offset * 7919)
+		var member = spawn_character(chars[idx], pos, 1000 + idx * 77 + _seed_offset * 7919)
+		if _eight_household_enabled and member != null:
+			# Fictional stress-test profiles differ in baseline load, vulnerability
+			# and ability to draw on support. No irreversible/scripted crisis action.
+			var stress_levels := [74.0, 92.0, 82.0, 77.0, 88.0, 36.0, 24.0, 85.0]
+			var dep_levels := [0.56, 0.78, 0.86, 0.34, 0.43, 0.06, 0.02, 0.28]
+			member.mental.stress = stress_levels[idx]
+			member.mental.dep.burden = dep_levels[idx]
+			member.mental.support = 0.76 if idx in [5, 6] else 0.10
 
 
 ## Commit a new offline character from a private creator draft. The authority
@@ -472,6 +601,9 @@ func _mark_autosave_day(_day: int) -> void:
 
 
 func _process(delta: float) -> void:
+	if _server_store != null:
+		_server_autosave_tick(delta)
+		return
 	if not _save_enabled or _save_loading or _save_manager == null or net == null or net.is_networked():
 		return
 	_save_elapsed += maxf(delta, 0.0)
@@ -520,11 +652,87 @@ func load_game(slot: String = "autosave") -> Dictionary:
 	return result
 
 
+# ---------------------------------------------------------------- H4b: serverový svět
+
+## Start serveru: obnoví uložený svět (když je platný), jinak spawne čerstvou domácnost.
+## Vrací uzel hostitelovy uložené vlastní postavy ("" = žádná).
+func _restore_server_world(stored: Dictionary) -> String:
+	if not bool(stored.get("ok", false)):
+		_spawn_household()
+		return ""
+	server_restore_result = ServerWorldStore.restore(self, stored["data"])
+	if not bool(server_restore_result.get("ok", false)):
+		push_warning("Uložený svět serveru nejde obnovit (%s) – začíná čerstvá domácnost." % String(server_restore_result.get("reason", "")))
+		# Validace proběhla před spawnem; po selhání spawnu uprostřed obnovy svět vyčistit.
+		for s in sims.duplicate():
+			if is_instance_valid(s):
+				if s.has_method("leave_world"):
+					s.leave_world()
+				unregister_sim(s)
+				s.free()
+		dynamics = HouseholdDynamics.new()
+		gossip = GossipNetwork.new()
+		_spawn_household()
+		return ""
+	server_restore_result["source"] = String(stored.get("source", "primary"))
+	_save_notice = "Svět serveru obnoven%s: den %d, %d postav, %d čeká na návrat hráčů." % [
+		" ze zálohy" if server_restore_result["source"] == "backup" else "",
+		int(server_restore_result.get("day", 0)), int(server_restore_result["restored"]), int(server_restore_result["held"])]
+	if net_config.is_empty():
+		print(_save_notice)
+	# Rychlost času dál řídí hlasy hráčů (dedikovaný server bez hráčů stojí).
+	net._update_speed()
+	return String(server_restore_result.get("host_sim", ""))
+
+
+func _mark_server_autosave_day(_day: int) -> void:
+	_server_day_due = true
+
+
+func _server_autosave_tick(delta: float) -> void:
+	if net == null or not is_instance_valid(net) or not net.is_networked() or not net.is_authority():
+		return
+	_server_save_elapsed += maxf(delta, 0.0)
+	if _server_save_elapsed >= _server_autosave_seconds or _server_day_due:
+		_server_save_elapsed = 0.0
+		_server_day_due = false
+		var r := server_save_now()
+		if not bool(r.get("ok", false)):
+			push_warning("Ukládání serverového světa selhalo: " + String(r.get("reason", "")))
+
+
+## Server: okamžité uložení světa (autosave, zavření okna, testy). Není to RPC.
+func server_save_now() -> Dictionary:
+	if _server_store == null or net == null or not is_instance_valid(net) or not net.is_networked() or not net.is_authority():
+		return {"ok": false, "reason": "server_only"}
+	# Po shutdown() už relace hráčů neexistují – neukládat ochuzený stav přes dobrý snímek.
+	if not net._connected:
+		return {"ok": false, "reason": "server_closed"}
+	var cap: Dictionary = ServerWorldStore.capture(self)
+	if not bool(cap.get("ok", false)):
+		return cap
+	return _server_store.save(cap["data"])
+
+
+## Background garment builds are joined before the world goes away (no unfinished
+## WorkerThreadPool tasks at engine teardown). Their queued results are simply not used.
+func _exit_tree() -> void:
+	if _server_store != null:
+		server_save_now()
+	if ClothingWardrobe.async_load:
+		ClothingWardrobe.wait_for_builds()
+
+
 ## A window-close request is earlier than child teardown. Frequent interval/day
 ## autosaves remain the primary protection against crashes or forced process exit.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and _save_enabled:
 		save_game("autosave")
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and _server_store != null:
+		server_save_now()
+	# Zavření okna je úmyslný odchod: server postavu nemá držet pro návrat (H4a).
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and net != null and is_instance_valid(net) and net.mode == net.Mode.CLIENT:
+		net.request_leave()
 
 
 ## Dynamika domácnosti běží jen tam, kde je autorita (offline / server); klient vidí výsledky.
@@ -537,6 +745,11 @@ func _on_time_advanced(dm: float) -> void:
 		return
 	if peer == null or multiplayer.is_server():
 		dynamics.advance(dm, sims, clock)
+		if gossip != null:
+			gossip.tick(dm)
+		var plates := get_node_or_null("DirtyDishes") as Node3D
+		if plates != null:
+			plates.visible = dynamics.has_dirty_dishes(float(clock.total_minutes))
 
 
 func get_smart_objects() -> Array:
@@ -546,6 +759,163 @@ func get_smart_objects() -> Array:
 func get_sims() -> Array:
 	return sims
 
+
+# ---------------------------------------------------------------- drby a pomluvy (vztahy (c))
+# Adaptér mezi SimAgenty a GossipNetwork. Běží jen na autoritě (offline / server): hooky volá
+# simulace postav, která na klientovi neběží. Klientům jde jen to, co postava řekne nahlas.
+
+## Obsahová nastavení pro drby: psychika jen v plném režimu, pití jen se zapnutými závislostmi.
+func gossip_content() -> Dictionary:
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs == null:
+		return {"mental_health": true, "addiction": true}
+	return {"mental_health": gs.allows_conditions() and gs.mental_health_mode() == gs.MH_FULL,
+		"addiction": gs.allows_addiction()}
+
+
+static func _gossip01(v: Variant) -> float:
+	if typeof(v) in [TYPE_FLOAT, TYPE_INT] and is_finite(float(v)):
+		return clampf((float(v) + 1.0) * 0.5, 0.0, 1.0)
+	return 0.5
+
+
+## Profil postavy pro GossipNetwork: poctivost a extraverze (HEXACO), stigmatizace, vztahy a zášť podle klíčů.
+func gossip_profile(s: Node) -> Dictionary:
+	var rel := {}
+	var grudge := {}
+	for o in sims:
+		if o == s or not is_instance_valid(o) or not o.has_method("command"):
+			continue
+		var k: String = SimAgent.memory_key(o)
+		if s.relationships.has(o.sim_name):
+			rel[k] = float(s.relationships[o.sim_name])
+		var g: float = s.ledger.grudge(o.sim_name) if s.ledger != null else 0.0
+		if g > 0.0:
+			grudge[k] = g
+	var hx: Dictionary = s.get("hexaco") if typeof(s.get("hexaco")) == TYPE_DICTIONARY else {}
+	return {"key": SimAgent.memory_key(s), "honesty": _gossip01(hx.get("honesty", 0.0)),
+		"extraversion": _gossip01(hx.get("extraversion", 0.0)),
+		"stigma": clampf(Traits.sum_param(s.trait_profile, "stigma"), 0.0, 1.0), "rel": rel, "grudge": grudge}
+
+
+func _gossip_sim(key: String) -> Node:
+	if key == "":
+		return null
+	for o in sims:
+		if is_instance_valid(o) and o.has_method("command") and SimAgent.memory_key(o) == key:
+			return o
+	return null
+
+
+func _gossip_name(s: Node) -> void:
+	gossip.set_name(SimAgent.memory_key(s), String(s.sim_name), String(s.grammar))
+
+
+## Svědectví (hádka, urážka, ataka, opakované pití, pomoc). Vrací id drbu (0 = nic).
+func gossip_observe(witness: Node, subject: Node, kind: String, sev_mult := 1.0, whom: Node = null) -> int:
+	if gossip == null or witness == null or subject == null or not _gossip_authority():
+		return 0
+	_gossip_name(subject)
+	_gossip_name(witness)
+	return gossip.observe(SimAgent.memory_key(witness), SimAgent.memory_key(subject), kind,
+		float(clock.total_minutes), gossip_content(), sev_mult, SimAgent.memory_key(whom) if whom != null else "")
+
+
+func _gossip_authority() -> bool:
+	if net == null or not is_instance_valid(net):
+		return true
+	return net.is_authority()
+
+
+## Povedený rozhovor dvou postav: osobní zkušenost oslabí drby o tom druhém, pak každá strana může
+## říct jeden drb a přítel může tomu druhému prozradit, co se o něm říká. Vrací události (pro testy).
+func gossip_exchange(a: Node, b: Node) -> Array:
+	var events: Array = []
+	if gossip == null or a == null or b == null or not _gossip_authority():
+		return events
+	var now := float(clock.total_minutes)
+	var content := gossip_content()
+	for s in [a, b]:
+		_gossip_name(s)
+	gossip.contact(SimAgent.memory_key(a), SimAgent.memory_key(b))
+	for pair in [[a, b], [b, a]]:
+		# Jen sloupec posluchače (vztahy ostatních k němu) – O(n), ne celá matice (review Gemini).
+		var listener: Node = pair[1]
+		var lkey: String = SimAgent.memory_key(listener)
+		var facts := {"rel": {}}
+		for o in sims:
+			if o != listener and is_instance_valid(o) and o.has_method("command") and o.relationships.has(listener.sim_name):
+				facts["rel"][SimAgent.memory_key(o)] = {lkey: float(o.relationships[listener.sim_name])}
+		var ex: Array = gossip.expose(gossip_profile(pair[0]), gossip_profile(pair[1]), now, content)
+		for ev in ex:
+			_apply_gossip_event(ev, now)
+		events.append_array(ex)
+		var sh: Array = gossip.share(gossip_profile(pair[0]), gossip_profile(pair[1]), now, content, facts)
+		for ev in sh:
+			_apply_gossip_event(ev, now)
+		events.append_array(sh)
+	return events
+
+
+static func _rel_add(s: Node, other: Node, d: float) -> void:
+	if s == null or other == null or d == 0.0:
+		return
+	var cur: float = float(s.relationships.get(other.sim_name, 0.0))
+	var nv := clampf(cur + d, -100.0, 100.0)
+	s.relationships[other.sim_name] = nv
+	s.note_relationship_change(other, cur, nv)
+	s._detail_dirty = true
+
+
+func _apply_gossip_event(ev: Dictionary, now: float) -> void:
+	match String(ev.get("type", "")):
+		"shared":
+			var teller := _gossip_sim(String(ev["teller"]))
+			var listener := _gossip_sim(String(ev["listener"]))
+			var subject := _gossip_sim(String(ev["subject"]))
+			if teller == null or listener == null:
+				return
+			var line: String = gossip.line_for(int(ev["rid"]))
+			if line != "":
+				teller.say(line)
+				listener.remember("Drb od: %s – %s" % [teller.first_name(), line])
+			_rel_add(listener, subject, float(ev["delta_rel"]))
+			_rel_add(listener, teller, float(ev["bond"]))
+			if String(ev["kind"]) == "badmouth" and subject != null:
+				listener.remember_social(subject, "grievance", clampf(0.5 * float(ev["belief"]), 0.05, 1.0), "told", "intended")
+			var hx: Dictionary = teller.get("hexaco") if typeof(teller.get("hexaco")) == TYPE_DICTIONARY else {}
+			# Pocit „dobrého drbu“ jen u běžných témat – za drb o psychice nebo pití hra nic neodměňuje.
+			if _gossip01(hx.get("honesty", 0.0)) < 0.45 and String(GossipNetwork.KINDS[String(ev["kind"])]["content"]) == "":
+				teller.add_joy_moodlet("drbani", "Dobrý drb", "stastny", 4.0, 90.0)
+		"exposed":
+			var informer := _gossip_sim(String(ev["informer"]))
+			var subject := _gossip_sim(String(ev["subject"]))
+			var source := _gossip_sim(String(ev["source"]))
+			if informer == null or subject == null:
+				return
+			var sg := String(subject.grammar)
+			informer.say("Hele… lidi o tobě něco povídají. %s to vědět." % ("Měli byste" if sg == "pl" else "Měl%s bys" % Gossip_G.past(sg)))
+			_rel_add(subject, informer, float(ev["delta_informer"]))
+			var sev := float(ev["sev"])
+			var cfg: Dictionary = subject.mental_cfg()
+			subject.mental.on_stressor("gossip", 4.0 + 8.0 * sev, cfg)
+			if bool(ev["truth"]):
+				subject.mood.add_moodlet("drb_stud", "Ví se to o mně", "smutny", -8.0 - 6.0 * sev, 360.0)
+			else:
+				subject.mood.add_moodlet("drb_pomluva", "Pomlouvají mě", "nastvany", -10.0 - 8.0 * sev, 360.0)
+			if source != null and source != subject:
+				_rel_add(subject, source, float(ev["delta_source"]))
+				subject.ledger.on_hurt_by(source.sim_name, 8.0 + 14.0 * sev, now)
+				subject.remember_social(source, "humiliation", clampf(sev * (0.7 if bool(ev["truth"]) else 1.0), 0.05, 1.0), "told", "intended")
+				subject.remember("%s o mně roznáší řeči" % source.sim_name)
+
+
+## Soukromé věty pro vlastníka postavy: co se o sobě dozvěděl(a).
+func gossip_private_lines(s: Node) -> PackedStringArray:
+	if gossip == null or s == null:
+		return PackedStringArray()
+	return gossip.exposed_lines(SimAgent.memory_key(s))
+	
 
 func get_selected_sim():
 	if sims.is_empty():
@@ -564,7 +934,40 @@ func _on_memory(sim: Node3D, text: String) -> void:
 		print("[%s] %s: %s" % [clock.time_string(), sim.sim_name, text])
 
 
+func _input(event: InputEvent) -> void:
+	# Clear a gesture even if its mouse-up lands over the HUD. Deferred so
+	# an unhandled release still has the original press location available.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_clear_world_mouse_gesture.call_deferred()
+
+
+func _clear_world_mouse_gesture() -> void:
+	_world_mouse_down = false
+	_world_dragged = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	# HUD and modal buttons get first chance; world clicks happen on release.
+	# A drag pans the camera and must NOT activate furniture on mouse-up.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if Time.get_ticks_msec() - _last_touch_ms < 450:
+			return
+		if event.pressed:
+			_world_mouse_down = true
+			_world_mouse_down_at = event.position
+			_world_dragged = false
+		elif _world_mouse_down:
+			if not _world_dragged and event.position.distance_to(_world_mouse_down_at) <= WORLD_CLICK_DRAG_PX:
+				_pick_world_click(event.position)
+			_clear_world_mouse_gesture()
+		return
+	if event is InputEventMouseMotion and _world_mouse_down:
+		if event.position.distance_to(_world_mouse_down_at) > WORLD_CLICK_DRAG_PX:
+			_world_dragged = true
+	if event is InputEventScreenTouch and event.pressed:
+		_last_touch_ms = Time.get_ticks_msec()
+		_pick_world_click(event.position)
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_SPACE:
@@ -601,6 +1004,34 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				if settings_menu != null:
 					settings_menu.toggle()
+
+
+## Mouse / touch world picking is a UI request, not a physics or authority shortcut.
+func _pick_world_click(screen: Vector2) -> void:
+	if camera_rig == null or hud == null or net == null:
+		return
+	if settings_menu != null and settings_menu.is_open():
+		return
+	var cam: Camera3D = camera_rig.get("camera") as Camera3D
+	if cam == null:
+		return
+	var choice: Dictionary = WorldInteractionPicker.pick(cam, smart_objects, sims, screen)
+	if choice.is_empty():
+		return
+	if String(choice.get("kind", "")) == "sim":
+		var index: int = int(choice["index"])
+		if index < 0 or index >= sims.size():
+			return
+		if net.mode == net.Mode.OFFLINE:
+			selected = index
+			hud.show_notice("Vybrána postava: " + String(sims[index].sim_name))
+		elif String(sims[index].name) == String(net.my_sim):
+			selected = index
+		else:
+			hud.show_notice("V multiplayeru můžeš ovládat jen svou postavu.")
+	else:
+		hud.open_world_object_actions(int(choice["index"]), Vector2i(screen))
+	get_viewport().set_input_as_handled()
 
 
 # ---------------------------------------------------------------- headless test

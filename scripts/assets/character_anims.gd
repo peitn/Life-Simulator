@@ -27,6 +27,10 @@ static func library() -> AnimationLibrary:
 		_lib.add_animation("walk", _make("walk", 1.0))
 		_lib.add_animation("sit", _make("sit", 4.0))
 		_lib.add_animation("lie", _make("lie", 5.0))
+		_lib.add_animation("read", _make("read", 3.2))
+		_lib.add_animation("cook", _make("cook", 2.0))
+		_lib.add_animation("text", _make("text", 2.6))
+		_lib.add_animation("eat", _make("eat", 2.1))
 	return _lib
 
 
@@ -39,6 +43,14 @@ static func pose(clip: String, p: float) -> Dictionary:
 			return _pose_sit(p)
 		"lie":
 			return _pose_lie(p)
+		"read":
+			return _pose_read(p)
+		"cook":
+			return _pose_cook(p)
+		"text":
+			return _pose_text(p)
+		"eat":
+			return _pose_eat(p)
 	return _pose_idle(p)
 
 
@@ -123,7 +135,7 @@ static func _pose_sit(p: float) -> Dictionary:
 	var d := _base()
 	var breath := sin(TAU * p)
 	var lean := -0.15                          # pánev opřená dozadu
-	d["pos"] = Vector3(0.0, 0.5, -0.06)
+	d["pos"] = Vector3(0.0, 0.60, 0.06)
 	d["hips"] = Vector3(lean, 0.0, 0.0)
 	d["spine"] = Vector3(0.05, 0.0, 0.0)
 	d["chest"] = Vector3(-0.012 * breath, 0.0, 0.0)
@@ -135,6 +147,49 @@ static func _pose_sit(p: float) -> Dictionary:
 		d["foot_" + s] = Vector3(0.12, 0.0, 0.0)
 		d["upper_arm_" + s] = Vector3(-0.45, 0.0, -0.05 if s == "l" else 0.05)
 		d["forearm_" + s] = Vector3(-0.75, 0.0, 0.0)
+	return d
+
+
+static func _pose_read(p: float) -> Dictionary:
+	var d := _base()
+	var wave := sin(TAU * p)
+	d["head"] = Vector3(0.16 + 0.04 * wave, 0.06 * sin(TAU * p * 0.5), 0.0)
+	d["upper_arm_l"] = Vector3(-0.7, 0.0, -0.22)
+	d["upper_arm_r"] = Vector3(-0.72, 0.0, 0.22)
+	d["forearm_l"] = Vector3(-1.0, 0.0, -0.08)
+	d["forearm_r"] = Vector3(-0.94 + 0.06 * wave, 0.0, 0.08)
+	d["hand_r"] = Vector3(0.07 * wave, 0.0, 0.0)
+	return d
+
+
+static func _pose_cook(p: float) -> Dictionary:
+	var d := _base()
+	var stir := sin(TAU * p)
+	d["upper_arm_r"] = Vector3(-0.72, 0.2, 0.08)
+	d["forearm_r"] = Vector3(-1.0 + 0.17 * stir, 0.0, 0.08)
+	d["hand_r"] = Vector3(0.0, 0.26 * stir, 0.0)
+	d["upper_arm_l"] = Vector3(-0.4, 0.0, -0.1)
+	d["head"] = Vector3(0.11, 0.05 * stir, 0.0)
+	return d
+
+
+static func _pose_text(p: float) -> Dictionary:
+	var d := _base()
+	d["upper_arm_l"] = Vector3(-0.65, 0.0, -0.18)
+	d["upper_arm_r"] = Vector3(-0.62, 0.0, 0.18)
+	d["forearm_l"] = Vector3(-1.0, 0.0, 0.0)
+	d["forearm_r"] = Vector3(-1.02, 0.0, 0.0)
+	d["hand_r"] = Vector3(0.04 * sin(TAU * p * 2.0), 0.0, 0.0)
+	d["head"] = Vector3(0.20, 0.0, 0.0)
+	return d
+
+
+static func _pose_eat(p: float) -> Dictionary:
+	var d := _base()
+	var bite := 0.5 - 0.5 * cos(TAU * p)
+	d["upper_arm_r"] = Vector3(-0.5 - 0.19 * bite, 0.0, 0.08)
+	d["forearm_r"] = Vector3(-0.9 - 0.25 * bite, 0.0, 0.0)
+	d["head"] = Vector3(0.05 * bite, 0.0, 0.0)
 	return d
 
 

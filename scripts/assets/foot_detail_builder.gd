@@ -9,7 +9,7 @@ static var _nails_mesh: ArrayMesh
 const TOES_X := [-0.028,-0.013,0.0,0.013,0.027]
 const TOES_LENGTH := [0.052,0.043,0.038,0.032,0.025]
 const TOES_RADIUS := [0.0100,0.0084,0.0072,0.0064,0.0057]
-const RING_SIDES := 12
+const RING_SIDES := 24
 
 static func clear_cache() -> void:
     _skin_mesh = null
@@ -58,6 +58,11 @@ static func _sole(dst:Dictionary, center_x:float, bone:int) -> void:
             var c:float=cos(angle)
             var sn:float=sin(angle)
             var point:=Vector3(center_x+c*float(row[2]),float(row[0]),float(row[1])+sn*float(row[3]))
+            # Medial arch, Achilles narrowing and offset medial/lateral malleoli.
+            var side:float=signf(center_x)
+            var medial:float=maxf(0.0,-c*side)
+            point.y+=.007*medial*exp(-pow((point.z-.030)/.045,2.0))*exp(-pow((point.y-.020)/.020,2.0))
+            point.x+=side*.0035*c*c*exp(-pow((point.y-(.103 if c*side<0 else .090))/.018,2.0))*signf(c*side)
             var normal:=Vector3(c,0.0,sn).normalized()
             var vi:int=HandBuilder._vertex(dst,point,normal,bone,Vector2(float(k)/RING_SIDES,float(j)/(sections.size()-1)))
             # Upper shaft follows shin, lower foot follows foot; blend at ankle.

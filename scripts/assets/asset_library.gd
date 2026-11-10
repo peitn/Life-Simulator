@@ -56,7 +56,7 @@ static func _get_scene(model_name: String) -> PackedScene:
 				_set_owner_recursive(root, root)
 				for mi in root.find_children("*", "MeshInstance3D", true, false):
 					enhance_mesh(mi as MeshInstance3D)
-					if is_skin_mesh(mi as MeshInstance3D):
+					if is_skin_mesh(mi as MeshInstance3D) or part_material_name(mi) in ["skin_lips","eye_iris","eye_limbus","eye_sclera","eye_pupil"]:
 						add_rest_positions(mi as MeshInstance3D)
 				ps = PackedScene.new()
 				if ps.pack(root) != OK:

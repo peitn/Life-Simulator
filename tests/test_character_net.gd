@@ -419,6 +419,83 @@ func _run() -> void:
 	check(server.net.players[observer_peer_id] == original_peer_assignment,
 		"forged client selection does not change server-owned peer assignment")
 	b.net.my_sim = legitimate_b_sim
+	section("H3 validated character-code rejoin: owner-only private data and observer public projection")
+	# This reconnect creates a NEW authoritative character; it does not claim
+	# persistence of the disconnected character's old identity or incarnation.
+	var rejoin = _client("ClientARejoin", "AlfaRejoin", code)
+	var rejoin_ready := await wait_until(func(): return rejoin.net.my_sim != "" and server.find_sim(rejoin.net.my_sim) != null, 6.0)
+	check(rejoin_ready, "validated character code accepted again through real ENet hello")
+	if rejoin_ready:
+		var rejoin_key: String = String(rejoin.net.my_sim)
+		var rejoin_actor = server.find_sim(rejoin_key)
+		var rejoin_record = server._character_records.get(rejoin_key)
+		check(rejoin_key != own_name and rejoin_actor != null and rejoin_record != null,
+			"rejoining player receives a distinct authoritative character, not recycled-name authority")
+		var observer_spawned := await wait_until(func(): return b.find_sim(rejoin_key) != null and rejoin.find_sim(rejoin_key) != null, 5.0)
+		check(observer_spawned, "owner and observer receive actual rejoined character puppets")
+		if observer_spawned:
+			var spectator = b.find_sim(rejoin_key)
+			check(Resolver.resolve(spectator.look) == Resolver.resolve(rejoin_actor.look),
+				"observer gets current canonical public appearance")
+			var spectator_wire: String = JSON.stringify(spectator.look)
+			var no_secret := true
+			for needle in ["attracted_to", "backstory", "Tajná", "predispositions", "traumas", "uid"]:
+				if spectator_wire.contains(needle):
+					no_secret = false
+			check(no_secret and not spectator.has_private,
+				"observer's rejoined puppet contains no orientation, story, predisposition or UID")
+		var owner_peer: int = rejoin.net.multiplayer.get_unique_id()
+		check(server.net.server_can_edit_character(owner_peer, rejoin_key)
+			and not server.net.server_can_edit_character(b.net.multiplayer.get_unique_id(), rejoin_key),
+			"new server-side owner ACL excludes the spectator and previous incarnation")
+		var private_owner_reads: Array = []
+		var private_observer_reads: Array = []
+		rejoin.net.character_edit_snapshot.connect(func(key, data, rev):
+			private_owner_reads.append({"key": key, "data": data, "rev": rev}))
+		b.net.character_edit_snapshot.connect(func(key, data, rev):
+			private_observer_reads.append({"key": key, "data": data, "rev": rev}))
+		check(rejoin.net.request_character_edit_snapshot(),
+			"rejoined owner requests its canonical private character through real ENet")
+		var private_arrived := await wait_until(func(): return private_owner_reads.size() == 1, 4.0)
+		check(private_arrived, "only new owner receives a private character snapshot")
+		if private_arrived:
+			var owned_data: Dictionary = private_owner_reads[0]["data"]
+			check(private_owner_reads[0]["key"] == rejoin_key
+				and owned_data.get("identity", {}).get("attracted_to", []) == ["zeny"]
+				and owned_data.get("story", {}).get("backstory", "") == "Tajná minulost",
+				"rejoined owner recovers creator-code private attraction and story")
+		check(private_observer_reads.is_empty(),
+			"existing observer receives no private read or reply during owner reconnect")
+		if observer_spawned:
+			var after_read_wire: String = JSON.stringify(b.find_sim(rejoin_key).look)
+			check(not after_read_wire.contains("attracted_to") and not after_read_wire.contains("backstory")
+				and not after_read_wire.contains("predispositions") and not after_read_wire.contains("uid"),
+				"owner private RPC leaves spectator public look unchanged and secret-free")
+		# Negative ENet privacy test: spoof only the client's claimed actor name.
+		# A reliable server->observer chat echo fences any preceding private
+		# snapshot response on the same channel; no sleep-only false positive.
+		var observer_before: String = b.net.my_sim
+		var forbidden_fence := "h3-denied-private-" + "e".repeat(32)
+		var fence_count := {"n": 0}
+		b.net.chat_received.connect(func(from_name: String, message: String, system: bool):
+			if from_name == "Beta" and message == forbidden_fence and not system:
+				fence_count["n"] += 1)
+		var canonical_before: Dictionary = server._character_records[rejoin_key].to_dict().duplicate(true)
+		b.net.my_sim = rejoin_key
+		var forged_read_sent: bool = b.net.request_character_edit_snapshot()
+		b.net.send_chat(forbidden_fence)
+		var fenced := await wait_until(func(): return fence_count["n"] == 1, 4.0)
+		check(forged_read_sent and fenced,
+			"observer forged private read traverses real ENet before reliable echo fence")
+		check(fenced and private_observer_reads.is_empty() and
+			server._character_records[rejoin_key].to_dict() == canonical_before,
+			"server denies spectator private read after reconnect without changing canonical record")
+		b.net.my_sim = observer_before
+		rejoin.net.shutdown()
+		check(await wait_until(func(): return server.find_sim(rejoin_key) == null and b.find_sim(rejoin_key) == null, 5.0),
+			"rejoined character despawns on disconnect without spectator ghost")
+	else:
+		rejoin.net.shutdown()
 	server.net.character_edit_apply_rpc_enabled = false
 	b.net.character_edit_apply_rpc_enabled = false
 	for w in [b, g, c, d2, e, f]:
