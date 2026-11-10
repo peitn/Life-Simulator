@@ -360,3 +360,9 @@ immediate source, debunking, step-independent decay, limits, determinism, binary
 continuation, 24 forged snapshots and 300 random inputs, and integration in a real offline household
 (hooks, GameSave section, legacy saves, 5-day run). Known pre-existing failure: `test_worldview`
 polarisation check (fails identically with gossip disabled).
+
+## QA audit 11/2026
+- Výsledky, opravy a otevřené problémy: [QA_AUDIT_2026-11.md](QA_AUDIT_2026-11.md).
+- `tests/test_async_shutdown.tscn` – evidence a vyzvednutí úloh stavby účesů, podřízený proces hry se po `quit` opravdu ukončí (18 kontrol, ~15 s).
+- `tests/support/` – pomocné skripty testů (dřív `previews/diag/`, které nejsou ve verzování).
+- Vizuální průchod: `tools/qa/qa_capture.gd` (Xvfb, viz audit).
