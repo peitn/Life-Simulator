@@ -295,6 +295,8 @@ correctly despawned. Note: `MultiplayerSynchronizer.get_visibility_for()` only r
 ## Laboratoř (tools/lab, docs/lab)
 - `tests/lab/test_lab_runner.tscn` – validace scénáře, stejný seed = shodný hash i snímky, jiný seed = jiný průběh, tvar snímků, žádné NaN (headless, ~40 s).
 - Spuštění scénáře: `godot --headless --path . res://tools/lab/lab_cli.tscn -- --scenario=<json> --out=<json>`; analýza: `python3 tools/lab/analyze_experiment.py <adresář>`.
+- `tests/lab/test_lab_valley.tscn` – rozšíření M1b (60 kontrol, ~30 s): data oblasti Údolí, validace scénáře, selektory, intervence moodlet/relation, ekonomika z populace, bloky, nastavení, checkpoint.
+- Výzkumný běh „Údolí“ (100 agentů × 180 dní, 13 bloků po ≤ 8 obyvatelích, ~2 h na rameno): `python3 tools/lab/make_valley.py --seed 20310 --n 100 --out tools/lab/experiments` (data a scénář), `python3 tools/lab/run_valley.py <godot> <runs> --arms events,control --seeds 20310`, `python3 tools/lab/analyze_valley.py <runs> docs/lab/research_run_v1`. Výkon: `godot --headless --path . res://tools/lab/perf_probe.tscn -- --scenario=<json> --minutes=720`. Viz docs/lab/RESEARCH_RUN_v1.md.
 - Dokumentace: docs/lab/M0_NAVRH.md (inventura), EVIDENCE.md (vědecké podklady), EXPERIMENT_social_support_v1.md.
 
 ## Ekonomika E1 (scripts/sim/economy, docs/economy.md)
