@@ -26,7 +26,8 @@ const Substances := preload("res://scripts/sim/substances.gd")
 const EatingDistress := preload("res://scripts/sim/eating_distress.gd")
 const PsychosisState := preload("res://scripts/sim/psychosis_state.gd")
 const Worldview := preload("res://scripts/sim/worldview.gd")
-const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "subs", "eating", "psychosis", "worldview", "rng_state", "mode"]
+const BetrayalWound := preload("res://scripts/sim/betrayal_wound.gd")
+const SAVE_KEYS := ["neuro", "memory", "mood", "voice", "ocd", "subs", "eating", "psychosis", "worldview", "betrayal", "rng_state", "mode"]
 
 var neuro = NeuroProfile.new()
 ## Sociální a afektivní paměť (psychika B) – běží u každé postavy (je to běžné poznávání, ne téma
@@ -54,6 +55,11 @@ var eating = EatingDistress.new()
 var psychosis = PsychosisState.new()
 ## Světonázor a hodnoty (psychika J) – z personality, ne z mind (nejde o téma duševního zdraví).
 var worldview = Worldview.new()
+## Následky zrady (nevěry) pro zrazenou postavu: ruminace, stažení, sebehodnota, jizva v důvěře.
+## Vzniká jen událostí (SimAgent.on_betrayal), ne z CharacterData; přežije úpravu postavy v editoru.
+var betrayal = BetrayalWound.new()
+## Herní čas pro násobiče rány (SimAgent ho nastaví před dotazy; rána se vyhodnocuje líně).
+var _now := 0.0
 
 
 func configure_worldview(pers: Dictionary, keep_state: bool) -> void:
@@ -103,6 +109,7 @@ func configure(mind: Dictionary, _d: Dictionary, seed: int, keep_state: bool) ->
 	subs.configure(mind.get("substances", {}), preds.get("addiction", 0.0), keep_state)
 	if not keep_state:
 		eating = EatingDistress.new()
+		betrayal = BetrayalWound.new()
 	psychosis.configure(preds.get("psychosis", 0.0), mind.get("psychosis", {}), keep_state)
 	var sa = preds.get("social_anxiety", 0.0)
 	social_anxiety = clampf(float(sa), 0.0, 1.0) if typeof(sa) in [TYPE_FLOAT, TYPE_INT] and is_finite(float(sa)) else 0.0
@@ -133,7 +140,7 @@ func action_weight(act: Dictionary, hour: int) -> float:
 	var kk := k()
 	if kk <= 0.0:
 		return 1.0
-	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk) * voice.action_weight(act, kk) * accents.action_weight(act) * ocd.action_weight(act, kk, float(_mastery), float(_support)) * psychosis.action_weight(act, kk), 0.2, 8.0)
+	return clampf(neuro.action_weight(act, hour, kk) * mood.action_weight(act, hour, kk) * voice.action_weight(act, kk) * accents.action_weight(act) * ocd.action_weight(act, kk, float(_mastery), float(_support)) * psychosis.action_weight(act, kk) * betrayal.action_weight(act, kk, _now), 0.2, 8.0)
 
 
 ## Výběr partnera: neuro (maskování) × sociální paměť (jen chat a svěření).
@@ -148,11 +155,13 @@ func target_weight(rel: float, act: Dictionary, who_uid: String = "") -> float:
 	var id := String(act.get("id", ""))
 	if who_uid != "" and (id == "chat" or id == "confide"):
 		w *= memory.target_weight(who_uid, id)
+	if kk > 0.0 and not betrayal.is_empty():
+		w *= betrayal.target_weight(who_uid, act, kk, _now)
 	return w
 
 
 func to_dict() -> Dictionary:
-	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "subs": subs.to_dict(), "eating": eating.to_dict(), "psychosis": psychosis.to_dict(), "worldview": worldview.to_dict(), "rng_state": rng.state, "mode": mode}
+	return {"neuro": neuro.to_dict(), "memory": memory.to_dict(), "mood": mood.to_dict(), "voice": voice.to_dict(), "ocd": ocd.to_dict(), "subs": subs.to_dict(), "eating": eating.to_dict(), "psychosis": psychosis.to_dict(), "worldview": worldview.to_dict(), "betrayal": betrayal.to_dict(), "rng_state": rng.state, "mode": mode}
 
 
 static func validate_snapshot(d: Variant) -> bool:
@@ -178,6 +187,8 @@ static func validate_snapshot(d: Variant) -> bool:
 	if d.has("psychosis") and not PsychosisState.validate_snapshot(d["psychosis"]):
 		return false
 	if d.has("worldview") and not Worldview.validate_snapshot(d["worldview"]):
+		return false
+	if d.has("betrayal") and not BetrayalWound.validate_snapshot(d["betrayal"]):
 		return false
 	if d.has("rng_state") and typeof(d["rng_state"]) != TYPE_INT:
 		return false
@@ -207,6 +218,10 @@ func from_dict(d: Variant) -> bool:
 		psychosis.from_dict(d["psychosis"])
 	if d.has("worldview"):
 		worldview.from_dict(d["worldview"])
+	# Starší uložení bez klíče: žádná rána (prázdný stav), ne stav z předchozí hry v paměti.
+	betrayal = BetrayalWound.new()
+	if d.has("betrayal"):
+		betrayal.from_dict(d["betrayal"])
 	if d.has("rng_state"):
 		rng.state = int(d["rng_state"])
 	if d.has("mode"):

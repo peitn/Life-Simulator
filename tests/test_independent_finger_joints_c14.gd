@@ -40,12 +40,14 @@ func _run() -> void:
     for i in pa.size():
         if (pa[i]-pb[i]).length_squared()>1e-8:changed+=1
         if i<5*Hand.SKIN_PER_DIGIT or i>=6*Hand.SKIN_PER_DIGIT:
-            if pa[i].length_squared()>1e-14 or pb[i].length_squared()>1e-14:
+            # C-LOD step 7: absolute targets → compare against rest position
+            if (pa[i]-verts[i]).length_squared()>1e-14 or (pb[i]-verts[i]).length_squared()>1e-14:
                 unrelated+=1
     check(changed>=15,"proximal and distal hinge regions truly differ in 3D")
     check(unrelated==0,"left index bends cannot modify any neighboring finger")
-    check(verts.size()==510 and (shapes[a][Mesh.ARRAY_VERTEX] as PackedVector3Array).size()==510,
-        "all 510 finger skin vertices have full proximal morph arrays")
+    var nv:int=10*Hand.SKIN_PER_DIGIT
+    check(verts.size()==nv and (shapes[a][Mesh.ARRAY_VERTEX] as PackedVector3Array).size()==nv,
+        "all %d finger skin vertices have full proximal morph arrays" % nv)
     check(nails.mesh.surface_get_blend_shape_arrays(0).size()==40 and
         (nails.mesh.surface_get_blend_shape_arrays(0)[a][Mesh.ARRAY_VERTEX]
             as PackedVector3Array).size()==90,

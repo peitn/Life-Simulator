@@ -23,6 +23,8 @@ const FingerSubrigC15 := preload("res://scripts/assets/finger_phalange_subrig_c1
 const FootDetailBuilder := preload("res://scripts/assets/foot_detail_builder.gd")
 const TorsoDetailBuilder := preload("res://scripts/assets/torso_detail_builder.gd")
 const AnatomyOverlay := preload("res://scripts/assets/anatomy_overlay.gd")
+const CharacterLod := preload("res://scripts/assets/character_lod.gd")
+const LodBake := preload("res://scripts/assets/lod_bake.gd")
 ## Části vlasů z karet (C4b): vlasy na hlavě, obočí, vousy.
 const HAIR_PARTS := ["scalp", "brows", "beard"]
 const FaceMorphs := preload("res://scripts/character/face_morphs.gd")
@@ -157,7 +159,8 @@ func _build_hand_details() -> void:
 	for label in ["skin", "nails"]:
 		var mi := MeshInstance3D.new()
 		mi.name = "Anatomy_fingers_" + label
-		mi.mesh = parts[label]
+		# C-LOD krok 7: automatické indexové LOD (sdílené vrcholy → morfy a póza prstů beze změny)
+		mi.mesh = CharacterLod.with_lods(parts[label])
 		skeleton.add_child(mi)
 		mi.skeleton = NodePath("..")
 		mi.skin = source.skin
@@ -176,6 +179,8 @@ func set_finger_curl(side: String, finger: int, strength: float) -> bool:
 		return false
 	if _hand_detail_nodes.size() != 2:
 		return false
+	# C-LOD krok 7: ruce mohou být ve stupni 2 zapečené (bez blend shapes) – vrátit originál s vahami.
+	_lod_touch_hands()
 	var digit: int = finger + (5 if side == "l" else 0)
 	var key: StringName = HandDetailBuilder.curl_key(digit)
 	var joint_a: StringName = HandDetailBuilder.joint_key(digit,"proximal")
@@ -214,6 +219,7 @@ func set_finger_joint_bend(side: String, finger: int,
 		return false
 	if strength < 0.0 or strength > 1.0 or _hand_detail_nodes.size() != 2:
 		return false
+	_lod_touch_hands()   # C-LOD krok 7: zapečené ruce → originál s vahami
 	var digit: int = finger + (5 if side=="l" else 0)
 	var legacy: StringName = HandDetailBuilder.curl_key(digit)
 	var first: StringName = HandDetailBuilder.joint_key(digit,"proximal")
@@ -251,9 +257,10 @@ func finger_joint_values(side:String,finger:int) -> Dictionary:
 		HandDetailBuilder.joint_key(digit,"distal")]
 	var values:Array=[]
 	for shape in keys:
-		var index:int=mi.find_blend_shape_by_name(shape)
-		if index<0:return {}
-		values.append(mi.get_blend_shape_value(index))
+		# čtení bez rozpečení: i zapečená ruka vrací přesně uložené váhy
+		var value = lod_blend_value(mi, shape)
+		if value == null:return {}
+		values.append(value)
 	return {
 		"mode":_finger_joint_modes.get(str(digit),"legacy"),
 		"combined":values[0],"proximal":values[1],"distal":values[2]
@@ -293,6 +300,7 @@ func set_finger_skeletal_view(enabled:bool) -> bool:
 				(item[0] as MeshInstance3D).visible=bool(item[1])
 		_finger_skin_before_skeleton.clear()
 		_finger_skeletal_view=false
+		_lod_refresh()   # ruce jsou zase vidět → ve stupni 2 je zapéct
 		return true
 	if _hand_detail_nodes.size()!=2 or _skeleton()==null:
 		return false
@@ -354,7 +362,7 @@ func _build_torso_details() -> void:
 	for label in ["surface", "areola", "nipple", "navel_rim", "navel_dark"]:
 		var instance := MeshInstance3D.new()
 		instance.name = "Anatomy_torso_" + label
-		instance.mesh = parts[label]
+		instance.mesh = CharacterLod.with_lods(parts[label])   # C-LOD krok 7
 		skeleton.add_child(instance)
 		instance.skeleton = NodePath("..")
 		instance.skin = shirt.skin
@@ -385,6 +393,7 @@ func _refresh_torso_visibility(lp: Dictionary) -> void:
 			if String(garment.name) == "C5_top_shell":
 				hem = garment.mesh.get_aabb().position.y + .003
 		(_garment_midriff.material_override as ShaderMaterial).set_shader_parameter("hem_height", hem)
+	_lod_refresh()   # díly trupu se ukázaly/schovaly
 
 
 
@@ -412,7 +421,7 @@ func _build_foot_details() -> void:
 	for label in ["skin", "nails"]:
 		var mi := MeshInstance3D.new()
 		mi.name = "Anatomy_foot_" + label
-		mi.mesh = parts[label]
+		mi.mesh = CharacterLod.with_lods(parts[label])   # C-LOD krok 7
 		skeleton.add_child(mi)
 		mi.skeleton = NodePath("..")
 		mi.skin = source.skin
@@ -425,6 +434,17 @@ func _build_foot_details() -> void:
 ## Prázdné = karty nejdou (model bez kůže hlavy) → zůstává „helma“ z GLB (hair_short / hair_long).
 var _hair_parts := {}
 var _hair_mats := {}
+## C-LOD krok 2: proxy účesu pro stupeň 2 (obálka karet z HairRig, materiál = helma „hair_main“ této postavy).
+## null = karty se nepoužívají; _hair_proxy_ready = síť aktuálního účesu je v cache a není prázdná.
+var _hair_proxy: MeshInstance3D = null
+var _hair_proxy_ready := false
+## C-LOD krok 3: plná síť karet skalpu a účes, ke kterému patří (ve stupni 1 se na uzlu skalpu místo ní ukazuje
+## LOD1 z HairRig.cached_lod1; plná síť zůstává tady, aby šlo přepnout zpět bez nového požadavku).
+var _scalp_full: ArrayMesh = null
+var _scalp_style := ""
+## C-LOD krok 5: totéž pro obočí a vousy – část → plná síť / styl (ve stupni ≥ 1 se ukazuje HairRig.cached_facial_lod1).
+var _facial_full := {}
+var _facial_style := {}
 ## Mimika: aktuální hodnoty ex_*, váhy blend shapes, cache slotů [MeshInstance3D, index, název], stav mrkání a řeči.
 var expressions_enabled := true
 var _ex := {}
@@ -440,6 +460,37 @@ var _blink_phase := -1.0
 var _blink_second := false
 var _xrng := RandomNumberGenerator.new()
 
+# C-LOD (12. 11. 2026): stupeň detailu postavy podle velikosti na obrazovce – jen prezentace klienta,
+# nic se nereplikuje (viz CharacterLod). 0 = vše, 1 = mimika 10 Hz a drobné části tváře bez stínu,
+# 2 = vlasové karty → helma z GLB, mimika zmrazená (oči otevřené, ústa zavřená), vnitřek úst skrytý.
+## Části tváře, které ve stupni ≥ 1 nevrhají stín (materiály GLB).
+const LOD_NO_SHADOW := ["eye_pupil", "eye_iris", "eye_limbus", "eye_sclera", "eye_lash", "eye_socket",
+	"mouth_inner", "teeth_enamel", "mouth_gum", "mouth_tongue"]
+## Vnitřek úst – ve stupni 2 skrytý.
+const LOD_MOUTH := ["mouth_inner", "teeth_enamel", "mouth_gum", "mouth_tongue"]
+## -1 = automaticky podle aktivní kamery; 0–2 = vynucený stupeň (testy, náhledy, cutscény).
+var lod_override := -1
+var _lod_tier := 0
+var _lod_init := false
+var _lod_check := 0.0
+var _lod_expr_acc := 0.0
+var _hair_ready := {}              # část vlasů → karty mají hotovou síť
+var _hair_waiting := false         # skalp čeká na síť z vlákna (zatím helma)
+var _lod_shadow_nodes: Array = []
+var _lod_shadow_orig := {}         # MeshInstance3D → původní cast_shadow
+var _lod_mouth_nodes: Array = []
+## C-LOD krok 6: zapečené sítě ve stupni 2 (MeshInstance3D -> [původní síť, zapečená síť, váhy]).
+var _lb_entries := {}
+var _lb_dirty := false
+var _lb_wait := 0.0
+var _lb_task := -1
+var _lb_job: Dictionary = {}
+var _lb_gen := 0
+## Kolikrát se postava zapekla (testy – opakované pečení bez změny = chyba).
+var lod_bakes := 0
+## Klid ve stupni 2 před zapečením (s) – postava, která stupněm 2 jen projde, se nepeče.
+const LOD_BAKE_DELAY := 0.4
+
 
 func configure(p_body: Color, p_female: bool) -> void:
 	body_color = p_body
@@ -451,6 +502,7 @@ func configure(p_body: Color, p_female: bool) -> void:
 
 ## Vzhled z veřejného snapshotu CharacterData (deterministicky na všech peerech).
 func apply_look(snap: Dictionary) -> void:
+	_lod_touch()
 	# Restore old clothes before wardrobe/morph changes, then hide newly resolved
 	# ones again if the player is viewing anatomical layers.
 	var prior_anatomy: String = _anatomy_view
@@ -740,6 +792,12 @@ func _build_action_props() -> void:
 func _build_hair_parts() -> void:
 	_hair_parts = {}
 	_hair_mats = {}
+	_hair_proxy = null
+	_scalp_full = null
+	_scalp_style = ""
+	_facial_full = {}
+	_facial_style = {}
+	_hair_proxy_ready = false
 	if HairRig.context().is_empty():
 		return
 	var skel := _skeleton()
@@ -769,6 +827,101 @@ func _build_hair_parts() -> void:
 		mi.material_override = mat
 		mi.visible = false
 		_hair_parts[part] = mi
+	# Proxy pro dav: stejná kostra a Skin jako karty (vzniká před prvním _apply_joints → dostane i kopii Skin).
+	_hair_proxy = MeshInstance3D.new()
+	_hair_proxy.name = "hair_proxy"
+	skel.add_child(_hair_proxy)
+	_hair_proxy.skeleton = NodePath("..")
+	_hair_proxy.skin = head_mi.skin
+	_hair_proxy.visible = false
+	_hair_proxy.material_override = _proxy_material()
+
+
+## Materiál proxy = materiál helmy této postavy (stejná kalibrovaná barva jako zástupná helma, viz
+## helmet_placeholder_color); bez něj vlastní StandardMaterial3D, který barví _apply_colors.
+func _proxy_material() -> Material:
+	if _mats.has("hair_main"):
+		return _mats["hair_main"]
+	var sm := StandardMaterial3D.new()
+	sm.roughness = 0.85
+	sm.albedo_color = helmet_placeholder_color(look_params if not look_params.is_empty() else AppearanceResolver.resolve({}))
+	return sm
+
+
+## C-LOD krok 2: síť proxy podle aktuálního účesu – jen z cache (vzniká spolu s kartami skalpu, nikdy neblokuje).
+## scalp_ready = karty skalpu aktuálního účesu jsou hotové; jinak proxy není a ve stupni 2 zůstává helma.
+func _update_hair_proxy(lp: Dictionary, scalp_ready: bool) -> void:
+	if _hair_proxy == null:
+		_hair_proxy_ready = false
+		return
+	var m: ArrayMesh = null
+	if scalp_ready:
+		var style := String((lp.get("hair_look", {}) as Dictionary).get("style", "kratke"))
+		var r := HairRig.cached_proxy(style)
+		if bool(r["ready"]):
+			m = r["mesh"]
+	if lod_source_mesh(_hair_proxy) != m:
+		_hair_proxy.mesh = m
+		_invalidate_expression_slots()
+	_hair_proxy_ready = m != null
+	_hair_proxy.visible = _hair_proxy_ready and _lod_tier >= 2
+
+
+## C-LOD krok 3: síť skalpu pro aktuální stupeň – ve stupni 1 LOD1 karet (jen z cache, vzniká spolu s kartami;
+## null/nehotová → plné karty), jinak plné karty. Ve stupni 2 jsou karty skryté (proxy), síť se proto nemění,
+## aby přechod 1 ↔ 2 nepřepisoval sítě zbytečně.
+func _scalp_mesh_for_tier() -> ArrayMesh:
+	if _scalp_full == null:
+		return null
+	if _lod_tier == 1 or (_lod_tier >= 2 and _hair_parts.has("scalp") and (_hair_parts["scalp"] as MeshInstance3D).mesh != _scalp_full):
+		var r := HairRig.cached_lod1(_scalp_style)
+		if bool(r["ready"]) and r["mesh"] != null:
+			return r["mesh"]
+	return _scalp_full
+
+
+## C-LOD krok 5: síť obočí/vousů pro aktuální stupeň – ve stupni ≥ 1 LOD1 (jen z cache, vzniká spolu s plnou sítí;
+## null = styl bez úspory → plná síť). Ve stupni 2 jsou části skryté, síť se proto při přechodu 1 ↔ 2 nemění.
+func _facial_mesh_for_tier(part: String) -> ArrayMesh:
+	var full: ArrayMesh = _facial_full.get(part)
+	if full == null:
+		return null
+	if _lod_tier >= 1:
+		var r := HairRig.cached_facial_lod1(part, String(_facial_style.get(part, "")))
+		if bool(r["ready"]) and r["mesh"] != null:
+			return r["mesh"]
+	return full
+
+
+## Po změně stupně: vyměnit sítě skalpu, obočí a vousů (plná ↔ LOD1) a hned zapsat váhy tvaru obličeje/těla,
+## které LOD1 nese pod stejnými jmény (instance by jinak do příštího apply_look ukazovala neutrální tvar hlavy).
+func _apply_hair_lod() -> void:
+	var changed := false
+	if _hair_parts.has("scalp") and _scalp_full != null:
+		var mi: MeshInstance3D = _hair_parts["scalp"]
+		var want := _scalp_mesh_for_tier()
+		if mi.mesh != want:
+			mi.mesh = want
+			changed = true
+	for part in ["brows", "beard"]:
+		if not _hair_parts.has(part) or _facial_full.get(part) == null:
+			continue
+		var fmi: MeshInstance3D = _hair_parts[part]
+		var fwant := _facial_mesh_for_tier(part)
+		if fmi.mesh != fwant:
+			fmi.mesh = fwant
+			changed = true
+	if not changed:
+		return
+	_invalidate_expression_slots()
+	apply_face_shape(look_params if not look_params.is_empty() else AppearanceResolver.resolve({}))
+
+
+## Síť skalpu, kterou postava právě ukazuje (testy): plná karta nebo LOD1.
+func scalp_lod_mesh() -> ArrayMesh:
+	if not _hair_parts.has("scalp"):
+		return null
+	return (_hair_parts["scalp"] as MeshInstance3D).mesh as ArrayMesh
 
 
 ## HairRig dostavěl síť účesu ve vlákně → přepnout z helmy na karty (styl se bere z aktuálního vzhledu, takže
@@ -786,7 +939,8 @@ func hair_waiting() -> bool:
 	for g in ["hair_short", "hair_long"]:
 		for mi in AssetLibrary.parts_in_group(_model, g):
 			helm_visible = helm_visible or mi.visible
-	return helm_visible and not (_hair_parts["scalp"] as MeshInstance3D).visible
+	# C-LOD: ve stupni 2 je helma vidět záměrně (karty jsou hotové) – to není čekání
+	return helm_visible and _hair_waiting and not (_hair_parts["scalp"] as MeshInstance3D).visible
 
 
 ## Uzel části vlasů z karet (testy); null = karty se nepoužívají.
@@ -796,6 +950,11 @@ func hair_part(part: String) -> MeshInstance3D:
 
 func hair_material(part: String) -> ShaderMaterial:
 	return _hair_mats.get(part)
+
+
+## Proxy účesu pro dav (testy); null = karty se nepoužívají.
+func hair_proxy() -> MeshInstance3D:
+	return _hair_proxy
 
 
 ## Tvar těla a proporce z CharacterData (od C2): jedna neutrální síť těla s blend shapes (váhy z
@@ -822,22 +981,38 @@ func _apply_model_variant() -> void:
 			var r := HairRig.request_mesh(part, styles[part], self)
 			if not bool(r["ready"]):
 				mi.visible = false
+				_hair_ready[part] = false
 				if part == "scalp":
 					waiting = true
 				continue
 			var m: ArrayMesh = r["mesh"]
-			if mi.mesh != m:
-				mi.mesh = m
+			var shown := m
+			if part == "scalp":
+				_scalp_full = m
+				_scalp_style = styles[part]
+				shown = _scalp_mesh_for_tier()
+			else:
+				_facial_full[part] = m
+				_facial_style[part] = styles[part]
+				shown = _facial_mesh_for_tier(part)
+			if mi.mesh != shown:
+				mi.mesh = shown
 				_invalidate_expression_slots()
-			mi.visible = m != null
-	var helm := not cards or waiting
+			_hair_ready[part] = m != null
+			# C-LOD stupeň 2: karty schované, místo nich proxy účesu (bez proxy helma; viz _apply_lod_visibility)
+			mi.visible = m != null and _lod_tier < 2
+	_hair_waiting = cards and waiting
+	_update_hair_proxy(lp, cards and not waiting)
+	var helm := not cards or waiting or (cards and _lod_tier >= 2 and not _hair_proxy_ready)
 	var show := {"body": true, "body_m": false, "body_f": false, "head": true,
 		"hair_short": hair_v == "hair_short" and helm, "hair_long": hair_v == "hair_long" and helm}
 	for mi in _model.find_children("*", "MeshInstance3D", true, false):
-		if _hair_parts.values().has(mi):
+		if _hair_parts.values().has(mi) or mi == _hair_proxy:
 			continue
 		var grp := String(mi.name).get_slice("__", 0)
 		mi.visible = bool(show.get(grp, true))
+		if _lod_tier >= 2 and AssetLibrary.part_material_name(mi) in LOD_MOUTH:
+			mi.visible = false
 	# Ensure the first skinned torso exists BEFORE morphs and material updates.
 	# Ordinary dressed characters pay ZERO procedural torso construction cost.
 	if (String(lp.get("outfit_top","tricko")) == "zadne" or GarmentBuilder.needs_midriff(lp)) and _torso_detail_nodes.is_empty():
@@ -1003,6 +1178,7 @@ func apply_face_shape(lp: Dictionary) -> int:
 	# Beze změny vah i sítí není co zapisovat (posuvník kůže/výšky); mimiku píše _write_expression přímo.
 	if _af_valid and w == _af_w and wb == _af_b:
 		return _af_count
+	_lod_touch()
 	var count := 0
 	for mi in _face_meshes():
 		var m: Mesh = mi.mesh
@@ -1046,6 +1222,7 @@ func apply_body_shape(lp: Dictionary) -> int:
 	if _model == null:
 		return 0
 	var w: Dictionary = lp.get("body", {})
+	_lod_touch()
 	var count := 0
 	# Base body remains the four original meshes (used by anatomical tests).
 	# Authored C5 garments also receive the ten body morph weights.
@@ -1120,6 +1297,9 @@ func _face_meshes() -> Array:
 		for part in HAIR_PARTS:
 			if _hair_parts.has(part):
 				_face_mesh_cache.append(_hair_parts[part])
+		# Proxy nese stejné přenesené klíče jako karty skalpu.
+		if _hair_proxy != null:
+			_face_mesh_cache.append(_hair_proxy)
 	return _face_mesh_cache
 
 
@@ -1185,6 +1365,11 @@ func _apply_colors() -> void:
 	# background; it must read as the same hair colour as the finished cards (H3 rendered parity,
 	# 8 Nov 2026: it showed light tan over dark-brown cards). Without cards it IS the hair: unchanged.
 	set_col.call("hair_main", helmet_placeholder_color(lp) if not _hair_parts.is_empty() else hair_color)
+	if _hair_proxy != null:
+		if _mats.has("hair_main"):
+			_hair_proxy.material_override = _mats["hair_main"]
+		elif _hair_proxy.material_override is StandardMaterial3D:
+			(_hair_proxy.material_override as StandardMaterial3D).albedo_color = helmet_placeholder_color(lp)
 	apply_skin(lp)
 	for part in _hair_mats:
 		HairRig.apply(_hair_mats[part], lp, part)
@@ -1271,6 +1456,7 @@ func _update_shower_garments(in_shower: bool) -> void:
 			if is_instance_valid(foot):
 				foot.visible = String(look_params.get("outfit_shoes", "tenisky")) == "bosy"
 		_shower_garments_hidden = false
+	_lod_refresh()   # chodidla se ukázala/schovala
 
 
 ## posture: stand / sit / lie; mood_value −100..100; speech = replika (prázdná = nic).
@@ -1409,8 +1595,154 @@ func _process(delta: float) -> void:
 	_seat_foot_contact(delta)
 	if _anim != null and _posture == "stand":
 		_update_anim()
+	_lod_tick(delta)
+	_lod_bake_tick(delta)
 	if _model != null and expressions_enabled:
-		update_expression(delta)
+		if _lod_tier == 0:
+			update_expression(delta)
+		elif _lod_tier == 1:
+			# 10 Hz se sečteným časem – mrkání i řeč běží dál, jen řidčeji
+			_lod_expr_acc += delta
+			if _lod_expr_acc >= CharacterLod.T1_EXPR_INTERVAL:
+				update_expression(_lod_expr_acc)
+				_lod_expr_acc = 0.0
+		# stupeň 2: mimika zmrazená (nastavená při přechodu v set_lod_tier)
+
+
+# ======================================================================================
+# C-LOD – stupeň detailu postavy (12. 11. 2026)
+# ======================================================================================
+## Aktuální stupeň detailu: 0 plný, 1 střední, 2 dav.
+func lod_tier() -> int:
+	return _lod_tier
+
+
+## Podíl výšky obrazu, který postava zabírá v aktivní kameře svého viewportu (INF = bez kamery → plný detail).
+func lod_fraction() -> float:
+	if not is_inside_tree():
+		return INF
+	var vp := get_viewport()
+	if vp == null:
+		return INF
+	return CharacterLod.camera_fraction(vp.get_camera_3d(), global_position + Vector3(0.0, 1.0, 0.0))
+
+
+func _lod_detail_scale() -> float:
+	var gs := get_node_or_null("/root/GameSettings")
+	if gs == null or not gs.has_method("get_value"):
+		return 1.0
+	return CharacterLod.detail_scale(int(gs.get_value("crowd_detail")))
+
+
+## Přepočet stupně: poprvé hned (postava vzniklá daleko neukáže na chvíli karty), pak každých CHECK_INTERVAL s
+## s fází rozloženou podle instance, ať se všechny postavy nepřepočítávají ve stejném snímku.
+func _lod_tick(delta: float) -> void:
+	if _model == null:
+		return
+	if lod_override >= 0:
+		if clampi(lod_override, 0, 2) != _lod_tier:
+			set_lod_tier(lod_override)
+		return
+	if _lod_init:
+		_lod_check -= delta
+		if _lod_check > 0.0:
+			return
+		_lod_check = CharacterLod.CHECK_INTERVAL
+	else:
+		_lod_init = true
+		_lod_check = CharacterLod.CHECK_INTERVAL * float(get_instance_id() % 97) / 97.0
+	var t := CharacterLod.tier_for(lod_fraction(), _lod_tier, _lod_detail_scale())
+	if t != _lod_tier:
+		set_lod_tier(t)
+
+
+## Nastaví stupeň detailu hned. Vrací true, když se změnil.
+func set_lod_tier(tier: int) -> bool:
+	var t := clampi(tier, 0, 2)
+	if t == _lod_tier:
+		return false
+	var prev := _lod_tier
+	_lod_tier = t
+	_lod_expr_acc = 0.0
+	if t < 2 and prev >= 2:
+		_lod_unbake()
+		_lb_dirty = false
+		_lb_gen += 1
+	if _model == null:
+		return true
+	_apply_lod_visibility()
+	_apply_lod_shadows()
+	_apply_hair_lod()
+	if t >= 2 and prev < 2:
+		_freeze_expression()
+		_lb_dirty = true
+		_lb_wait = LOD_BAKE_DELAY
+	return true
+
+
+## Viditelnost podle stupně: karty vlasů ↔ helma a vnitřek úst. Neřeší nic jiného (oblečení, tvar) –
+## proto je přepnutí levné a nesahá na _apply_model_variant.
+func _apply_lod_visibility() -> void:
+	if _model == null:
+		return
+	var far := _lod_tier >= 2
+	if not _hair_parts.is_empty():
+		for part in _hair_parts:
+			(_hair_parts[part] as MeshInstance3D).visible = bool(_hair_ready.get(part, false)) and not far
+		var hair_v := "hair_short" if look_params.is_empty() else String(look_params["hair_variant"])
+		var helm := _hair_waiting or (far and not _hair_proxy_ready)
+		if _hair_proxy != null:
+			_hair_proxy.visible = far and _hair_proxy_ready and not _hair_waiting
+		for g in ["hair_short", "hair_long"]:
+			for mi in AssetLibrary.parts_in_group(_model, g):
+				mi.visible = g == hair_v and helm
+	if _lod_mouth_nodes.is_empty():
+		for mi in _model.find_children("*", "MeshInstance3D", true, false):
+			if AssetLibrary.part_material_name(mi) in LOD_MOUTH:
+				_lod_mouth_nodes.append(mi)
+	for mi in _lod_mouth_nodes:
+		if is_instance_valid(mi):
+			(mi as MeshInstance3D).visible = not far
+
+
+## Stíny drobných částí tváře (oči, řasy, ústa, obočí, vousy) ve stupni ≥ 1 vypnuté, ve stupni 0 původní.
+func _apply_lod_shadows() -> void:
+	if _model == null:
+		return
+	if _lod_shadow_nodes.is_empty():
+		for mi in _model.find_children("*", "MeshInstance3D", true, false):
+			if not _hair_parts.values().has(mi) and AssetLibrary.part_material_name(mi) in LOD_NO_SHADOW:
+				_lod_shadow_nodes.append(mi)
+		for part in ["brows", "beard"]:
+			if _hair_parts.has(part):
+				_lod_shadow_nodes.append(_hair_parts[part])
+	var off := _lod_tier >= 1
+	for mi in _lod_shadow_nodes:
+		if not is_instance_valid(mi):
+			continue
+		var g := mi as GeometryInstance3D
+		if off:
+			if not _lod_shadow_orig.has(g):
+				_lod_shadow_orig[g] = g.cast_shadow
+			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		elif _lod_shadow_orig.has(g):
+			g.cast_shadow = _lod_shadow_orig[g]
+	if not off:
+		_lod_shadow_orig = {}
+
+
+## Přechod do stupně 2: dokončit výraz bez mrknutí a řeči (oči otevřené – jen případná ospalost z emoce),
+## ústa zavřená, a zapsat ho. Pak se mimika nepočítá, dokud se postava nepřiblíží.
+func _freeze_expression() -> void:
+	_blink_phase = -1.0
+	_blink_second = false
+	_talk_left = 0.0
+	var lid := float(_ex.get("_lid", 0.0))
+	_ex["ex_blink_l"] = lid
+	_ex["ex_blink_r"] = lid
+	_ex["ex_jaw_open"] = 0.0
+	if expressions_enabled and not _expression_slots().is_empty():
+		_write_expression(true)
 
 
 # ======================================================================================
@@ -1435,6 +1767,7 @@ func _invalidate_expression_slots() -> void:
 	_expr_slots = []
 	_af_valid = false   # nová síť (vlasy) potřebuje i tvarové váhy
 	_ex_last = {}   # nové sítě (vlasy) musí dostat aktuální výraz
+	_lod_touch()
 
 
 ## Mrknutí 0..1 ve fázi 0..1 (zavření – zavřeno – otevření).
@@ -1507,6 +1840,11 @@ func expression_values() -> Dictionary:
 
 
 func _write_expression(force := false) -> int:
+	# Zapečené sítě nemají blend shapes: bez vynucení nic, s vynucením (cutscéna, test) zapečení zrušit.
+	if not _lb_entries.is_empty() or (_lb_task >= 0 and _lod_tier >= 2):
+		if not force:
+			return 0
+		_lod_touch()
 	# Klidová tvář (žádné mrkání, výraz doběhl k cíli): beze změny vstupů nic nepočítat ani nealokovat
 	# (Gemini, běh 21 – slovník vah se jinak staví každý snímek pro každou postavu).
 	if not force and not _expr_slots.is_empty():
@@ -1532,3 +1870,205 @@ func _write_expression(force := false) -> int:
 			n += 1
 	_expr_w = w
 	return n
+
+
+# ======================================================================================
+# C-LOD krok 6 (18. 11. 2026): zapečení blend shapes ve stupni 2
+# ======================================================================================
+## Ve stupni 2 se viditelné sítě s blend shapes (od kroku 7 i ruce – mutátory póz prstů volají _lod_touch(),
+## finger_joint_values čte uložené váhy přes lod_blend_value) nahradí
+## statickou sítí s aplikovanými vahami (LodBake, ve vlákně). Každá změna vah nebo sítí (_lod_touch) zapečení
+## zruší a obnoví původní síť s přesně uloženými vahami; po LOD_BAKE_DELAY klidu se zapeče znovu.
+
+## Původní síť instance (i když je právě zapečená).
+func lod_source_mesh(mi: MeshInstance3D) -> Mesh:
+	if mi == null:
+		return null
+	var e = _lb_entries.get(mi)
+	if e != null and mi.mesh == e[1]:
+		return e[0]
+	return mi.mesh
+
+
+## Kolik instancí má právě zapečenou síť (testy, diagnostika).
+func lod_baked_count() -> int:
+	var n := 0
+	for mi in _lb_entries:
+		if is_instance_valid(mi) and (mi as MeshInstance3D).mesh == _lb_entries[mi][1]:
+			n += 1
+	return n
+
+
+## Váha blend shape `shape` instance – i když je právě zapečená (pak z původní sítě a uložených vah).
+## null = instance takový klíč nemá. Čtení nic nerozpéká (C-LOD krok 7).
+func lod_blend_value(mi: MeshInstance3D, shape: StringName):
+	if mi == null:
+		return null
+	var e = _lb_entries.get(mi)
+	if e != null and mi.mesh == e[1]:
+		var src: Mesh = e[0]
+		var w: PackedFloat32Array = e[2]
+		for i in mini(src.get_blend_shape_count(), w.size()):
+			if src.get_blend_shape_name(i) == shape:
+				return w[i]
+		return null
+	var idx := mi.find_blend_shape_by_name(shape)
+	return null if idx < 0 else mi.get_blend_shape_value(idx)
+
+
+## Póza prstů mění jen váhy rukou: rozpéct jen ruce (zbytek postavy zůstane zapečený) a ve stupni 2
+## naplánovat jejich nové pečení. Generace se nemění – běžící úloha smí dokončit ostatní díly; její výsledek
+## pro ruce _lod_swap odmítne, protože váhy instance už neodpovídají.
+func _lod_touch_hands() -> void:
+	for mi in _hand_detail_nodes:
+		var e = _lb_entries.get(mi)
+		if e == null:
+			continue
+		_lb_entries.erase(mi)
+		if not is_instance_valid(mi) or (mi as MeshInstance3D).mesh != e[1]:
+			continue
+		(mi as MeshInstance3D).mesh = e[0]
+		var w: PackedFloat32Array = e[2]
+		for i in mini(w.size(), (mi as MeshInstance3D).get_blend_shape_count()):
+			(mi as MeshInstance3D).set_blend_shape_value(i, w[i])
+	_lod_refresh()
+
+
+## Změnila se jen viditelnost dílů (sprcha, trup, kostra prstů): ve stupni 2 naplánovat pečení nově
+## viditelných sítí. Nic se nerozpéká – už zapečené instance _lod_bake_start přeskočí.
+func _lod_refresh() -> void:
+	# I při běžící úloze: po jejím dokončení _lod_bake_tick spustí další kolo jen pro nezapečené instance.
+	if _lod_tier >= 2:
+		_lb_dirty = true
+		_lb_wait = maxf(_lb_wait, LOD_BAKE_DELAY)
+
+
+## Čeká se na zapečení (odpočet nebo běžící úloha)?
+func lod_bake_pending() -> bool:
+	return _lb_task >= 0 or (_lb_dirty and _lod_tier >= 2)
+
+
+## Váhy nebo sítě se mění: zrušit zapečení (i rozpracované) a ve stupni 2 naplánovat nové.
+func _lod_touch() -> void:
+	_lb_gen += 1
+	if not _lb_entries.is_empty():
+		_lod_unbake()
+	if _lod_tier >= 2:
+		_lb_dirty = true
+		_lb_wait = LOD_BAKE_DELAY
+
+
+## Vrátí původní sítě a jejich váhy. Instance, které mezitím dostaly jinou síť, se nechají být.
+func _lod_unbake() -> void:
+	for mi in _lb_entries:
+		if not is_instance_valid(mi):
+			continue
+		var e: Array = _lb_entries[mi]
+		if (mi as MeshInstance3D).mesh != e[1]:
+			continue
+		(mi as MeshInstance3D).mesh = e[0]
+		var w: PackedFloat32Array = e[2]
+		for i in mini(w.size(), (mi as MeshInstance3D).get_blend_shape_count()):
+			(mi as MeshInstance3D).set_blend_shape_value(i, w[i])
+	_lb_entries = {}
+
+
+func _lod_bake_tick(delta: float) -> void:
+	if _lb_task >= 0:
+		if WorkerThreadPool.is_task_completed(_lb_task):
+			WorkerThreadPool.wait_for_task_completion(_lb_task)
+			_lb_task = -1
+			_lod_bake_finish()
+		return
+	if not _lb_dirty or _lod_tier < 2 or _model == null or not LodBake.enabled:
+		return
+	_lb_wait -= delta
+	if _lb_wait > 0.0 or _hair_waiting or wardrobe_waiting():
+		return
+	_lod_bake_start()
+
+
+func _lod_bake_start() -> void:
+	_lb_dirty = false
+	var items: Array = []
+	var instant := 0
+	for node in _model.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if not mi.is_visible_in_tree():
+			continue
+		if _lb_entries.has(mi):
+			if mi.mesh == _lb_entries[mi][1]:
+				continue
+			_lb_entries.erase(mi)
+		var m := mi.mesh as ArrayMesh
+		if m == null or m.get_blend_shape_count() == 0:
+			continue
+		var w := PackedFloat32Array()
+		w.resize(m.get_blend_shape_count())
+		var ok := true
+		for i in w.size():
+			w[i] = mi.get_blend_shape_value(i)
+			ok = ok and is_finite(w[i])
+		if not ok:
+			continue
+		var hit := LodBake.baked_cached(m, w)
+		if hit != null:
+			if _lod_swap(mi, m, w, hit):
+				instant += 1
+			continue
+		items.append({"mi": mi, "mesh": m, "w": w, "src": LodBake.source_cached(m), "raw": null})
+	for it in items:
+		if it["src"] == null:
+			it["raw"] = LodBake.raw_of(it["mesh"])
+	if items.is_empty():
+		if instant > 0:
+			lod_bakes += 1
+		return
+	_lb_job = {"items": items, "gen": _lb_gen}
+	if LodBake.async:
+		_lb_task = WorkerThreadPool.add_task(LodBake.run_job.bind(_lb_job), false, "lod_bake")
+	else:
+		LodBake.run_job(_lb_job)
+		_lod_bake_finish()
+
+
+## Výměna sítě, jen když instance pořád ukazuje stejnou síť se stejnými vahami.
+func _lod_swap(mi: MeshInstance3D, m: Mesh, w: PackedFloat32Array, baked: ArrayMesh) -> bool:
+	if baked == null or not is_instance_valid(mi) or mi.mesh != m or mi.get_blend_shape_count() != w.size():
+		return false
+	for i in w.size():
+		if mi.get_blend_shape_value(i) != w[i]:
+			return false
+	mi.mesh = baked
+	_lb_entries[mi] = [m, baked, w]
+	return true
+
+
+func _lod_bake_finish() -> void:
+	var job := _lb_job
+	_lb_job = {}
+	if job.is_empty():
+		return
+	LodBake.note_job(job)
+	for it in job["items"]:
+		if bool(it.get("built", false)):
+			LodBake.store_source(it["mesh"], it["src"])
+		if it.get("baked") != null:
+			LodBake.store_baked(it["mesh"], it["w"], it["baked"])
+	# Zastaralá úloha (mezitím _lod_touch nebo odchod ze stupně 2): výsledky jen do cache.
+	if int(job["gen"]) != _lb_gen or _lod_tier < 2 or _model == null:
+		return
+	for it in job["items"]:
+		# uzel mohl mezitím zaniknout (výměna šatníku) – uvolněný objekt nesmí do typovaného parametru
+		if is_instance_valid(it["mi"]):
+			_lod_swap(it["mi"], it["mesh"], it["w"], it.get("baked"))
+	lod_bakes += 1
+
+
+func _exit_tree() -> void:
+	# Úloha nesahá na scénu, ale výsledek se má zahodit dřív, než uzel zmizí.
+	if _lb_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_lb_task)
+		_lb_task = -1
+		_lb_job = {}
+		_lb_dirty = _lod_tier >= 2

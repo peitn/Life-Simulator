@@ -318,6 +318,8 @@ func _ready() -> void:
 	if main != null and main.net != null:
 		main.net.chat_received.connect(_on_chat)
 		main.net.notice.connect(show_notice)
+		if main.net.has_signal("slander_inbox_changed"):
+			main.net.slander_inbox_changed.connect(_on_slander_inbox)
 		main.net.disconnected.connect(_on_net_disconnected)
 	get_viewport().size_changed.connect(_fit_controls_panel)
 	_fit_controls_panel()
@@ -607,6 +609,11 @@ func _on_reconnect_pressed() -> void:
 		show_notice("Znovu připojit teď nejde – spusť připojení z menu.")
 
 
+## Změnil se seznam verdiktů o řečech → příkazy se přestaví při nejbližší obnově.
+func _on_slander_inbox(_items: Array) -> void:
+	_cmd_refresh = 0.0
+
+
 func show_notice(text: String) -> void:
 	_notice_label.text = text
 	_notice_left = NOTICE_TIME
@@ -648,6 +655,13 @@ func _rebuild_commands(sim) -> void:
 		return
 	_cmd_title.text = "Příkazy pro: " + sim.first_name()
 	_add_cmd("✕ Zrušit, co dělá", ["cancel", ""])
+	# Řeči, které tvoje postava slyšela od postavy jiného hráče / AI: jestli jim uvěří, rozhoduješ ty
+	# (SlanderPolicy). Seznam posílá jen server a jen vlastníkovi; nahoře, aby se neztratil.
+	if main.net.is_networked() and node_name == main.net.my_sim:
+		for it in main.net.slander_inbox:
+			_add_cmd("Řeči od %s o %s – věřit tomu" % [it[1], it[2]], ["__verdict", it[0], "believe"])
+			_add_cmd("Řeči od %s o %s – nevěřit" % [it[1], it[2]], ["__verdict", it[0], "dismiss"])
+			_add_cmd("Řeči od %s o %s – nevěřit a říct to: %s" % [it[1], it[2], it[2]], ["__verdict", it[0], "tell"])
 	var gs := get_node_or_null("/root/GameSettings")
 	# V multiplayeru o dostupnosti rozhoduje server; klient skrývá jen podle svého nastavení
 	# (kdyby se lišilo, server příkaz odmítne s vysvětlením).
@@ -670,11 +684,32 @@ func _rebuild_commands(sim) -> void:
 		if _cmd_allowed(ActionLibrary.get_action("comfort_panic"), gs) and other.display_action() == "Panická ataka":
 			_add_cmd("Jít uklidnit: " + other.sim_name, ["comfort_panic", String(other.name)])
 		_add_cmd("Omluvit se: " + other.sim_name, ["apologize", String(other.name)])
+		# Vyříkat si to: offline/host jen při dusnu či studené válce; klientovi v MP rozhodne server.
+		if not main.has_method("cold_war_stage") or not main._gossip_authority() or main.cold_war_stage(sim, other) > 0:
+			_add_cmd("Vyříkat si to: " + other.sim_name, ["clear_air", String(other.name)])
+		# Rande / rozchod: offline/host podle stavu dvojice; klientovi v MP rozhodne server.
+		var rom_auth: bool = main.has_method("romance_status") and main._gossip_authority()
+		var rom: String = main.romance_status(sim, other) if rom_auth else ""
+		if not rom_auth or (not rom in ["dating", "partners"] and main.romance_ask_block(sim, other) in ["", "not_now"]):
+			_add_cmd("Pozvat na rande: " + other.sim_name, ["ask_out", String(other.name)])
+		if not rom_auth or rom in ["dating", "partners"]:
+			_add_cmd("Rozejít se: " + other.sim_name, ["break_up", String(other.name)])
+			_add_cmd("Konfrontovat kvůli nevěře: " + other.sim_name, ["confront_cheating", String(other.name)])
+		_add_cmd("Flirtovat: " + other.sim_name, ["flirt", String(other.name)])
+		# Tajná schůzka: offline/host jen tam, kde dává smysl (někdo je zadaný a mezi nimi je jiskra).
+		if not rom_auth or (not rom in ["dating", "partners"] and main.has_method("infidelity_date_block") and main.infidelity_date_block(sim, other) == ""):
+			_add_cmd("Tajná schůzka: " + other.sim_name, ["secret_date", String(other.name)])
 		_add_cmd("Urazit: " + other.sim_name, ["insult", String(other.name)])
 		# Konfrontace jen se známým zdrojem drbů (offline/host to ví; klientovi v MP rozhodne server).
 		if not main.has_method("gossip_can_confront") or not main._gossip_authority() or main.gossip_can_confront(sim, other):
 			_add_cmd("Vyříkat si drby: " + other.sim_name, ["confront_gossip", String(other.name)])
 		_add_cmd("Popřít drby o sobě: " + other.sim_name, ["deny_gossip", String(other.name)])
+		# Rivalita: pomluvit soka před touto postavou / usmířit se s ní. Offline/host podle stavu; klientovi rozhodne server.
+		var rv_auth: bool = main.has_method("rivalry_slander_block") and main._gossip_authority()
+		if not rv_auth or main.rivalry_slander_block(sim, other) in ["", "not_now", "repeat"]:
+			_add_cmd("Pomluvit soka před: " + other.sim_name, ["slander_rival", String(other.name)])
+		if not rv_auth or main.rivalry_hatchet_block(sim, other) in ["", "not_now"]:
+			_add_cmd("Zakopat válečnou sekeru: " + other.sim_name, ["bury_hatchet", String(other.name)])
 		for pressure_id in ["reproach", "guilt_trip", "blame_shift", "emotional_blackmail", "stonewalling"]:
 			var pressure_action: Dictionary = ActionLibrary.get_action(pressure_id)
 			if _cmd_allowed(pressure_action, gs):
@@ -687,6 +722,10 @@ func _rebuild_commands(sim) -> void:
 		if a.get("object", "") == "" and _cmd_allowed(a, gs):
 			# Akce rozšíření psychiky s bránou (např. odolat nutkání) jen tam, kde dávají smysl;
 			# „vyhledat pomoc“ je dostupné vždy.
+			# Práce (K1): offline/host jen akce, které teď dávají smysl (rozvrh, zaměstnání); klientovi rozhodne server.
+			if bool(a.get("career", false)) and main.has_method("career_command_block") and main._gossip_authority() \
+					and main.career_command_block(sim, String(a["id"])) != "":
+				continue
 			if a.has("psyche_gate") and String(a["id"]) != "seek_help" \
 					and (not sim.has_method("psyche_gate") or float(sim.psyche_gate(String(a["psyche_gate"]))) <= 0.0):
 				continue
@@ -751,7 +790,11 @@ func _on_cmd_activated(idx: int) -> void:
 	if sim == null:
 		return
 	var meta: Array = _cmd_list.get_item_metadata(idx)
-	main.net.request_command(String(sim.name), meta[0], meta[1])
+	if meta.size() == 3 and String(meta[0]) == "__verdict":
+		main.net.request_slander_verdict(int(meta[1]), String(meta[2]))
+		_cmd_refresh = 0.0
+	else:
+		main.net.request_command(String(sim.name), meta[0], meta[1])
 	var audio := get_node_or_null("/root/AudioManager")
 	if audio != null:
 		audio.play_ui("ui_click")
@@ -884,6 +927,11 @@ func _process(delta: float) -> void:
 		var bond_text := (" · " + String(attachments[n])) if attachments.has(n) else ""
 		rl.append("%s %+d%s%s" % [String(n).split(" ")[0], int(rel[n]), " (křivda)" if grudge.has(n) else "", bond_text])
 	_rel_label.text = "Vztahy: " + (", ".join(rl) if not rl.is_empty() else "—")
+	# Partnerský stav a soukromé věty o nevěře/podezření (offline/host; klientovi v MP server nic z toho neposílá).
+	if main.has_method("relationship_lines"):
+		var rlines: PackedStringArray = main.relationship_lines(sim)
+		if not rlines.is_empty():
+			_rel_label.text = "\n".join(rlines) + "\n" + _rel_label.text
 	var mem: PackedStringArray = []
 	var mems: Array = info.get("mem", [])
 	for i in range(mems.size() - 1, -1, -1):

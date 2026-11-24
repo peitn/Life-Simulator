@@ -56,11 +56,17 @@ func run():
     check(bool(skin.mesh.surface_get_format(0)&Mesh.ARRAY_FORMAT_CUSTOM0),"skin rest coordinates supplied to shader")
     var sm:Array=skin.mesh.surface_get_blend_shape_arrays(0)
     var nm:Array=nail.mesh.surface_get_blend_shape_arrays(0)
+    # C-LOD step 7: absolute NORMALIZED targets → displacement = target - rest;
+    # 161/9 vertices per digit (51 predated the 10-ring fingers).
+    var srest:PackedVector3Array=skin.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+    var nrest:PackedVector3Array=nail.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
     for digit in 10:
         for morph in 10:
             var a:PackedVector3Array=sm[morph][Mesh.ARRAY_VERTEX]
             var b:PackedVector3Array=nm[morph][Mesh.ARRAY_VERTEX]
-            check(a[digit*51].distance_to(b[digit*9])<.000001,"nail and digit have identical body displacement")
+            var si:int=digit*Hands.SKIN_PER_DIGIT
+            var ni:int=digit*Hands.NAIL_PER_DIGIT
+            check((a[si]-srest[si]).distance_to(b[ni]-nrest[ni])<.000001,"nail and digit have identical body displacement")
         var root_pos:Vector3=Hands.finger_endpoints(digit).root
         if digit%5==4:
             check(absf(root_pos.x)<.307,"thumb sits on medial edge of palm")

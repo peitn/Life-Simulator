@@ -25,6 +25,12 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 
 | Test | Checks | Last known |
 |---|---|---|
+| `test_lot_walls` | B2 walls: rules (types, geometry, surroundings, furniture, access, reachability/sealing, money, limit), items vs. walls, refunds and rewind, save v2 + v1 migration and invalid snapshots, restore with drops, public snapshot fuzz (300), performance, wall nodes and disk save on the starter lot, wall tool UI, real ENet (client builds via server, forged RPCs, wall rate limit, late join, demolition) | 128 |
+| `test_lot_buy` | Lot grid rules on the starter lot (walls, doors, path, access zones, access through walls, indoor/outdoor, rugs), budget and item limit, resale and rewind, move, appeal moodlets, item quality during real sleep, performance, determinism, save round trip and old/corrupt saves, refund cap, snapshot fuzz, real ENet server with two clients (authority, replication, late join, forged requests, rate limit, object index parity), buy-mode UI | 111 ✅ |
+| `test_betrayal_wound` | Betrayal aftermath: wound opening and repeat betrayal, time healing and rewind, alcohol numbing/rebound/tolerance, reminders, support/repair, intrusive questions and framed self-blame, bounded behaviour multipliers, content-off neutrality, save fuzzing, scene integration (on_betrayal, inner voice, gossip and seeing them together, confiding, apology, GameSave round trip) | 102/102 (21 Nov 2026) |
+| `test_betrayal_privacy_enet` | Real ENet server + two clients: the wound exists only on the server, the owner gets words only, the other player gets nothing private about another character | 13/13 (21 Nov 2026) |
+| `test_rivalry` | Rivalry: composition/decay/rewind, sources, slander gates, listener defense, hatchet, limits, strict snapshot (18 malformed variants), 300-case save fuzz, GossipNetwork.slander (truth first, fabrication, content gating, doubt, report), real household: player slander (seen through → reported → payback rivalry), credulous listener, server rejections, AI scores, hatchet, manipulation defense, betrayal → rival, disk save/load, performance | 152/152 (exit 0, ~17 s) |
+| `test_slander_cross_player` | Slander across players: SlanderPolicy units (ownership, types, per-character and global limits, TTL boundary, rewind, victim cap, client sanitising), fuzz (400 verdicts, 300 packets), offline unchanged, real ENet (dedicated server + 2 clients: deferred impact, owner-only delivery, forged verdicts, believe / tell / default expiry, victim cap via `handle_command`) and a listen host – 97 checks |
 | `test_mental_health` | Stress, three-component anxiety, involuntary panic with no player lock-out, coping trade-offs and non-dominance, anti-farming, exposure, intrusive thoughts, witnesses (help versus stigma), content settings | 95 ✅ |
 | `test_depression` | Separate wanting, liking and vigour, prediction error, habituation with no ceiling, shared relief budget, episodes, relapse scar, commands never refused, content caps; episode severity bands (23 October) | 106 ✅ |
 | `test_reconciliation` | Grudges slow warming, decay by personality, apology sincerity from behaviour, apology spam, AI apologies from guilt, healing over time | 58 ✅ |
@@ -49,14 +55,15 @@ Generate the audio first (`tools/build_audio.gd`). Some tests check that the sou
 | `test_character` | C1: schema and defaults, round trips (dict, JSON, share code, file, Resource), migration, validator fuzzing, name filter, randomizer distribution and locks, undo/redo, hidden sensitive choices, grammar | 157 ✅ |
 | `test_character_v2` | Schema v2 and review findings: `repaired()` contract, fatal inputs, 128-bit uid assigned by the server, Unicode name corpus, crown precision; run 18: head size in the randomizer (range, spread, weak link to frame, independence from gender) | 43 ✅ |
 | `test_character_net` | Multiplayer join with your own character, strict validation, public snapshot replication, privacy, determinism across peers | 28 ✅ |
+| `test_character_lod` | Crowd LOD step 1 (12 November 2026): detail tier logic, hysteresis and camera share; GLB with and without LODs identical apart from 16-bit normal quantisation (positions, UV, bones, weights, `CUSTOM0`, LOD0 indices, blend shapes); decreasing triangle counts; unchanged border of every LOD read back from the `RenderingServer` index buffer; shared meshes, leak-free cache, synthetic edge cases; `SimVisual` with a real camera (cards ↔ hair shell, mouth interior, shadows, frozen expression, forced tier, no camera, bald), the `crowd_detail` setting and its validation, switch and check cost | 76 ✅ |
 | `test_body_morphs` | C2: Catmull-Clark versus Blender, LSX v4 morphs, GLB blend shapes, data → weights, bones and scales, normals, CPU skinning, performance | 62 ✅ |
-| `test_head` | C3: every face field has a visible morph, weights match the data, in-between and corrective shapes (12 since run 18), symmetry, determinism, no skin–eye or lip intersections across extreme combinations, no folded faces, GLB and SimVisual, server and client weights identical | 43 ✅ |
-| `test_neck_seam` | C3+: head–body seam on the real GLB: a single closed loop, no gap or overlap at rest, for random bodies and with the neck bent (CPU skinning), bone weights, normals and flipped triangles, neck width, no collar under body morphs; run 13: neck-base anatomy, neck length ±1 × fat/muscle × ±30° bend, linear `b_neck_len`, seam edge fixed, crown height, Catmull-Rom invariants and nearest-hit `loop_hit` | 56 ✅ |
+| `test_head` | C3: every face field has a visible morph, weights match the data, in-between and corrective shapes (12 since run 18), symmetry, determinism, no skin–eye or lip intersections across extreme combinations, no folded visible faces (eye-socket cap slivers < 1 mm² counted separately, run of 11 Nov), LOD0 budget 19,000, GLB and SimVisual, server and client weights identical | 43/44 ⚠️ (eye-socket cap face, see `docs/reviews/head-realism-regressions-20261111.md`) |
+| `test_neck_seam` | C3+: head–body seam on the real GLB: a single closed loop, no gap or overlap at rest, for random bodies and with the neck bent (CPU skinning), bone weights, normals and flipped triangles, neck width, no collar under body morphs; run 13: neck-base anatomy, neck length ±1 × fat/muscle × ±30° bend, linear `b_neck_len`, seam edge fixed, crown height, Catmull-Rom invariants and nearest-hit `loop_hit` | 60/60 ✅ (12 Nov: neck-length ramp follows the jaw edge, body-morph band 12 cm; new checks: short neck × 3 bodies × lateral bend ±20°/±25°, max fat + muscle × neck ±1 at rest, `nl_top`; collar step 2.2 mm) |
 | `test_psyche` | Run 20, psyche model axis 1: profiles as data (the old anxiety and depression numbers exactly), limits and mandatory `why`, rejected invalid profiles, acyclic coupling graph and fixed order, P and D in range for 300 random characters, zero residual without individuality (no double counting), `explain()`, determinism through the share code, independence from name and gender, hooks in MentalState (bit-identical neutral regression, direction of each hook), content settings full/muted/off including a runtime switch, profiles without a legacy block, comorbidity clamp, coupling in MentalState, **diversity** (5 characters with the same profile differ in arousal and coping choices), **context** (support < neutral < conflict), **stability** 16 seeds × 14 days, agency, schema v5 privacy, validation, migration v4 → v5 and round trips, SimAgent integration, performance | 93 ✅ |
 | `test_neck_length` | Run 13 data side of `body.neck_length`: schema v4+, migration v3 → current (and v1 → current), JSON / share code / file round trips, strict server validation with fuzzing, public snapshot, determinism, independence from gender and name, randomizer distribution and locks | 36 ✅ |
 | `test_skin` | C4a: SkinModel continuity, spectrum, saturation and hue over 1,386 combinations, determinism, layer placement on the surface, shader compiles, CUSTOM0 holds the rest pose; run 18: make-up landmarks match the head | 61 ✅ |
-| `test_assets` | LSX format (CRC, corrupted data), sources ↔ manifest ↔ GLB, furniture dimensions, orientation, winding and PBR, character skeleton, skin weights and variants, animations, SimVisual, primitive fallback | 155 ✅ |
-| `test_hair` | C4b: every hairstyle, eyebrow shape and beard style has a mesh within budget, no head penetration, face clear, long hair lies on chest and back, eyebrow coverage, recession ranks, determinism (also threaded versus synchronous build), morph transfer (neck length, head width), bone weights, CUSTOM0, shader parameters, SimVisual cards instead of the GLB helmet, morph weights on the cards, independence from name and gender, corrupted values; run 19: penetration confirmed against the real skin triangles, temple shell edge, braids and locs away from the face, beard line and no gap under the lip | 60 ✅ |
+| `test_assets` | LSX format (CRC, corrupted data), sources ↔ manifest ↔ GLB, furniture dimensions, orientation, winding and PBR, character skeleton, skin weights and variants, animations, SimVisual, primitive fallback; character LOD0 budget 28,500 | 154/155 ⚠️ (sitting pelvis height) |
+| `test_hair` | C4b: every hairstyle, eyebrow shape and beard style has a mesh within budget, no head penetration, face clear, long hair lies on chest and back, eyebrow coverage, recession ranks, determinism (also threaded versus synchronous build), morph transfer (neck length, head width), bone weights, CUSTOM0, shader parameters, SimVisual cards instead of the GLB helmet, morph weights on the cards, independence from name and gender, corrupted values; run 19: penetration confirmed against the real skin triangles, temple shell edge, braids and locs away from the face, beard line and no gap under the lip; hairstyle LOD0 budget 40,000 | 60 ✅ |
 | `test_face_detail` | Run 21, C3++: schema v6 and migration, detail and expression weights, eyelashes on the lid margins for every combination of eye extremes and while blinking, blinks close the eye opening (with the in-between shape), teeth inside the cavity and behind the lips, smile/frown/brows/jaw/pupil against the exact `HeadBuilder` shape, symmetry, determinism, GLB parts and `SimVisual` (blinking, speech, emotion, cost per frame); run 22: lens-shaped open mouth with rounded corners, Duchenne smile (corner, nasolabial fold, cheeks, lower lids), lip volume and Cupid's bow, neck profile bend with the jaw open, eyelash clumps and darker roots in the GLB | 66 ✅ |
 | `test_skin_micro` | Run 22, C4c: schema v7 (`skin.type`, `oiliness`, `dryness`), migration v6 → v7 and v1 → v7, share code and JSON round trips, strict server validation with fuzzing (300 corrupted inputs), sebum and dryness zones per skin type, age, quantization, independence from skin tone, gender, identity and name, vellus colour from natural hair colour, randomizer distribution and locks, public snapshot, shader parameters and compilation, roughness formula against a CPU mirror, LOD, no melanin in the micro-detail code, performance | 50 ✅ |
 | `test_audio_tone` | Music v3 data (the night song unchanged, the morning song in its spirit, no v2 instruments in music), brightness of the rendered morning song between night and day, synthesizer instruments, loop seams against each file's own sample-to-sample differences, rendered files, apartment ambience, argument voices and tension | 222 ✅ |
@@ -369,3 +376,131 @@ polarisation check (fails identically with gossip disabled).
 - `tests/test_async_shutdown.tscn` – evidence a vyzvednutí úloh stavby účesů, podřízený proces hry se po `quit` opravdu ukončí (18 kontrol, ~15 s).
 - `tests/support/` – pomocné skripty testů (dřív `previews/diag/`, které nejsou ve verzování).
 - Vizuální průchod: `tools/qa/qa_capture.gd` (Xvfb, viz audit).
+
+### Gossip confrontation and denial (10 November 2026)
+`tests/test_gossip_confront.tscn` — 97 checks: outcome odds (sum, monotonicity, 1500-sample empirical match),
+suspect creation/consumption/expiry/limits, retraction factors and the five-listener cap, deny outcomes
+(nothing / believed / doubted / caught / repeat, social proof, inventor of the lie, sensitive content, kind
+witness of a panic attack), snapshot v2 round-trip, 17 forged suspect snapshots rejected, v1 migration,
+integration in a real offline household (exposure → confrontation via SimAgent, escalation witnesses at ×0.6,
+save/load), AI planner gating, and a 5-day maximal-intrigue soak (10 AI confrontations, mean grudge stays bounded).
+`tests/test_gossip.tscn` now has 116 checks (v1 migration block fixed: a mis-indented block made the scene fail to parse).
+
+
+### Eye-socket cap (11 November 2026)
+`tests/test_eye_socket_cap.tscn` — 14 checks, ~40 s, without building blend shapes: cap recipes, closure and
+consistent winding of every cap/ring-5 edge, all ring-5 and cap vertices on the sphere R + 1.2 mm, strictly
+monotonic azimuth on every ring for 33 faces (incl. blink and smile), nested rings, no folded face of the whole head
+in 24 eye-morph corners (exact and linear sum) and 24 random extremes of all fields, no degenerate socket triangle,
+clearance from the eyeball at half and full blend weights, determinism and mirror symmetry.
+`tests/test_head.tscn` now requires 0 folded cap slivers (the previous tolerance of 6 was removed); 44 checks.
+
+## Hair proxy for crowd LOD (13 Nov 2026)
+`tests/test_hair_proxy.tscn` – proxy geometry of all hairstyles (triangle budget, finite values, valid indices,
+Godot clockwise winding with outward normals, minimum triangle area, skin weights summing to 1, key names),
+silhouette IoU against the strand cards with an independent CPU rasteriser (proxy ≥ previous helmet in every
+view, ≥ 0.65, mean ≥ 0.88), morph transfer, byte-identical rebuild, `SimVisual` integration (tier 2 shows the
+proxy, helmet only while the cards build), switch cost. Render check: `tools/render_hair_proxy.tscn` (Xvfb).
+`tests/test_character_lod.tscn` expects the proxy in tier 2.
+
+## Hair cards for crowd LOD tier 1 (13 Nov 2026)
+`tests/test_hair_lod1.tscn` (205 checks) – LOD1 of all hairstyles: savings (per style ≤ 75 %, all ≤ 60 %), styles
+without LOD1 only with a recorded reason, compact vertices, valid indices, skin, identical blend-shape names and
+format; exact width compensation of kept cards (also in blend targets) and unchanged outline segments; silhouette and
+hair coverage IoU against the full cards (CPU raster 4 mm, 3 views); morph transfer; bitwise determinism; SimVisual
+tier 0/1/2 switching with blend weights, hairstyle change in tier 1, bald character, switch cost and asynchronous
+build. Render check: `tools/render_hair_lod1.tscn` (Xvfb).
+
+## Tube hair in crowd LOD tier 1 (17 Nov 2026)
+`tests/test_hair_lod1_tubes.tscn` (44 checks) – braids, dreads and cornrows: tube parsing from the index buffer with
+exact rebuild, safe fallback on corrupted indices, independent error bound (every full-tube vertex within
+min(4 mm, ½ radius) of the LOD1 surface), whole rings, ends and tip kept, front-face vertex order, `CUSTOM0` and
+blend-shape displacement unchanged, and six styles built concurrently in `WorkerThreadPool` byte-identical to a
+sequential build. CPU render check without a display: `tools/render_hair_tubes_cpu.tscn`.
+
+## Eyebrows and beards in crowd LOD tier 1 (17 Nov 2026)
+`tests/test_facial_lod1.tscn` – all brow and beard styles: savings, compact valid meshes, skin, identical blend-shape
+names and format, skip reasons (no geometry, small mesh), exact density nesting (visible LOD1 cards at density d =
+full-mesh cards with strand random < keep·d) with a sensitivity check against the unscaled variant, binomial 3σ
+ratio check, front coverage and far-distance face darkening in a CPU render (0.85–1.15 of the full mesh), blend-shape
+transfer, byte-identical rebuild and concurrent builds, `SimVisual` tier switching with shape-key weights and
+unchanged density material, moustache fallback, non-blocking cache lookup and async build. CPU render:
+`tools/render_facial_lod1_cpu.tscn`.
+
+## tests/test_lod_bake (18 Nov 2026)
+54 checks: baking accuracy against an independent dense formula (synthetic mesh and a real head), preserved arrays/LOD indices/materials, bake only after rest at tier 2, no repeated bakes, exact weight restore, rebake after look/expression changes, stale-job discard, node freed during a job, disabled switch, cache pruning. Run: `godot --headless res://tests/test_lod_bake.tscn`.
+
+## tests/test_procedural_lod (18 Nov 2026, evening)
+81 checks: LodBake in RELATIVE and NORMALIZED mode against analytic values and an independent reproduction of Godot's skinning shader; all nine procedural meshes NORMALIZED with unchanged GPU normals under active body morphs; curls move only their own digit; LOD levels of finger and foot skin decrease and keep the exact border; a real barefoot, topless character at tier 2 bakes hands/feet/torso equal to the shader formula, a hand pose at tier 2 un-bakes only the hands and re-bakes them, a shower bakes the newly visible feet, tier 0 restores the original meshes with exact weights. Run: `godot_run scene=res://tests/test_procedural_lod.tscn`. SceneTree-style tests (e.g. `test_finger_curl_pose.gd`) can be run with `godot_run_script` and the one-line code `extends "res://tests/<test>.gd"`.
+
+## tests/test_cold_war (19 Nov 2026)
+72 checks: ColdWar state machine (window, step-wise escalation, hysteresis, thaw times), avoidance weights and exemptions, shared-moment blocking, `clear_air` probability bounds and monotonicity, outcome distribution against p, repair-cycle penalty, save round-trip, 15 hostile `from_dict` inputs, a real offline household (same-room stress and moodlets, bystander atmosphere with cooldown, planner desire, player command including the "nothing to clear" path that never interrupts the other character), full game save/load and performance (780 pairs < 2 ms per step). `-- --soak`: 3 seeds × 10 days (argument rate, longest cold war) and a same-seed determinism check. Run: `godot_run scene=res://tests/test_cold_war.tscn`.
+
+## tests/test_rel_clock_cold_process --truncate (19 Nov 2026)
+Two OS processes. The writer creates a valid save twice (the first becomes `.bak`) and an autosave without a backup, truncates both primaries to half and records size + SHA-256. The reader verifies it sees exactly those bytes, then asserts: truncated autosave → `format` with no backup and an untouched world; payload bit flip → `checksum`; truncated manual → recovery from `.bak` with the older clock and bit-identical relationships; loading never rewrites the damaged primary. Run writer then reader with `-- --truncate --slot=<unique>` (reader adds `--reader`).
+
+### Romance (19 November 2026)
+
+`godot_run scene=res://tests/test_romance.tscn` covers:
+- attraction and adult rules;
+- the acceptance distribution;
+- the state machine, cool-downs and the pushy rule;
+- satisfaction dynamics, cold-war and neglect drain, promotion to partners;
+- breakup and ex behaviour;
+- save round-trip and hostile `from_dict` fuzzing (including monogamy repair);
+- an in-world scene with player commands (orientation mismatch, taken target, breakup consequences);
+- server `handle_command` validation;
+- AI scores, including MP ownership;
+- a real save/load;
+- performance.
+
+The run gives 113/113. `-- --soak` adds 3 seeds × 10 days, a warm-pair scenario (the AI asks on its own and never repeats an ask after a refusal) and a determinism check.
+
+### Infidelity (20 November 2026)
+
+`godot_run scene=res://tests/test_infidelity.tscn` (152 checks, ~15 s) covers: spark (diminishing returns, anti-spam gap, decay, rewind safety), flirt outcome distribution, betrayal detection, secret-date gates, intimacy outside the relationship, suspicion composition and decay, all confrontation outcomes, temptation, private HUD lines, JSON round-trip, 300 hostile saves, limits and eviction, new rumour kinds, and a real offline household scene (witness gossip, partner jealousy, rumour → suspicion, secret date, server validation including the 18+ guard and other players' characters, AI scores, confrontation with evidence, jealous scene without reason, being caught, breakup news, save/load). `tools/diag_tmp/diag_infidelity_soak.tscn -- <seed> <days>` prints how often infidelity emerges in a default household.
+
+`tests/test_adult_social_integration` now waits until both characters are free before the second consented encounter (the AI choice order changes with the action catalogue; the rule itself is unchanged).
+
+### Betrayal aftermath (21 November 2026)
+
+`godot_run scene=res://tests/test_betrayal_wound.tscn` (102 checks, ~15 s) and `godot_run scene=res://tests/test_betrayal_privacy_enet.tscn` (13 checks, real ENet on localhost, ~16 s). The replication contract `tests/test_private_replication_contract.gd` now also asserts that `psy`, `betrayal`, `net_detail` and `net_needs` are not replicated properties (24 checks).
+
+### Lot navigation (B3, 22 November 2026)
+
+`tests/test_lot_nav.tscn` – 85 checks: `LotNav` on synthetic lots (detour around a wall end, route length, clearance,
+furniture, full barrier, walled-in escape, cache and moving goal, stuck-on-corner replan, determinism, maze
+performance), `reach_check` on buy and move (`blocks_path`, `access_unreachable`, rugs allowed), `wall_traps`, and a
+real starter world where a `SimAgent` walks around a yard wall, gives up on a walled-in target, cannot be walled in
+and escapes an enclosure. The older isolated tests `test_lot_pathfinder.gd` and `test_lot_pathfinder_walls.gd` run as
+scripts: `godot --headless -s res://tests/test_lot_pathfinder.gd`.
+
+### Door locks (B4b, 24 November 2026)
+
+`tests/test_door_locks.tscn` – 119 checks: lock string validation (20 malformed variants), rules (doors only, same
+lock, 16-lock cap, `lock_seals`, `lock_traps` with one and two doors, building checks from lock views), navigation
+per character (pathfinder, wall segments, `LotNav`, `lock_blocker`, alternating views against the caches, escape),
+save v4 / v3 migration / 9 malformed variants / 17-lock forgery, public snapshot (6 forgeries, old v3 server, 200
+mutation fuzz), performance, the world (authority, `LotDoor` lamp and opening only for the key holder, the real
+`SimAgent._walk` consequence: unreachable memory, relationship −2, mood, social memory, knocking, cooldown;
+demolishing the last door a character may use is refused; disk save/load), the buy-mode UI (buttons, L, Shift+L)
+and a real ENet server with two clients (own key, foreign key refused, lock for another character refused,
+household-wide lock, spectator, 6 forged requests, abandoned lock, server save v4).
+`tests/test_lot_doors.tscn` was updated for format v4 (154 checks).
+
+### Doors and windows (B4a, 23 November 2026)
+
+`tests/test_lot_doors.tscn` – 147 checks: opening rules (types, end clearance, spacing, T-junctions, door clearance,
+money, 64-opening cap, determinism), navigation through doors (open BFS edges, cell path, `LotNav` never crossing a
+solid segment, windows solid, closing a room, `seals_off` and trapped characters, rooms against the lot boundary),
+items vs. door clearance, demolition and refunds, save v3 / v2 migration / 16 malformed variants / restore drops,
+public snapshot fuzz (300 mutations), performance, world nodes and collision, door leaf animation, disk save/load,
+`door_traps` through the world, the Door/Window UI and a real ENet server with two clients. The isolated B4 probes
+`test_b4_wall_gap_contract.gd` and `test_b4_gap_navigation.gd` expose `static run()` and are called from a script.
+
+
+### Slander across players (23 November 2026)
+`tests/test_slander_cross_player.tscn` – 97 checks, real ENet. `tests/test_lot_doors.tscn` now waits for the server's actual rejection of the spectator RPC instead of a fixed 0.8 s delay (154 checks).
+
+### Careers (K1, 24 November 2026)
+`tests/test_career.tscn` (146 checks): track catalogue and gendered titles, weekday schedule and arrival window (+ walking grace), shift outcomes by mode and capacity, leaving early (panic: understanding vs stigma), slacking caught, workplace events, absences and warnings (once per day, no repeat after rewind), sick-day budget and boss reaction, firing and job search, forgiveness of warnings, quitting, promotion contests against NPC colleagues and real characters, scheming (works / caught / discovered, daily cap on harm), AI schedule decisions (once per day; sick call before unexcused absence), strict snapshot + JSON + 16 invalid variants + fuzz 300, private HUD lines without numbers; scene with a real offline world: server rejects invalid career commands, the character walks to the sidewalk and leaves the lot (hidden, ignored by lock/wall checks), save/load during a shift, return via the sidewalk, wage into the lot budget (`wage` ledger entry), AI absence and firing, AI goes to work in the morning (alarm clock), race/scheme consequences on characters, client puppet hides while away.

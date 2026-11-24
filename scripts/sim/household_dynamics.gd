@@ -18,6 +18,11 @@ extends RefCounted
 const Grammar := preload("res://scripts/core/grammar_cs.gd")
 const Traits := preload("res://scripts/sim/traits.gd")
 const SimAgent := preload("res://scripts/sim/sim_agent.gd")
+const ColdWar := preload("res://scripts/sim/cold_war.gd")
+const Romance := preload("res://scripts/sim/romance.gd")
+const Infidelity := preload("res://scripts/sim/infidelity.gd")
+const Rivalry := preload("res://scripts/sim/rivalry.gd")
+const Career := preload("res://scripts/sim/career.gd")
 
 ## Krok modulu v herních minutách.
 const TICK := 10.0
@@ -118,6 +123,16 @@ var _dirty_dishes_until := -1.0
 var stats := {}
 ## Volitelný most ekonomika -> psychika (scripts/sim/economy_bridge.gd). null = vypnuto (výchozí): hra je beze změny.
 var economy_bridge = null
+## Dusno a studená válka mezi dvojicemi (scripts/sim/cold_war.gd); ukládá se s domácností.
+var cold_war = ColdWar.new()
+## Romantické vztahy dvojic (scripts/sim/romance.gd); ukládá se s domácností.
+var romance = Romance.new()
+## Nevěra, jiskra, podezření a konfrontace (scripts/sim/infidelity.gd); ukládá se s domácností.
+var infidelity = Infidelity.new()
+## Rivalita, pomluvy jako zbraň a usmíření (scripts/sim/rivalry.gd); ukládá se s domácností.
+var rivalry = Rivalry.new()
+## Práce, šéf, povýšení a rivalita v práci (scripts/sim/career.gd); dopady aplikuje CareerHooks; ukládá se s domácností.
+var career = Career.new()
 
 
 func _init() -> void:
@@ -205,6 +220,10 @@ func tick(all_sims: Array, hour: int, now: float) -> void:
 	_morning_light(sims, hour, now)
 	_shared_moments(sims, now)
 	_neglect(sims, now)
+	cold_war.tick(sims, now, TICK)
+	romance.tick(sims, now, TICK, cold_war)
+	infidelity.tick(now)
+	rivalry.tick(sims, romance, infidelity, now)
 	for x in sims:
 		if not x._is_sleeping() and x.rng.randf() < EVENT_HAZARD:
 			life_event(x, now)
@@ -345,6 +364,9 @@ func _shared_moments(sims: Array, now: float) -> void:
 				continue
 			if a.ledger.grudge(b.sim_name) > SHARED_MAX_GRUDGE or b.ledger.grudge(a.sim_name) > SHARED_MAX_GRUDGE:
 				continue
+			# Rozpálená studená válka: spolu na gauči nesedí (vlažná už trochu povolí, viz níže).
+			if cold_war.blocks_shared(String(a.sim_name), String(b.sim_name)):
+				continue
 			_last_shared[key] = now
 			_last_shared[a.sim_name] = now
 			_last_shared[b.sim_name] = now
@@ -366,6 +388,11 @@ func _shared_moments(sims: Array, now: float) -> void:
 					"stastny", SHARED_MOOD, SHARED_MOOD_MINUTES)
 				x.note_relationship_change(y, cur, nv)
 				x._detail_dirty = true
+			cold_war.on_shared(String(a.sim_name), String(b.sim_name), now)
+			romance.note(String(a.sim_name), String(b.sim_name), "shared", now)
+			if romance.together(String(a.sim_name), String(b.sim_name)):
+				infidelity.reassure(String(a.sim_name), String(b.sim_name), now)
+				infidelity.reassure(String(b.sim_name), String(a.sim_name), now)
 			stats["shared"][kind] = int(stats["shared"].get(kind, 0)) + 1
 
 
@@ -411,6 +438,22 @@ func _on_conversation(_sim, _partner, info: Dictionary) -> void:
 	var ok := bool(info.get("success", true))
 	var argued := bool(info.get("argued", not ok))
 	var outcome := String(info.get("outcome", "chat" if ok else "argue"))
+	# Stav dvojice (dusno/studená válka). „Vyříkat si to“ si stav mění samo (ColdWar.resolve_clear_air).
+	if not bool(info.get("clear_air", false)) and is_instance_valid(_sim) and is_instance_valid(_partner):
+		cold_war.note(String(_sim.sim_name), String(_partner.sim_name), outcome, float(info.get("now", _sim.now())))
+	# Spokojenost ve vztahu (jen u dvojic, které spolu chodí; pozvání a rozchod si stav mění samy).
+	if not bool(info.get("romance", false)) and is_instance_valid(_sim) and is_instance_valid(_partner):
+		romance.note(String(_sim.sim_name), String(_partner.sim_name), outcome, float(info.get("now", _sim.now())))
+		# Povedený rozhovor partnerů podezření zmírní (důkazy zůstávají).
+		if outcome == "chat" and romance.together(String(_sim.sim_name), String(_partner.sim_name)):
+			var tn := float(info.get("now", _sim.now()))
+			infidelity.reassure(String(_sim.sim_name), String(_partner.sim_name), tn)
+			infidelity.reassure(String(_partner.sim_name), String(_sim.sim_name), tn)
+	# Hádka při špatném vztahu živí rivalitu „o postavení“ (Rivalry.on_conflict; jen pod CONFLICT_REL).
+	if outcome == "argue" and is_instance_valid(_sim) and is_instance_valid(_partner):
+		rivalry.on_conflict(String(_sim.sim_name), String(_partner.sim_name),
+			float(_sim.relationships.get(_partner.sim_name, 0.0)), float(_partner.relationships.get(_sim.sim_name, 0.0)),
+			float(info.get("now", _sim.now())))
 	# Manipulative events are not ordinary awkward chats or physical fights.
 	# Do not inflate the normal-talk denominator when tracking coercion.
 	if outcome in ["reproach", "guilt_trip", "blame_shift", "emotional_blackmail", "stonewalling"]:

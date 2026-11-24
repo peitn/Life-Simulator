@@ -154,6 +154,15 @@ func _run() -> void:
 	b.mental.panic_active = false
 	b.relationships[a.sim_name] = 90.0
 	b.ledger.trust[a.sim_name] = 90.0
+	# Postavy pod AI mohou zrovna dělat běžnou společenskou činnost (třeba si povídat); příkaz ke společné
+	# činnosti se pak serverem odmítne ("nemůže zahájit"). Test počká, až jsou oba volní – nejde o obcházení
+	# pravidla, jen o deterministické načasování (pořadí AI voleb se mění s katalogem akcí).
+	for step in 120:
+		if b.can_join_social(a) and a.state == a.State.IDLE:
+			break
+		if step % 20 == 19:
+			a.command({"id": "cancel"}, null)
+		clock.advance(1.0)
 	check(w.net.handle_command(1, String(a.name), "intimacy_offer", String(b.name)) == "",
 		"partners may make a new and fresh separate decision")
 	check(w.net.handle_command(1, String(a.name), "adult_consensual_sex", String(b.name)) == "",

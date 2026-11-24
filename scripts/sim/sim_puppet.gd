@@ -98,7 +98,9 @@ func apply_public_look(snapshot: Dictionary) -> void:
 func _process(delta: float) -> void:
 	position = position.lerp(net_pos, clampf(delta * FOLLOW_RATE, 0.0, 1.0))
 	rotation.y = lerp_angle(rotation.y, net_rot, clampf(delta * FOLLOW_RATE, 0.0, 1.0))
-	if visual != null:
+	# K1: postava v práci (posture "away") není na parcele – loutka se skryje.
+	visible = net_posture != "away"
+	if visual != null and visible:
 		visual.apply(net_posture, float(net_mood), net_emotion, sim_name, net_label, net_speech, false, String(current_action.get("id", "")))
 
 

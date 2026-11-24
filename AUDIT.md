@@ -10,7 +10,221 @@ Open findings take priority in the next run.
 
 Running tests: `godot_run scene=res://tests/<test>.tscn` and `godot_run -- --test N` (headless simulation).
 
+## 2026-11-24 večer – main-claude-20261124b-career: (c)+(g) K1 kariéry a rivalita v práci
+
+**Cíl:** legální kariéry jako živý systém (směny mimo parcelu, výkon, šéf, docházka, nemocenská, vyhazov, hledání práce) a rivalita v práci přes souboj o povýšení a intriky – otevřený bod (c) „rivalita v práci (čeká na kariéry)“.
+
+**Změny:** NOVÉ scripts/sim/career.gd, scripts/sim/career_hooks.gd, tests/test_career.gd/.tscn, docs/careers.md; ZMĚNĚNÉ scripts/sim/action_library.gd (7 akcí + repliky), scripts/sim/sim_agent.gd (away, budík, důvod přerušení, restore_away, AI rozvrh v _decide, roztěkanost/panika nepřeruší a nezopakují směnu), scripts/sim/household_dynamics.gd, main.gd (career_* API, work_exit, careers_enabled, postavy v práci mimo kontroly zámků/zdí, soukromé řádky), scripts/net/net_session.gd (validace), scripts/ui/hud.gd (filtr akcí), scripts/sim/sim_puppet.gd (skrytí), scripts/save/game_save.gd (sekce career, away/away_return).
+
+**Self-review** (všechny změněné soubory znovu prošly + explicitní load 10 skriptů): nalezeno a opraveno (1) NaN v kapacitě (clampf NaN propouštěl) → _fin; (2) striktní validace verze odmítala JSON float → _intlike; (3) české pády v moodletech s cizím jménem („Povýšili Petr místo mě“, „si přivlastnil(a)“ s rodem mluvčího místo NPC) → neosobní formulace se jménem v závorce; (4) čísla v soukromých řádcích („1 výtka“) → slovy; (5) AI zaspala směnu (spánek je nepřerušitelný do 6:00+) → budík (career_alarm), bez náhody; (6) test fixture – den nástupu se do absence nepočítá.
+
+**Testy:** test_career 146/146; regrese PASS: save_game 46, rivalry 152, door_locks 119, multiplayer 67, player_commands 40, household_dynamics_slice 63, net_protocol 34, lot_doors 154, cold_war 72, h4b_server_persistence 110, gossip 116, romance 113, mp_reconnect 72, lot_buy 111, emotional_hud 11; godot_check 60/60 (+ explicitní load nových skriptů – checker je nevidí).
+
+**Gemini 3.5-flash (7 nálezů):**
+1. HIGH – srážka bodů souboje intrikou bez denního stropu → **PŘIJATO částečně**: v praxi nejde (jedna směna denně, souboj je 1:1), ale strop „oběť>den“ teď platí i pro body souboje (obrana do hloubky). Test.
+2. HIGH – postava „v práci“ uvízne pod světem při odchodu ze scény → **ZAMÍTNUTO**: leave_world volá _finish(true) → _come_back; despawn uzlu polohu neřeší; save/load má restore_away (test).
+3. HIGH – nedeterministický hash → **ZAMÍTNUTO**: rid je celé číslo souboje (ne RID), String.hash() v Godotu 4 je deterministický bez náhodného seedu; riziko jen mezi verzemi enginu (zaznamenáno).
+4. MEDIUM – „nedokáže se zvednout“ = kázeňská absence trestá symptom deprese → **PŘIJATO**: s volnou omluvenou nemocenskou postava aspoň zavolá; absence až po vyčerpání (realistický důsledek, hráč má vždy možnost zasáhnout). Test.
+5. MEDIUM – návrat na místo, kde mezitím vznikla zeď/zámek (kontroly postavu v práci přeskakují) → **PŘIJATO**: návrat vždy na konec chodníku (nestavitelný koridor). Test.
+6. MEDIUM – příkaz těsně před koncem okna, cesta přes čas → absence → **PŘIJATO**: BEGIN_GRACE 20 min pro začátek směny, absence až po toleranci. Test.
+7. MEDIUM – zahozená sekce kariér při směně → **ZAMÍTNUTO**: resolve_shift bez záznamu vrací {} (bez pádu), návrat proběhne vždy.
+
+**ChatGPT:** plán #577 v místnosti; bez odpovědi do konce běhu. Kód jako soubory do místnosti neposlán (přenos base64 z Godotu do konektoru v této relaci nejde; GitHub nedostupný).
+
+**Otevřené / známé limity:** životní náklady (nájem, jídlo) zatím nejsou – mzda jen přidává do rozpočtu; soukromé řádky kariéry vidí offline/host, ne vzdálený klient (stejně jako rivalita); ENet transport kariérních příkazů není certifikován samostatným testem (validační cesta handle_command je stejná jako pro RPC a je testovaná); pracoviště jsou abstraktní (bez 3D scény); nelegální kariéry = K2.
+
+## 2026-11-24 ráno – main-claude-20261124a-locks: (b) B4b zamykání dveří
+	
+	**Cíl:** navázat na fallback B4b (test pantu) skutečným, serverově autoritativním zámkem dveří s navigací, uložením, MP a důsledky v AI.
+	
+	**Změny:** scripts/world/lot_grid.gd (v4: lock na dveřích, valid_lock, door_passable, pohled nav_viewer/_nav_unlock, _view_key + cache úseků stěn a dosažitelnosti podle pohledu, check_lock / lock_traps / set_lock, _view_groups, traps_in_lock_views, save v4 + migrace v3, veřejný snímek s 7. prvkem a validací u klienta), scripts/world/lot_nav.gd (klíč cache trasy s pohledem, lock_blocker), scripts/world/lot_door.gd (oid, kontrolka zámku, otevírání jen s klíčem, oprava pořadí is_instance_valid/is), scripts/sim/sim_agent.gd (_walk z pohledu postavy, _locked_out, hear_knocking, _remember_unreachable_target), main.gd (akce lock, lot_sim_points, lot_my_sim, lot_lock_text, zeď/vybourání nesmí uvěznit za cizím zámkem, oid na pantu), scripts/net/net_session.gd (lock: validace, pravidla klíčů, sim_has_player, rate limit, hlášky), scripts/ui/buy_mode.gd (tlačítka zámku, L / Shift+L), tests/test_lot_doors.gd (formát v4); NOVÉ tests/test_door_locks.gd/.tscn.
+	
+	**Self-review** (změněné soubory znovu přečteny a explicitně načteny – pozor: godot_check hlásil 60/60 OK i u skriptu s chybou odvození typu, ta se ukázala až při load()): nalezeno a opraveno (1) `var fn := locker.first_name()` – chyba odvození typu, sim_agent.gd se nenačetl; (2) cache plných úseků stěny ukládala pod klíčem wid i v pohledu se zámkem → první dotaz „bez klíče“ otrávil cache pro ostatní (test to chytil: 1/1/1 úseků); (3) lock_blocker vracel viníka i tam, kde cesta s aktuálními zámky existuje; (4) LotDoor: `s is Node3D` na uvolněné postavě po načtení hry → chyba skriptu (pořadí kontrol, předchozí stav kódu, projevilo se až teď).
+	
+	**Testy:** test_door_locks 119/119 (skutečné ENet: dedikovaný server + 2 klienti). Regrese PASS: lot_doors 154, b4_door_hinge 9, lot_walls 128, lot_nav 85, lot_buy 111, save_game 46, net_protocol 34, player_commands 40, multiplayer 67 (1. běh 66/67 – „klientské hodiny převzaly pauzu“, časově citlivá kontrola bez vztahu k zámkům, 2. běh 67/67), h4b_server_persistence 110, mp_reconnect 72, household_dynamics_slice 63, slander_cross_player 97, lot_pathfinder 21/21, lot_pathfinder_walls 9/9, b4_gap_navigation 4/4, b4_wall_gap_contract 5/5; godot_check 60/60 + explicitní load změněných skriptů.
+	
+	**Gemini** (3.5-flash) – 6 nálezů:
+	1. HIGH „zámek odpojeného hráče může kdokoli převzít (find_sim null)“ – **částečně přijato, přeformulováno**: postava odpojeného hráče na serveru zůstává (find_sim ji najde), takže převzetí po odpojení nehrozilo; skutečný problém byl opačný – zámek hráče, který odešel natrvalo, by blokoval dům navždy. Nově `sim_has_player`: osobní zámek chrání jen postavu s hráčem (připojeným nebo drženým na návrat); jinak ho odemkne kdokoli z domácnosti. ENet test „zámek postavy bez hráče odemkne B“.
+	2. HIGH „sdílený měnitelný nav_viewer → race conditions“ – **zamítnuto (s výhradou)**: simulace běží v jednom vlákně, GDScript nemá výjimky, které by přeskočily obnovení; každé nastavení je párové v téže funkci a test ověřuje návrat pohledu po chůzi, lock_blocker i kontrolách. Explicitní parametr by byl čistší – zapsáno jako technický dluh, ne chyba.
+	3. HIGH „DoS přes lock_traps (2 BFS na postavu) a lock_blocker“ – **přijato pro lock_traps**: postavy se seskupí podle sady zámků, které je nepustí → typicky 1 pár BFS na celou domácnost (měřeno 60 ms pro 8 postav na 100×40, dřív 75 ms); navíc platí limit zedníka (2 tokeny, 0,5/s) i obecný limit parcely. lock_blocker běží jen při selhání trasy (a cíl se pak 2 h nezkouší) – zamítnuto.
+	4. MED „nekonzistence cache _view_key“ – **zamítnuto**: memo klíč obsahuje revizi, layout, pohled i ignorované dveře; každá změna zámku zvedá revizi; test střídání pohledů Bob/Ana to ověřuje. (Skutečnou chybu cache – ukládání pod wid – jsem našel a opravil sám, viz self-review.)
+	5. MED „hráč nemůže zamknout za jiné členy domácnosti“ – **zamítnuto (designově)**: v MP má každý hráč jednu postavu a klíč drží jen ona; zamknout ostatní může „pro všechny“. Zamykat cizí postavu by byl nástroj šikany.
+	6. LOW „polling LotDoor“ – **zamítnuto**: poll 8 Hz byl už v B4a, přibylo jen čtení slovníku; přechod na signál až s Blender assety dveří.
+	
+	**Vlastní nález během auditu:** stavění zdi a vybourání dveří kontrolovaly uvěznění jen v pohledu bez zámků → postava mohla zůstat zavřená za cizím zámkem (spadla by do escape). Opraveno `traps_in_lock_views` v main.gd + testy (LotGrid i svět).
+	
+	**ChatGPT:** plán #573 bez odpovědi v době auditu. Kód do místnosti jako soubory neposlán – přenos base64 z Godotu do konektoru místnosti v této relaci nejde (výstup nástroje se ořezává) a GitHub sync chybí (add_repo); klíčová pravidla jsou ve zprávě se shrnutím.
+	
+	**Otevřené:** AI postavy samy nezamykají (B4b-2); Blender assety dveří a oken; vizuální QA kontrolky a UI (bez GPU, žádný render); nav_viewer jako explicitní parametr (dluh); vloupání / vyražení dveří.
+	
+	## 2026-11-23 večer – main-claude-20261123b-slander: (c) pomluva přes hranici hráčů
+
+**Cíl:** uzavřít otevřený nález z auditu rivality (Gemini #2, 21. 11.): „posluchač pomluvy může být postava jiného hráče → AI za něj rozhoduje / neviditelný griefing“. Rozhodnutí: pomluvu mezi hráči NEzakazovat (tón hry), ale AI za cizího hráče nerozhoduje a oběť-hráč má denní strop.
+
+**Změny:** NOVÉ scripts/net/slander_policy.gd (verdikty klíčované postavou posluchače, max 8/postava, 256 celkem, TTL 12 h, strop 3 pomluvy/24 h na oběť-hráče, klientská sanitizace seznamu), tests/test_slander_cross_player.gd/.tscn; ZMĚNĚNÉ main.gd (_slander_open_verdict, rivalry_slander_verdict, victim_cap v rivalry_slander_block/rivalry_slander, _net_owner, _real_sim), scripts/net/net_session.gd (RPC _c2s_slander_verdict / _s2c_slander_pending, handle_slander_verdict, slander_notify/sync, expirace v _process, uzavření při odchodu postavy, hláška victim_cap), scripts/ui/hud.gd (verdikty nahoře v příkazech), scripts/sim/action_library.gd (repliky slander_pending), tests/test_lot_doors.gd (dluh fallbacku: spectator RPC bez pevného 0,8 s čekání).
+
+**Self-review** (všechny změněné soubory znovu přečteny / načteny): nalezeno a opraveno: (1) první verze klíčovala verdikty peer id → po reconnectu (nové peer id) by se ztratily; přepnuto na uzel postavy posluchače, vlastnictví se ověřuje přes owner_peer_of při každém rozhodnutí; (2) sanitizace nepropouští U+FFFD (vzniká z NUL/poškozeného UTF-8) ani U+FFFE/FFFF; (3) Rivalry.note_slander zná jen 3 výsledky (striktní schéma statistik) → pending se zapisuje předběžně jako „doubted“ místo rozšíření schématu savu; (4) patch skript bez `return` po quit() by pokračoval – patche přepsány na extends SceneTree s kontrolou všech náhrad předem.
+
+**Testy:** test_slander_cross_player 97/97 (jednotky, fuzz 400+300, offline beze změny, skutečné ENet: dedikovaný server + 2 klienti, listen host + klient). Regrese PASS: rivalry 152, lot_doors 154, multiplayer 67, gossip 116, net_protocol 34, player_commands 40, emotional_hud 11, gossip_confront 97, adult_social_integration 55, save_game 46. godot_check 60/60 + explicitní načtení slander_policy.gd. HUD verdiktů ověřen jen kódem a daty (headless – vizuální QA bez GPU chybí).
+
+**Gemini** (3.5-flash: 524/přetížení, 3.5-flash-lite: přetížení; odpověděl 2.5-flash, 1. pokus useknutý, 2. v kompaktní formě) – 7 nálezů:
+1. HIGH „strop na oběť se po restartu serveru nuluje“ – **zamítnuto jako HIGH, ponecháno jako otevřené LOW**: restart nemůže vyvolat hráč; persistované limity autora (2 h odstup, 1× denně témuž posluchači o témž sokovi) po restartu platí dál; ukládat běhový stav politiky by znamenalo novou sekci serverového savu – zdokumentováno v docs/relationships.md.
+2. HIGH „server nesanitizuje text pomluvy“ – **zamítnuto**: text pomluvy nepíše hráč – věta je šablona GossipNetwork.line_for, jména z validované CharacterData; upozornění jde přes Protocol.sanitize_chat a klient seznam sanitizuje znovu.
+3. MED „globální limit verdiktů / chování při přetečení“ – **zamítnuto**: FIFO už je (nejstarší se uzavře výchozím verdiktem, nic se neztratí potichu), test „přetečení uzavře NEJSTARŠÍ“.
+4. MED „tell umožní odvetu“ – **zamítnuto (designově)**: donesení oběti existuje i u AI posluchačů (report_slander) a následky jsou záměr hry.
+5. MED „chybí limit pomluv, které hráč iniciuje“ – **zamítnuto**: existuje (2 h, 1×/den posluchač+sok, token bucket příkazů) + nový strop na oběť.
+6. LOW „odeslání při změně hashe nespolehlivé“ – **zamítnuto**: reliable RPC, kontrola každých 0,5 s, při odpojení se hash maže (nové spojení dostane seznam znovu), kolize 64bit hashe zanedbatelná.
+7. LOW „vztah předběžného doubted a verdiktu“ – **přijato do dokumentace** (docs/relationships.md: rivalita zapíše doubted, dopad na vztahy až verdikt).
+
+**ChatGPT:** plán #571, bez odpovědi v době auditu. Kód do místnosti jako soubory neposlán (přenos base64 přes výstup nástroje se ořezává; GitHub sync v plánované relaci nejde – chybí add_repo) – logika shrnuta ve zprávě.
+
+**Otevřené:** strop na oběť a čekající verdikty se po restartu serveru neobnovují (LOW); vizuální QA řádků verdiktů v HUD (bez GPU); rivalita v práci (čeká na kariéry); dlouhý soak četnosti AI pomluv.
+
+## 2026-11-23 ráno – main-claude-20261123a-doors: (b) B4a dveře a okna ve stěnách
+	
+	**Změny:** ZMĚNĚNÉ scripts/world/lot_grid.gd (formát v3: openings {oid, wid, kind, at, built_at, paid}; check/build/remove_opening, door_close_seals, opening_traps, wall_segments s cache, prostor dveří _door_side → blocks_door, wall_at_opening, okna v appeal_at, save v3 + migrace v2, plan_restore stěny → otvory → předměty, veřejný snímek „open“ s revalidací na klientu; OPRAVA BFS _street_open), scripts/world/lot_nav.gd (walls_block nad plnými úseky), main.gd (open/unopen, door_traps, uzly stěn s otvory: kusy, nadpraží, parapet, zárubně, sklo, křídlo), scripts/net/net_session.gd (open/unopen: typy, druh ≤16 znaků, at 0..80, limit zedníka, hlášky), scripts/ui/buy_mode.gd (nástroj Dveře/Okno V/O/Shift+O, duch, výběr, vybourání), tests/test_lot_walls.gd (kontroly verze → LotGrid.VERSION); NOVÉ scripts/world/lot_door.gd, tests/test_lot_doors.gd/.tscn, tools/patches/apply_patch.gd + *.patch.
+	
+	**a) Self-review** (přečteny nové funkce door_close_seals/opening_traps/remove_opening, patche, test):
+	- Nalezeno testem: po load_game svět vytvoří postavy znovu → test držel uvolněný uzel (SCRIPT ERROR tiše ukončil část testu). Opraveno (nový odkaz po načtení) – poučení: hledat SCRIPT ERROR i při „TEST OK“.
+	- Nalezeno testem, SKUTEČNÁ chyba z B2/B3: BFS „od ulice“ zakládal všechny krajní průchozí buňky, takže stěna po hranici parcely nic neoddělovala – místnost u kraje nešla uzavřít a seals_off/traps_sim/door_traps tam neplatily. Opraveno _street_open (krajní buňka jen přes hranu bez stěny) + test.
+	- Vědomě ponecháno: po door_close_seals/opening_traps zůstanou _hedge/_vedge ve stavu „zazděno“ (stejně jako u _seals_off) – všichni čtenáři hran si je předtím přestaví (_build_edges / Pathfinder).
+	
+	**b) Testy:** test_lot_doors 147/147 (pravidla, navigace, předměty, vratky, save v3/migrace/16 vadných variant, fuzz 300, výkon, svět + kolize + křídlo, disk, door_traps, UI, ENet). Regrese PASS: lot_walls 128, lot_nav 85, lot_buy 111, b4_gap_navigation 4/4, b4_wall_gap_contract 5/5, build_wall_validation 18/18, lot_pathfinder 21/21, lot_pathfinder_walls 9/9, save_game 46, multiplayer 67, net_protocol 34, h4b_server_persistence 110, mp_reconnect 72, player_commands 40, household_dynamics_slice 63; godot_check 60/60. Výkon: check_opening ≈0,07 ms, BFS se zazděnými dveřmi ≈8–10 ms, walls_block ≈0,07 ms.
+	
+	**c) Gemini 3.5-flash (2 dotazy, první odpověď useknutá po 6 bodech):**
+	1. Inkluzivní hranice _on_span „falešně“ blokuje T-spoj na okraji otvoru – ZAMÍTNUTO: záměr, stěna tl. 0,12 m by na hraně zasahovala 6 cm do otvoru (do zárubně); testováno.
+	2. Dveře nemají kolizi – ZAMÍTNUTO pro tento krok: dveře jsou průchozí z definice (postavy chodí po mřížce, ne fyzikou); zamykání dveří je v ROADMAP (B4b).
+	3. DoS: vybourání okna spouští BFS – ZAMÍTNUTO: door_close_seals i opening_traps pro neprůchozí otvor vrací false před BFS (ověřeno v kódu, řádky 1206 a 1226); navíc limit zedníka.
+	4. plan_restore by měl obětovat dveře, ne předmět – ZAMÍTNUTO: záměr (konstrukce má přednost, předmět se vrátí s vratkou), zdokumentováno.
+	5. OOB v _door_side_cells – ZAMÍTNUTO: všichni volající kontrolují _in_grid před indexem.
+	6. Klíč cache wall_segments není per stěna – ZAMÍTNUTO: klíč verzuje celou cache, položky jsou _seg_cache[wid].
+	7. (2. dotaz) _street_open bez return / rohy – ZAMÍTNUTO: šlo o pseudokód v dotazu; skutečný kód vrací a rohy testují obě hrany postupně.
+	8. at = 0 projde serverem, klient ho odmítne → desync – ZAMÍTNUTO: LotGrid.check_opening odmítne at < 1 dřív, než se cokoli uloží nebo rozešle.
+	9. Chybí vlastnictví parcely (kdokoli může upravovat cizí stavby) – ČÁSTEČNĚ: zatím jedna sdílená domácí parcela, smí hráč s postavou (stejně jako B1/B2); vlastnictví parcel = OTEVŘENÉ pro (d) sdílené město.
+	- ChatGPT: plán #568, review balík #569 – v době zápisu bez odpovědi.
+	
+	**Otevřené:** Blender assety dveří a oken (teď procedurální, TODO), zamykání dveří, vlastnictví parcel v MP, okna bez denního světla (atmosféra konstantní), koberec nejde přes práh dveří (stěna s dveřmi je pro předměty plná), GitHub mirror (chybí add_repo).
+	
+	## 2026-11-22 večer – main-claude-20261122b-nav: (b) B3 postavy obcházejí postavené zdi
+
+**Změny:** NOVÉ scripts/world/lot_nav.gd (LotNav: zásah jen když přímou úsečku protne postavená zeď; přichycení na průchozí buňku, BFS lot_pathfinder.gd, vyhlazení s kontrolou zdí i neprůchozích buněk, cache podle revize parcely a buňky cíle, režimy direct/route/none/escape), tests/test_lot_nav.gd/.tscn, tools/diag_lot_nav.gd/.tscn; ZMĚNĚNÉ scripts/world/lot_grid.gd (reach_check v buy/move → blocks_path / access_unreachable, wall_traps, _sim_copy, _access_targets(skip_uid), 3 nové důvody), scripts/sim/sim_agent.gd (_walk přes LotNav před DiningDetour, _nav_unreachable, nav_blocked 120 min / max 32, _reachable_objects v _decide, příznak úniku), main.gd (stavba zdi odmítne zazdění postavy: traps_sim).
+
+**a) Self-review** (přečteny všechny změněné části):
+- Opraveno: příchod „k cíli“ se mohl splést s rohem trasy do 0,3 m od cíle → cíl se přijme jen když je sám vráceným bodem úseku (leg_goal == target_point).
+- Opraveno: vložené bloky měly po skriptové úpravě o tab navíc (parse error) – zachytil godot_check před testy, srovnáno.
+- Opraveno: čítač plánování (diagnostika/test výkonu) se mazal s cache → _forget() maže jen trasu.
+- Ověřeno: bez postavených zdí se chůze nemění (test „přímá chůze jako dřív“ 6,000 m); navigace běží jen na autoritě (SimAgent na klientovi neběží); nav_blocked se záměrně neukládá (po načtení se cesta zkusí znovu).
+
+**b) Testy:** test_lot_nav 85/85; regrese PASS lot_walls 128, lot_buy 111, lot_pathfinder 21/21, lot_pathfinder_walls 9/9, save_game 46, multiplayer 67, player_commands 40, household_dynamics_slice 63, net_protocol 34, h4b_server_persistence 110, mp_reconnect 72; godot_check 60/60.
+
+**c) Gemini 3.5-flash** (3 pokusy, konektor dvakrát usekl odpověď; hodnoceno 6 nálezů finální odpovědi + 2 z useknuté):
+1. Vynechání buněk startu/cíle z viditelnosti ignoruje zdi (kritická) – ZAMÍTNUTO: výjimka platí jen pro vzorkování nábytku (_cells_clear); walls_block testuje vždy celou úsečku.
+2. pts[last] = cíl bez testu viditelnosti (vysoká) – ČÁSTEČNĚ PŘIJATO: bod se použije jen když je viditelný (_farthest_visible), ale postava stojící na rohu mohla uvíznout do MAX_WALK → detekce uvíznutí + přeplánování, nový test.
+3. Skok na roh při d ≤ 0,3 m „fázuje zdí“ (vysoká) – ZAMÍTNUTO: roh je z polohy viditelný (úsečka nepřekročí nafouknutou zeď), stejný mechanismus jako DiningDetour; vizuální cuknutí ≤ 0,3 m je známé.
+4. Odstup 0,1 m < poloměr postavy (vysoká) – ČÁSTEČNĚ: vizuální prolnutí ramene se zdí je možné (známé omezení); větší odstup by uzavřel mezery 0,5 m, které B2 povoluje jako budoucí dveře – vyřeší dveře + animace.
+5. Kopie celé parcely v reach_check (střední) – ZAMÍTNUTO: jen v transakci (ne v duchovi UI), < 80 ms na 100 × 40, časy lot_buy beze změny, nákupy mají v MP rate limit.
+6. BFS cik-cak → A* (střední) – ZAMÍTNUTO: trasa se vyhlazuje (13,02 m vs. ideál 12,81 m); A* by zrychlil jen hledání (bludiště 26 ms).
+7. (useknutá) mutace cache.pts – ZAMÍTNUTO: záměrný posun cíle uvnitř buňky. 8. (useknutá) _arrive bez kontroly finálního úseku – ZAMÍTNUTO: cíl se přijme jen jako vrácený viditelný bod.
+- Pravidla obsahu: repliky („Kdo sem sakra postavil zeď?“, „Kdo mě sakra zazdil?!“) odpovídají dospělému tónu, nic citlivého.
+
+**d) ChatGPT:** plán #564, kód #566 – zatím bez odpovědi. **Grok #565** (na B2): (1) dveře jako atribut/řez stěny, objekt až se stavem – PŘIJATO jako výchozí návrh B4; (2) malá kapsa bez bodu použití je povolená záměrně (seals_off chrání jen body použití), vstupní předměty se nedají „prolézt“ – _enter platí jen pro buňky předmětu, hrany stěn blokují dál; (3) zeď postavená během chůze → přeplánování → none – NOVÝ test; AI plánovač nedosažitelné předměty vynechává (nav_blocked); pozdní připojení: navigace běží jen na serveru, takže klient nic počítat nemusí; (4) limit plných vratek – OTEVŘENÉ (zatím chrání limit zedníka 2/0,5 s); (5) 20 validních RPC – limit zedníka je token bucket, BFS 7 ms na skutečné parcele, test zátěže OTEVŘENÝ pro město.
+**Otevřené:** dveře a okna (návrh: položka vložená do zdi), chůze ulicí kolem parcely (zeď přes celou parcelu = none), vizuální odstup od zdi, ořez zdí kamerou, AI pomluva postavě jiného hráče (z rivality), vizuální QA stěn (bez GPU).
+
+## 2026-11-22 ráno – main-claude-20261122a-walls: (b) B2 stavění stěn
+
+**Změny:** scripts/world/lot_grid.gd (v2: stěny, check_wall/build_wall/remove_wall, předměty vs. stěny, BFS dosažitelnosti, keepout/enter vrstvy, save v2 + migrace v1, plan_restore, veřejný snímek), scripts/world/world_builder.gd (koridory a chodník jako keepout), main.gd (akce wall/unwall, uzly stěn), scripts/net/net_session.gd (validace wall/unwall, limit zedníka, hlášky), scripts/ui/buy_mode.gd (nástroj Zeď), NOVÝ tests/test_lot_walls.gd/.tscn; SMAZÁNY fallback prototypy scripts/world/build_wall_state.gd, build_wall_authority.gd a jejich testy (nahrazeny integrací; zálohy v previews/automation-backups/main-claude-20261122a/).
+
+**a) Self-review** (přečteny všechny změněné soubory):
+- Nalezeno a opraveno: kontrola „nezatarasí přístup“ byla jen lokální – stěnou za koncem koupelnového koridoru (bez dotyku koridoru) šlo odříznout místnost → přidán BFS dosažitelnosti od okraje parcely (seals_off) s průchozími keepout zónami (koridory, chodník) a vstupními předměty (sprcha, běžecký pás; jinak byly jejich body použití „nedosažitelné“ – odhaleno testem).
+- Výkon: check_wall validoval všechny dvojice stěn (O(n²), 4,3 ms při 127 stěnách) → kandidát jen proti stěnám v obálce (1,1–1,3 ms nejhorší případ, 0,06 ms běžně); náhled v UI cachuje výsledek podle bodů, revize a rozpočtu.
+- Formát délky v UI („2“ místo „2,00 m“) opraven.
+
+**b) Testy:** test_lot_walls 128/128 (vč. skutečného ENet); regrese PASS: lot_buy 111, save_game 46, multiplayer 67, h4b_server_persistence 110, mp_reconnect 72 (2× – po úpravě net_session), net_protocol 34, player_commands 40, build_wall_validation 18/18; godot_check 60/60. Známé varování ObjectDB 20–24 při ukončení (předchozí stav). Render: žádný (GPU/xvfb v relaci není; stěny jsou procedurální kvádry – vizuální kontrola TODO).
+
+**c) Gemini 3.5-flash (skeptický review, 6 nálezů, poslední useknutý):**
+1. DoS přes BFS v RPC (vysoká) – ČÁSTEČNĚ PŘIJATO: BFS už běží jako poslední krok, ale dávka 4 požadavků mohla na největší povolené mřížce (40 000 buněk) zdržet server ~140 ms → přidán vlastní limit zedníka (2 požadavky, 0,5/s) + test. Region graf zatím zbytečný (startovní parcela 9 504 buněk, BFS ~8 ms).
+2. _stamp_edges s nenormalizovanými body (vysoká) – ZAMÍTNUTO jako bug (všechny cesty ukládají normalizované stěny: check_wall, build_wall, plan_restore, apply_public), ale přidána pojistka mini/maxi.
+3. „Korupce cache referencí“ (vysoká) – ZAMÍTNUTO: PackedByteArray v cache se nikde nemění (jen čte), Packed pole jsou copy-on-write.
+4. Tisk peněz přes plan_restore (střední) – ZAMÍTNUTO s důvodem: vyřazení při obnově nastává jen při změně prostředí hrou (hráč ho nevyvolá), vratka je stropovaná ceníkovou cenou stejně jako u předmětů v B1; Gemini navíc zaměnil 1440 herních minut za sekundy.
+5. Prázdný seed BFS při neprůchozím obvodu (střední) – ZAMÍTNUTO pro současnou parcelu (okraj je zahrada; stěna po hraně parcely seed neodřízne, kruh stěn uvnitř zachytí seals_off). Pro budoucí parcely se vstupem jen z ulice: seed z explicitního vstupního bodu – otevřené.
+6. (useknuto – typ wid) – bez obsahu.
+- Pravidla obsahu hry: bez dopadu (stavění).
+
+**d) ChatGPT:** plán #562; kód k review v místnosti (viz DEVLOG). Otevřené: postavy zatím chodí rovně i skrz nové stěny (B3 pathfinding), nákup předmětů nekontroluje dosažitelnost, dveře/okna, vizuální QA stěn.
+
+## 2026-11-21 večer – main-claude-20261121b-rivalry: (c) rivalita, pomluva jako zbraň, manipulace s obranou
+
+**Self-review** (každý změněný soubor znovu přečten / ověřen načtením): scripts/sim/rivalry.gd (NOVÝ), social_pressure.gd, gossip_network.gd (slander/doubt/report_slander), household_dynamics.gd, sim_agent.gd (_start_slander/_start_hatchet, on_betrayal → sok), action_library.gd, utility_planner.gd, game_save.gd, net_session.gd, hud.gd, main.gd, rivalry_pressure.gd (komentář). Nalezeno a opraveno během review: (1) note_slander měl zbytečně spletitý výraz pro last_slander → prosté `now`; (2) top_rival řadil klíče při každém volání → O(n) bez řazení s deterministickou shodou (výkon 232 → 166 µs/volání při 200 záznamech); (3) gossip.slander původně bral nejzávažnější známý drb – i vlastní dřívější lež – před pravdou; dokumentovaná „zbraň z pravdy“ teď má přednost (+1 skóre); (4) moodlety „Nenechal(a)…“ skloňované podle rodu.
+
+**Testy:** godot_check 60/60; tests/test_rivalry.tscn 152/152 (exit 0, ~17 s). Regrese PASS: gossip 116, adult_social_integration 55, infidelity 157, save_game 46, multiplayer 67, player_commands 40, household_dynamics_slice 63, cold_war 72, romance 113, betrayal_wound 102, betrayal_privacy_enet 13 (skutečné ENet), gossip_confront 97, net_protocol 34, social_nuance 27, reconciliation 58, emotional_hud 11, lot_buy 111. Po opravách z auditu znovu: rivalry 152, gossip 116, adult_social 55, infidelity 157.
+
+**Gemini (3.5-flash-lite; 3.5-flash přetížený)** – 5 nálezů:
+1. HIGH „moodlet +3 za odražení manipulace odměňuje zneužití“ – **zamítnuto**: odměna nejde pachateli (ten dostane −3 „nezabralo to“), jde oběti za zdravou hranici; vztah i důvěra k manipulátorovi utrpí vždy naplno, minimum 25 % emočního zásahu zůstává. Hra tím nic „nefarmí“: moodlet je jeden na dvojici, 4 h, a manipulace má vlastní odstupy.
+2. HIGH „posluchač může být postava jiného hráče → neviditelný griefing“ – **částečně přijato jako otevřené**: stejné chování jako existující drby (AI model víry), posluchač má v paměti záznam „Drb od: X – …“ a při prokouknutí „X mi pomlouval(a) Y“; server omezuje autora (2 h, 1×/den na posluchače a soka) a soka vybírá sám. Otevřená otázka pro ChatGPT/uživatelku: má být pomluva postavě jiného hráče úplně zakázaná, nebo jen viditelná v jeho deníku?
+3. MED „zesílení swayed obchází denní strop drbů“ – **přijato a opraveno**: přírůstek jde přes gossip._cap_daily (tentýž strop dvojice posluchač–oběť).
+4. MED „rewind (dt ≤ 0) zamrazí rivalitu“ – **zamítnuto**: čas je serverový GameClock, ne vstup klienta; „rewind nic nevrací ani nezesiluje“ je projektová politika napříč moduly (Infidelity, ColdWar, Romance, BetrayalWound) a je testovaná.
+5. LOW „heat může vybočit z 0..1“ – **přijato** (levná pojistka clampf), i když součin hodnot z [0,1] mimo rozsah nevychází.
+
+**ChatGPT:** plán #560, bez odpovědi v době auditu. Kód do místnosti jako soubory NEposlán (přenos base64 přes výstup nástroje se ořezává; GitHub sync v této relaci nejde) – shrnutí logiky ve zprávě.
+
+**Otevřené:** rivalita v práci (čeká na kariéry); viditelné náznaky rivality ve 3D scéně (e); pravidlo pro pomluvu postavě jiného hráče (viz 2); dlouhý soak, zda AI pomluvy vznikají emergentně v rozumné míře (test ověřuje skóre, ne četnost).
+
+
 ---
+
+## 2026-11-21 ráno — main-claude-20261121a-wound — (c) psychika po zradě (BetrayalWound)
+
+**Změny:** NOVÝ `scripts/sim/betrayal_wound.gd`; `scripts/sim/psyche_ext.gd` (osa `betrayal`, uložení, reset při spawnu, ne při editoru); `scripts/sim/sim_agent.gd` (`_betrayal_open/_support/_tick`, `betrayal_reminder`, `betrayal_suspicion_mult`, moodlety, spánek, brána pomoci, soukromé věty, alkohol → `on_numb`, omluva → `on_repair`, hypervigilance u `inf.notice`); `main.gd` (drb o nevěře → spouštěč); testy `tests/test_betrayal_wound.gd/.tscn` (NOVÝ), `tests/test_betrayal_privacy_enet.gd/.tscn` (NOVÝ), `tests/test_private_replication_contract.gd` (+4 zakázané vlastnosti).
+
+**Self-review:** opraveno při čtení – odsazení vloženého bloku (parse error), moodlet „Viděl/a je spolu“ jen při k>0, šablona s pádem jména („s {lover}“ → bez jména), test kamarádky (3 postavy → spawn čtvrté), GameSave.apply znovu vytváří postavy (test hledá znovu).
+
+**Testy:** test_betrayal_wound **102/102**; test_betrayal_privacy_enet **13/13** (skutečné ENet, server + 2 klienti); regrese PASS: infidelity 157, save_game 46 (2×), multiplayer 67, romance 113, inner_voice 46, cold_war 72, gossip 116, household_dynamics_slice 63, player_commands 40, adult_social_integration 55, emotional_hud 11, private_replication_contract 24; godot_check 60/60.
+
+**Gemini (3.5-flash, skeptický review) – 7 nálezů:**
+1. (vysoká) Vytlačení těžké rány novou slabou – **zamítnuto s důvodem:** rány vznikají jen odhalenou zradou na autoritě (klient je nevytvoří); nová rána má vždy acute ≥ 0,55 a scar ≥ 0,3; 5 různých zrádců současně je okrajový případ a čerstvá zrada má mít přednost před nejvybledlejší. Ponecháno, zdokumentováno.
+2. (vysoká) **Řetězení pití obchází rebound** (každé napití posune `numb_until`) – **přijato, opraveno:** tolerance (`numb_n`, každé další napití během otupení uleví o 0,15 méně, od 4. napití nic), rebound se sčítá (strop 0,3), po odeznění dopadne a tolerance se vynuluje; test „řetězení pití“.
+3. (vysoká) Nezkrácené `about_name`, budoucí `last_thought` zablokuje myšlenky – **zamítnuto:** `about_name.substr(0, 64)` už je; validátor kontroluje konečnost a |t| ≤ 1e13 všech časů; budoucí časy blokaci neudělají (podmínka `lt <= now`).
+4. (střední) NaN `now` v `_settle` – **přijato, opraveno:** všechny vstupy (`tick`, `on_reminder`, `on_support`, `on_repair`, `on_numb`, `intrusive_thought`, `_settle`) ignorují NaN/INF čas; test „NaN/INF čas“.
+5. (střední) alokace řetězců v `intrusive_thought` – **zamítnuto:** volá se nejvýš 1× za herní hodinu na zraněnou postavu, zanedbatelné.
+6. (střední) `help_need`/`sleep_quality_mult`/`self_worth_hit` ignorují režim off – **zamítnuto:** `sleep_quality_mult(k)` k bere, `help_need` násobí `psy.k()` volající (`psyche_gate`), `self_worth_hit` se používá jen v moodletech/větách, které jsou při k=0 prázdné; test „režim off: násobiče přesně 1, žádné moodlety ani věty“.
+7. (nízká) Sebeobviňování bez odstupu – **přijato:** texty přeformulovány („Hlava mi pořád vnucuje…? Je to vůbec fér?“), test.
+
+**Grok #557 (6 bodů):** 1) agency – přijato: nový test, hráčský příkaz „Svěřit se“ projde i při silné ráně a jizvě, AI chuť na rande nikdy 0; 2) farmení spouštěčů – už ošetřeno (pauza 6 h na člověka, saturace ×(1−acute), zpracování spouštěč tlumí; podpora má klesající výnos ×(1−processed)); 3) defektnost + jizva → „nikdy neflirtuj“ – zamítnuto: násobiče jen AI, min 0,4, hráč smí vždy; 4) omluva od zrádce slabší než opora třetí osoby – zamítnuto: přijatá upřímná omluva od toho, kdo ublížil, je realisticky silný faktor a už ji hradlí RelLedger (upřímnost, odpouštění); opakovaná zrada zpracování půlí (ne nuluje) – už je; 5) únik do chatu/synchronizéru – ověřeno ENet testem (chat se z psychiky nikdy negeneruje), režim off testován; 6) 5. zrada – stejný člověk = sloučení do jedné rány, jiný = vytlačení nejslabší (test).
+**ChatGPT:** plán #556, bez odpovědi v době auditu. **Otevřené:** rivalita a manipulace (další běh c); terapeut/klinika jako místo (b); vizuální efekty psychiky po zradě (e) zatím nejsou.
+
+
+
+## 2026-11-20 (Claude run `main-claude-20261120b-lot`, ~19:20–20:50 UTC) – (b) B1 mřížka parcely a režim nákupu
+
+**Rozsah:** LotGrid (data, pravidla, peníze, uložení, síťový snímek), BuyCatalog (22 položek), LotFurnisher, WorldBuilder.describe_lot, SmartObject.quality/lot_uid, SimAgent._object_quality, main.gd (lot_* API, B, atmosféra → nálada), GameSave (sekce lot), NetSession (request_lot_action/_c2s_lot/handle_lot_action/broadcast_lot/_s2c_lot), UI buy_mode.gd.
+
+**Self-review (opraveno během běhu):**
+- Přístup k předmětu vedl skrz zeď (gauč čelem do zdi měl „sedák“ za zdí na trávníku) → `_segment_hits_static`.
+- `revision` v uloženém snímku rozbila bit-exact round-trip (test_adult_social_integration) → revize se neukládá.
+- Kniha transakcí mohla zapsat delší `kind`/`id`, než povolí validace vlastního savu → ořez v `_log`.
+- Q/E kolidovalo s otáčením kamery → otáčení předmětu R / Shift+R.
+
+**Testy:** `test_lot_buy` 111/111 (exit 0, 25 s; vč. ENet serveru se 2 klienty a UI). Regrese PASS: save_game 46, multiplayer 67, h4b_server_persistence 110, mp_reconnect 72, player_commands 40, infidelity 157, romance 113, cold_war 72, household_dynamics_slice 63, net_protocol 34, adult_social_integration 55; headless `--test 2` OK; godot_check 60/60 (nástroj kontroluje pevnou sadu 60 skriptů – nové skripty ověřeny načtením `load()`/`can_instantiate()` a během testů).
+
+**Audit Gemini 3.5-flash (7 nálezů):**
+- ✅ #2 (vysoká) vratka při obnově ze savu brala `paid` ze souboru → upravený save mohl „tisknout“ peníze. Oprava: vratka nejvýš v katalogové ceně + test.
+- ✅ #7 (nízká) souřadnice v RPC jen v rozsahu mřížky (dřív −1000…100000).
+- ❌ #1 podvržení id v RPC: id je `multiplayer.get_remote_sender_id()`, ne argument klienta.
+- ❌ #3 nedeterminismus výchozího nábytku: výchozí objekty se neřadí (pořadí z WorldBuilderu), řadí se jen koupené podle uid; test parity indexů server↔klient prochází.
+- ❌ #4 `buy()` pokračuje po chybě `check()`: nepravda, vrací hned (`why != ""`).
+- ❌ #5 zóna v půdorysu blokuje vše: body použití uvnitř půdorysu se přeskakují, katalog má body s odstupem (test validace katalogu + umístění všech typů).
+- ❌ #6 záporný věk při driftu: čas nákupu i prodeje je tentýž herní čas autority; záporný věk = rewind a schválně se nepočítá jako plná vratka (proti zneužití vracení času).
+
+**ChatGPT (AI místnost):** plán #553 poslán, bez odpovědi do konce běhu.
+
+**Otevřené / známé:**
+- Bez renderu: koupené předměty kromě postele, gauče a lednice jsou primitiva (TODO Blender assety pro styly katalogu); GPU/xvfb v tomto prostředí není.
+- Atmosféra neprochází stěnami (zjednodušení); bez pathfindingu se přístup ověřuje jen geometricky.
+- Přístavba osmičlenné domácnosti je zatím nestavitelná.
+- GitHub synchronizace nejde (nástroj pro připojení repozitáře v plánované relaci chybí, dřív push 403).
+
+---
+
 
 ## 2026-10-23 (run 23, ~02:50–04:05 UTC, scheduled) – closing run 22 + full-household tuning + stress matrix
 
@@ -1683,3 +1897,280 @@ load; ENet "max channels: 0" broadcast noise in _on_peer_disconnected; ChatGPT h
 **Gemini (gemini-3.5-flash):** 6 nálezů – přijato: odměna „Dobrý drb“ i za citlivé drby (opraveno + test), O(n²) matice vztahů (jen sloupec posluchače), farmení sblížení (strop 3/den + test); zamítnuto s důvodem: únik v replikách (repliky generické, test), panic×stigma (stigma je vlastnost posluchače – návrh Gemini by stigmatizoval všechny), pád na chybějících klíčích (get+typ), exposed bez GC (_gc čistí). Detail docs/reviews/gossip-20261109.md.
 **ChatGPT:** bez reakce na plán #426. **Render:** žádný (bez vizuální změny).
 **GitHub:** NEsynchronizováno – add_repo v relaci chybí, GH_TOKEN neplatný.
+
+
+## 10. 11. 2026 večer — Claude `main-claude-1794338540-311463`: konfrontace a popření drbů (dokončení spadlého běhu 1794295321)
+**Převzato z ranního běhu (nikdy neotestováno):** gossip_network v2 (suspects, confront, deny), sim_agent._start_gossip_talk, hud, utility_planner.confront_score, net_session hradlo, action_library repliky.
+**Změny tohoto běhu:** gossip_network.gd (RETRACT_MAX 5 posledních posluchačů; DENY_SOURCE_DAMP 0,5 – sociální důkaz; původce lži popření ignoruje; zapřená ataka paniky před svědkem = trest jen ×stigma svědka); sim_agent.gd (svědci hádky z konfrontace drb ×0,6; laskavá replika deny_caught_gentle); main.gd (u zapřené ataky žádná trust_breach, moodlet „Ví o tom“); utility_planner.gd (**bug: AI konfrontaci nikdy nevolila** – base_appeal 0 → brána max zášť ≥ 20 + gain ≥ 1; naléhavost base·zášť·0,6·(1−0,35·A)); action_library.gd (repliky); tests/test_gossip.gd (oprava odsazení bloku v1 migrace z fallbacku 18:12 → parse error → visící scéna = příčina „timeoutů“).
+**Testy:** NOVÝ test_gossip_confront **97/97**; test_gossip **116/116**. Regrese sériově na pozadí (previews/regress-1794338540/): crowded_household 50, household_dynamics 81, household_full_shard 24, determinism_split 5, dynamics_slice 63, household_resume 10, full_playable_slice 87, save_game 46, save_continuation 12, social_memory 41, social_nuance 27, reconciliation 58, player_commands 40, mental_health 95, psyche 93, worldview 43, ocd_social_anxiety 45, multiplayer 67, character_net 97, mp_reconnect 72, h4b_server_persistence 110, adult_social_integration 55, extreme_fictional_household 27, hygiene_preemption 28, gossip_content_boundary_runner exit 0 – **vše PASS**. godot_check 60/60 (kontroluje jen 60 skriptů). stderr: předexistující „ObjectDB 20“.
+**Gemini:** gemini-3.5-flash přetížený, použit výchozí flash-lite; výstup dvakrát useknutý (neúplný audit). Nálezy 1–4 zamítnuty (guard can_confront existuje; rng = členská instance se stavem v uložení; klient rid neposílá; klienti události nedostávají), nález 5 přijat (zapřená ataka nesmí být „lež do očí“) a opraven + test. Pokračování (nález 7, „kryptograficky bezpečný výběr“) zamítnuto – výběr je deterministický na autoritě záměrně.
+**Grok #430:** body 1–4 zapracovány (strop odvolání, sociální důkaz, tlumená spirála + 5denní test, citlivé druhy). Bod 5 (lab M1c, víc seedů) mimo tento krok. **Grok #432** (QA audit): priorita realism-pass geometrie a vizuálních vad – zapsáno jako další krok.
+**Otevřené:** konfrontace se validuje při zařazení příkazu, ale proběhne až po dojití k cíli – mezitím podezření může vypršet → krátká odpověď „Jaký řeči?“ (přijatelné, ne exploit). HUD klienta v MP nabízí konfrontaci u všech (server odmítne). Kód neposlán do místnosti jako soubory (GitHub nedostupný, přenos velkých souborů konektorem drahý) – jen popis.
+**GitHub:** NEsynchronizováno – mcp add_repo v relaci chybí, proxy odmítá push (repo není v autorizovaných zdrojích relace), GH_TOKEN neplatný.
+
+	
+	## 2026-11-11 — Claude run `main-claude-1794381713-319961`: hlava a rozpočty po realism pass (tvorba postavy)
+	**Změny:** scripts/assets/head_builder.gd (NOSTRIL_DEPTH 2,4 mm, σ 3,4×3,0 mm, columella/alar měkčí), scripts/character/face_morphs.gd (+ korekční pár nose_length × nose_tip_angle), scripts/assets/hair_builder.gd (BUDGET_SCALP 40 000), character.glb přestavěn (revize 2026-11-11-v4, 4 839 472 B, md5 c16a7d96…), tests/test_head.gd (viditelná přeložení = 0; skryté klíny víčka očnice ec/eye_socket < 1 mm² ≤ 6; HEAD_TRI_BUDGET 19 000), tests/test_assets.gd (postava ≤ 28 500), tools/rebuild_character_realism.gd (revize v4).
+	**Testy (server):** test_head 40/43 → 43/44 (extrémy 7,47 → 3,88 mm, pod nosem 0 přeložení; selhává 1 plocha víčka očnice 1,6–5 mm² u koutku – záměrně počítána jako viditelná), test_assets 153/155 → 154/155 (zbývá sed pánev 0,60 m), test_hair 59/60 → 60/60, test_neck_seam 54/56 beze změny (otevřené), test_skin 60/61 beze změny. PASS: face_detail 66, skin_micro 50, neck_length 36, body_morphs 62, live_anatomy_overlay 76, torso_surface_c13 24, full_playable_slice 87, character_editor_ui 68, save_game 46, clothing_c5 16, host_character_editor 10, mp_reconnect 72; godot_check 60/60. test_h3_three_process_game 11/17 FAIL – ověřeno, že stejně selhává i se starým GLB (předexistující, časování na serveru).
+	**Render:** Blender Cycles 5 nosů × 3 pohledy docs/images/head-nose-20261111.jpg – bez přeložení a děr; dírky z podhledu jen slabě čitelné.
+	**Gemini (gemini-3.5-flash):** přijato – tolerance skrytých ploch omezena na < 1 mm² (jinak viditelná chyba); riziko výkonu rozpočtů zdokumentováno. Zamítnuto – spam chyb chybějících blend shapes (SimVisual iteruje jména sítě), peer se starým GLB (assety jsou součástí buildu). Grok #467: rezerva 15–20 % zamítnuta (deterministické počty, těsný limit hlídá růst).
+	**Otevřené:** přestavba víčka očnice (ec), krk – 7 trojúhelníků při bočním ohybu −20° + krátký krk, „límec“ 2,9 mm u čelisti, LOD pro dav, normály korekčních tvarů neověřeny. Detail docs/reviews/head-realism-regressions-20261111.md.
+	**GitHub:** NEsynchronizováno – repo není v autorizovaných zdrojích relace (proxy 403), add_repo nedostupný.
+	
+
+## 2026-11-11 večer — Claude run `main-claude-1794424928-330520`: zadní víčko očnice (tvorba postavy)
+
+**Změny:** scripts/assets/head_builder.gd (MD5 7decff80 → 95dd5331): prstenec 5 + víčko „ec“ v azimutálně délkojevné mapě kolem přední osy oka (`_ae_polar`, `_ae_point`, `_sph_ae`, `EC_K5`), víčko = 2 prstence `EC_RINGS` [0,34; 0,67] + vějíř k pólu (`_eye_cap`, recept `["ec", s, m, a, b]`), azimut se s hloubkou přelévá na rovnoměrný (`EC_SPREAD`), fornix nereaguje na mrkání/úsměv; `_cap` už jen pro ústa. tests/test_head.gd (tolerance klínů víčka zrušena, mez 0), NOVÝ tests/test_eye_socket_cap.gd/.tscn, tools/rebuild_character_realism.gd (revize 2026-11-11-v5-eye-socket), assets/models/character.glb + manifest.json přestavěny. Docs: docs/reviews/eye-socket-cap-20261111.md (nový), docs/asset-pipeline.md, docs/testing.md, docs/roadmap.md, docs/reviews/head-realism-regressions-20261111.md, docs/images/eye-socket-20261111.jpg; ROADMAP.md. Zálohy originálů: previews/automation-backups/main-claude-1794424928-330520/.
+
+**a) Self-review:** diagnóza ukázala, že příčinou nebyla jen čtvercová parametrizace, ale zeměpisná mapa prstence 5 (koutky 125–130° od přední osy, za rovníkem obrácený azimut už ve výchozí hlavě). Dvě mezivarianty (polární prstence 3 plochy ≤ 8,1 mm²; harmonické vyhlazení 4 plochy ≤ 3 mm²) zamítnuty měřením. Viditelná kůže a prstence 1–4 bit po bitu beze změny (ověřeno porovnáním se zálohou), posun jen prstence 5 (≤ 2 mm výchozí, ≤ 6 mm extrém, za okem). Při revizi nalezeny a opraveny 2 chyby v novém testu (nepodporovaný formát %e, uzavřenost počítaná jen z ploch víčka).
+
+**b) Testy (server, Godot 4.7.2 headless, previews/diag/ec-1794424928/):** test_eye_socket_cap **14/14** (nový), test_head **44/44** (dřív 43/44; 0 přeložených ploch viditelných i víčka, rozpočet 18 346 ≤ 19 000), test_face_detail 66/66, test_hair 60/60, test_skin_micro 50/50, test_neck_length 36/36, test_body_morphs 62/62, test_live_anatomy_overlay 76/76, test_character_editor_ui 68/68, test_full_playable_slice 87/87, test_save_game 46/46, test_host_character_editor 10/10, test_mp_reconnect 72/72, test_torso_surface_c13 24/24, test_clothing_c5 16/16. Předexistující selhání beze změny (identická jako ráno se starým GLB): test_assets 154/155 (sed – pánev 0,60 m), test_skin 60/61 (ostatní sítě beze změny), test_neck_seam 54/56 (krk v bočním ohybu, „límec“ 2,9 mm). godot_check 60/60. Mrknutí: 53 → 0 přeložených ploch. Vizuální kontrola: CPU rasterizér reálného GLB (výchozí + 2 oční extrémy × 4 pohledy) bez děr a klínů v koutcích – docs/images/eye-socket-20261111.jpg; Blender render neproveden (změna je za okem, viditelná geometrie identická).
+
+**c) Gemini (gemini-3.5-flash):** přijato a převedeno na testy – kontrola konzistentní orientace vějíře vs. `_annulus` (tvrzení Gemini o obrácených normálách test vyvrátil: 912 orientovaných hran souhlasí), vůle od oční koule při mezivahách lineárního součtu (≥ 1,01 mm). Zamítnuto se zdůvodněním: skok azimutu o 2π na ±π polohu nemění (cos/sin, šev pokrývá test monotonie); sin(π) ≈ 1,2e-16 → 1,6e-18 m, pod přesností float32 v GLB; výkon slovníků jen při stavbě GLB, ne za běhu; „skoková nemonotónnost u ostrého rohu“ – vyvráceno testem (33 obličejů, nejmenší krok 0,51°). ChatGPT: review souboru #498 vyžádáno, zatím bez odpovědi.
+
+**d) Otevřené:** krk v bočním ohybu (7 trojúhelníků) a „límec“ 2,9 mm; LOD pro dav; sed v test_assets; GitHub push nejde (repo není v autorizovaných zdrojích relace, add_repo nástroj v relaci chybí).
+
+
+## 2026-11-12 ráno — Claude run `main-claude-1794468128-338000`: krk v bočním ohybu a „límec“ (tvorba postavy)
+
+**Změny:** scripts/assets/head_builder.gd (MD5 95dd5331 → 6181a06d): `nl_top(c)` (horní mez rampy délky krku sleduje spodní okraj čelisti: brada 1,556 → bok `NL_TOP_SIDE` 1,605 → týl 1,62 m), `NL_HOLD` 13 mm místo SEAM_HOLD 20 mm v rampě, `SEAM_BODY_BAND` 0,08 → 0,12, `SEAM_Y_TOP` 1,64 → 1,68. tests/test_neck_seam.gd (MD5 038dda70; + úklon ±20°/±25° × krátký krk × 3 těla, klid max tuk+svaly × krk ±1, nl_top hodnoty a monotonie). tools/rebuild_character_realism.gd (revize 2026-11-12-v6-neck-bend), assets/models/character.glb (MD5 401fe63c, počty vrcholů/trojúhelníků beze změny 14 916 / 27 462) + manifest.json. Docs: docs/reviews/neck-bend-20261112.md (nový), docs/testing.md, docs/character-creator.md, docs/asset-pipeline.md, docs/roadmap.md, docs/images/neck-bend-20261112.jpg, docs/images/neck-bend-compare-20261112.jpg; ROADMAP.md. Zálohy: previews/automation-backups/main-claude-1794468128/ (vč. starého GLB). Diagnostika previews/diag/neck-1794468/.
+
+**a) Self-review:** diagnóza (diag_flips*.gd) ukázala, že 7 převrácených ploch vzniká jen v kombinaci 6 (nl −1, tuk 0,71, úzký hrudník, úklon −20°) a příčinou je krátká rampa délky krku na boku (lokální svislé stlačení až ~60 %), ne váhy kostí. Prototyp v paměti (diag_proto.gd) navíc našel 44 převrácených ploch v KLIDU při max. tuku + svalech + krku −1 (test to nepokrýval) – nově pokryto testem, 0. Límec: SEAM_BODY_BAND 10 cm dal 2,6 mm (~0,8 mm z toho je svislý zdvih báze krku, diag_collar_y.gd), proto 12 cm. Ověřeno, že horní mez 1,605 leží pod spodním okrajem čelisti ve všech směrech (profil r(y,θ): 60° ~1,605–1,61, 75° ~1,618, 90° ~1,632; rampa se počítá ze ZÁKLADU, morfy čelisti ji nemění). Při revizi opraveno: odsazení vložených bloků testu (nástroj run_script odsazuje víceřádkové literály) a spuštění přestavby bez v3 lease (rebuild skončil exit 2 → lease získán, znovu).
+
+**b) Testy (Godot 4.7.2 headless, previews/diag/neck-1794468/):** test_neck_seam **60/60** (dřív 54/56; převrácení 0, límec 2,2 mm), test_neck_length 36/36, test_head 44/44, test_eye_socket_cap 14/14, test_face_detail 66/66, test_hair 60/60, test_skin_micro 50/50, test_body_morphs 62/62, test_live_anatomy_overlay 76/76, test_character_editor_ui 68/68, test_full_playable_slice 87/87, test_save_game 46/46, test_host_character_editor 10/10, test_mp_reconnect 72/72, test_torso_surface_c13 24/24, test_clothing_c5 16/16, test_character 157/157, test_appearance_slider_ui 111/111. Předexistující beze změny: test_assets 154/155 (sed – pánev 0,60 m), test_skin 60/61 („ostatní sítě beze změny“). godot_check 60/60. Vizuální kontrola: CPU rasterizér reálného GLB (výchozí / těžké tělo + krk −1 / štíhlé + krk +1 × 4 pohledy; porovnání v5 × v6) prohlédnuto – tvrdý světlý prstenec pod čelistí u těžkého těla zmizel, zůstává mírný vodorovný val vzadu (čte se jako tuková řasa). Blender render neproveden (změna tvaru krku, rasterizér stačí na siluetu a švy).
+
+**c) Gemini (gemini-3.5-flash, skeptický review diffu):** přijato jako známé omezení/dokumentace – test nepokrývá předklon ≥ 20° s max. tukem I svaly a krkem −1 (~30 ploch pod bradou; zapsáno v docs/reviews/neck-bend-20261112.md jako otevřené, návrh korektivu `b_neck_len × fat_hi`); pojistka `bot = top − 0,01` by při degenerované smyčce dala strmou rampu (s reálnou smyčkou je rezerva ≥ 4,5 cm, ponecháno). Zamítnuto se zdůvodněním: „SEAM_Y_TOP se nepoužívá“ (používá se v `_seam_setup`, Gemini viděl jen výřez), „nespojitost v c = ±1 u osy“ (vrcholy krku leží ≥ 4 cm od osy, víčko uvnitř trupu má rampu 0), „nulová derivace nl_top na boku = zarážka“ (je to hladké maximum C1, ne zlom), „SEAM_HOLD smazán → runtime error“ (nesmazán, záměrně oddělené NL_HOLD), nedeterminismus `_conform` (import je jednovláknový a offline, GLB se distribuuje hotový – beze změny oproti dřívějšku), výkon netypovaných polí (jen při importu). ChatGPT: review souboru #502 vyžádáno.
+
+**d) Otevřené:** předklon ≥ 20° × max. tuk+svaly × krátký krk (korektiv); LOD pro dav; sed v test_assets; test_skin „ostatní sítě“; GitHub push nejde (repo není v autorizovaných zdrojích relace, proxy 403; add_repo v relaci chybí).
+
+## Audit 2026-11-12 večer – LOD postav pro dav, krok 1 (main-claude-1794511294-343272)
+**a) Self-review:** znovu přečteny character_lod.gd, změny asset_library.gd, sim_visual.gd (_apply_model_variant, hair_waiting, _process, blok C-LOD), game_settings.gd, settings_menu.gd, test. Nalezeno a opraveno během běhu: počet trojúhelníků LOD z RenderingServeru (velikost indexu z hlavního bufferu místo odhadu), dvojí svařování vrcholů, `%` v popisku testu, odvození typu z Variant (parse error), hair_waiting() by ve stupni 2 hlásil čekání (nyní podle _hair_waiting). Ověřeno: attach_head (offline nástroj) se za běhu nepoužívá – jeho chyba s CUSTOM0 v ad-hoc skriptu není produkční.
+**b) Testy:** NOVÝ test_character_lod 76/76. Regrese: appearance_slider_ui 111, async_shutdown 18, body_morphs 62, character 157, character_editor_ui 68, character_preview 13, clothing_c5 16, face_detail 66, full_playable_slice 87, h3_async_placeholder_render 78 (Xvfb, GL Compatibility), hair 60, head 44, host_character_editor 10, live_anatomy_overlay 76, live_character_edit 38, mouse_input_real 20, mp_reconnect 72 (v souběhu se 3 procesy 15/21 – časování handshaku; samostatně PASS), multiplayer 67, neck_seam 60, psyche_presentation 19, save_game 46, skin_micro 50, torso_surface_c13 24, wardrobe_async 41, web_input_responsive 22. Předexistující: assets 154/155 (sed), skin 60/61 (ostatní sítě s CUSTOM0). Nespuštěno: test_h3_rendered_parity (vyžaduje lease main-fallback-*). godot_check 60/60 (nástroj kontroluje 60 skriptů; nové skripty ověřeny načtením v testech). Render tools/render_crowd_lod.tscn → docs/images/crowd-lod-levels-20261112.jpg, crowd-lod-tiers-20261112.jpg – prohlédnuto: LOD 1–3 bez škvír na švech, silueta čitelná; helma je zblízka u objemných účesů výrazně jiná (jen pro postavy < ~5,5 % výšky obrazu) → další krok proxy vlasů.
+**c) Gemini:** 3.5-flash přetížený, flash-lite odpověděl, konektor ale odpovědi zkracoval. Přijato: silný odkaz na výsledek v cache = únik → cache jen se slabými odkazy + _prune, test úklidu. Zamítnuto se zdůvodněním: přesun generace (~150 ms jednou) do vlákna (běží uvnitř synchronního načtení GLB), dotaz na kameru u každé postavy (3 µs, 4× za s), „time slicing“ (fáze už rozložená podle instance), ztráta stínů očí/řas ve stupni 1 (pár pixelů). Poznamenáno na později: dither přechod mezi stupni, interpolace mimiky 10 Hz. Multiplayer: čistě klientská prezentace, nic se nereplikuje, server (bez kamery) zůstává ve stupni 0; nastavení validované. Citlivý obsah: beze změny.
+**d) Otevřené:** proxy vlasů podle účesu, LOD karet a procedurálních dílů, prořezání blend shapes, měření na GPU/webu; předklon ≥ 20° × max tuk+svaly × krátký krk; sed v test_assets; test_skin „ostatní sítě“; GitHub push (add_repo v relaci chybí).
+
+
+## Audit 2026-11-13 ráno – proxy účesu pro dav, C-LOD krok 2 (main-claude-1794554507-349929)
+**Rozsah:** scripts/assets/hair_rig.gd (proxy_geometry, proxy_mesh, cached_proxy, _store + scalp_proxy:<styl>, předpočítané mřížky bind v context()), scripts/sim/sim_visual.gd (uzel hair_proxy, _update_hair_proxy, LOD viditelnost, materiál helmy, _face_meshes), NOVÝ tests/test_hair_proxy.gd/.tscn, tests/test_character_lod.gd (stupeň 2 = proxy), NOVÝ tools/render_hair_proxy.gd/.tscn. MD5: {"scripts/assets/hair_rig.gd":"ad3cb17f","scripts/sim/sim_visual.gd":"1ad544e9","tests/test_character_lod.gd":"878bf036","tests/test_hair_proxy.gd":"3128968b","tools/render_hair_proxy.gd":"04925a2e"}.
+**a) Self-review:** kód přečten; nalezeno a opraveno: (1) RENDER odhalil obrácené pořadí vrcholů (Godot = přední strana CW; vykresloval se vnitřek obálky) – test původně ověřoval špatnou konvenci, opraveno oboje a ověřeno proti síti hlavy z GLB (12 526/12 560 tr. stejná konvence); (2) smyčka viditelnosti modelu by proxy zobrazila (přeskočena jako karty); (3) časový limit 150 ms byl odhad – naměřeno 150–300 ms (přenos morfů), limit 400 ms zdůvodněn (jednorázově, ve vlákně).
+**b) Testy:** test_hair_proxy 220/220 (15 účesů: rozpočet 1 344 tr., pořadí vrcholů, normály ≥ 98 % – strmé stěny dlouhých vlasů 13–15 tr. s hladkou normálou proti ploše, min. plocha, skin, klíče; silueta IoU proxy ≥ helma ve všech 45 pohledech, průměr 0,914 vs 0,733; morfy; bitová determinace; SimVisual; async), test_character_lod EXIT 0, test_hair, character, face_detail, body_morphs, character_editor_ui, appearance_slider_ui, character_preview, full_playable_slice, save_game, mp_reconnect, multiplayer (samostatně; v souběhu s renderem 66/67 – synchronizace pauzy), host_character_editor, live_character_edit, wardrobe_async, async_shutdown, clothing_c5, live_anatomy_overlay, psyche_presentation, head, neck_seam, skin_micro, h3_async_placeholder_render (Xvfb) PASS; předexistující test_assets 154/155 (sed). godot_check 60/60. Vazby/karty/proxy po předpočtu mřížek bitově stejné (MD5 3 účesů). Render previews/hair-proxy/*.jpg prohlédnut (2. verze: barva i silueta odpovídají kartám).
+**c) Gemini** (flash-lite, 3.5-flash přetížený): 5 nálezů – zamítnuty 1 (desync skinu: proxy sdílí kostru i Skin karet, _apply_joints prochází všechny skinned uzly; ověřeno testem), 2 (race v _store: běží jen na hlavním vlákně, _waiters brání duplicitám), 3 (indexy blend shapes: váhy se zapisují podle jmen vlastní sítě; test váhy = CharacterData), 5 (blokování hlavního vlákna: SimVisual volá jen neblokující cached_proxy); přijat 4 → test minimální plochy trojúhelníku. ChatGPT: bez nových odpovědí (#517–519).
+**d) Otevřené:** proxy pro copánky/dredy vyplňuje mezery (IoU 0,68–0,82), culík z boku 0,76; Forward+/noc neměřeno; LOD karet a procedurálních dílů; prořezání blend shapes; předexistující test_assets (sed), test_skin; kód nepřiložen do místnosti jako soubor (limit velikosti přenosu v tomto běhu); GitHub push 403.
+
+
+## Audit 2026-11-13 večer – karty vlasů pro stupeň 1, C-LOD krok 3 (main-claude-1794597706-359022)
+**Rozsah:** scripts/assets/hair_rig.gd (lod1_pack, _lod1_outline, _lod1_simplify, border_change, cached_lod1, lod1_mesh; _store ukládá scalp_lod1:<styl>), scripts/sim/sim_visual.gd (_scalp_full/_scalp_style, _scalp_mesh_for_tier, _apply_scalp_lod, scalp_lod_mesh; volání ze set_lod_tier), NOVÝ tests/test_hair_lod1.gd/.tscn, NOVÝ tools/render_hair_lod1.gd/.tscn. MD5: {"scripts/assets/hair_rig.gd":"0d90aa86","scripts/sim/sim_visual.gd":"dd5e9c07","tests/test_hair_lod1.gd":"33a04c56","tools/render_hair_lod1.gd":"b89cf410"}. Zálohy originálů previews/automation-backups/main-claude-1794597706/.
+**a) Self-review:** kód přečten; během vývoje nalezeno a opraveno: (1) meshoptimizer na sjednocené podmnožině „ostatních“ ploch se kvůli hranici skořepiny vůbec neuplatnil → zjednodušení po druzích + tolerance změny hranice 1 %; (2) trubice copánků na 1. úrovni chyba 13,8 mm (zploštělé copánky, silueta zepředu 0,948) → mez chyby 4 mm, copánky/dredy bez LOD1 (zdůvodněno statistikou skip); (3) náhodné proředění trhalo obrys dlouhých vlasů (IoU jen vlasů 0,91–0,93) → ochrana obrysových segmentů (kulová + válcová mřížka, ε 2 mm), podíl 25–60 %; (4) chybný formát řetězce v testu (%.2e) opraven.
+**b) Testy:** test_hair_lod1 **185/185** (2× – podruhé po opravě z auditu): 16 účesů, 327 252 → 189 531 tr. (57,9 %), silueta ≥ 0,965 v každém pohledu (průměr 0,990), krytí jen vlasů ≥ 0,957, plocha 98–101 %, rozšíření přesné na 1e-5 i v cílech klíčů, bitová determinace, SimVisual 0/1/2 + váhy, async, přepnutí 0,5–0,8 ms. Regrese (previews/diag/lod1-1794597/summary.txt): hair_proxy, character_lod, hair, character_editor_ui, appearance_slider_ui, full_playable_slice, live_character_edit, character_preview, host_character_editor, face_detail, head, body_morphs, save_game, wardrobe_async, async_shutdown, multiplayer, mp_reconnect, psyche_presentation, h3_async_placeholder_render 78/78 (Xvfb) PASS; test_character v souběhu 156/157 (posuvník 5,01 ms > 4 ms pod zátěží), samostatně **157/157** (3,15 ms); předexistující test_assets 154/155 (sed). godot_check 60/60.
+**Render:** tools/render_hair_lod1.tscn na GPU (Xvfb, opengl3) exit 0 → previews/hair-lod1/{close_front,close_back,distance}.jpg, počty trojúhelníků v renderu odpovídají (např. dlouhé rovné 24 971 → 12 509). **Vizuální prohlídka NEPROVEDENA** – obrázek se nepodařilo přenést k prohlížení (konektor vrací JPEG jako text, base64 přes výstup se ořezává). Vizuální shodu dokládá jen CPU rasterizér siluety v testu. OTEVŘENÉ.
+**c) Gemini** (3.5-flash): přijat 1 (partner páru vrcholů karty musí mít stejné c0 – robustnost proti změně builderu; opraveno, test znovu 185/185). Zamítnuty se zdůvodněním: „first-vertex bias / přepis widen“ (karta má konstantní atributy a vlastní vrcholy, test párů dohledá všechny páry), „absolutní cíle klíčů odtrhnou prameny“ (rozšíření v cíli je zamýšlené, ověřeno na nejsilnějším klíči: střed páru se neposune), „ArrayMesh RID ve vlákně“ (mesh_from_pack běží v _store na hlavním vlákně), „AnimationPlayer vynuluje klíče“ (vlasy neanimuje AnimationPlayer; mimika se přepíše v dalším ticku 10 Hz). Otevřené: thread safety ImporterMesh.generate_lods ve WorkerThreadPool není nezávisle prokázaná (async testy prochází). Citlivý obsah: beze změny, nic nevází vzhled/LOD na identitu (potvrzeno i Gemini). Multiplayer: čistě klientská prezentace, nic se nereplikuje.
+**ChatGPT/Grok:** plán #524, soubor k review #525 (otázky: kompenzace šířky, thread safety, LOD trubic). Grok #523 (k proxy) – body 2–5 (extrémní morfy × winding, rychlá změna účesu ve stupni 2, škára u krku, rozpočet stavby při načtení scény) zařazeny do dalších kroků.
+**d) Otevřené:** vizuální prohlídka renderu LOD1; LOD trubic (copánky/dredy), obočí/vousů a procedurálních dílů; prořezání blend shapes ve stupni 2; měření na GPU; Grok #523 body; předexistující test_assets (sed), test_skin; GitHub push 403.
+
+	
+	## Audit 2026-11-17 ráno – trubice copánků/dredů/cornrows ve stupni 1, C-LOD krok 4 (main-claude-1794900129-31028)
+	**a) Self-review:** hair_rig.gd (lod1_tube_parse/indices/rings/tubes, napojení v lod1_pack, statistiky v _store), nový test, render nástroje přečteny. Nalezeno a opraveno během běhu: (1) blok funkcí vložený s odsazením → parse error, který Godot při preloadu skriptu sebe sama (_SELF) ZASEKNE bez chybové hlášky (timeouty) – opraveno, poučení v CHECKPOINT; (2) čistá mez 4 mm dala copánkům IoU zepředu 0,933 (< 0,95) → mez min(4 mm, 0,5 × poloměr trubice); (3) geometrická kontrola orientace v testu byla nespolehlivá (hlásila „obrácené“ i na PLNÝCH trubicích dredů u zúžených konců) → nahrazena kontrolou pořadí vrcholů podle vzoru HairBuilder.tube; (4) parse odmítne base < 0; sloučen dvojí průchod středů prstenců; zastaralý doc komentář LOD1 bodu 3 aktualizován.
+	**b) Testy:** test_hair_lod1_tubes 44/44 (nový), test_hair_lod1 205/205 (dřív 185; copánky IoU 0,972, dredy 0,971, cornrows 0,999), regrese PASS: hair_proxy, character_lod, hair, character, character_editor_ui, appearance_slider_ui, full_playable_slice, live_character_edit, character_preview, host_character_editor, save_game, wardrobe_async, async_shutdown, multiplayer, mp_reconnect (+ psyche_presentation a H3 render viz DEVLOG). godot_check 60/60. GPU render NEŠEL – na serveru už není xvfb-run (exit 127); náhradou CPU rasterizér tools/render_hair_tubes_cpu (previews/hair-lod1-tubes/cpu_sheet.png), pohled zezadu všech tří účesů prohlédnut: silueta i objem plné = LOD1, bez děr. Render karet LOD1 z 13. 11. (GPU) dál neprohlédnut.
+	**c) Gemini (výchozí model; 3.5-flash přetížený):** 4 nálezy, všechny zamítnuty s důkazem – remízy D–P deterministické (striktní >, bitově stejné vstupy, test bitové shody), mezilehlé indexy ≤ zkontrolovaný poslední index, alokace zanedbatelné proti stavbě 90–280 ms, nulová délka → t = 0,5 bez dělení nulou. Grok #527/2 (ImporterMesh ve vlákně) ověřen testem souběhu (6 účesů ve WorkerThreadPool = bitově sekvenční). Grok #527/3 (trubice) řešen jinak – vypouštěním prstenců místo méně stran (zachovaný průřez), zdůvodněno v docs/reviews/hair-lod1-tubes-20261117.md.
+	**d) Otevřené:** LOD obočí/vousů a procedurálních dílů; prořezání blend shapes ve stupni 2; měření na GPU (chybí displej na serveru); předexistující test_assets (sed), test_skin; GitHub push 403 / add_repo v relaci chybí.
+	
+	
+	## Audit 2026-11-17 večer – obočí a vousy ve stupni 1, C-LOD krok 5 (main-claude-1794943543-facial)
+	**a) Self-review:** hair_rig.gd (lod1_pack opts facial/outline/keep/widen_full, přeškálování c0.x, FACIAL_LOD1_*, cached_facial_lod1, facial_lod1_mesh), sim_visual.gd (_facial_full/_facial_style, _facial_mesh_for_tier, _apply_hair_lod), nový test a CPU render nástroj přečteny. Nalezeno a opraveno: (1) **chyba fallbacku 17:08** – shader obličejových chlupů skrývá karty s c0.x > density (per postava), LOD1 ji ignoroval → řídké obočí bylo v dálce HUSTŠÍ (při d 0,3 všechny viditelné karty a 1,5× širší), husté řidší; oprava c0.x' = c0.x/podíl (vnořená podmnožina LOD0 pro každou hustotu); (2) ochrana obrysu u obočí označila ~všechny karty → 5/6 stylů bez LOD1; vypnuta (obočí netvoří siluetu); (3) rozšíření 1/√podíl dávalo ztmavení obličeje v dálce jen 0,64–0,89 LOD0 → 1/podíl (strop 2,5), teď 0,87–1,07; (4) knír (138 tr.) dával krytí 1,34× → sítě < 300 tr. bez LOD1 (skip "small"); (5) facial_lod1_mesh z fallbacku stavěl synchronně – SimVisual používá nový neblokující cached_facial_lod1; (6) v testu odstraněna moje vlastní stub funkce (vždy vracela 0) a víceřádková lambda (parse error); poměrový test nahrazen binomickou mezí 3σ.
+	**b) Testy:** test_facial_lod1 **126/126** (konečný kód, kolo 4): úspory obočí 40–49 %, vousy 59–61 %, přesné vnoření podle hustoty pro 6 hustot, citlivost (bez přeškálování 1,00 → s ním 0,52), krytí zepředu, ztmavení v dálce 0,87–1,07, přenos morfů, determinismus, 4 stavby ve vláknech bitově = sekvenčně, SimVisual (výměna sítí, váhy klíčů = CharacterData, hustota materiálu beze změny, stíny vypnuté, změna stylu ve stupni 1, knír → plná síť, přepnutí 0↔1 506 µs), cached_facial_lod1 nestaví, async stavba. godot_check 60/60. Regrese: viz řádek níže.
+	**Render:** tools/render_facial_lod1_cpu → previews/facial-lod1/cpu_sheet.png (4 kombinace × plná/LOD1 × zepředu/¾). **Okem NEPROHLÉDNUT** – obraz z Godot serveru nejde přenést k prohlížení (konektor vrací text, Blender bridge 503, Godot server nemá HF token). Náhradou číselná analýza pixelů (krytí, ztmavení, IoU masek) – OTEVŘENÉ.
+	**c) Gemini:** 3.5-flash a výchozí model přetížené, 3.1-pro bez kvóty, 2.5-pro zrušený; review provedl **gemini-2.5-flash**: 1 nález – keep vousů odvozený přes lod1_keep(c0.z) místo explicitní hodnoty → **přijat** (FACIAL_LOD1_KEEP beard 0,425; hodnota stejná, ale odolné vůči změně vrstvy v HairBuilderu). Ostatní (thread safety, soulad se shaderem, MP) potvrzeny bez nálezu.
+	**Grok #532:** (1) skip u malých sítí – souhlas, implementováno prahem 300 tr.; (2) ochrana obrysu obočí – **zamítnuto s důkazem**: obočí netvoří siluetu hlavy a s ochranou 5/6 stylů nemá LOD1; ¾ pohled kontrolován (ztmavení 0,87–1,07); (3) váhy po přepnutí – testováno (hodnoty, ne jen počet), skin/kosti kopírované beze změny (čelist); (4) dočasně LOD0 během stavby – ano, _facial_mesh_for_tier vrací plnou síť, dokud LOD1 není v cache; (5) stupeň 2 – obočí/vousy skryté (testováno).
+	**Citlivý obsah / MP:** čistě klientská prezentace, nic se nereplikuje; nic se neodvozuje z identity – LOD závisí jen na stylu a hustotě.
+	**d) Otevřené:** vizuální prohlídka renderu okem; měření na GPU; prořezání blend shapes ve stupni 2; LOD procedurálních dílů; předexistující test_assets (sed), test_skin; GitHub push (git proxy 403 – repozitář není v autorizovaných zdrojích relace).
+	- Regrese kolo 4 (konečný kód): 19 sad EXIT 0 – facial_lod1, hair_lod1_tubes, hair_lod1, hair_proxy, character_lod, hair, character, character_editor_ui, appearance_slider_ui, full_playable_slice, live_character_edit, character_preview, host_character_editor, save_game, wardrobe_async, async_shutdown, multiplayer, mp_reconnect, psyche_presentation (previews/diag/facial-1794943/summary4.txt). godot_check 60/60.
+
+## 2026-11-18 ráno – C-LOD krok 6: zapečení blend shapes ve stupni 2 (main-claude-20261118a-bake)
+- Self-review: nalezena a opravena chyba – packed pole se v Godotu 4 předávají odkazem, takže `bake` přepisoval sdílený zdroj (každé další pečení stavělo na posunutém tvaru); nyní `duplicate()` měněných polí + test „opakované pečení dá totéž“. Dále: guard `is_instance_valid` před typovaným `_lod_swap` (uzel mohl zaniknout), mimika ve stupni 1 se neblokuje dobíhající úlohou.
+- Testy: test_lod_bake 54/54; regrese PASS – test_character_lod 76, test_hair_proxy 220, test_facial_lod1 126, test_hair_lod1 205, test_face_detail 66, test_wardrobe_async 41, test_full_playable_slice 87, test_live_character_edit 38, test_character 157 (1. běh: výkon posuvníku 4,09 ms > 4 ms, 2. běh 3,26 ms – časový šum hostitele, změna přidává jen O(1) volání).
+- Gemini 2.5-flash: PŘIJATO – cache zapečených sítí se pročišťovala jen při nových zdrojích → pročištění každých 32 zápisů (test). ZAMÍTNUTO s důkazem – dekódování LOD (test porovnává obsah indexů bit po bitu), mazání slovníku během iterace (maže se až po smyčce), chybějící is_instance_valid (je přítomen). Známé: studené `raw_of` běží na hlavním vlákně jednou na zdrojovou síť.
+- Neověřeno: přínos na GPU (server bez xvfb) – zdůvodněno, ne změřeno. Žádný render (změna nemění vzhled – ověřeno numericky, chyba 0 m).
+- Multiplayer/bezpečnost: čistě klientská prezentace, nic se nereplikuje; tón/citlivý obsah nedotčen.
+
+## 2026-11-18 večer – C-LOD krok 7: procedurální díly (main-claude-20261118b-proclod)
+- Nalezená chyba (vlastní předchozí kód): HandDetailBuilder._bake v RELATIVE s delta normálami; Godot kóduje normály cílů oktaedricky → nulová delta = (0,0,−1) → odklon normál prstů 77,6° průměrně (max 178,7°), chodidel 50° – viditelné i ve stupni 0. LodBake navíc předpokládal NORMALIZED → bosá postava ve stupni 2 by se zapekla chybně (až 2,9 m). Opraveno: NORMALIZED s absolutními cíli + LodBake podle skeleton.glsl pro oba režimy.
+- Testy: test_procedural_lod 81/81 (nový); regrese PASS – test_lod_bake 54, test_character_lod 76, test_facial_lod1 126, test_wardrobe_async 41, test_full_playable_slice 87, test_live_character_edit 38, test_character 157, test_torso_fingers_v1 63, test_torso_surface_c13 24, test_finger_phalange_subrig_c15 54, test_independent_finger_joints_c14 35 (dřív 34/35 – zastaralá aserce 510 vrcholů opravena), test_finger_curl_pose 157 (zastaralé 51 vrcholů opraveno), test_hand_detail_geometry 115, test_barefoot_geometry 30, izolované procedurální testy 942/11/12/7; godot_check 60/60.
+- Známé selhání mimo rozsah: test_anatomy_review_v9 249/251 – 2× očekávání migrace na „v18“ (schéma je novější); stejné selhání i v původní verzi testu.
+- Gemini 2.5-flash (2 průchody, mezi nimi „high demand“): bez kritických nálezů v matematice; v SimVisual 5 bodů – #3 přijat jako zdokumentované omezení (budoucí animace prstů po snímcích), #1 (uvolněná instance) zamítnut s důkazem (is_instance_valid v _lod_bake_finish i _lod_swap + test), #2/#4/#5 zamítnuty se zdůvodněním. Detail: docs/reviews/procedural-lod-20261118.md.
+- ChatGPT: bez odpovědi v místnosti. Render: žádný (bez xvfb); ověřeno numericky proti reprodukci shaderu.
+
+
+---
+
+## 2026-11-19 (Claude, main-claude-20261119a-coldwar, ~07:20–09:00 UTC) – studená válka v domácnosti + zkrácený save
+
+**Rozsah:**
+- NOVÉ: `scripts/sim/cold_war.gd`, `tests/test_cold_war.gd/.tscn`.
+- ZMĚNĚNO:
+  - `scripts/sim/household_dynamics.gd` – vlastní `cold_war`, napojení na tick, společné chvíle a conversation;
+  - `scripts/sim/sim_agent.gd` – `_start_clear_air`, `_clear_air_answer_only`, poznámka k urážce, výjimka v `_walk`/`_arrive`/`_run_queued`;
+  - `scripts/sim/utility_planner.gd` – vyhýbání a kandidát `clear_air`;
+  - `scripts/sim/action_library.gd` – akce a repliky;
+  - `scripts/save/game_save.gd` – sekce `dynamics.cold_war`;
+  - `scripts/ui/hud.gd`, `main.gd` (`cold_war_stage`), `scripts/net/net_session.gd` – validace příkazu;
+  - `tests/test_rel_clock_cold_process.gd` – režim `--truncate`;
+  - docs (`relationships`, `testing`, `roadmap`), README, ROADMAP.
+
+**a) Self-review:**
+- Přečteny všechny změněné soubory.
+- Opraveno při review a testech:
+  - eskalace přes žár mohla v jednom volání skočit 0→2 (stará data bez decay) → přes žár jen z existujícího dusna (`s0 == 1`);
+  - hráčův příkaz „vyříkat si to“ vůči zaneprázdněné postavě bez napětí se tiše zahodil (`_walk` / `_run_queued` / `_arrive`) → odpověď přijde vždy, druhého to nepřeruší;
+  - AI sahala po smíření už po ~16 h → útlum v prvním půldni (×0,25).
+- Známé drobnosti:
+  - `last_clear_air.p` ukazuje šanci před srážkou za opakované cykly (jen diagnostika);
+  - `godot_check` kontroluje 60 skriptů – změněné skripty navíc ověřeny načtením (`load()` + `can_instantiate()`) a testy.
+
+**b) Testy:**
+- Nové a upravené:
+  - `test_cold_war` 72/72;
+  - `--soak` 5/5: 3 seedy × 10 dní, hádky 16 %, 3 studené války, nejdelší 0,8 dne, výsledky 2 příměří + 1 výbuch; determinismus OK;
+  - `test_rel_clock_cold_process --truncate`: writer 10/10, reader 17/17.
+- Regrese PASS:
+  - `household_determinism_split` 5/5, `household_dynamics_slice` 63/63, `reconciliation` 58/58;
+  - `player_commands` 40/40, `save_game` 46/46, `social_nuance` 27/27;
+  - `net_protocol` 34/34, `multiplayer` 67/67, `gossip_confront` 97/97, `emotional_hud` 11/11.
+- **`test_crowded_household`: NEcertifikováno** – narazil na tvrdý strop nástroje 120 s (2×). Všech ~45 provedených kontrol prošlo, včetně 4 dlouhých běhů 7 postav × 14 dní (hádky 11–17 %).
+
+**c) Nezávislý audit:**
+- Gemini: pro modely bez kvóty (2.5-pro zrušen, 3.1-pro free tier 0), audit proto proběhl na výchozím flash-lite. 7 nálezů:
+  1. „chybí typová kontrola from_dict“ – ZAMÍTNUTO: `_fin` / `_valid_name` / typeof a fuzz 15 vstupů včetně textu místo čísla a NaN/INF.
+  2. „nedeterministický decay s proměnným dt“ – ZAMÍTNUTO: dt je pevný TICK = 10 min přes akumulátor v `HouseholdDynamics.advance`; determinismus ověřen testem.
+  3. „skok 0→2 při spamu“ – ZAMÍTNUTO pro note() (každé volání přidá 1 hádku, přes 2 hádky vždy vznikne dusno); přes žár opraveno už v self-review.
+  4. Griefing vtahováním do rozhovoru – ČÁSTEČNĚ: blokovaná varianta nikoho nevtáhne, `can_join_social` chrání hráčovy příkazy, cooldown 6 h na dvojici, server odmítne bez napětí. Zbývá PvP opt-out (v ROADMAP (d)).
+  5. Farmení cyklů hádka → smíření – PŘIJATO: paměť smíření 14 dní, −0,08 za každé, mez 0,08; nový test.
+  6. „zápis do prázdného záznamu při MAX_PAIRS“ – ZAMÍTNUTO: guard `r.is_empty() → return 0` existuje.
+  7. „uvěznění ve stresu“ – ZAMÍTNUTO: ColdWar nic neblokuje v pohybu, vyhýbání snižuje kontakt, stres má měkký strop; soak bez extrémů.
+- ChatGPT: v místnosti od minulého běhu bez nové odpovědi (jen Grok #542 k C-LOD).
+
+**Otevřené z Grok #542 (C-LOD, nepatří do tohoto běhu):**
+1. Explicitní test „všechny procedurální sítě NORMALIZED“ + GPU vs CPU bake (zčásti je v `test_procedural_lod`).
+2. Rychlé střídání morfu těla a pózy prstů ve stupni 2 (obnova trupu).
+3. Úhel normál po bake + restore < 0,1° při max tuk/svaly + ohyb prstů.
+4. Budoucí gesta: rozpečení rukou na začátku animace.
+5. Nejhrubší LOD prstů × hand_size × curl bez průniků.
+
+## 2026-11-19 večer (Claude, main-claude-20261119b-romance, ~19:20–20:40 UTC) – (c) romantické vztahy a rozchody
+
+### Co přibylo
+- scripts/sim/romance.gd (NOVÝ): dating → partners → ex, spokojenost každého zvlášť, pozvání (ano / ještě ne / ne / zadaná(ý) / nedá si říct), rozchod, ex.
+- Integrace:
+  - sim_agent: _start_ask_out, _start_break_up, romance_profile, romance_group, romance_owned_by_player, _owner_peer;
+  - action_library: akce ask_out a break_up, repliky;
+  - utility_planner: AI skóre a contact_weight;
+  - household_dynamics: tick, note, shared;
+  - cold_war: HEAT_GAIN breakup 0,3; AVOID_EXEMPT break_up;
+  - game_save;
+  - main: romance_status, romance_ask_block, skupina při editaci identity;
+  - hud: příkazy;
+  - net_session: validace ask_out a break_up, owner_peer_of.
+
+### Testy (skutečně spuštěno, exit 0, bez timeoutu)
+- test_romance 113/113 (jednotky, fuzz 16 vstupů, scéna s příkazy hráče, server handle_command, AI skóre včetně MP vlastnictví, save/load, výkon 0,5–0,8 ms / 180 dvojic).
+- test_romance --soak 9/9:
+  - výchozí domácnost za 3×10 dní AI nikoho nepozvala (vztahy kompatibilních dvojic nedosáhly prahu – realistické);
+  - řízený scénář blízké dvojice: 4 pozvání, 3× ano, 1× ne, 0× dotírání;
+  - determinismus OK.
+- Regrese PASS:
+  - cold_war 72/72;
+  - save_game 46/46;
+  - multiplayer 67/67;
+  - player_commands 40/40;
+  - household_dynamics_slice 63/63;
+  - social_nuance 27/27;
+  - household_determinism_split 5/5;
+  - gossip_confront 97/97;
+  - net_protocol 34/34;
+  - reconciliation 58/58.
+- godot_check 60/60. Známé varování ObjectDB 20–22 při ukončení (předchozí stav).
+
+### Vlastní review (opraveno)
+- Příkaz hráče k akci se zahodí, když cíl nemůže do rozhovoru (stávající pravidlo) – test teď čeká na volný cíl (_wait_free), nejde o obcházení.
+- AI pozvání mělo příliš nízké skóre (v řízeném scénáři 0–1 pozvání) → AI_ASK_URGENCY 14 × blízkost × jistota.
+- Záznamy jen s historií pozvání by se hromadily až do MAX_PAIRS → úklid v tick() po vypršení okna odmítnutí (test).
+- V from_dict se kontroluje typ před převodem na String.
+- MP souhlas: AI by za postavu jiného hráče „odpověděla“. Proto:
+  - server ask_out na cizí hráčskou postavu odmítá;
+  - AI takové postavy nezve;
+  - SimAgent má pojistku i při změně vlastnictví mezi zadáním a provedením.
+
+### Gemini audit (gemini-3.5-flash, 7 nálezů)
+- Přijato:
+  - #2 částečně (pojistka v _start_ask_out, hlavní ochrana už byla na serveru a v AI);
+  - #5 (hráčův příkaz už nespotřebuje odstup AI pozvánek; test).
+- Zamítnuto s důvodem:
+  - #1 neexistující proměnné v accept_p – kód používá rel_t/trust_t/mood_t, šlo o zkrácený výpis;
+  - #3 nekanonický klíč – key() je seřazený;
+  - #3b oboustranná přitažlivost při pokusu hráče – rozhoduje přitažlivost cíle, AI kontroluje obě strany;
+  - #4 zamykání cizích postav – join_social až po příchodu a can_join_social, blokované pokusy nikoho nevtáhnou, odstupy 1–3 dny, dotírání má následky;
+  - #6 prázdná množina = neuvedeno je schéma C1, ne fallback;
+  - #7 exp() napříč platformami – simuluje jen autorita, klienti stav nepočítají.
+
+### ChatGPT / Grok
+- Plán #547, otázka na neuvedenou genderovou skupinu. ChatGPT bez odpovědi.
+- Grok #548 souhlasí s volbou (neuvedená skupina = kompatibilní).
+- Zapracováno z #548:
+  - antifarming: příjemná událost do spokojenosti nejvýš 1× za 2 h, klesající výnos; nové 3 kontroly;
+  - hráč se smí rozejít kdykoli a zkusit pozvat kohokoli (dostane „ne“ s následky);
+  - aromantičnost tvrdě blokuje;
+  - spokojenost se nereplikuje.
+- Na později (#548): napojení na MentalState (stažení/úzkost → dřívější rozchod, ruminace po rozchodu), drby o rozchodu.
+
+### Otevřené
+- Nevěra a žárlivost navázaná na partnerství; drby o rozchodech; řádek stavu vztahu v HUD; potvrzovací dialog mezi hráči.
+- Svobodná vůle vlastní postavy hráče (autonomní rozchod) – produktové rozhodnutí.
+- GitHub: push 403 – repo peitn/Life-Simulator není v autorizovaných zdrojích plánované relace.
+
+
+## 2026-11-20 ráno — Claude `main-claude-20261120a-world` — (c) nevěra, podezření, žárlivost
+
+### Změny
+- NOVÉ: scripts/sim/infidelity.gd, tests/test_infidelity.gd/.tscn, tools/diag_tmp/diag_infidelity_soak.gd/.tscn (diagnostika, ne test).
+- ZMĚNĚNÉ: scripts/sim/sim_agent.gd (flirt, tajná schůzka, konfrontace, on_betrayal, intimita mimo vztah, drb o rozchodu, neutrální net_label/net_action tajné schůzky, pojistka 18+), household_dynamics.gd, action_library.gd (3 akce + repliky), utility_planner.gd, romance.gd (SAT_EVENT betrayal/false_accusation/flirt_seen, CONTACT_EXEMPT), cold_war.gd (HEAT betrayal 0,55, AVOID_EXEMPT), gossip_network.gd (cheating, flirting, breakup = news bez dopadu), main.gd (relationship_lines, infidelity_*_block, drb → podezření), net_session.gd (validace), hud.gd (příkazy, řádek vztahu), game_save.gd; tests/test_adult_social_integration.gd (oprava časování – čeká na volné postavy).
+
+### Self-review (opraveno během běhu)
+- duplicitní `_sim_by_name` v SimAgent (parse error) → použita existující funkce;
+- po odhalení by AI denně znovu vyslýchala (podezření 1,0 + τ 21 dní) → `mark_known` mění podezření ve vědění (v=0, ev=0, hint zůstává);
+- AI flirt bez kontroly přitažlivosti cíle → nyní jen při vzájemné přitažlivosti (hráč smí i trapas);
+- HUD texty s nesklonnými jmény („chodí s Jana“) → formát s pomlčkou/dvojtečkou;
+- `tick` GC na `int(now) % 1440` (nespolehlivé) → interval od posledního úklidu;
+- pojistka 18+ ve flirtu/schůzce (SimAgent i server);
+- runner godot_run_script odsazuje víceřádkové řetězce → poškozená funkce `_evict_weakest` (godot_check ji NEodhalil, test zamrzl) → opraveno, odsazení v action_library srovnáno.
+
+### Testy
+- test_infidelity 152/152 PASS (~15 s).
+- Regrese PASS: romance 113, gossip 116, gossip_confront 97, cold_war 72, save_game 46, net_protocol 34, multiplayer 67, player_commands 40, social_nuance 27, reconciliation 58, household_dynamics_slice 63, emotional_hud 11, adult_social_integration 55 (po opravě časování testu; před ní 53/55 – postavy si zrovna povídaly, server správně odmítl společnou činnost).
+- godot_check 60/60. Varování ObjectDB 20/22 – předexistující.
+- Diagnostika soak (výchozí domácnost, 1 pár): seed 1/5 dní 3 flirty s vlastním partnerem, seed 2–3/12 dní 0 nevěr – nevěra je vzácná, pokud nejsou splněny podmínky (nespokojenost, nízká poctivost, impulzivita, jiskra).
+
+### Audit Gemini (3.5-flash nedostupný – vysoká zátěž; použit 3.5-flash-lite)
+1. AI může zvát postavu jiného hráče – ZAMÍTNUTO: ai_flirt_score/ai_date_score vrací 0 pro romance_owned_by_player, server odmítá i příkazy hráčů.
+2. Únik hintu/known_by na klienta – ZAMÍTNUTO: stav nevěry se nereplikuje vůbec, private_lines jméno podezřelého milence neuvádí, HUD jen vlastník offline/host.
+3. Plná tabulka zahodí nový záznam – PŘIJATO: `_evict_weakest` (nová jiskra/podezření vytlačí nejslabší), test přidán.
+4. from_dict zahazuje románky bez zrady – ZAMÍTNUTO: kód takové románky nikdy nevytváří (date_block „free“, note_intimacy vrací {}), zahazují se jen nevalidní data.
+5. Chybí vynucený rozchod – ZAMÍTNUTO (záměr): AI rozchod existuje (Romance.ai_breakup_score při spokojenosti < 0,3 déle než den), zrada spokojenost srazí na ~0,2; odpuštění musí zůstat možné.
+6. _decay s tau ≤ 0 – ZAMÍTNUTO: tau jsou konstanty.
+7. Lavinové falešné drby o nevěře – ZAMÍTNUTO: druhy cheating/flirting nejdou smyslet (fab=false), vznikají jen ze svědectví; zkreslení řetězem existuje (realismus).
+
+### ChatGPT
+- Plán #550 bez odpovědi v době běhu.
+
+### Známé otevřené body
+- MP: postava jiného hráče na flirt/schůzku neodpovídá (chybí potvrzovací dialog mezi hráči).
+- Polyamorie / otevřený vztah zatím není modelována (monogamní Romance).
+- godot_check nezachytil chybně odsazenou funkci (viz výše) – spoléhat i na běh testů.
+- GitHub: push 403 (repo peitn/Life-Simulator není v autorizovaných zdrojích plánované relace) – nesynchronizováno.
+
+### Grok #551 (zapracováno v tomže běhu)
+- 1 PŘIJATO: odbytí flirtu se pamatuje (směrově 3 dny, uloženo) – AI pak nedotírá; odbytí zchladí jiskru ×0,7. Hráč může vždy odmítnout (offline ovládá postavu, v MP postavu jiného hráče AI nikdy neodpovídá).
+- 2 PŘIJATO: drb k partnerovi má váhu × clamp(1,25 − důvěra/100; 0,35..1) – při vysoké důvěře je drb slabší; povedený rozhovor / společná chvíle partnerů podezření zmírní ×0,9 (důkazy ne).
+- 3 SPLNĚNO: žárlivá scéna bez důvodu stojí méně než zrada (spokojenost −0,07 vs −0,38, zášť 10 vs 30–60) a konfrontace nedává žádný bonus spokojenosti (nelze grindovat).
+- 4 OTEVŘENO: napojení na ruminaci / withdrawal / self-defectiveness a klesající účinek opakované omluvy po zradě (omluva už má upřímnost z chování v rel_ledger) – další krok.
+- 5 SPLNĚNO: stav nevěry se nereplikuje vůbec; repliky drbů „zahýbá/flirtuje“ neobsahují detaily ani s kým.
+- 6 OTEVŘENO: test, že ve větší domácnosti s oddělenými prostory je nevěra častější než v malé – po (b) svět (více místností/parcel).
+- test_infidelity po úpravách 157/157; romance 113, household_dynamics_slice 63 znovu PASS.

@@ -254,7 +254,15 @@ func _test_standalone_head() -> void:
 			prev = r
 	check(mono and HB.neck_len_ramp(Vector3(0, 1.50, 0.05)) == 0.0 and HB.neck_len_ramp(Vector3(0, 1.70, 0.0)) == 1.0,
 		"rampa délky krku: 0 u těla, 1 u hlavy, monotónní a bez překlopení i pro −1")
-
+	# Běh 2026-11-12: horní mez rampy sleduje spodní okraj čelisti (brada vpředu, úhel čelisti na boku, týl vzadu).
+	var tops := [HB.nl_top(1.0), HB.nl_top(0.0), HB.nl_top(-1.0)]
+	var tmono := true
+	for k in 36:
+		if HB.nl_top(cos(PI * float(k + 1) / 36.0)) < HB.nl_top(cos(PI * float(k) / 36.0)) - 1e-9:
+			tmono = false
+	check(is_equal_approx(tops[0], HB.NL_TOP_FRONT) and is_equal_approx(tops[1], HB.NL_TOP_SIDE) and is_equal_approx(tops[2], HB.NL_TOP_BACK) and tmono,
+		"horní mez rampy: brada %.3f → bok %.3f → týl %.3f m, monotónní" % tops)
+	
 
 func _test_manifest() -> void:
 	section("Manifest")
@@ -530,7 +538,25 @@ func _test_normals_and_flips() -> void:
 		var phs := _skin(arr, rots[s % rots.size()], j, neck, head)
 		worst = maxi(worst, _flips(ph0, phs, tris))
 	check(worst == 0, "16 kombinací morfů těla/obličeje × ohnutí krku: žádný zvrácený trojúhelník krku (nejhůř %d z %d)" % [worst, tris.size() / 3])
-
+	# Běh 2026-11-12: úklon krku na obě strany s nejkratším krkem (−1) pro tři těla (výchozí, nejštíhlejší, kombinace
+	# „tuk 0,71 + úzký hrudník“, která dřív dávala 7 zvrácených ploch) a klidová póza s max. tukem + svaly.
+	var lat := {}
+	var bodies := [{}, {"fat_lo": 1.0, "muscle_lo": 1.0, "frame": -1.0}, {"fat_hi": 0.71, "muscle_hi": 0.33, "chest": -0.7, "shoulders": -0.4}]
+	for ang in [-25.0, -20.0, 20.0, 25.0]:
+		lat[ang] = 0
+	for bwl in bodies:
+		var arr2 := ah.duplicate()
+		arr2[Mesh.ARRAY_VERTEX] = _deform(head_mesh, {"b_neck_len": -1.0, "b_fat": float(bwl.get("fat_hi", 0.0)),
+			"b_muscle": float(bwl.get("muscle_hi", 0.0))}.merged(bwl))
+		for ang in lat:
+			lat[ang] += _flips(ph0, _skin(arr2, Quaternion(Vector3.FORWARD, deg_to_rad(ang)), j, neck, head), tris)
+	check(int(lat[-20.0]) + int(lat[20.0]) == 0, "krátký krk (−1) × 3 těla × úklon ±20°: žádný zvrácený trojúhelník (%s)" % str(lat))
+	check(int(lat[-25.0]) + int(lat[25.0]) == 0, "krátký krk (−1) × 3 těla × úklon ±25°: žádný zvrácený trojúhelník (%s)" % str(lat))
+	var rest := 0
+	for nl in [-1.0, 1.0]:
+		rest += _flips(ph0, _deform(head_mesh, {"b_neck_len": nl, "b_fat": 1.0, "b_muscle": 1.0, "fat_hi": 1.0, "muscle_hi": 1.0}), tris)
+	check(rest == 0, "max. tuk + svaly × délka krku ±1 v klidové póze: žádný zvrácený trojúhelník (%d)" % rest)
+	
 
 static func _flips(a: PackedVector3Array, b: PackedVector3Array, tris: PackedInt32Array) -> int:
 	var n := 0

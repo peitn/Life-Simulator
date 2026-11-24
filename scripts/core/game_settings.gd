@@ -48,6 +48,8 @@ const VOICE_TTS := "tts"
 const VOICE_NEURAL := "tts_neural"
 const VOICE_OFF := "off"
 const VOICE_MODES := [VOICE_WORDLESS, VOICE_TTS, VOICE_NEURAL, VOICE_OFF]
+## C-LOD: popisky volby „Detail postav v dálce“ (index = hodnota crowd_detail).
+const CROWD_DETAIL_LABELS := ["Nízký (rychlejší)", "Střední", "Vysoký"]
 const VOICE_LABELS := {"wordless": "Beze slov", "tts": "Řeč z textu (syntetická)",
 	"tts_neural": "Přirozenější řeč (Piper, lokální)", "off": "Vypnuto"}
 
@@ -68,6 +70,8 @@ const DEFAULTS := {
 	## Default stays "wordless" until the owner approves the reworked TTS voice (Oct 2026);
 	## "Řeč z textu" remains selectable in the settings.
 	"character_voices": "wordless",
+	## C-LOD: detail postav v dálce (0 nízký – rychlejší, 1 střední, 2 vysoký). Jen prezentace tohoto klienta.
+	"crowd_detail": 1,
 }
 
 ## Sprostá slova pro cenzuru (kmeny; porovnává se začátek slova bez diakritiky na malých písmenech).
@@ -127,6 +131,12 @@ func set_value(key: String, v: Variant, save := true) -> bool:
 			if typeof(v) != TYPE_INT and typeof(v) != TYPE_FLOAT:
 				return false
 			nv = clampi(int(v), 0, 3)
+		"crowd_detail":
+			if typeof(v) != TYPE_INT and typeof(v) != TYPE_FLOAT:
+				return false
+			if not is_finite(float(v)):
+				return false
+			nv = clampi(int(v), 0, CROWD_DETAIL_LABELS.size() - 1)
 		"distortion_strength":
 			if typeof(v) != TYPE_INT and typeof(v) != TYPE_FLOAT:
 				return false

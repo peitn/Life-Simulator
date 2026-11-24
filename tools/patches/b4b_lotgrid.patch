@@ -1,0 +1,342 @@
+@@@FILE res://scripts/world/lot_grid.gd
+@@@OLD
+const VERSION := 3
+@@@NEW
+const VERSION := 4
+@@@END
+@@@OLD
+const MAX_OPENINGS := 64
+@@@NEW
+const MAX_OPENINGS := 64
+## B4b (24. 11. 2026): zámky dveří (formát v4). "" = odemčeno, LOCK_ALL = neprojde nikdo, jinak klíč =
+## jméno uzlu postavy → projde jen ona („zamkla se v koupelně“). Zamčené dveře jsou pro ostatní zeď.
+const LOCK_ALL := "*"
+const LOCK_MAX_LEN := 64
+const MAX_LOCKED := 16
+@@@END
+@@@OLD
+	"door_traps": "Bez těch dveří by někdo zůstal zavřený.",
+}
+@@@NEW
+	"door_traps": "Bez těch dveří by někdo zůstal zavřený.",
+	"not_door": "Zamknout jdou jen dveře.",
+	"lock_bad": "Neplatný zámek.",
+	"lock_same": "Dveře už jsou takhle zamčené.",
+	"lock_limit": "Zamčených dveří je na parcele moc.",
+	"lock_seals": "Zamčením pro všechny by se k některým věcem nedalo dojít.",
+	"lock_traps": "Zamčením by někdo zůstal zavřený.",
+	"lock_not_yours": "Tyhle dveře zamkl někdo jiný – klíč nemáš.",
+	"lock_who": "Pro tuhle postavu zamknout nemůžeš.",
+}
+@@@END
+@@@OLD
+var _seg_cache: Dictionary = {}
+@@@NEW
+var _seg_cache: Dictionary = {}
+## B4b: z čího pohledu se počítá průchodnost dveří. "" = bez zámků (stavění, kontroly cest k věcem),
+## jinak klíč postavy (SimAgent ho nastaví jen na dobu výpočtu své trasy). _nav_unlock = dveře, jejichž zámek
+## se dočasně ignoruje (LotNav.lock_blocker zjišťuje, čí zámek cestu zavřel).
+var nav_viewer := ""
+var _nav_unlock := 0
+var _reach_views: Dictionary = {}
+var _vk_in := ""
+var _vk_out := ""
+@@@END
+@@@OLD
+		if int(oid) == closed_oid or not is_door(String(o["kind"])):
+			continue
+@@@NEW
+		if int(oid) == closed_oid or not is_door(String(o["kind"])):
+			continue
+		# B4b: zamčené dveře se pro postavu bez klíče chovají jako zeď.
+		if int(oid) != _nav_unlock and not door_passable(o, nav_viewer):
+			continue
+@@@END
+@@@OLD
+func _reach_before() -> PackedByteArray:
+	var key := "%d:%d" % [revision, _layout_serial]
+	if key != _reach_key:
+		_reach_cache = _reachable({})
+		_reach_key = key
+	return _reach_cache
+@@@NEW
+func _reach_before() -> PackedByteArray:
+	var key := "%d:%d" % [revision, _layout_serial]
+	if key != _reach_key:
+		_reach_views.clear()
+		_reach_key = key
+	# Cache podle pohledu: bez zámků (nebo když zámky postavě nevadí) sdílí všichni jednu mapu.
+	var vk := _view_key()
+	if not _reach_views.has(vk):
+		if _reach_views.size() >= 16:
+			_reach_views.clear()
+		_reach_views[vk] = _reachable({})
+	_reach_cache = _reach_views[vk]
+	return _reach_cache
+
+
+## Klíč pohledu pro cache: "" = stejné jako bez zámků; jinak postava + ignorované dveře.
+func _view_key() -> String:
+	if nav_viewer == "":
+		return ""
+	var probe := "%d:%d:%s:%d" % [revision, _layout_serial, nav_viewer, _nav_unlock]
+	if probe == _vk_in:
+		return _vk_out
+	var out := ""
+	for oid in openings:
+		var o: Dictionary = openings[oid]
+		if String(o.get("lock", "")) != "" and int(oid) != _nav_unlock and is_door(String(o["kind"])) and not door_passable(o, nav_viewer):
+			out = "%s#%d" % [nav_viewer, _nav_unlock]
+			break
+	_vk_in = probe
+	_vk_out = out
+	return out
+@@@END
+@@@OLD
+	openings[oid] = {"oid": oid, "wid": int(wid), "kind": String(kind), "at": int(at),
+		"built_at": _finite_time(now), "paid": price}
+@@@NEW
+	openings[oid] = {"oid": oid, "wid": int(wid), "kind": String(kind), "at": int(at),
+		"built_at": _finite_time(now), "paid": price, "lock": ""}
+@@@END
+@@@OLD
+## Koncové body otvoru ve světě (x, z), ve směru stěny.
+@@@NEW
+# ---------------------------------------------------------------- zámky dveří (B4b, 24. 11. 2026)
+
+## Platný zámek: "", LOCK_ALL nebo jméno uzlu postavy (bez řídicích a bidi znaků, platné jméno uzlu, max 64).
+static func valid_lock(v: Variant) -> bool:
+	if typeof(v) != TYPE_STRING:
+		return false
+	var s := String(v)
+	if s == "" or s == LOCK_ALL:
+		return true
+	if s.length() > LOCK_MAX_LEN or s.validate_node_name() != s or s.strip_edges() != s:
+		return false
+	for i in s.length():
+		var c := s.unicode_at(i)
+		if c < 32 or c == 127 or (c >= 0x80 and c < 0xA0) or (c >= 0x200B and c <= 0x200F) or (c >= 0x202A and c <= 0x202E) \
+				or (c >= 0x2066 and c <= 0x2069) or c == 0xFEFF or c == 0x2028 or c == 0x2029:
+			return false
+	return true
+
+
+## Smí postava `who` projít dveřmi o? who "" = pohled bez zámků (stavba, kontroly cest k věcem).
+static func door_passable(o: Dictionary, who: String) -> bool:
+	var lk := String(o.get("lock", ""))
+	return lk == "" or who == "" or (lk != LOCK_ALL and lk == who)
+
+
+func lock_of(oid: int) -> String:
+	return String(openings[oid].get("lock", "")) if openings.has(oid) else ""
+
+
+func locked_count() -> int:
+	var n := 0
+	for oid in openings:
+		if String(openings[oid].get("lock", "")) != "":
+			n += 1
+	return n
+
+
+func has_locks() -> bool:
+	for oid in openings:
+		if String(openings[oid].get("lock", "")) != "":
+			return true
+	return false
+
+
+## Zamčené dveře, kterými postava `who` neprojde (vzestupně podle oid).
+func locked_against(who: String) -> Array:
+	var out: Array = []
+	for oid in sorted_oids():
+		var o: Dictionary = openings[oid]
+		if String(o.get("lock", "")) != "" and is_door(String(o["kind"])) and not door_passable(o, who):
+			out.append(int(oid))
+	return out
+
+
+## Kontrola zámku (bez změny stavu). pts = [[klíč postavy, Vector2 poloha (x, z)], …] všech postav na parcele.
+## Odemčení nikoho nezavře; zámek nesmí zavřít postavu bez klíče, ke které se dosud dalo dojít (lock_traps);
+## zámek pro všechny nesmí odříznout věci (lock_seals). Osobní zámek ostatním věci odříznout smí – to je pointa.
+func check_lock(oid: Variant, lock: Variant, pts: Array) -> String:
+	if typeof(oid) != TYPE_INT or not openings.has(int(oid)):
+		return "unknown_oid"
+	var o: Dictionary = openings[int(oid)]
+	if not is_door(String(o["kind"])):
+		return "not_door"
+	if not valid_lock(lock):
+		return "lock_bad"
+	var lk := String(lock)
+	var cur := String(o.get("lock", ""))
+	if cur == lk:
+		return "lock_same"
+	if lk == "":
+		return ""
+	if cur == "" and locked_count() >= MAX_LOCKED:
+		return "lock_limit"
+	var saved_v := nav_viewer
+	var saved_u := _nav_unlock
+	nav_viewer = ""
+	_nav_unlock = 0
+	var why := ""
+	if lk == LOCK_ALL and door_close_seals(int(oid)):
+		why = "lock_seals"
+	elif lock_traps(int(oid), lk, pts):
+		why = "lock_traps"
+	nav_viewer = saved_v
+	_nav_unlock = saved_u
+	return why
+
+
+## Zavřel by zámek lk na dveřích oid někoho bez klíče, ke komu se z jeho pohledu dosud dalo dojít od ulice?
+func lock_traps(oid: int, lk: String, pts: Array) -> bool:
+	if not openings.has(oid):
+		return false
+	var saved_v := nav_viewer
+	var saved_u := _nav_unlock
+	_nav_unlock = 0
+	var trapped := false
+	var probe := {"lock": lk}
+	for e in pts:
+		if typeof(e) != TYPE_ARRAY or (e as Array).size() != 2 or typeof(e[0]) != TYPE_STRING or typeof(e[1]) != TYPE_VECTOR2:
+			continue
+		var who := String(e[0])
+		var p: Vector2 = e[1]
+		if who == "" or not is_finite(p.x) or not is_finite(p.y) or door_passable(probe, who):
+			continue
+		var c := cell_of_world(p)
+		if not _in_grid(c.x, c.y):
+			continue
+		var ci := _idx(c.x, c.y)
+		nav_viewer = who
+		var before := _reachable({})
+		if not _target_reached(before, ci):
+			continue
+		var after := _reachable({}, oid)
+		if not _target_reached(after, ci):
+			trapped = true
+			break
+	nav_viewer = saved_v
+	_nav_unlock = saved_u
+	return trapped
+
+
+## Zamkne / odemkne dveře (autorita). Peníze se nemění, do knihy transakcí se nic nepíše.
+func set_lock(oid: Variant, lock: Variant, pts: Array) -> Dictionary:
+	var why := check_lock(oid, lock, pts)
+	if why != "":
+		return {"ok": false, "reason": why}
+	var o: Dictionary = openings[int(oid)]
+	var prev := String(o.get("lock", ""))
+	o["lock"] = String(lock)
+	revision += 1
+	return {"ok": true, "reason": "", "oid": int(oid), "lock": String(lock), "prev": prev}
+
+
+## Koncové body otvoru ve světě (x, z), ve směru stěny.
+@@@END
+@@@OLD
+	var key := "%d:%d" % [revision, _layout_serial]
+	if key != _seg_key:
+		_seg_key = key
+		_seg_cache.clear()
+	var wid := int(w["wid"])
+	if _seg_cache.has(wid):
+		return _seg_cache[wid]
+@@@NEW
+	var key := "%d:%d" % [revision, _layout_serial]
+	if key != _seg_key:
+		_seg_key = key
+		_seg_cache.clear()
+	var wid := int(w["wid"])
+	# B4b: zamčené dveře jsou pro postavu bez klíče plná zeď → cache i podle pohledu.
+	var vk := _view_key()
+	var ck: Variant = wid if vk == "" else "%s|%d" % [vk, wid]
+	if _seg_cache.has(ck):
+		return _seg_cache[ck]
+@@@END
+@@@OLD
+static func _opening_record(o: Dictionary) -> Dictionary:
+	return {"oid": int(o["oid"]), "wid": int(o["wid"]), "kind": String(o["kind"]), "at": int(o["at"]),
+		"built_at": float(o["built_at"]), "paid": int(o["paid"])}
+@@@NEW
+static func _opening_record(o: Dictionary) -> Dictionary:
+	return {"oid": int(o["oid"]), "wid": int(o["wid"]), "kind": String(o["kind"]), "at": int(o["at"]),
+		"built_at": float(o["built_at"]), "paid": int(o["paid"]), "lock": String(o.get("lock", ""))}
+@@@END
+@@@OLD
+		var oseen := {}
+		for o in oa:
+			if typeof(o) != TYPE_DICTIONARY or (o as Dictionary).size() != 6:
+				return "bad_lot_openings"
+@@@NEW
+		var oseen := {}
+		# v4 (B4b) má navíc zámek; v3 se migruje na odemčené dveře.
+		var ofields := 7 if int(d["version"]) >= 4 else 6
+		var nlocked := 0
+		for o in oa:
+			if typeof(o) != TYPE_DICTIONARY or (o as Dictionary).size() != ofields:
+				return "bad_lot_openings"
+			if ofields == 7:
+				if not valid_lock(o.get("lock")):
+					return "bad_lot_openings"
+				if String(o["lock"]) != "":
+					nlocked += 1
+					if typeof(o.get("kind")) != TYPE_STRING or not is_door(String(o["kind"])) or nlocked > MAX_LOCKED:
+						return "bad_lot_openings"
+@@@END
+@@@OLD
+			var orec := {"oid": int(o["oid"]), "wid": int(o["wid"]), "kind": String(o["kind"]), "at": int(o["at"]),
+				"built_at": float(o["built_at"]), "paid": int(o["paid"])}
+			if tmp.check_opening(orec["wid"], orec["kind"], orec["at"]) != "":
+@@@NEW
+			var orec := {"oid": int(o["oid"]), "wid": int(o["wid"]), "kind": String(o["kind"]), "at": int(o["at"]),
+				"built_at": float(o["built_at"]), "paid": int(o["paid"]),
+				"lock": String(o["lock"]) if int(d["version"]) >= 4 else ""}
+			if tmp.check_opening(orec["wid"], orec["kind"], orec["at"]) != "":
+@@@END
+@@@OLD
+		oarr.append([int(oid), int(o["wid"]), String(o["kind"]), int(o["at"]), float(o["built_at"]), int(o["paid"])])
+	return {"v": VERSION, "rev": revision, "funds": funds, "items": arr, "walls": warr, "open": oarr}
+@@@NEW
+		oarr.append([int(oid), int(o["wid"]), String(o["kind"]), int(o["at"]), float(o["built_at"]), int(o["paid"]),
+			String(o.get("lock", ""))])
+	return {"v": VERSION, "rev": revision, "funds": funds, "items": arr, "walls": warr, "open": oarr}
+@@@END
+@@@OLD
+	var oout := {}
+	var ov: Variant = s.get("open", [])
+	if typeof(ov) != TYPE_ARRAY or (ov as Array).size() > MAX_OPENINGS:
+		return false
+	for e in ov:
+		if typeof(e) != TYPE_ARRAY or (e as Array).size() != 6:
+			return false
+@@@NEW
+	var oout := {}
+	var ov: Variant = s.get("open", [])
+	if typeof(ov) != TYPE_ARRAY or (ov as Array).size() > MAX_OPENINGS:
+		return false
+	# v4 (B4b): sedmý prvek = zámek; starší server posílá šest.
+	var olen := 7 if int(s["v"]) >= 4 else 6
+	var nlocked := 0
+	for e in ov:
+		if typeof(e) != TYPE_ARRAY or (e as Array).size() != olen:
+			return false
+		var lk := ""
+		if olen == 7:
+			if not valid_lock(e[6]):
+				return false
+			lk = String(e[6])
+			if lk != "":
+				nlocked += 1
+				if typeof(e[2]) != TYPE_STRING or not is_door(String(e[2])) or nlocked > MAX_LOCKED:
+					return false
+@@@END
+@@@OLD
+		oout[int(e[0])] = {"oid": int(e[0]), "wid": int(e[1]), "kind": String(e[2]), "at": int(e[3]),
+			"built_at": float(e[4]), "paid": int(e[5])}
+@@@NEW
+		oout[int(e[0])] = {"oid": int(e[0]), "wid": int(e[1]), "kind": String(e[2]), "at": int(e[3]),
+			"built_at": float(e[4]), "paid": int(e[5]), "lock": lk}
+@@@END

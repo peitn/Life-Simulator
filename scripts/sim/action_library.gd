@@ -218,6 +218,55 @@ const ACTIONS: Array = [
 		"effects": {"social": 6.0}, "tags": ["social", "repair"], "posture": "stand",
 		"base_appeal": 0.0, "effort": 0.6,
 	},
+	# --- dusno / studená válka: vyříkat si to (může to i vybuchnout; ColdWar + SimAgent._start_clear_air)
+	{
+		"id": "clear_air", "label": "Chce si to vyříkat", "object": "sim", "duration": 25.0,
+		"effects": {"social": 4.0}, "tags": ["social", "repair", "conflict"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.8,
+	},
+	# --- romantické vztahy (Romance + SimAgent._start_romance): pozvat na rande, rozejít se.
+	# Ne „flirt jako minihra“: odpověď závisí na vztahu, důvěře, náladě a přitažlivosti cíle; košem se dostává.
+	{
+		"id": "ask_out", "label": "Zve na rande", "object": "sim", "duration": 20.0,
+		"effects": {"social": 6.0, "fun": 2.0}, "tags": ["social", "romance"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.8,
+	},
+	{
+		"id": "break_up", "label": "Rozchází se", "object": "sim", "duration": 25.0,
+		"effects": {"social": 2.0, "fun": -6.0}, "tags": ["social", "romance", "conflict"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.9,
+	},
+	# --- nevěra a žárlivost (Infidelity + SimAgent._start_flirt/_start_secret_date/_start_confront_cheating).
+	# Flirt s vlastním partnerem je hezký; s cizím zakládá jiskru. Tajná schůzka je náznak (fade-to-black),
+	# jen se zadaným a s jiskrou. Konfrontace jen s vlastním partnerem/partnerkou.
+	{
+		"id": "flirt", "label": "Flirtuje", "object": "sim", "duration": 12.0,
+		"effects": {"social": 5.0, "fun": 4.0}, "tags": ["social", "romance"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.4,
+	},
+	{
+		"id": "secret_date", "label": "Tajná schůzka", "object": "sim", "duration": 60.0,
+		"effects": {"social": 10.0, "fun": 10.0, "energy": -5.0}, "tags": ["social", "romance", "secret"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.6,
+	},
+	{
+		"id": "confront_cheating", "label": "Konfrontuje kvůli nevěře", "object": "sim", "duration": 25.0,
+		"effects": {"social": 2.0, "fun": -6.0}, "tags": ["social", "romance", "conflict"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.85,
+	},
+	# --- rivalita (Rivalry + SimAgent._start_slander/_start_hatchet). Pomluva: cíl = POSLUCHAČ, soka vybírá
+	# autorita (nejsilnější rivalita). Posluchač to může prokouknout a donést oběti. Hra pomluvu neodměňuje.
+	{
+		"id": "slander_rival", "label": "Pomlouvá soka", "object": "sim", "duration": 15.0,
+		"effects": {"social": 3.0}, "tags": ["social", "conflict", "rivalry"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.5,
+	},
+	# Usmíření se sokem (oběma směry rivalita opadne, přibude respekt) – nebo odmítnutí.
+	{
+		"id": "bury_hatchet", "label": "Zakopává válečnou sekeru", "object": "sim", "duration": 20.0,
+		"effects": {"social": 5.0}, "tags": ["social", "repair", "rivalry"], "posture": "stand",
+		"base_appeal": 0.0, "effort": 0.8,
+	},
 	# --- drby: vyříkat si to se zdrojem (jen když postava ví, od koho řeči šly) a popřít je před druhými
 	{
 		"id": "confront_gossip", "label": "Vyříkává si drby", "object": "sim", "duration": 20.0,
@@ -246,9 +295,52 @@ const ACTIONS: Array = [
 		"effects": {}, "tags": ["system"], "posture": "stand", "system": true, "effort": 0.0,
 		"content": "mental_health",
 	},
-]
-
-## Výchozí námaha podle tagů (když akce nemá klíč `effort`). Bere se maximum.
+		# --- práce (Career, K1, 24. 11. 2026). Směny jsou mimo parcelu: postava dojde na chodník a zmizí
+		# („away“ – mimo všechny vzdálenostní kontroly), po směně se vrátí. AI si je nevybírá přes planner
+		# (player_only) – do práce ji posílá Career.ai_choice podle rozvrhu oboru. Blokace (rozvrh, nemocenská,
+		# souboj o povýšení) řeší server přes main.career_command_block.
+		{
+			"id": "work_shift", "label": "V práci", "object": "", "duration": 480.0,
+			"rate": {"hunger": 4.0, "social": 3.0}, "suppress": {"hygiene": 0.6, "comfort": 0.5, "fun": 1.1, "energy": 1.1},
+			"tags": ["work"], "posture": "away", "interruptible": false, "player_only": true, "away": true,
+			"career": true, "effort": 0.6,
+		},
+		{
+			"id": "work_hard", "label": "V práci (maká naplno)", "object": "", "duration": 480.0,
+			"rate": {"hunger": 4.0, "social": 2.0}, "suppress": {"hygiene": 0.7, "comfort": 0.5, "fun": 1.2, "energy": 1.3},
+			"tags": ["work"], "posture": "away", "interruptible": false, "player_only": true, "away": true,
+			"career": true, "effort": 0.8,
+		},
+		{
+			"id": "work_slack", "label": "V práci (fláká se)", "object": "", "duration": 480.0,
+			"rate": {"hunger": 4.0, "social": 4.0}, "suppress": {"hygiene": 0.5, "comfort": 0.4, "fun": 0.9, "energy": 0.9},
+			"tags": ["work"], "posture": "away", "interruptible": false, "player_only": true, "away": true,
+			"career": true, "effort": 0.4,
+		},
+		# Intrika proti konkurenci v souboji o povýšení (jen během souboje; může prasknout – výtka, oběť se to dozví).
+		{
+			"id": "work_scheme", "label": "V práci (intrikuje)", "object": "", "duration": 480.0,
+			"rate": {"hunger": 4.0, "social": 3.0}, "suppress": {"hygiene": 0.6, "comfort": 0.5, "fun": 1.0, "energy": 1.15},
+			"tags": ["work"], "posture": "away", "interruptible": false, "player_only": true, "away": true,
+			"career": true, "effort": 0.6,
+		},
+		# Nemocenská (i kvůli psychice – důvod zůstává soukromý; šéf reaguje podle oboru: pochopení / stigma).
+		{
+			"id": "call_in_sick", "label": "Volá do práce, že dnes nepřijde", "object": "", "duration": 10.0,
+			"effects": {}, "tags": ["work", "solo"], "posture": "stand", "player_only": true, "career": true, "effort": 0.1,
+		},
+		{
+			"id": "job_search", "label": "Hledá práci (inzeráty, telefony)", "object": "", "duration": 90.0,
+			"effects": {"fun": -6.0}, "tags": ["work", "solo"], "posture": "stand", "player_only": true, "career": true,
+			"effort": 0.7,
+		},
+		{
+			"id": "quit_job", "label": "Dává výpověď", "object": "", "duration": 15.0,
+			"effects": {}, "tags": ["work", "solo"], "posture": "stand", "player_only": true, "career": true, "effort": 0.6,
+		},
+	]
+	
+	## Výchozí námaha podle tagů (když akce nemá klíč `effort`). Bere se maximum.
 const TAG_EFFORT := {"exercise": 0.9, "cooking": 0.6, "hygiene": 0.5, "social": 0.5, "reading": 0.3,
 	"coping": 0.3, "fun": 0.2, "food": 0.15}
 ## Kolik z kladného zisku zábavy se počítá do očekávané radosti (vedle moodletu).
@@ -262,6 +354,66 @@ const LINES := {
 	"blame_shift": ["Já za to nemůžu, to ty.", "Kdybys neudělal(a) tamto, nic se nestalo."],
 	"emotional_blackmail": ["Jestli ti na mně záleží, uděláš to, co chci.", "Když odmítneš, tak už se mnou nepočítej."],
 	"stonewalling": ["O tom se prostě nebudu bavit.", "Nemám ti co říct."],
+	"slander_blocked": ["Hele… vlastně nic. Zapomeň na to.", "Ale nic, to je jedno."],
+	"slander_swayed": ["Fakt? Tak to bych neřekl(a)…", "No to mě poser. Tak to si dám bacha."],
+	"slander_doubted": ["Hm. Nevím, nevím.", "To se mi moc nezdá, ale dobře."],
+	# Posluchač je postava jiného hráče: o tom, zda uvěří, rozhodne hráč (SlanderPolicy) – replika je neutrální.
+	"slander_pending": ["Hm. To si musím nechat projít hlavou.", "Jo? …No, uvidíme.", "Tohle se mi poslouchá blbě."],
+	"slander_saw_through": ["Proč mi to vlastně říkáš? Máte spolu něco?", "Tohle je pod tvoji úroveň. Fakt.",
+		"Víš co, tohle nechci poslouchat."],
+	"hatchet": ["Hele… nechceme toho nechat? Ta válka mezi náma je k ničemu.", "Co kdybysme to zakopali? Já už nemám sílu."],
+	"hatchet_accepted": ["…jo. Asi máš pravdu. Fajn.", "Dobře. Ale ber to vážně.", "Tak jo. Ruku na to."],
+	"hatchet_refused": ["To si děláš srandu? Po tom všem?", "Ne. Na tohle je moc brzo.", "Jdi někam."],
+	"hatchet_not_now": ["Dej mi pokoj. Už jsme to řešili.", "Ne. Ještě ne."],
+	"hatchet_no_rivalry": ["Mezi náma přece nic není.", "Jakou válku? O čem to mluvíš?"],
+	"clear_air": ["Hele, takhle to dál nejde. Musíme si promluvit.", "Můžeme si sednout a probrat to? Bez řvaní.",
+		"Už tejden spolu skoro nemluvíme. Mě to sere."],
+	"clear_air_breakthrough": ["…dobře. Taky mi to chybělo. Promiň.", "Máš pravdu, byl(a) jsem kretén. Zkusíme to znova.",
+		"Uf. Fajn. Konečně."],
+	"clear_air_truce": ["Dobře, příměří. Ale nečekej, že je to vyřešený.", "Tak jo. Zatím.", "Uvidíme. Dej mi čas."],
+	"clear_air_blowup": ["Ty si ještě budeš něco vyčítat MNĚ? To si děláš prdel.", "Víš co? Seru na to. Na všechno.",
+		"Takže zase já, jo? Jako vždycky!"],
+	"clear_air_not_now": ["Teď ne. Fakt ne.", "Už jsme to dneska zkoušeli."],
+	"clear_air_nothing": ["O co jde? Já nic nemám.", "Mezi námi je přece všechno v pohodě, ne?"],
+	"ask_out": ["Hele… nechceš někdy zajít na víno? Jen my dva.", "Nebudu chodit kolem horký kaše – líbíš se mi.",
+		"Nechceš se mnou jít na rande? Jako fakt rande."],
+	"ask_out_yes": ["…jo. Jo, klidně. Myslel(a) jsem, že se nikdy nezeptáš.", "Ty vole, konečně. Jasně že jo.",
+		"Tak jo. Ale platíš ty."],
+	"ask_out_not_yet": ["Teď ne… ale neříkám nikdy.", "Dej mi trochu času, jo?", "Uvidíme. Fakt nevím."],
+	"ask_out_no": ["Promiň, ale takhle to necítím.", "Jsi fajn, ale ne. Fakt ne.", "Radši zůstaneme kamarádi, jo?"],
+	"ask_out_taken": ["Mám někoho. Víš to.", "Sorry, už s někým jsem."],
+	"ask_out_pushy": ["Kolikrát ti to mám říkat? NE.", "Ty fakt neslyšíš? Nech toho, sakra.", "Už mě to začíná srát. Dej mi pokoj."],
+	"ask_out_not_now": ["Teď ne. Už jsme to probírali.", "Dej tomu čas, jo?"],
+	"ask_out_already": ["Vždyť spolu chodíme, ty trubko.", "To jako vážně? My dva už jsme spolu."],
+	"break_up": ["Musím ti něco říct… takhle to dál nejde. Končím to.", "Nechci už s tebou bejt. Promiň.",
+		"Je konec. Nezlob se, ale je konec."],
+	"break_up_hurt": ["…cože? Ty si ze mě děláš srandu.", "To mi děláš teď? Fakt teď?", "Já… dobře. Asi jsem to čekal(a)."],
+	"break_up_angry": ["Tak táhni. Seru na tebe.", "Víš co, ty hajzle? Stejně jsi za nic nestál(a).",
+		"Celou dobu jsi mi lhal(a), že jo? Kurva."],
+	"break_up_relief": ["Jo. Asi máš pravdu.", "Upřímně? Taky jsem na to myslel(a).", "Dobře. Bude to tak lepší."],
+	"break_up_nothing": ["Rozejít? Vždyť spolu ani nechodíme.", "O čem to mluvíš?"],
+	# Nevěra: (a) = rod mluvčího, pokud není u klíče uvedeno jinak.
+	"flirt": ["Sluší ti to dneska. Fakt.", "Víš, že máš hezkej úsměv? Nekecám.", "Kdyby to šlo… no nic. Zapomeň na to."],
+	"flirt_reciprocated": ["Hm… ty taky nejsi k zahození.", "Přestaň, nebo se začnu červenat.", "Jo? Tak mi to někdy řekni bez svědků."],
+	"flirt_brushed_off": ["Haha. Jo. Dobře.", "Hele, nech toho, jo?", "Tohle radši ne."],
+	"flirt_uncomfortable": ["Ehm… tohle je mi nepříjemný.", "Tak takhle ne. Fakt ne."],
+	"flirt_own_partner": ["Ty jeden… pojď sem.", "Pořád to na mě funguje, víš to?", "Tak tohle mi říkej častějc."],
+	"secret_date": ["Nikdo se to nesmí dozvědět, jasný?", "Vím o místě, kde nás nikdo nezná.", "Jen dneska. Naposled. Slibuju."],
+	"secret_date_yes": ["…tohle je strašná blbost. Kdy?", "Jo. Ale nikdo se to nedozví."],
+	"secret_date_no": ["Ne. Tohle neudělám.", "To jako vážně? Ne.", "Ty máš někoho. Ne."],
+	"secret_date_blocked": ["Tajně? Proč tajně?", "O čem to mluvíš?", "Tohle radši ne."],
+	## (a) = rod přistiženého.
+	"caught": ["Co to sakra je?! Tohle mi děláš?!", "Takže tohle. Tohle jsi mi celou dobu dělal(a).", "Ty… vy dva? Kurva."],
+	## (a) = rod obviněného.
+	"confront_cheating": ["Kde jsi včera byl(a)? A nelži mi.", "Já to vím. Tak to konečně řekni.", "S kým si to pořád píšeš?"],
+	"confront_confess": ["…jo. Je to pravda. Promiň.", "Nechtěl(a) jsem, aby to takhle dopadlo.", "Jo. Stalo se to. Nevím, co ti mám říct."],
+	"confront_denied": ["Prosím tě, nic se neděje.", "Byl(a) jsem v práci. Fakt.", "Zase s tímhle? Nic není."],
+	"confront_caught_lying": ["…dobře. Dobře! Jo. A co jako?", "Do prdele… Jo. Je to pravda."],
+	"confront_innocent": ["Ty mě sleduješ? Ty mi fakt nevěříš?", "Nic nemám. Nic! Ale tvoje žárlivost mě ničí."],
+	"confront_not_partners": ["O čem to mluvíš? Vždyť spolu nechodíme."],
+	## (a) = rod nevěrníka (oslovený).
+	"betrayed": ["Vypadni mi z očí.", "Jak jsi mi to mohl(a) udělat?", "Ty hajzle. Ty zasranej hajzle."],
+	"jealous_partner": ["Hele, co to bylo? S kým si to tady flirtuješ?", "Fakt? Přímo přede mnou?"],
 	"insult": [
 		"Ty seš fakt kretén, víš to?",
 		"Kurva, nech mě bejt.",
@@ -394,6 +546,11 @@ const LINES := {
 		"Viděl(a) jsem to na vlastní oči. Nekecej mi.",
 		"Fakt mi budeš lhát do očí?",
 	],
+	## Svědek ataky paniky: zapírání bere jako stud, ne jako lež.
+	"deny_caught_gentle": [
+		"Hele, já u toho byl(a). Nemusíš se za to stydět.",
+		"To je v pohodě. Stává se to, fakt.",
+	],
 	"deny_nothing": [
 		"Jaký řeči? Nic jsem neslyšel(a).",
 		"O čem to mluvíš? Nevím o ničem.",
@@ -423,7 +580,20 @@ const LINES := {
 		"Jo, promiň. Hned to udělám.",
 		"Máš pravdu, sorry. Nevšiml(a) jsem si.",
 	],
-	## De-eskalace: posluchač v dobré náladě ostrý tón přejde.
+	## Práce (Career).
+		"work_leave": ["Jdu do práce.", "Tak zase do galeje.", "Kdyby mě někdo hledal, jsem v práci.", "Nechce se mi. Ale jdu."],
+		"work_back": ["Jsem doma. Ani se neptej.", "Konečně doma.", "Ten šéf je fakt kretén.", "Dneska to šlo. Překvapivě."],
+		"work_back_good": ["Šéf mě dneska pochválil. Fakt.", "Dobrej den v práci, kdo by to řekl."],
+		"work_fired": ["Vyrazili mě. Ty vole, oni mě fakt vyrazili.", "Dostal(a) jsem padáka.", "Tak to je konec. Bez práce."],
+		"work_promoted": ["Povýšili mě! Mě!", "Konečně si toho někdo všiml.", "Od zítřka mám nový místo."],
+		"work_lost_race": ["Povýšili tu krysu místo mě.", "Tak jsem to prohrál(a). Kurva.", "Celý měsíce dřiny a dostane to někdo jinej."],
+		"work_scheme_caught": ["Načapali mě. Mám výtku.", "Tak to se nepovedlo. Šéf zuří."],
+		"work_sabotaged": ["Někdo mi v práci hází klacky pod nohy.", "Zase to padlo na mě. Kdo za tím sakra je?"],
+		"call_sick": ["Dneska to nedám. Volám, že jsem marod.", "Haló, šéfe… dneska nepřijdu.", "Promiňte, dneska to fakt nepůjde."],
+		"job_rejected": ["Další odmítnutí. Super.", "Ozveme se. Jasně.", "Nikdo mě nechce."],
+		"job_hired": ["Vzali mě! Od zítřka makám.", "Mám práci. Konečně."],
+		"quit_job": ["Končím. Dávám výpověď.", "Tak dost. Už tam nepáchnu."],
+		## De-eskalace: posluchač v dobré náladě ostrý tón přejde.
 	"deescalate": [
 		"Hele, nechme toho. Nemá cenu se hádat.",
 		"Dobře, chápu. Dneska je toho na tebe moc, co?",

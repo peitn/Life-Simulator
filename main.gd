@@ -14,6 +14,9 @@ extends Node3D
 const SimAgent := preload("res://scripts/sim/sim_agent.gd")
 const SimPuppet := preload("res://scripts/sim/sim_puppet.gd")
 const WorldBuilder := preload("res://scripts/world/world_builder.gd")
+const LotGrid := preload("res://scripts/world/lot_grid.gd")
+const LotFurnisher := preload("res://scripts/world/lot_furnisher.gd")
+const BuyMode := preload("res://scripts/ui/buy_mode.gd")
 const DayNight := preload("res://scripts/world/day_night.gd")
 const CameraRig := preload("res://scripts/world/camera_rig.gd")
 const WorldInteractionPicker := preload("res://scripts/ui/world_interaction_picker.gd")
@@ -31,8 +34,11 @@ const Validator := preload("res://scripts/character/character_validator.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const HouseholdDynamics := preload("res://scripts/sim/household_dynamics.gd")
+const CareerHooks := preload("res://scripts/sim/career_hooks.gd")
+const CareerScript := preload("res://scripts/sim/career.gd")
 const GossipNetwork := preload("res://scripts/sim/gossip_network.gd")
 const EconomyBridge := preload("res://scripts/sim/economy_bridge.gd")
+const Rivalry := preload("res://scripts/sim/rivalry.gd")
 const Gossip_G := preload("res://scripts/core/grammar_cs.gd")
 const SaveGame := preload("res://scripts/save/game_save.gd")
 const ClothingWardrobe := preload("res://scripts/assets/clothing_wardrobe.gd")
@@ -173,6 +179,10 @@ func _ready() -> void:
 		DisplayServer.get_name() != "headless" and not _test_mode))
 	if not household_override.is_empty():
 		_eight_household_enabled = false
+	# K1 kariéry: zapnuté ve skutečné hře (okno) i na dedikovaném serveru; izolované headless testy si je zapínají
+	# výslovně (cfg["careers"] = true), aby kalibrované soak testy domácnosti zůstaly beze změny.
+	careers_enabled = bool(cfg.get("careers", String(cfg.get("mode", "")) == "server" \
+		or (DisplayServer.get_name() != "headless" and not _test_mode)))
 	# Dedikovaný server spuštěný z příkazové řádky nic nevykresluje – 3D modely nenačítá.
 	if net_config.is_empty() and String(cfg.get("mode", "")) == "server":
 		AssetLibrary.enabled = false
@@ -207,6 +217,7 @@ func _ready() -> void:
 	builder.include_eight_suite = _eight_household_enabled
 	builder.build()
 	smart_objects = builder.objects
+	_lot_init(builder)
 	if day_night != null:
 		for l in builder.lamps:
 			day_night.add_interior_light(l)
@@ -758,11 +769,542 @@ func _on_time_advanced(dm: float) -> void:
 		return
 	if peer == null or multiplayer.is_server():
 		dynamics.advance(dm, sims, clock)
+		if careers_enabled:
+			CareerHooks.tick(self)
+		_lot_appeal_tick(dm)
 		if gossip != null:
 			gossip.tick(dm)
 		var plates := get_node_or_null("DirtyDishes") as Node3D
 		if plates != null:
 			plates.visible = dynamics.has_dirty_dishes(float(clock.total_minutes))
+
+
+# ---------------------------------------------------------------- parcela: režim nákupu (B1, 20. 11. 2026)
+# LotGrid = data (co je koupené, kde, rozpočet). Změny jen na autoritě (offline / server); klient dostane
+# veřejný snímek přes NetSession a jen přestaví uzly. Pořadí smart_objects: výchozí nábytek domu, pak koupené
+# předměty s akcemi vzestupně podle uid – na serveru i klientech stejné, takže index objektu v příkazu sedí.
+
+signal lot_changed
+var lot = null
+var lot_base_count := 0
+var _lot_nodes := {}
+var _lot_root: Node3D = null
+## B2: uzly postavených stěn (wid -> StaticBody3D) a sdílené materiály.
+var _wall_nodes := {}
+var _wall_mats: Array = []
+var _lot_appeal_minutes := 0.0
+var buy_mode: CanvasLayer = null
+## Atmosféra: od kolika bodů (LotGrid.appeal_at) vzniká nálada; kontrola jednou za herní hodinu.
+const LOT_APPEAL_GOOD := 5.0
+const LOT_APPEAL_BAD := -4.0
+## B4: pant křídla dveří (vizuál).
+const LotDoor := preload("res://scripts/world/lot_door.gd")
+var _open_mats: Array = []
+
+
+func _lot_init(builder) -> void:
+	lot = LotGrid.new()
+	builder.describe_lot(lot)
+	lot_base_count = smart_objects.size()
+	_lot_root = Node3D.new()
+	_lot_root.name = "LotItems"
+	add_child(_lot_root)
+
+
+## Autorita: nákup / prodej / přesun / stěny. kind "buy" args [id, cx, cz, rot]; "sell" [uid];
+## "move" [uid, cx, cz, rot]; "wall" [x0, z0, x1, z1] (mřížkové body hran); "unwall" [wid];
+## B4: "open" [wid, druh, posun v buňkách] (dveře/okno do stěny); "unopen" [oid] (vybourat a zazdít).
+## B4b: "lock" [oid, zámek] – "" odemknout, "*" pro všechny, jméno uzlu postavy = projde jen ona. Kdo smí
+## zamykat za koho, hlídá NetSession (klient jen za sebe); tady se ověří existence postavy a pravidla parcely.
+## Vrací {"ok", "reason", ...}; reason je kód LotGrid.REASON_TEXT.
+func lot_apply_action(kind: String, args: Array, actor: String = "") -> Dictionary:
+	if lot == null or (net != null and net.is_networked() and not net.is_authority()):
+		return {"ok": false, "reason": "not_authority"}
+	var now := float(clock.total_minutes)
+	var r: Dictionary
+	match kind:
+		"buy":
+			if args.size() != 4:
+				return {"ok": false, "reason": "unknown_item"}
+			r = lot.buy(args[0], args[1], args[2], args[3], now, actor)
+		"sell":
+			if args.size() != 1:
+				return {"ok": false, "reason": "unknown_uid"}
+			if typeof(args[0]) == TYPE_INT and lot_item_in_use(int(args[0])):
+				return {"ok": false, "reason": "in_use"}
+			r = lot.sell(args[0], now, actor)
+		"move":
+			if args.size() != 4:
+				return {"ok": false, "reason": "unknown_uid"}
+			if typeof(args[0]) == TYPE_INT and lot_item_in_use(int(args[0])):
+				return {"ok": false, "reason": "in_use"}
+			r = lot.move(args[0], args[1], args[2], args[3], now, actor)
+		"wall":
+			if args.size() != 4:
+				return {"ok": false, "reason": "wall_bad"}
+			# B3: zeď nesmí zazdít postavu, ke které se dosud dalo dojít (uvízla by, nebo by „procházela zdí“).
+			var sim_pts: Array = []
+			for s in sims:
+				if is_instance_valid(s) and not bool(s.get("away")):
+					sim_pts.append(Vector2(s.global_position.x, s.global_position.z))
+			if lot.wall_traps(args[0], args[1], args[2], args[3], sim_pts):
+				return {"ok": false, "reason": "traps_sim"}
+			# B4b: … ani postavu, které jinou cestu zavírá zamčené dveře (zeď by ji uvěznila za cizím zámkem).
+			if lot.traps_in_lock_views(func(p: Array) -> bool: return lot.wall_traps(args[0], args[1], args[2], args[3], p), lot_sim_points()):
+				return {"ok": false, "reason": "traps_sim"}
+			r = lot.build_wall(args[0], args[1], args[2], args[3], now, actor)
+		"unwall":
+			if args.size() != 1:
+				return {"ok": false, "reason": "unknown_wid"}
+			r = lot.remove_wall(args[0], now, actor)
+		"open":
+			if args.size() != 3:
+				return {"ok": false, "reason": "opening_bad"}
+			r = lot.build_opening(args[0], args[1], args[2], now, actor)
+		"unopen":
+			if args.size() != 1:
+				return {"ok": false, "reason": "unknown_oid"}
+			# Zazdění dveří nesmí nikoho zavřít (stejně jako stavba zdi – B3 traps_sim).
+			var door_pts: Array = []
+			for s in sims:
+				if is_instance_valid(s) and not bool(s.get("away")):
+					door_pts.append(Vector2(s.global_position.x, s.global_position.z))
+			if lot.opening_traps(args[0], door_pts):
+				return {"ok": false, "reason": "door_traps"}
+			if lot.traps_in_lock_views(func(p: Array) -> bool: return lot.opening_traps(args[0], p), lot_sim_points()):
+				return {"ok": false, "reason": "door_traps"}
+			r = lot.remove_opening(args[0], now, actor)
+		"lock":
+			if args.size() != 2:
+				return {"ok": false, "reason": "lock_bad"}
+			if typeof(args[1]) == TYPE_STRING and String(args[1]) != "" and String(args[1]) != LotGrid.LOCK_ALL \
+					and LotGrid.valid_lock(args[1]) and find_sim(String(args[1])) == null:
+				return {"ok": false, "reason": "lock_who"}
+			r = lot.set_lock(args[0], args[1], lot_sim_points())
+		_:
+			return {"ok": false, "reason": "unknown_item"}
+	if bool(r.get("ok", false)):
+		lot_sync_nodes()
+		lot_changed.emit()
+	return r
+
+
+## B4b: [[jméno uzlu postavy, poloha (x, z)], …] všech postav – kontrola, že zámek nikoho nezavře.
+func lot_sim_points() -> Array:
+	var out: Array = []
+	for s in sims:
+		# K1: postava v práci není na parcele (nikoho nezavírá a zámek ji nemůže uvěznit).
+		if is_instance_valid(s) and not bool(s.get("away")):
+			out.append([String(s.name), Vector2(s.global_position.x, s.global_position.z)])
+	return out
+
+
+## B4b: klíč „mé“ postavy pro zámek: v síti postava hráče, offline právě vybraná postava. "" = žádná.
+func lot_my_sim() -> String:
+	if net != null and net.mode != net.Mode.OFFLINE:
+		return String(net.my_sim)
+	if sims.is_empty():
+		return ""
+	var s = sims[clampi(selected, 0, sims.size() - 1)]
+	return String(s.name) if is_instance_valid(s) else ""
+
+
+## B4b: popis zámku pro UI („odemčeno“, „zamčeno pro všechny“, „zamčeno – jen Ana“).
+func lot_lock_text(lock: String) -> String:
+	if lock == "":
+		return "odemčeno"
+	if lock == LotGrid.LOCK_ALL:
+		return "zamčeno pro všechny"
+	var s := find_sim(lock)
+	var who := lock
+	if s != null and s.get("sim_name") != null:
+		who = String(s.get("sim_name")).split(" ")[0]
+	return "zamčeno – jen %s" % who
+
+
+## Někdo předmět používá, jde k němu nebo ho má ve frontě příkazů → nesmí zmizet ani se přesunout.
+func lot_item_in_use(uid: int) -> bool:
+	var n = _lot_nodes.get(uid, null)
+	if n == null or not is_instance_valid(n):
+		return false
+	if n.has_method("reserve"):
+		for u in n.users:
+			if u != null and is_instance_valid(u):
+				return true
+	for s in sims:
+		if not is_instance_valid(s) or s.get("player_queue") == null:
+			continue
+		for cmd in s.player_queue:
+			if cmd.get("target") == n:
+				return true
+	return false
+
+
+func lot_node(uid: int) -> Node3D:
+	return _lot_nodes.get(uid, null)
+
+
+## Uvede uzly do souladu s LotGrid (nákup, prodej, přesun, načtení hry, snímek ze serveru).
+func lot_sync_nodes() -> void:
+	if lot == null:
+		return
+	for uid in _lot_nodes.keys():
+		var rec = lot.items.get(uid, null)
+		var n: Node3D = _lot_nodes[uid]
+		if rec == null or not is_instance_valid(n) or String(n.get_meta("lot_item", "")) != String(rec["id"]):
+			_lot_remove_node(uid)
+	for uid in lot.sorted_uids():
+		if _lot_nodes.has(uid):
+			LotFurnisher.place(lot, _lot_nodes[uid], uid)
+			continue
+		var node := LotFurnisher.build_item(lot, uid)
+		_lot_root.add_child(node)
+		_lot_nodes[uid] = node
+		if node.has_meta("lot_light") and day_night != null:
+			day_night.add_interior_light(node.get_meta("lot_light"))
+	smart_objects.resize(lot_base_count)
+	for uid in lot.sorted_uids():
+		var n2: Node3D = _lot_nodes[uid]
+		if n2.has_method("reserve"):
+			smart_objects.append(n2)
+	_lot_sync_walls()
+
+
+## Stěny (B2): uzel na každou stěnu z LotGrid; změněná nebo zbořená stěna se postaví znovu / odstraní.
+func _lot_sync_walls() -> void:
+	for wid in _wall_nodes.keys():
+		var rec = lot.walls.get(wid, null)
+		var n: Node3D = _wall_nodes[wid]
+		if rec == null or not is_instance_valid(n) or String(n.get_meta("wall_key", "")) != _wall_key(rec):
+			_wall_nodes.erase(wid)
+			if is_instance_valid(n):
+				n.get_parent().remove_child(n)
+				n.queue_free()
+	for wid in lot.sorted_wids():
+		if _wall_nodes.has(wid):
+			continue
+		var node := _build_wall_node(lot.walls[wid])
+		_lot_root.add_child(node)
+		_wall_nodes[wid] = node
+
+
+## Klíč uzlu stěny: souřadnice + otvory (osazení/vybourání dveří uzel postaví znovu).
+func _wall_key(w: Dictionary) -> String:
+	var k := "%d,%d,%d,%d" % [int(w["x0"]), int(w["z0"]), int(w["x1"]), int(w["z1"])]
+	if lot != null and w.has("wid"):
+		for o in lot.openings_of(int(w["wid"])):
+			k += "|%d:%s@%d" % [int(o["oid"]), String(o["kind"]), int(o["at"])]
+	return k
+
+
+func wall_node(wid: int) -> Node3D:
+	return _wall_nodes.get(wid, null)
+
+
+## Omítnutá stěna s tmavším soklem. Tloušťka a výška z LotGrid; kolize = jeden kvádr (vrstva 1 jako dům).
+## Mírné prodloužení o půl tloušťky zakryje spáry v rozích a T-spojích.
+func _build_wall_node(w: Dictionary) -> StaticBody3D:
+	if _wall_mats.is_empty():
+		var plaster := StandardMaterial3D.new()
+		plaster.albedo_color = Color(0.83, 0.8, 0.74)
+		plaster.roughness = 0.92
+		var skirt := StandardMaterial3D.new()
+		skirt.albedo_color = Color(0.32, 0.28, 0.24)
+		skirt.roughness = 0.55
+		if day_night != null:
+			# Vizuální běh: jemná nerovnost omítky (šum v drsnosti a normále), headless testy bez textur.
+			var noise := FastNoiseLite.new()
+			noise.frequency = 0.08
+			noise.seed = 7
+			var rough_tex := NoiseTexture2D.new()
+			rough_tex.noise = noise
+			rough_tex.seamless = true
+			plaster.roughness_texture = rough_tex
+			var nrm := NoiseTexture2D.new()
+			nrm.noise = noise
+			nrm.seamless = true
+			nrm.as_normal_map = true
+			nrm.bump_strength = 1.5
+			plaster.normal_enabled = true
+			plaster.normal_texture = nrm
+			plaster.normal_scale = 0.25
+			plaster.uv1_triplanar = true
+			plaster.uv1_scale = Vector3(0.6, 0.6, 0.6)
+		_wall_mats = [plaster, skirt]
+	var ab: Array = lot.wall_world(w)
+	var a: Vector2 = ab[0]
+	var b: Vector2 = ab[1]
+	var length := a.distance_to(b) + LotGrid.WALL_THICK
+	var h := LotGrid.WALL_HEIGHT
+	var t := LotGrid.WALL_THICK
+	var body := StaticBody3D.new()
+	body.name = "Wall_%d" % int(w["wid"])
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.set_meta("lot_wall", int(w["wid"]))
+	body.set_meta("wall_key", _wall_key(w))
+	var mid := (a + b) * 0.5
+	body.position = Vector3(mid.x, 0.0, mid.y)
+	# Lokální osa X = délka stěny.
+	body.rotation_degrees = Vector3(0, 0.0 if is_equal_approx(a.y, b.y) else 90.0, 0)
+	var ops: Array = lot.openings_of(int(w["wid"])) if w.has("wid") else []
+	if not ops.is_empty():
+		_build_wall_with_openings(body, a.distance_to(b), ops, not is_equal_approx(a.y, b.y))
+		return body
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(length, h, t)
+	shape.shape = box
+	shape.position = Vector3(0, h * 0.5, 0)
+	body.add_child(shape)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(length, h, t)
+	var mi := MeshInstance3D.new()
+	mi.name = "Body"
+	mi.mesh = mesh
+	mi.material_override = _wall_mats[0]
+	mi.position = Vector3(0, h * 0.5, 0)
+	body.add_child(mi)
+	var sk_mesh := BoxMesh.new()
+	sk_mesh.size = Vector3(length - 0.004, 0.09, t + 0.024)
+	var sk := MeshInstance3D.new()
+	sk.name = "Skirting"
+	sk.mesh = sk_mesh
+	sk.material_override = _wall_mats[1]
+	sk.position = Vector3(0, 0.045, 0)
+	sk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(sk)
+	return body
+
+
+## B4: stěna s otvory – plné kusy (omítka + sokl), nadpraží, parapety, zárubně/rámy, sklo, křídla dveří.
+## Lokální osa X = délka stěny; s = vzdálenost od začátku stěny (x0, z0). Svislá stěna je otočená o 90°, takže
+## lokální +X tam míří k menšímu z → s se převádí se znaménkem (sgn). Kolize: plné kusy, nadpraží, parapety
+## a celé okno; rozsah dveří kolizi nemá. TODO(Blender): nahradit procedurální zárubně a křídla assety.
+func _build_wall_with_openings(body: StaticBody3D, wall_len: float, ops: Array, vertical: bool) -> void:
+	if _open_mats.is_empty():
+		var frame := StandardMaterial3D.new()
+		frame.albedo_color = Color(0.9, 0.88, 0.83)
+		frame.roughness = 0.45
+		var leaf := StandardMaterial3D.new()
+		leaf.albedo_color = Color(0.36, 0.25, 0.17)
+		leaf.roughness = 0.6
+		var glass := StandardMaterial3D.new()
+		glass.albedo_color = Color(0.72, 0.82, 0.86, 0.22)
+		glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glass.roughness = 0.04
+		glass.metallic_specular = 0.9
+		glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var metal := StandardMaterial3D.new()
+		metal.albedo_color = Color(0.7, 0.68, 0.62)
+		metal.metallic = 0.9
+		metal.roughness = 0.3
+		_open_mats = [frame, leaf, glass, metal]
+	var h := LotGrid.WALL_HEIGHT
+	var t := LotGrid.WALL_THICK
+	var sgn := -1.0 if vertical else 1.0
+	var half := wall_len * 0.5
+	var fr := 0.06
+	var spans: Array = []
+	for o in ops:
+		var s0 := float(o["at"]) * LotGrid.CELL
+		spans.append([s0, s0 + float(LotGrid.opening_cells(String(o["kind"]))) * LotGrid.CELL, o])
+	spans.sort_custom(func(p, q): return float(p[0]) < float(q[0]))
+	# Plné kusy mezi otvory; krajní prodloužené o půl tloušťky (spáry v rozích jako u plné stěny).
+	var s := -t * 0.5
+	var idx := 0
+	for sp in spans:
+		_ow_piece(body, "Body_%d" % idx, s, float(sp[0]), 0.0, h, sgn, half, true)
+		s = float(sp[1])
+		idx += 1
+	_ow_piece(body, "Body_%d" % idx, s, wall_len + t * 0.5, 0.0, h, sgn, half, true)
+	for sp in spans:
+		var o: Dictionary = sp[2]
+		var k := String(o["kind"])
+		var info: Dictionary = LotGrid.OPENINGS[k]
+		var oid := int(o["oid"])
+		var s0: float = sp[0]
+		var s1: float = sp[1]
+		var head := float(info["head"])
+		var sill := float(info["sill"])
+		_ow_piece(body, "Header_%d" % oid, s0, s1, head, h, sgn, half, false)
+		if sill > 0.0:
+			_ow_piece(body, "Sill_%d" % oid, s0, s1, 0.0, sill, sgn, half, true)
+		var mid := ((s0 + s1) * 0.5 - half) * sgn
+		var width := s1 - s0
+		var holder := Node3D.new()
+		holder.name = ("Door_%d" if LotGrid.is_door(k) else "Window_%d") % oid
+		holder.position = Vector3(mid, 0, 0)
+		holder.set_meta("lot_opening", oid)
+		body.add_child(holder)
+		_ow_box(holder, "JambA", Vector3(fr, head - sill, t + 0.03), Vector3(-width * 0.5 + fr * 0.5, (sill + head) * 0.5, 0), _open_mats[0])
+		_ow_box(holder, "JambB", Vector3(fr, head - sill, t + 0.03), Vector3(width * 0.5 - fr * 0.5, (sill + head) * 0.5, 0), _open_mats[0])
+		_ow_box(holder, "FrameTop", Vector3(width, fr, t + 0.03), Vector3(0, head - fr * 0.5, 0), _open_mats[0])
+		if LotGrid.is_door(k):
+			# Křídlo na pantu u sloupku A; otevírá ho LotDoor, když jde kolem postava (jen vizuál, bez kolize).
+			var hinge := Node3D.new()
+			hinge.name = "Hinge"
+			hinge.set_script(LotDoor)
+			hinge.position = Vector3(-width * 0.5 + fr, 0, t * 0.5 - 0.02)
+			var lw := width - fr * 2.0 - 0.01
+			# B4b: oid kvůli zámku (kontrolka, otevírání jen postavě s klíčem), šířka kvůli poloze kontrolky.
+			hinge.set("oid", oid)
+			hinge.set("leaf_w", lw)
+			hinge.set("world", self)
+			holder.add_child(hinge)
+			_ow_box(hinge, "Leaf", Vector3(lw, head - fr - 0.012, 0.04), Vector3(lw * 0.5, (head - fr) * 0.5, -0.02), _open_mats[1])
+			_ow_box(hinge, "Handle", Vector3(0.12, 0.025, 0.05), Vector3(lw - 0.1, 1.02, 0.025), _open_mats[3])
+			_ow_box(hinge, "HandleBack", Vector3(0.12, 0.025, 0.05), Vector3(lw - 0.1, 1.02, -0.065), _open_mats[3])
+		else:
+			_ow_box(holder, "FrameBottom", Vector3(width, fr, t + 0.03), Vector3(0, sill + fr * 0.5, 0), _open_mats[0])
+			_ow_box(holder, "Mullion", Vector3(0.04, head - sill - fr * 2.0, 0.05), Vector3(0, (sill + head) * 0.5, 0), _open_mats[0])
+			var gl := _ow_box(holder, "Glass", Vector3(width - fr * 2.0, head - sill - fr * 2.0, 0.012), Vector3(0, (sill + head) * 0.5, 0), _open_mats[2])
+			gl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_ow_box(holder, "SillBoard", Vector3(width + 0.08, 0.03, t + 0.1), Vector3(0, sill - 0.015, 0), _open_mats[0])
+			# Okno je pro postavy neprůchozí → kolize přes celý otvor.
+			var cs := CollisionShape3D.new()
+			cs.name = "WindowCollision_%d" % oid
+			var bs := BoxShape3D.new()
+			bs.size = Vector3(width, head - sill, t)
+			cs.shape = bs
+			cs.position = Vector3(mid, (sill + head) * 0.5, 0)
+			body.add_child(cs)
+
+
+## Kus omítnuté stěny od s0 do s1 (podél stěny) a od výšky y0 do y1, s kolizí; od podlahy i sokl.
+func _ow_piece(body: StaticBody3D, pname: String, s0: float, s1: float, y0: float, y1: float, sgn: float, half: float, skirt: bool) -> void:
+	var length := s1 - s0
+	if length <= 0.001 or y1 - y0 <= 0.001:
+		return
+	var t := LotGrid.WALL_THICK
+	var cx := ((s0 + s1) * 0.5 - half) * sgn
+	var mi := _ow_box(body, pname, Vector3(length, y1 - y0, t), Vector3(cx, (y0 + y1) * 0.5, 0), _wall_mats[0])
+	mi.set_meta("wall_piece", true)
+	var shape := CollisionShape3D.new()
+	shape.name = pname + "_Col"
+	var box := BoxShape3D.new()
+	box.size = Vector3(length, y1 - y0, t)
+	shape.shape = box
+	shape.position = Vector3(cx, (y0 + y1) * 0.5, 0)
+	body.add_child(shape)
+	if skirt and y0 <= 0.0:
+		var sk := _ow_box(body, pname + "_Skirting", Vector3(maxf(length - 0.004, 0.001), 0.09, t + 0.024), Vector3(cx, 0.045, 0), _wall_mats[1])
+		sk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _ow_box(parent: Node3D, bname: String, size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.name = bname
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+func _lot_remove_node(uid: int) -> void:
+	var n: Node3D = _lot_nodes.get(uid, null)
+	_lot_nodes.erase(uid)
+	if n == null or not is_instance_valid(n):
+		return
+	for s in sims:
+		if not is_instance_valid(s) or s.get("player_queue") == null:
+			continue
+		s.player_queue = s.player_queue.filter(func(cmd): return cmd.get("target") != n)
+	if n.has_meta("lot_light") and day_night != null:
+		day_night.interior_lights.erase(n.get_meta("lot_light"))
+	smart_objects.erase(n)
+	n.get_parent().remove_child(n)
+	n.queue_free()
+
+
+## Klient: převezme veřejný snímek parcely od serveru.
+func lot_apply_public(snapshot: Variant) -> bool:
+	if lot == null or not lot.apply_public(snapshot):
+		return false
+	lot_sync_nodes()
+	lot_changed.emit()
+	return true
+
+
+## Uložení: sekce "lot" (GameSave). Obnova: položky, které už nejdou umístit, se vrátí za zaplacenou cenu.
+func lot_restore(data: Variant) -> Dictionary:
+	if lot == null:
+		return {"ok": false, "reason": "bad_lot"}
+	var r: Dictionary
+	if typeof(data) == TYPE_DICTIONARY and not (data as Dictionary).is_empty():
+		r = lot.from_dict(data, float(clock.total_minutes))
+	else:
+		lot.reset()
+		r = {"ok": true, "kept": [], "dropped": 0, "refund": 0}
+	if bool(r.get("ok", false)):
+		lot_sync_nodes()
+		lot_changed.emit()
+	return r
+
+
+## Tagy koupených předmětů s akcemi, které by vznikly obnovou snímku (validace uložené hry před obnovou).
+func lot_expected_tags(data: Variant) -> Dictionary:
+	var tags: Array = []
+	var caps: Array = []
+	for i in lot_base_count:
+		tags.append(String(smart_objects[i].object_tag))
+		caps.append(int(smart_objects[i].capacity))
+	if lot == null or typeof(data) != TYPE_DICTIONARY or (data as Dictionary).is_empty():
+		return {"ok": true, "tags": tags, "caps": caps}
+	var plan: Dictionary = lot.plan_restore(data)
+	if not bool(plan["ok"]):
+		return {"ok": false, "reason": String(plan["reason"])}
+	for rec in plan["kept"]:
+		var tag := String(LotGrid.Catalog.get_item(String(rec["id"]))["tag"])
+		if tag != "":
+			tags.append(tag)
+			caps.append(int(LotGrid.Catalog.get_item(String(rec["id"]))["cap"]))
+	return {"ok": true, "tags": tags, "caps": caps}
+
+
+## Atmosféra koupeného zařízení → krátkodobá nálada (jen autorita, jednou za herní hodinu).
+## Bez koupených věcí se nic nevolá – staré testy a uložené hry jsou beze změny.
+func _lot_appeal_tick(dm: float) -> void:
+	if lot == null or (lot.items.is_empty() and lot.openings.is_empty()):
+		_lot_appeal_minutes = 0.0
+		return
+	_lot_appeal_minutes += maxf(dm, 0.0)
+	if _lot_appeal_minutes < 60.0:
+		return
+	_lot_appeal_minutes = fmod(_lot_appeal_minutes, 60.0)
+	for s in sims:
+		if not is_instance_valid(s) or s.get("mood") == null:
+			continue
+		var a: float = lot.appeal_at(Vector2(s.global_position.x, s.global_position.z))
+		if a >= LOT_APPEAL_GOOD:
+			s.mood.add_moodlet("hezky_domov", "Hezky zařízený domov", "stastny", minf(2.0 + (a - LOT_APPEAL_GOOD) * 0.6, 6.0), 90.0)
+		elif a <= LOT_APPEAL_BAD:
+			s.mood.add_moodlet("ponury_kout", "Ponurý, zanedbaný kout", "nesvuj", -minf(2.0 + (LOT_APPEAL_BAD - a) * 0.6, 6.0), 90.0)
+
+
+## Režim nákupu (B): jen s HUD a kamerou. V MP smí nakupovat jen hráč s postavou (ověřuje server).
+func toggle_buy_mode() -> void:
+	if hud == null or camera_rig == null or lot == null:
+		return
+	if buy_mode != null and is_instance_valid(buy_mode):
+		buy_mode.close()
+		return
+	if settings_menu != null and settings_menu.is_open():
+		return
+	buy_mode = CanvasLayer.new()
+	buy_mode.set_script(BuyMode)
+	buy_mode.main = self
+	add_child(buy_mode)
+
+
+## Požadavek z UI: offline/host se provede hned, klient pošle RPC serveru.
+func request_lot_action(kind: String, args: Array) -> void:
+	if net == null:
+		return
+	net.request_lot_action(kind, args)
 
 
 func get_smart_objects() -> Array:
@@ -771,6 +1313,63 @@ func get_smart_objects() -> Array:
 
 func get_sims() -> Array:
 	return sims
+
+
+# ---------------------------------------------------------------- práce (K1, 24. 11. 2026)
+# Career (data) žije v HouseholdDynamics, dopady aplikuje CareerHooks. Jen autorita (offline / server).
+
+var _work_exit: Node3D = null
+## K1: zapnuté kariéry (viz _ready).
+var careers_enabled := true
+
+## Bod na konci chodníku, kudy postavy odcházejí do práce (a kam se vracejí, když se návrat nedá určit).
+func work_exit() -> Node3D:
+	if _work_exit == null or not is_instance_valid(_work_exit):
+		_work_exit = Marker3D.new()
+		_work_exit.name = "WorkExit"
+		add_child(_work_exit)
+		_work_exit.position = WORK_EXIT_POS
+	return _work_exit
+
+
+const WORK_EXIT_POS := Vector3(0.0, 0.0, 12.0)
+
+
+func career_ai_choice(s: Node) -> String:
+	if dynamics == null or s == null or not _gossip_authority() or not careers_enabled:
+		return ""
+	return CareerHooks.ai_choice(self, s)
+
+
+func career_alarm(s: Node) -> bool:
+	if dynamics == null or s == null or not careers_enabled or not _gossip_authority():
+		return false
+	return CareerHooks.alarm(self, s)
+
+
+func career_begin(s: Node, action_id: String) -> Dictionary:
+	if dynamics == null or s == null or not _gossip_authority():
+		return {"ok": false}
+	return CareerHooks.begin(self, s, action_id)
+
+
+func career_finished(s: Node, act: Dictionary, frac: float, interrupted: bool, reason: String) -> void:
+	if dynamics == null or s == null or not _gossip_authority():
+		return
+	CareerHooks.finished(self, s, act, frac, interrupted, reason)
+
+
+## Kód důvodu, proč kariérní akce teď nejde ("" = jde). Jen autorita.
+func career_command_block(s: Node, action_id: String) -> String:
+	if dynamics == null or s == null or not _gossip_authority():
+		return "unknown"
+	if not careers_enabled:
+		return "unknown"
+	return CareerHooks.command_block(self, s, action_id)
+
+
+func career_block_text(code: String) -> String:
+	return CareerScript.block_text(code)
 
 
 # ---------------------------------------------------------------- drby a pomluvy (vztahy (c))
@@ -897,9 +1496,21 @@ func _apply_gossip_event(ev: Dictionary, now: float) -> void:
 			_rel_add(listener, teller, float(ev["bond"]))
 			if String(ev["kind"]) == "badmouth" and subject != null:
 				listener.remember_social(subject, "grievance", clampf(0.5 * float(ev["belief"]), 0.05, 1.0), "told", "intended")
+			# Drb o nevěře / flirtu se donesl k partnerovi subjektu → podezření (Infidelity). Víra = síla podnětu.
+			if String(ev["kind"]) in ["cheating", "flirting"] and subject != null and dynamics != null \
+					and dynamics.romance.partner_of(String(subject.sim_name)) == String(listener.sim_name):
+				var whom := _gossip_sim(String(gossip.rumors.get(int(ev["rid"]), {}).get("whom", "")))
+				var strength := 1.0 if String(ev["kind"]) == "cheating" else 0.4
+				dynamics.infidelity.on_rumor(String(listener.sim_name), String(subject.sim_name), float(ev["belief"]) * strength,
+					String(whom.sim_name) if whom != null else "", now, float(listener.ledger.trust_in(String(subject.sim_name))))
+				listener._detail_dirty = true
+			# Zrazený slyší drb o nevěře toho, kdo ho zradil (i když už spolu nejsou): rána se znovu otevře.
+			if String(ev["kind"]) == "cheating" and subject != null and listener.has_method("betrayal_reminder"):
+				listener.betrayal_reminder(subject, 0.1 * clampf(float(ev["belief"]), 0.0, 1.0))
 			var hx: Dictionary = teller.get("hexaco") if typeof(teller.get("hexaco")) == TYPE_DICTIONARY else {}
 			# Pocit „dobrého drbu“ jen u běžných témat – za drb o psychice nebo pití hra nic neodměňuje.
-			if _gossip01(hx.get("honesty", 0.0)) < 0.45 and String(GossipNetwork.KINDS[String(ev["kind"])]["content"]) == "":
+			# Úmyslná pomluva soka (Rivalry) se neodměňuje vůbec.
+			if not bool(ev.get("slander", false)) and _gossip01(hx.get("honesty", 0.0)) < 0.45 and String(GossipNetwork.KINDS[String(ev["kind"])]["content"]) == "":
 				teller.add_joy_moodlet("drbani", "Dobrý drb", "stastny", 4.0, 90.0)
 		"exposed":
 			var informer := _gossip_sim(String(ev["informer"]))
@@ -922,6 +1533,12 @@ func _apply_gossip_event(ev: Dictionary, now: float) -> void:
 				subject.ledger.on_hurt_by(source.sim_name, 8.0 + 14.0 * sev, now)
 				subject.remember_social(source, "humiliation", clampf(sev * (0.7 if bool(ev["truth"]) else 1.0), 0.05, 1.0), "told", "intended")
 				subject.remember("%s o mně roznáší řeči" % source.sim_name)
+				# Rivalita oplátkou: kdo řeči vymyslel/začal, je sok naplno; kdo je jen přenesl, trochu.
+				if dynamics != null and dynamics.get("rivalry") != null:
+					if bool(ev.get("origin_known", false)):
+						dynamics.rivalry.on_slander_exposed(String(subject.sim_name), String(source.sim_name), now)
+					else:
+						dynamics.rivalry.feel(String(subject.sim_name), String(source.sim_name), "status", 0.15, now)
 		"confront":
 			var subject := _gossip_sim(String(ev["subject"]))
 			var accused := _gossip_sim(String(ev["accused"]))
@@ -958,8 +1575,254 @@ func _apply_gossip_event(ev: Dictionary, now: float) -> void:
 						subject.add_joy_moodlet("drb_uveril", "Věří mi", "spokojeny", 3.0, 180.0)
 				"caught":
 					_rel_add(listener, subject, float(ev["delta_rel"]))
-					listener.remember_social(subject, "trust_breach", 0.5, "self", "intended")
-					subject.mood.add_moodlet("drb_nevericnost", "Nevěří mi", "nesvuj", -4.0, 180.0)
+					if String(ev.get("kind", "")) == "panic":
+						# Svědek ataky: zapírání je stud, ne podraz – žádná „zrada důvěry“ v paměti.
+						subject.mood.add_moodlet("drb_vi_o_tom", "Ví o tom", "nesvuj", -3.0, 180.0)
+					else:
+						listener.remember_social(subject, "trust_breach", 0.5, "self", "intended")
+						subject.mood.add_moodlet("drb_nevericnost", "Nevěří mi", "nesvuj", -4.0, 180.0)
+
+
+## Postava podle zobrazovaného jména (sim_name), jen skutečné simulace (ne loutky). null = není.
+func _sim_named(n: String) -> Node:
+	if n == "":
+		return null
+	for o in sims:
+		if is_instance_valid(o) and o.has_method("command") and String(o.sim_name) == n:
+			return o
+	return null
+
+
+## Proč `a` teď nemůže pomlouvat svého soka před `l` ("" = může): self/no_rival/not_now/repeat. Jen autorita.
+func rivalry_slander_block(a: Node, l: Node) -> String:
+	if dynamics == null or gossip == null or a == null or l == null or not _gossip_authority():
+		return "self"
+	var sb: Dictionary = dynamics.rivalry.slander_block(String(a.sim_name), String(l.sim_name), float(clock.total_minutes))
+	if String(sb["block"]) == "" and _sim_named(String(sb["rival"])) == null:
+		return "no_rival"
+	if String(sb["block"]) == "" and _slander_victim_capped(_sim_named(String(sb["rival"]))):
+		return "victim_cap"
+	return String(sb["block"])
+
+
+## Proč `a` teď nemůže nabídnout `b` usmíření ("" = může): self/no_rivalry/not_now. Jen autorita.
+func rivalry_hatchet_block(a: Node, b: Node) -> String:
+	if dynamics == null or a == null or b == null or not _gossip_authority():
+		return "self"
+	return dynamics.rivalry.hatchet_block(String(a.sim_name), String(b.sim_name), float(clock.total_minutes))
+
+
+## Pomluva soka (Rivalry + GossipNetwork). Volá simulace postavy `a` na začátku akce „Pomlouvá soka“;
+## posluchač je `l`, soka vybírá autorita (nejsilnější rivalita mimo posluchače – klient ho nemůže podstrčit).
+## Reakce posluchače: swayed (uvěří, vztah k sokovi klesne víc), doubted (napůl), saw_through (prokoukne:
+## víra v drb se ztlumí, o autorovi si myslí hůř a může to oběti donést → odhalení, rivalita oplátkou).
+## Vrací událost (repliky a testy): {"outcome", "block", "rival", "rid", "kind", "truth", "fabricated",
+## "reported", "inputs", "reaction"}.
+func rivalry_slander(a: Node, l: Node) -> Dictionary:
+	if dynamics == null or gossip == null or a == null or l == null or a == l or not _gossip_authority():
+		return {"outcome": "blocked", "block": "self", "rival": ""}
+	var rv = dynamics.rivalry
+	var now := float(clock.total_minutes)
+	var sb: Dictionary = rv.slander_block(String(a.sim_name), String(l.sim_name), now)
+	if String(sb["block"]) != "":
+		return {"outcome": "blocked", "block": String(sb["block"]), "rival": String(sb["rival"])}
+	var rival := _sim_named(String(sb["rival"]))
+	if rival == null or rival == a or rival == l:
+		return {"outcome": "blocked", "block": "no_rival", "rival": String(sb["rival"])}
+	# Oběť patří hráči: strop pomluv o ní za herní den napříč všemi autory (SlanderPolicy, jen MP).
+	if _slander_victim_capped(rival):
+		return {"outcome": "blocked", "block": "victim_cap", "rival": String(rival.sim_name)}
+	for s in [a, l, rival]:
+		_gossip_name(s)
+	var lkey: String = SimAgent.memory_key(l)
+	var facts := {"rel": {}}
+	if rival.relationships.has(l.sim_name):
+		facts["rel"][SimAgent.memory_key(rival)] = {lkey: float(rival.relationships[l.sim_name])}
+	var evs: Array = gossip.slander(gossip_profile(a), gossip_profile(l), SimAgent.memory_key(rival), now, gossip_content(), facts)
+	if evs.is_empty():
+		return {"outcome": "blocked", "block": "gossip", "rival": String(rival.sim_name)}
+	var ev: Dictionary = evs[0]
+	var rid := int(ev["rid"])
+	var hx: Dictionary = l.get("hexaco") if typeof(l.get("hexaco")) == TYPE_DICTIONARY else {}
+	var inputs: Dictionary = Rivalry.listener_inputs(float(l.relationships.get(a.sim_name, 0.0)),
+		float(l.relationships.get(rival.sim_name, 0.0)), float(l.ledger.trust_in(String(rival.sim_name))),
+		_gossip01(hx.get("honesty", 0.0)))
+	var react: Dictionary = Rivalry.listener_reaction(rv.heat(String(a.sim_name), String(rival.sim_name), now), inputs)
+	var outcome := String(react["outcome"])
+	ev["slander"] = true
+	# Posluchač patří JINÉMU hráči: AI za něj nerozhoduje, zda tomu uvěří – dopad se odloží a jeho vlastník
+	# dostane soukromý verdikt (SlanderPolicy). Výsledek reakce AI slouží jen jako výchozí síla dopadu.
+	var pol = _slander_policy()
+	var l_owner := _net_owner(l)
+	if pol != null and l_owner != 0 and l_owner != _net_owner(a):
+		return _slander_open_verdict(pol, a, l, rival, ev, react, inputs, now)
+	match outcome:
+		"saw_through":
+			gossip.doubt(lkey, rid, 0.3)
+			ev["delta_rel"] = float(ev["delta_rel"]) * 0.2
+			ev["bond"] = -(3.0 + 5.0 * float(react["attempt"]) + 2.0 * float(inputs["boundaries"]))
+		"doubted":
+			gossip.doubt(lkey, rid, 0.6)
+			ev["delta_rel"] = float(ev["delta_rel"]) * 0.5
+			ev["bond"] = minf(float(ev["bond"]), 0.0)
+		_:
+			# Zesílení „uvěřil(a)“ jde přes TENTÝŽ denní strop dvojice posluchač–oběť jako běžné drby (audit Gemini #3).
+			if float(ev["delta_rel"]) < 0.0:
+				var extra: float = gossip._cap_daily(lkey, SimAgent.memory_key(rival), float(ev["delta_rel"]) * float(react["impact"]), now)
+				ev["delta_rel"] = float(ev["delta_rel"]) + extra
+	_apply_gossip_event(ev, now)
+	rv.note_slander(String(a.sim_name), String(l.sim_name), String(rival.sim_name), outcome, now)
+	_slander_note_victim(rival, now)
+	var reported := false
+	if outcome == "saw_through":
+		l.remember(("%s mi pomlouval(a) %s – neberu to" % [a.first_name(), rival.first_name()]).replace("(a)", Gossip_G.past(String(a.grammar))))
+		l.remember_social(a, "trust_breach", 0.25, "self", "intended")
+		if l.rng.randf() < Rivalry.report_p(inputs):
+			var rep: Array = gossip.report_slander(lkey, SimAgent.memory_key(rival), SimAgent.memory_key(a), rid, now)
+			for e in rep:
+				_apply_gossip_event(e, now)
+			reported = not rep.is_empty()
+			if reported:
+				rv.stats["reported"] += 1
+	a._detail_dirty = true
+	l._detail_dirty = true
+	return {"outcome": outcome, "block": "", "rival": String(rival.sim_name), "rid": rid, "kind": String(ev["kind"]),
+		"truth": bool(ev["truth"]), "fabricated": bool(ev["fabricated"]), "reported": reported,
+		"inputs": inputs, "reaction": react}
+
+
+# ---------------------------------------------------------------- pomluva přes hranici hráčů (SlanderPolicy)
+
+## Peer, který postavu v MP ovládá (0 = nikdo / offline / bez sítě).
+func _net_owner(s: Node) -> int:
+	if s == null or net == null or not is_instance_valid(net) or not net.has_method("owner_peer_of"):
+		return 0
+	return int(net.owner_peer_of(String(s.name)))
+
+
+## Politika pomluv mezi hráči – jen v síťové hře na autoritě, jinak null (offline chování beze změny).
+func _slander_policy():
+	if net == null or not is_instance_valid(net) or not net.has_method("is_networked") or not net.is_networked() \
+			or not net.is_authority():
+		return null
+	return net.get("slander_policy")
+
+
+## Je oběť (postava hráče) pro dnešek „vyčerpaná“? Strop platí jen pro postavy hráčů.
+func _slander_victim_capped(rival: Node) -> bool:
+	var pol = _slander_policy()
+	return pol != null and rival != null and _net_owner(rival) != 0 \
+		and pol.victim_capped(String(rival.name), float(clock.total_minutes))
+
+
+func _slander_note_victim(rival: Node, now: float) -> void:
+	var pol = _slander_policy()
+	if pol != null and rival != null and _net_owner(rival) != 0:
+		pol.note_victim(String(rival.name), now)
+
+
+## Posluchač-hráč pomluvu slyšel: drb se mu předá (vzpomínka, replika), vztahy se zatím nemění a jeho
+## vlastník dostane verdikt. Rivalita si pomluvu zapíše jako „doubted“ (předběžně; schéma Rivalry beze změny).
+func _slander_open_verdict(pol, a: Node, l: Node, rival: Node, ev: Dictionary, react: Dictionary,
+		inputs: Dictionary, now: float) -> Dictionary:
+	var rv = dynamics.rivalry
+	var rid := int(ev["rid"])
+	var held := {"delta_rel": float(ev["delta_rel"]), "bond": float(ev["bond"])}
+	ev["delta_rel"] = 0.0
+	ev["bond"] = 0.0
+	_apply_gossip_event(ev, now)
+	rv.note_slander(String(a.sim_name), String(l.sim_name), String(rival.sim_name), "doubted", now)
+	_slander_note_victim(rival, now)
+	var data := {"author_node": String(a.name), "listener_node": String(l.name), "rival_node": String(rival.name),
+		"author_name": String(a.first_name()), "rival_name": String(rival.first_name()), "line": gossip.line_for(rid),
+		"rid": rid, "held": held, "impact": float(react["impact"]), "attempt": float(react["attempt"]),
+		"boundaries": float(inputs.get("boundaries", 0.5))}
+	var res: Dictionary = pol.open(String(l.name), data, now)
+	for d in res["dropped"]:
+		rivalry_slander_verdict(d, "default")
+	var vid := int(res["vid"])
+	if vid == 0:
+		rivalry_slander_verdict({"vid": 0, "owner": String(l.name), "t": now, "data": data}, "default")
+	else:
+		net.slander_notify(String(l.name), "%s ti vykládá řeči o %s. Rozhodni v příkazech: věřit, nevěřit, nebo to říct." % [
+			a.first_name(), rival.first_name()])
+		net.slander_sync(String(l.name))
+	l.remember(("%s mi vykládal(a) řeči o %s – musím si to rozmyslet" % [a.first_name(), rival.first_name()]).replace("(a)", Gossip_G.past(String(a.grammar))))
+	a._detail_dirty = true
+	l._detail_dirty = true
+	return {"outcome": "pending", "block": "", "rival": String(rival.sim_name), "rid": rid, "kind": String(ev["kind"]),
+		"truth": bool(ev["truth"]), "fabricated": bool(ev["fabricated"]), "reported": false,
+		"inputs": inputs, "reaction": react, "vid": vid}
+
+
+## Vyhodnotí verdikt posluchače-hráče (volá NetSession po ověření vlastnictví, nebo po vypršení lhůty).
+## choice: believe = plný dopad (zesílení přes denní strop drbů jako „swayed“), dismiss = víra ×0,3 a horší
+## vztah k autorovi, tell = jako dismiss + donesení oběti (odhalení zdroje, rivalita oplátkou), default =
+## výchozí „napůl zapochyboval(a)“ (jako doubted). Chybí-li posluchač nebo sok, nic se nepoužije.
+## Vrací {"ok", "reason", "choice", "reported"}.
+func rivalry_slander_verdict(entry: Dictionary, choice: String) -> Dictionary:
+	if gossip == null or dynamics == null or not _gossip_authority():
+		return {"ok": false, "reason": "authority", "choice": choice, "reported": false}
+	if not choice in ["believe", "dismiss", "tell", "default"]:
+		return {"ok": false, "reason": "choice", "choice": choice, "reported": false}
+	var d: Dictionary = entry.get("data", {}) if typeof(entry.get("data")) == TYPE_DICTIONARY else {}
+	var l := _real_sim(String(d.get("listener_node", "")))
+	var rival := _real_sim(String(d.get("rival_node", "")))
+	var a := _real_sim(String(d.get("author_node", "")))
+	if l == null or rival == null or l == rival:
+		return {"ok": false, "reason": "gone", "choice": choice, "reported": false}
+	var now := float(clock.total_minutes)
+	var held: Dictionary = d.get("held", {}) if typeof(d.get("held")) == TYPE_DICTIONARY else {}
+	var drel := float(held.get("delta_rel", 0.0))
+	var bond := float(held.get("bond", 0.0))
+	var rid := int(d.get("rid", 0))
+	var lkey: String = SimAgent.memory_key(l)
+	var skey: String = SimAgent.memory_key(rival)
+	var reported := false
+	match choice:
+		"believe":
+			var extra := 0.0
+			if drel < 0.0:
+				extra = gossip._cap_daily(lkey, skey, drel * clampf(float(d.get("impact", 0.0)), 0.0, 1.0), now)
+			_rel_add(l, rival, drel + extra)
+			if a != null:
+				_rel_add(l, a, bond)
+			l.remember("Věřím tomu, co se povídá o %s" % rival.first_name())
+		"dismiss", "tell":
+			gossip.doubt(lkey, rid, 0.3)
+			_rel_add(l, rival, drel * 0.2)
+			if a != null:
+				_rel_add(l, a, -(3.0 + 5.0 * clampf(float(d.get("attempt", 0.0)), 0.0, 1.0)
+					+ 2.0 * clampf(float(d.get("boundaries", 0.5)), 0.0, 1.0)))
+				l.remember(("%s mi pomlouval(a) %s – neberu to" % [a.first_name(), rival.first_name()]).replace("(a)", Gossip_G.past(String(a.grammar))))
+				l.remember_social(a, "trust_breach", 0.25, "self", "intended")
+			if choice == "tell" and a != null:
+				var rep: Array = gossip.report_slander(lkey, skey, SimAgent.memory_key(a), rid, now)
+				for e in rep:
+					_apply_gossip_event(e, now)
+				reported = not rep.is_empty()
+				if reported:
+					dynamics.rivalry.stats["reported"] += 1
+					if net != null and is_instance_valid(net) and net.has_method("slander_notify"):
+						net.slander_notify(String(rival.name), ("%s ti prozradil(a), že o tobě %s vykládá řeči." % [
+							l.first_name(), a.first_name()]).replace("(a)", Gossip_G.past(String(l.grammar))))
+		_:
+			gossip.doubt(lkey, rid, 0.6)
+			_rel_add(l, rival, drel * 0.5)
+			if a != null:
+				_rel_add(l, a, minf(bond, 0.0))
+	l._detail_dirty = true
+	return {"ok": true, "reason": "", "choice": choice, "reported": reported}
+
+
+## Skutečná simulace podle jména uzlu (ne loutka). null = není.
+func _real_sim(node_name: String) -> Node:
+	if node_name == "":
+		return null
+	for o in sims:
+		if is_instance_valid(o) and o.has_method("command") and String(o.name) == node_name:
+			return o
+	return null
 
 
 ## Soukromé věty pro vlastníka postavy: co se o sobě dozvěděl(a) a od koho ty řeči šly.
@@ -969,6 +1832,79 @@ func gossip_private_lines(s: Node) -> PackedStringArray:
 	var out: PackedStringArray = gossip.exposed_lines(SimAgent.memory_key(s))
 	out.append_array(gossip.suspect_lines(SimAgent.memory_key(s)))
 	return out
+
+
+## Stupeň napětí dvojice: 0 nic, 1 dusno, 2 studená válka (ColdWar). Jen autorita, jinak 0.
+func cold_war_stage(a: Node, b: Node) -> int:
+	if dynamics == null or a == null or b == null or not _gossip_authority():
+		return 0
+	return dynamics.cold_war.stage(String(a.sim_name), String(b.sim_name))
+
+
+## Romantický stav dvojice: "" / "dating" / "partners" / "ex" (Romance). Jen autorita, jinak "".
+func romance_status(a: Node, b: Node) -> String:
+	if dynamics == null or a == null or b == null or not _gossip_authority():
+		return ""
+	return dynamics.romance.status(String(a.sim_name), String(b.sim_name))
+
+
+## Proč `a` teď nemůže navrhnout tajnou schůzku `b` ("" = může): self/own_partner/free/no_spark/not_now.
+func infidelity_date_block(a: Node, b: Node) -> String:
+	if dynamics == null or a == null or b == null or not _gossip_authority():
+		return "self"
+	return dynamics.infidelity.date_block(String(a.sim_name), String(b.sim_name), dynamics.romance, float(clock.total_minutes))
+
+
+## Proč `a` teď nemůže konfrontovat `b` kvůli nevěře ("" = může): self/not_partners/not_now. Jen autorita.
+func infidelity_confront_block(a: Node, b: Node) -> String:
+	if dynamics == null or a == null or b == null or not _gossip_authority():
+		return "self"
+	return dynamics.infidelity.confront_block(String(a.sim_name), String(b.sim_name), dynamics.romance, float(clock.total_minutes))
+
+
+## Řádek „Vztah: …“ a soukromé věty o nevěře/podezření pro vlastníka postavy (HUD). Jen autorita, jinak [].
+func relationship_lines(s: Node) -> PackedStringArray:
+	var out := PackedStringArray()
+	if dynamics == null or s == null or not _gossip_authority():
+		return out
+	var ro = dynamics.romance
+	var now := float(clock.total_minutes)
+	var me := String(s.sim_name)
+	var p: String = ro.partner_of(me)
+	if p != "":
+		var first := p.split(" ")[0]
+		var days := 0
+		for e in ro.summary(now):
+			if (String(e["a"]) == me and String(e["b"]) == p) or (String(e["b"]) == me and String(e["a"]) == p):
+				days = int(float(e["days"]))
+		var st: String = ro.status(me, p)
+		out.append("Vztah: %s – %s (%s)" % ["vážný vztah" if st == "partners" else "randí", first,
+			"od dneška" if days == 0 else ("%d %s" % [days, "den" if days == 1 else ("dny" if days < 5 else "dní")])])
+	else:
+		var ex := ""
+		var best := -1.0e12
+		for e in ro.summary(now):
+			if String(e["status"]) != "ex" or not me in [String(e["a"]), String(e["b"])]:
+				continue
+			var other := String(e["b"]) if String(e["a"]) == me else String(e["a"])
+			var since := now - float(e["days"]) * 1440.0
+			if float(e["days"]) < 30.0 and since > best:
+				best = since
+				ex = other
+		out.append("Vztah: bez partnera" + ((" (čerstvě po rozchodu: %s)" % ex.split(" ")[0]) if ex != "" else ""))
+	out.append_array(dynamics.infidelity.private_lines(me, ro, now))
+	if dynamics.get("rivalry") != null:
+		out.append_array(dynamics.rivalry.private_lines(me, now))
+	if dynamics.get("career") != null:
+		out.append_array(CareerHooks.private_lines(self, s))
+	return out
+
+
+## Proč `a` teď nemůže pozvat `b` na rande ("" = může): self/already/taken_self/not_now. Jen autorita.
+func romance_ask_block(a: Node, b: Node) -> String:
+	if dynamics == null or a == null or b == null or not _gossip_authority():
+		return "self"
+	return dynamics.romance.ask_block(String(a.sim_name), String(b.sim_name), float(clock.total_minutes))
 
 
 ## Smí `s` konfrontovat `other` kvůli drbům? (Ví z odhalení, že řeči šly od něj.) Jen autorita.
@@ -1084,6 +2020,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				if settings_menu != null:
 					settings_menu.toggle()
+			KEY_B:
+				toggle_buy_mode()
 
 
 ## Mouse / touch world picking is a UI request, not a physics or authority shortcut.
@@ -1426,6 +2364,7 @@ func _commit_validated_character_edit(sim_node: String, after: Dictionary, expec
 			"romantic_attraction": ident["attracted_to"],
 			"libido": ident["libido"],
 			"drive_dysregulation": ident["drive_dysregulation"]})
+		sim.romance_group = sim.Romance.group_of(String(ident.get("gender_identity", "")))
 		sim._detail_dirty = true
 	# Wardrobe/body edits must not reset adaptive sensory state or mental history.
 	if before["personality"] != after["personality"] or before["mind"] != after["mind"]:

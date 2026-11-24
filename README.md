@@ -21,6 +21,15 @@ click away.
 
 ## Status
 
+- **23 Nov 2026 (evening):** slander across players (`scripts/net/slander_policy.gd`, `tests/test_slander_cross_player.tscn` 97/97): if a slander reaches another player's character, its owner decides whether to believe it, dismiss it or tell the victim (default after 12 game hours: half in doubt); at most 3 slanders a day about a player's character; server-validated verdicts, owner-only delivery.
+- **21 Nov 2026 (evening):** rivalry, slander and manipulation defense (`scripts/sim/rivalry.gd`, `tests/test_rivalry.tscn` 152/152): directed rivalries (love / status) from competing for the same person, fights, a revealed lover and exposed slander; "Slander a rival" (the server picks the rival, the listener may see through it and tell the victim) and "Bury the hatchet"; manipulation now meets the target's defense (healthy self-worth, support, recognising the pattern). Never rewarded, private to the owner, saved with the household.
+- **21 Nov 2026:** betrayal aftermath (`scripts/sim/betrayal_wound.gd`, `tests/test_betrayal_wound.tscn` 102/102, `tests/test_betrayal_privacy_enet.tscn` 13/13): rumination, withdrawal, a self-worth hit scaled by the private self-belief, alcohol that numbs then rebounds, hypervigilance in the next relationship and recovery through support, therapy and apologies. Private to the owner, verified over real ENet.
+- **22 Nov 2026 (morning):** build mode – walls (`LotGrid` v2, wall tool T in the furnishing panel; `tests/test_lot_walls.tscn` 128/128): grid-edge walls with rules against crossing, blocking furniture or sealing off rooms (reachability search from the street), money and 24 h refund, save v2 with v1 migration, server-authoritative multiplayer.
+- **20 Nov 2026 (evening):** lot grid and buy mode (`scripts/world/lot_grid.gd`, `buy_catalog.gd`, `lot_furnisher.gd`, `scripts/ui/buy_mode.gd`; `tests/test_lot_buy.tscn` 111/111): 22 items, placement rules, household budget with resale, item quality and appeal affecting sleep and mood, saving, server-authoritative multiplayer. Press **B** in game. See [docs/world-building.md](docs/world-building.md).
+- **20 Nov 2026:** infidelity, suspicion and jealousy (`scripts/sim/infidelity.gd`, `tests/test_infidelity.tscn` 152/152): flirting, implied secret dates, being caught, rumours, confrontation and lasting betrayal consequences. See [docs/relationships.md](docs/relationships.md).
+- **24 Nov 2026 (evening):** careers and workplace rivalry K1 (`scripts/sim/career.gd`, `scripts/sim/career_hooks.gd`, `tests/test_career.tscn` 146/146): five tracks × five levels with weekday schedules, shifts off the lot (characters walk down the sidewalk and leave; an alarm clock wakes them), performance and boss opinion shaped by depression/stress/fatigue/burnout as capacity, workplace events, absences and warnings, sick days with boss understanding or stigma, firing and job search, promotion contests against NPC colleagues or real characters, scheming with a risk of being caught and discovered (status rivalry), wages into the household budget, server-validated commands, save section `dynamics.career`. See [docs/careers.md](docs/careers.md).
+- **19 Nov 2026:** romantic relationships and breakups (`scripts/sim/romance.gd`, `tests/test_romance.tscn` 113/113). See [docs/relationships.md](docs/relationships.md).
+
 The project is in **active early development**. It is built in small, fully tested steps by an
 automated development process (see [Development process](docs/development-process.md)).
 
@@ -28,11 +37,12 @@ automated development process (see [Development process](docs/development-proces
 |---|---|
 | Simulation core: needs, mood, 15 traits, utility AI, player commands | ✅ playable |
 | Mental health: stress, anxiety, panic, depression, coping, intrusive thoughts; psyche model (personality, 9 dispositions, conditions as data, run 20) | ✅ base done, ✅ axis 1, 🟡 expanding |
-| Relationships: grudges, guilt, apologies, reconciliation, jealousy, gossip and rumours (witnessed and invented, belief, distortion, exposure of the source), household dynamics (frictions, shared moments, life events, de-escalation), crowded households up to 8 characters (sensory profiles, household matrix, run 23) | ✅ |
+| Relationships: grudges, guilt, apologies, reconciliation, jealousy, gossip and rumours (witnessed and invented, belief, distortion, exposure of the source, confronting the source and denying rumours), household dynamics (frictions, shared moments, life events, de-escalation), crowded households up to 8 characters (sensory profiles, household matrix, run 23) | ✅ |
 | Multiplayer: authoritative ENet server, private state, validation | ✅ |
+| World: lot grid, buy mode (22 items, budget, resale, quality, appeal), save and multiplayer authority | ✅ B1 + B2 walls + B3 wall-aware pathfinding + B4a doors and windows + B4b door locks (floors, rooms planned) |
 | Multiplayer reconnect: dropped player resumes the same character (one-time token, 120 s grace) | ✅ (H4a) |
 | Multiplayer server persistence: host/dedicated world autosave, restore after restart, players resume with their token | ✅ (H4b) |
-| Character creator: data model (C1), body (C2), face (C3), skin (C4a, C4c), hair, beards and eyebrows (C4b) | ✅ C1–C3 (neck, seam, neck length, face polish; eyelashes, teeth and facial expressions in run 21; mouth, smile, lip and eyelash fixes in run 22), ✅ C4a, ✅ C4c (skin micro detail and skin type, run 22), ✅ C4b (+ hair details, run 19) |
+| Character creator: data model (C1), body (C2), face (C3), skin (C4a, C4c), hair, beards and eyebrows (C4b) | ✅ C1–C3 (neck, seam, neck length, face polish; eyelashes, teeth and facial expressions in run 21; mouth, smile, lip and eyelash fixes in run 22), ✅ C4a, ✅ C4c (skin micro detail and skin type, run 22), ✅ C4b (+ hair details, run 19), 🟡 crowd LOD steps 1–4 (geometry LODs, detail tiers, setting, per-style hair proxy, tier-1 hair cards and tubes; 12–17 Nov 2026) |
 | Character creator: clothing (C5), editor UI (C6–C7), integration (C8) | 🟡 C5 wardrobe, offline creator and authenticated owner-only native ENet editor implemented; creator → household → command → save/restore → cold restart tested. 72 appearance sliders and 4 appearance selectors now accessible from both editors. Cuff deformation, detailed hands/feet/nails and full visual QA pending. |
 | Visuals: Blender asset pipeline, day/night cycle, PsycheFX | ✅ |
 | Audio: custom synthesizer, 5 songs (music v3), apartment ambience, tension layer, argument voices, 3D object sounds, anxiety audio | ✅ |
@@ -200,7 +210,18 @@ Every system has an automated test in `tests/`. Each test is a scene that exits 
 ```bash
 godot --headless --path . res://tests/test_mental_health.tscn
 godot --headless --path . res://tests/test_character.tscn
+godot --headless --path . res://tests/test_character_lod.tscn   # crowd LOD (76 checks)
+godot --headless --path . res://tests/test_hair_lod1.tscn      # hair cards for crowd LOD tier 1 (205 checks)
+godot --headless --path . res://tests/test_hair_lod1_tubes.tscn # braids/dreads/cornrows in LOD tier 1 (44 checks)
+godot --headless --path . res://tests/test_facial_lod1.tscn     # eyebrows and beards in LOD tier 1
+godot --headless --path . res://tests/test_lot_doors.tscn       # doors and windows in walls (154 checks)
+godot --headless --path . res://tests/test_door_locks.tscn      # door locks, per-character navigation, ENet (119 checks)
+godot --headless --path . res://tests/test_career.tscn           # careers, shifts off the lot, promotion contests, scheming (146 checks)
+godot --headless --path . res://tests/test_slander_cross_player.tscn  # slander across players, real ENet (97 checks)
 # ...see docs/testing.md for the full list
+
+# Render check of the crowd LOD (needs a display; writes only with a live main lease)
+xvfb-run godot --rendering-driver opengl3 --path . res://tools/render_crowd_lod.tscn -- --lease=<main lease>
 
 # Long-run simulation check (14 game days)
 godot --headless --path . -- --test 14
@@ -221,6 +242,7 @@ godot --headless --path . res://tests/test_household_matrix.tscn
 | [Character creator](docs/character-creator.md) | Data model, schema, validation, body, face and skin systems, C1–C8 plan |
 | [Mental health](docs/mental-health.md) | Stress, anxiety, panic, depression, coping, safety rules, content settings |
 | [Relationships](docs/relationships.md) | Social interactions, grudges, guilt, apologies, household dynamics and its measured balance, gossip and rumours |
+- [docs/careers.md](docs/careers.md) – careers, shifts, sick days, firing, promotion contests and workplace rivalry
 | [Multiplayer](docs/multiplayer.md) | Authoritative server, protocol, privacy, validation, rate limits |
 | [Asset pipeline](docs/asset-pipeline.md) | Blender bridge, LSX format, GLB import, visual verification |
 | [Audio](docs/audio.md) | Synthesizer, music, ambience, anxiety audio, building the WAVs |
@@ -265,3 +287,7 @@ ROADMAP.md, CHECKPOINT.md
 ## License
 
 No license has been chosen yet. Until one is added, all rights are reserved by the author.
+
+- 18 Nov 2026: crowd LOD step 6 – baked blend shapes for distant characters (`tests/test_lod_bake` 54/54).
+- 18 Nov 2026 (evening): crowd LOD step 7 – procedural fingers, feet and torso in the crowd LOD; fixed their lighting under body-shape morphs (`tests/test_procedural_lod` 81/81).
+- 19 Nov 2026: household "cold war" between pairs of housemates and the "clear the air" action (`tests/test_cold_war` 72/72); truncated-save recovery tested across two processes.

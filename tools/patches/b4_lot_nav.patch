@@ -1,0 +1,55 @@
+@@@FILE res://scripts/world/lot_nav.gd
+@@@OLD
+## Čisté a deterministické: stejný stav parcely a polohy = stejná trasa na serveru i v testech.
+@@@NEW
+## B4 (23. 11. 2026): stěna s dveřmi se skládá z plných úseků (LotGrid.wall_segments) – rozsah dveří je volný,
+## hrany v něm neblokují ani pathfinder. Okna se chovají jako plná zeď.
+## Čisté a deterministické: stejný stav parcely a polohy = stejná trasa na serveru i v testech.
+@@@OLD
+## Obdélník stěny nafouknutý o pad na všechny strany (ve světě x, z).
+static func _wall_rect(lot: RefCounted, w: Dictionary, pad: float) -> Rect2:
+	var ab: Array = lot.wall_world(w)
+	var a: Vector2 = ab[0]
+	var b: Vector2 = ab[1]
+	var lo := Vector2(minf(a.x, b.x), minf(a.y, b.y))
+	var hi := Vector2(maxf(a.x, b.x), maxf(a.y, b.y))
+	return Rect2(lo, hi - lo).grow(pad)
+
+
+## Překáží postavená stěna na úsečce a→b? Stěna je nafouknutá o CLEAR; když už bod a leží v nafouknutém pásu
+## (postava stojí těsně u zdi), počítá se jen skutečné překročení osy stěny – jinak by od zdi nemohla odejít.
+static func walls_block(lot: RefCounted, a: Vector2, b: Vector2) -> bool:
+	for wid in lot.walls:
+		var w: Dictionary = lot.walls[wid]
+		var r := _wall_rect(lot, w, CLEAR)
+		if r.has_point(a):
+			var ab: Array = lot.wall_world(w)
+			if Geometry2D.segment_intersects_segment(a, b, ab[0], ab[1]) != null:
+				return true
+			continue
+		if _segment_hits_rect(a, b, r):
+			return true
+	return false
+@@@NEW
+## Obdélník úseku stěny p→q nafouknutý o pad na všechny strany (ve světě x, z).
+static func _seg_rect(p: Vector2, q: Vector2, pad: float) -> Rect2:
+	var lo := Vector2(minf(p.x, q.x), minf(p.y, q.y))
+	var hi := Vector2(maxf(p.x, q.x), maxf(p.y, q.y))
+	return Rect2(lo, hi - lo).grow(pad)
+
+
+## Překáží postavená stěna na úsečce a→b? Každý plný úsek stěny (bez dveří) je nafouknutý o CLEAR; když už bod a
+## leží v nafouknutém pásu (postava stojí těsně u zdi nebo v zárubni), počítá se jen skutečné překročení osy
+## úseku – jinak by od zdi nemohla odejít.
+static func walls_block(lot: RefCounted, a: Vector2, b: Vector2) -> bool:
+	for wid in lot.walls:
+		for seg in lot.wall_segments(lot.walls[wid]):
+			var r := _seg_rect(seg[0], seg[1], CLEAR)
+			if r.has_point(a):
+				if Geometry2D.segment_intersects_segment(a, b, seg[0], seg[1]) != null:
+					return true
+				continue
+			if _segment_hits_rect(a, b, r):
+				return true
+	return false
+@@@END

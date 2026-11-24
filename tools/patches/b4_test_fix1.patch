@@ -1,0 +1,33 @@
+@@@FILE res://tests/test_lot_doors.gd
+@@@OLD
+	check(lot.check_opening(1, "window_wide", 9) == "opening_edge" and lot.check_opening(1, "window_wide", 9 - 0) != "", "široké okno 1,5 m potřebuje víc místa")
+@@@NEW
+	check(lot.check_opening(1, "window_wide", 10) == "opening_edge" and lot.check_opening(1, "window_wide", 9) == "", "široké okno 1,5 m potřebuje víc místa")
+@@@OLD
+	var t1 := Time.get_ticks_usec()
+	for i in 10:
+		full.door_close_seals(int(full.sorted_oids()[0]))
+	var ds := float(Time.get_ticks_usec() - t1) / 10.0
+	check(ds < 40000.0, "kontrola zazdění dveří < 40 ms (%.1f ms)" % (ds / 1000.0))
+	var t2 := Time.get_ticks_usec()
+	for i in 200:
+		LotNav.walls_block(full, Vector2(0.3, 0.1 + i * 0.04), Vector2(24.7, 9.9 - i * 0.04))
+	var wb := float(Time.get_ticks_usec() - t2) / 200.0
+	check(wb < 3000.0, "LotNav.walls_block se 150 úseky < 3 ms (%.3f ms)" % (wb / 1000.0))
+@@@NEW
+	var t1 := Time.get_ticks_usec()
+	var first_door := int(full.sorted_oids()[0])
+	for i in 10:
+		full._reachable({}, first_door)
+		full.opening_traps(first_door, [Vector2(1.0, 1.0)])
+	var ds := float(Time.get_ticks_usec() - t1) / 10.0
+	check(ds < 60000.0, "BFS se zazděnými dveřmi + kontrola zavření postavy < 60 ms (%.1f ms)" % (ds / 1000.0))
+	var nseg := 0
+	for wid in full.walls:
+		nseg += full.wall_segments(full.walls[wid]).size()
+	var t2 := Time.get_ticks_usec()
+	for i in 200:
+		LotNav.walls_block(full, Vector2(0.3, 0.1 + i * 0.04), Vector2(24.7, 9.9 - i * 0.04))
+	var wb := float(Time.get_ticks_usec() - t2) / 200.0
+	check(wb < 3000.0, "LotNav.walls_block s %d plnými úseky < 3 ms (%.3f ms)" % [nseg, wb / 1000.0])
+@@@END

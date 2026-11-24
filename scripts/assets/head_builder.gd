@@ -109,23 +109,35 @@ const SEAM_BAND := 0.065
 ## velkém tuku z toho byl na krku viditelný prstenec – a na krytí okraje nemělo vliv; to vyřešila volba úhlopříček.)
 const SEAM_HOLD := 0.02
 ## Dosah morfů těla na krku hlavy (body_weight).
-const SEAM_BODY_BAND := 0.08
+## Běh 2026-11-12: 8 → 12 cm. S 8 cm přírůstek poloměru krku od tuku/svalů těla klesal pod čelistí (60°/300°)
+## o 2,9 mm na 5 mm výšky – viditelný „límec“ (test_neck_seam); s 10 cm 2,6 mm (z toho ~0,8 mm svislý zdvih báze
+## krku, který se pod čelistí vytrácí). Delší pás = mírnější spád poloměru i zdvihu.
+const SEAM_BODY_BAND := 0.12
 ## Pás, ve kterém se normály krku hlavy plynule stáčejí k normálám okraje těla.
 const SEAM_NRM_BAND := 0.012
 ## Běh 13: báze krku těla vzadu zvednutá až na ~1,544 m → pás švu (smyčka + SEAM_BAND / SEAM_BODY_BAND) sahá
 ## vzadu do ~1,625 m; se starou mezí 1,60 se jeho horní část useknula (skok ve váze ~6 %).
-const SEAM_Y_TOP := 1.64
+## Běh 2026-11-12: s SEAM_BODY_BAND 12 cm sahá pás vzadu do ~1,665 m → mez 1,68 (jinak skok ve váze).
+const SEAM_Y_TOP := 1.68
 const SEAM_EPS := 0.0004
 const CAP_Y := 1.476
 const CAP_SHRINK := 0.80
 const EYE_CLEAR := 0.0028
 ## Délka krku (běh 13, body.neck_length −1..1 → blend shape b_neck_len): svislý posun NECK_LEN_RANGE × váha ×
-## rampa. Rampa = 0 v pásu plného přilnutí švu (výška smyčky těla v daném směru + SEAM_HOLD, okraj krku se nehne)
-## → 1 pod bradou vpředu (NL_TOP_FRONT, menton ~1,557) a u spodiny týlu vzadu (NL_TOP_BACK); nad rampou se celá
+## rampa. Rampa = 0 v pásu plného přilnutí švu (výška smyčky těla v daném směru + NL_HOLD, okraj krku se nehne)
+## → 1 pod bradou vpředu (NL_TOP_FRONT, menton ~1,557), pod úhlem čelisti na boku (NL_TOP_SIDE) a u spodiny týlu
+## vzadu (NL_TOP_BACK); nad rampou se celá
 ## hlava (oči, ústa, uši; vlasy přenosem morfů) posune vcelku. ±15 mm ≈ ±17 % délky menton–jugulum (~8,8 cm).
 const NECK_LEN_RANGE := 0.015
 const NL_TOP_FRONT := 1.556
 const NL_TOP_BACK := 1.62
+## Běh 2026-11-12 (test_neck_seam, převrácené plochy při úklonu krku −20° s krátkým krkem): horní mez rampy po
+## stranách sleduje spodní okraj čelisti (úhel dolní čelisti ~1,62–1,63 m na boku, profil r(y, θ)) místo lineární
+## interpolace v cos θ (dřív 1,588 na boku) → rampa je na boku o ~45 % delší a svislé stlačení krku při −1 menší.
+const NL_TOP_SIDE := 1.605
+## Výška plného přilnutí nad smyčkou pro délku krku (posun je čistě svislý a rampa začíná s nulovým sklonem,
+## proto stačí méně než SEAM_HOLD; vpředu smyčka ~1,503 → rampa od 1,516, okraj švu pod 1,515 se nehne).
+const NL_HOLD := 0.013
 ## Samostatná hlava bez švu (testy obličeje): dolní mez rampy místo smyčky těla.
 const NL_BOT_FRONT := 1.522
 const NL_BOT_BACK := 1.566
@@ -153,7 +165,15 @@ const EYE_EXT_TURN := 0.003
 ## Prodloužení mediální (nosní) poloviny oční štěrbiny (běh 18).
 const ALMOND_MEDIAL := 0.14
 const RELAX_ITERS := 4
+## Zadní víčko očnice (_eye_cap): hloubkové prstence jako podíl cesty od prstence 5 k zadnímu pólu (pól = 1)
+## a rychlost, jakou se azimut přelije na rovnoměrný (m · EC_SPREAD ≥ 1 = plně rovnoměrný).
+const EC_RINGS := [0.34, 0.67]
+const EC_SPREAD := 1.5
+## Úhlové zvětšení štěrbiny pro prstenec 5 (hloubka spojivkového vaku za okrajem víček).
+const EC_K5 := 1.55
 const RELAX_L := 0.5
+## Hloubka nosních dírek (vestibulum) v _nose – viz komentář tam (běh main-claude-1794381713).
+const NOSTRIL_DEPTH := 0.0024
 const LIN_TOL := 0.00025
 ## Korekční tvar se uloží, jen když opraví víc než 0,3 mm.
 const CX_MIN := 0.0003
@@ -526,10 +546,15 @@ static func _nose(x: float, y: float, d: Dictionary) -> float:
 	hh += (0.0068 + 0.0008 * float(d["nose_tip"])) * _g2(absf(x) - aw * 0.78, y - ay, 0.0050, 0.0050)
 	# Alar crease, paired nasal vestibules and central columella.
 	# Millimetre-scale concavities, not black disks laid on the face.
+	# Běh main-claude-1794381713: realism pass (30. 10.) měl prohlubně 3,5 mm se σ 1,8 mm – užší než posun,
+	# o který je posouvá délka nosu + úhel špičky (sub_y až ±9 mm). Lineární míchání blend shapes pak
+	# nechávalo dvojité jamky a přeložené plochy pod nosem (test_head: odchylka 7,5 mm, 9 přeložených ploch).
+	# Teď 2,4 mm se σ 3,4 × 3,0 mm (čitelné nosní dírky i v renderu) + korekční tvar délka × úhel špičky
+	# (FaceMorphs.CORRECTIVE_PAIRS). Model v diag: nelinearita výšky nosu 6,0 → 1,5 mm.
 	var na := aw * 0.68
-	hh -= 0.0035 * _g2(absf(x)-na, y-(sub_y+0.0025), 0.0027, 0.0018)
-	hh += 0.0010 * _g2(x, y-(sub_y+0.0010), 0.0021, 0.0030)
-	hh -= 0.0009 * _g2(absf(x)-aw*1.08, y-ay+0.001, 0.0018, 0.0040)
+	hh -= NOSTRIL_DEPTH * _g2(absf(x)-na, y-(sub_y+0.0025), 0.0034, 0.0030)
+	hh += 0.0007 * _g2(x, y-(sub_y+0.0010), 0.0028, 0.0035)
+	hh -= 0.0007 * _g2(absf(x)-aw*1.08, y-ay+0.001, 0.0026, 0.0045)
 	return hh
 
 
@@ -753,37 +778,54 @@ static func _eye_ring_pos(d: Dictionary, s: int, ring: int, a: float, b: float, 
 			var xy := _almond(e, am, b, 0.985, 0.0007, float(e.get("blink", 0.0)), float(e.get("lo_raise", 0.0)))
 			return _sph(e, float(xy.x), float(xy.y), r + 0.0012, 1.0, s)
 		5:
-			var xy := _almond(e, am, b, 1.0, 0.0007, float(e.get("blink", 0.0)), float(e.get("lo_raise", 0.0)))
-			return _sph(e, float(xy.x), float(xy.y), r + 0.0012, 1.55, s)
+			# spojivkový vak (fornix): azimutálně délkojevná mapa místo zeměpisné (_sph_ae, běh main-claude-1794424928);
+			# fornix je přirostlý k očnici – mrkání ani úsměv (blink, lo_raise) ho nezavírají, zavírá se jen okraj víček
+			var xy := _almond(e, am, b, 1.0, 0.0007)
+			return _sph_ae(e, float(xy.x), float(xy.y), r + 0.0012, EC_K5, s)
 	return ec
 
 
-static func _eye_cap_pos(d: Dictionary, s: int, a: float, b: float) -> Vector3:
-	var e: Dictionary = d["eye%d" % s]
+## Prstenec 5 (spojivkový vak) a zadní víčko očnice „ec“ (běh main-claude-1794424928) v azimutálně délkojevné
+## mapě kolem přední osy oka: bod štěrbiny (x, y) → úhel od přední osy ρ = |(x, y)|·k/ρ_koule, azimut α = atan2(y, x).
+## Proč ne zeměpisná mapa (_sph, délka/šířka): koutky vaku sahají až 130° od přední osy (za rovník koule) a tam
+## zeměpisná mapa stáčí azimut zpět – prstenec 5 viděný od zadního pólu nebyl hvězdicový (obrácený azimut už ve
+## výchozí hlavě u dolního mediálního koutku) a každá parametrizace víčka k pólu se u koutků překlápěla
+## (čtvercová max(|a|,|b|) i polární). V délkojevné mapě je azimut vrcholu = azimut bodu štěrbiny, která je kolem
+## středu hvězdicová, takže pořadí kolem osy oka je monotónní pro jakýkoli morf; pro malé y jsou obě mapy shodné.
+static func _ae_point(e: Dictionary, rr: float, al: float, rho: float, side: int) -> Vector3:
 	var ec: Vector3 = e["E"]
-	var r := float(e["R"]) + 0.0012
-	var m := maxf(absf(a), absf(b))
-	if m < 1e-9:
-		return Vector3(float(ec.x), float(ec.y), float(ec.z) - r)
-	var p := _eye_ring_pos(d, s, 5, a / m, b / m, 0, 0)
-	var dv := _dir_to(float(p.x) - float(ec.x), float(p.y) - float(ec.y), float(p.z) - float(ec.z))
-	var dot := clampf(-float(dv.z), -1.0, 1.0)
-	var om := acos(dot)
-	var vx: float
-	var vy: float
-	var vz: float
-	if om < 1e-6:
-		vx = float(dv.x)
-		vy = float(dv.y)
-		vz = float(dv.z)
-	else:
-		var w0 := sin((1.0 - m) * om) / sin(om)
-		var w1 := sin(m * om) / sin(om)
-		var n := _dir_to(float(dv.x) * w1, float(dv.y) * w1, -w0 + float(dv.z) * w1)
-		vx = float(n.x)
-		vy = float(n.y)
-		vz = float(n.z)
-	return Vector3(float(ec.x) + vx * r, float(ec.y) + vy * r, float(ec.z) + vz * r)
+	var sr := sin(rr)
+	return Vector3(float(ec.x) + float(side) * sr * cos(al) * rho, float(ec.y) + sr * sin(al) * rho, float(ec.z) + cos(rr) * rho)
+
+
+static func _ae_polar(x: float, y: float, rho: float, k: float) -> Vector2:
+	var u := x / rho * k
+	var v := y / rho * k
+	return Vector2(minf(sqrt(u * u + v * v), PI - 0.02), atan2(v, u))
+
+
+static func _sph_ae(e: Dictionary, x: float, y: float, rho: float, k: float, side: int) -> Vector3:
+	var pa := _ae_polar(x, y, rho, k)
+	return _ae_point(e, float(pa.x), float(pa.y), rho, side)
+
+
+## Vrchol víčka (m, a, b): úhel od přední osy se lineárně prodlužuje z prstence 5 (m = 0) k zadnímu pólu (m = 1),
+## azimut se s hloubkou přelévá na rovnoměrný úhel parametru (a, b) se stejným střihem jako sklon štěrbiny
+## (konvexní kombinace dvou monotónních posloupností ve stejném cyklickém pořadí je zase monotónní) – u pólu tak
+## nevznikají jehlové trojúhelníky z nahuštěných koutků.
+static func _eye_cap_pos(d: Dictionary, s: int, m: float, a: float, b: float) -> Vector3:
+	var e: Dictionary = d["eye%d" % s]
+	var rho := float(e["R"]) + 0.0012
+	if m >= 1.0:
+		return _ae_point(e, PI, 0.0, rho, s)
+	var am := a * float(s)
+	var xy := _almond(e, am, b, 1.0, 0.0007)
+	var pa := _ae_polar(float(xy.x), float(xy.y), rho, EC_K5)
+	var tilt := float(e["tilt"])
+	var psi := atan2(b + am * sin(tilt), am * cos(tilt))
+	var al := psi + wrapf(float(pa.y) - psi, -PI, PI)
+	var az := lerpf(al, psi, minf(1.0, m * EC_SPREAD))
+	return _ae_point(e, lerpf(float(pa.x), PI, m), az, rho, s)
 
 
 # ======================================================================================
@@ -1446,7 +1488,7 @@ static func build_topology() -> Topo:
 				rr.append(t.v(["er", s, r, p[2], p[3], p[0], p[1]]))
 			rings.append(rr)
 		_annulus(t, rings, ["skin", "skin", "skin", "skin", "eye_socket"])
-		_cap(t, rings[-1], per, bl, "ec", s, "eye_socket")
+		_eye_cap(t, rings[-1], per, s)
 	var mb: Array = t.blocks["mouth"]
 	var mper := _perimeter(mb[0], mb[1], mb[2], mb[3])
 	var mrings: Array = []
@@ -1493,7 +1535,7 @@ static func _annulus(t: Topo, rings: Array, mats: Array) -> void:
 			t.add("head", mats[r], [o[m], o[n], inn[n], inn[m]])
 
 
-static func _cap(t: Topo, ring: Array, per: Array, bl: Array, kind: String, s: int, mat: String) -> void:
+static func _cap(t: Topo, ring: Array, per: Array, bl: Array, kind: String, _s: int, mat: String) -> void:
 	var i0: int = bl[0]
 	var j0: int = bl[1]
 	var bw: int = bl[2]
@@ -1511,8 +1553,27 @@ static func _cap(t: Topo, ring: Array, per: Array, bl: Array, kind: String, s: i
 				else:
 					var a := float(key.x) / float(bw) * 2.0 - 1.0
 					var b := float(key.y) / float(bh) * 2.0 - 1.0
-					q.append(t.v([kind, s, a, b]) if kind == "ec" else t.v([kind, a, b]))
+					q.append(t.v([kind, a, b]))
 			t.add("head", mat, q)
+
+
+## Topologie zadního víčka očnice: prstence EC_RINGS na polednících vrcholů prstence 5 + vějíř trojúhelníků k pólu.
+## Recept vrcholu ["ec", strana, m, a, b]; pól ["ec", strana, 1.0, 0.0, 0.0].
+static func _eye_cap(t: Topo, ring: Array, per: Array, s: int) -> void:
+	var rings: Array = [ring]
+	var mats: Array = []
+	for m in EC_RINGS:
+		var rr: Array = []
+		for p in per:
+			rr.append(t.v(["ec", s, float(m), p[2], p[3]]))
+		rings.append(rr)
+		mats.append("eye_socket")
+	_annulus(t, rings, mats)
+	var last: Array = rings[-1]
+	var pole := t.v(["ec", s, 1.0, 0.0, 0.0])
+	var n_count := last.size()
+	for k in n_count:
+		t.add("head", "eye_socket", [last[k], last[(k + 1) % n_count], pole])
 
 
 static func _relax_setup(t: Topo) -> void:
@@ -1614,7 +1675,7 @@ static func vertex_pos(rec: Array, d: Dictionary) -> Vector3:
 		"er":
 			return _eye_ring_pos(d, rec[1], rec[2], rec[3], rec[4], rec[5], rec[6])
 		"ec":
-			return _eye_cap_pos(d, rec[1], rec[2], rec[3])
+			return _eye_cap_pos(d, rec[1], rec[2], rec[3], rec[4])
 		"mr":
 			return _mouth_ring_pos(d, rec[1], rec[2], rec[3], rec[4], rec[5])
 		"mc":
@@ -1690,17 +1751,27 @@ static func neck_len_ramp(q: Vector3) -> float:
 	var rel := Vector2(float(q.x), float(q.z) - neck_zc(float(q.y)))
 	var c := rel.y / rel.length() if rel.length() > 1e-6 else 1.0
 	var back := 0.5 * (1.0 - c)
-	var top := lerpf(NL_TOP_FRONT, NL_TOP_BACK, back)
+	var top := nl_top(c)
 	var bot := lerpf(NL_BOT_FRONT, NL_BOT_BACK, back)
 	if not _conform.is_empty() and _conform.has("loop"):
 		var loop: Array = _conform["loop"]
 		var cen: Vector2 = _conform["center"]
 		var hit := loop_hit(loop, cen, atan2(float(q.x) - cen.x, float(q.z) - cen.y))
 		if float(hit[0]) > 0.0:
-			bot = lerpf(float(loop[hit[1]].y), float(loop[hit[2]].y), float(hit[3])) + SEAM_HOLD
+			bot = lerpf(float(loop[hit[1]].y), float(loop[hit[2]].y), float(hit[3])) + NL_HOLD
 	# pojistka: rampa musí mít kladnou délku (při rozumné smyčce je bot < top o ≥ 3 cm)
 	bot = minf(bot, top - 0.01)
 	return _smooth(bot, top, float(q.y))
+
+
+## Horní mez rampy délky krku pro c = cos θ kolem osy krku (θ = 0 vpředu): vpředu brada (NL_TOP_FRONT), na boku pod
+## úhlem čelisti (NL_TOP_SIDE), vzadu spodina týlu (NL_TOP_BACK); hladce (smoothstep v úhlu), spojitě i v derivaci
+## na boku (oba úseky tam mají nulový sklon).
+static func nl_top(c: float) -> float:
+	var a := acos(clampf(c, -1.0, 1.0)) / PI
+	if a <= 0.5:
+		return lerpf(NL_TOP_FRONT, NL_TOP_SIDE, _smooth(0.0, 0.5, a))
+	return lerpf(NL_TOP_SIDE, NL_TOP_BACK, _smooth(0.5, 1.0, a))
 
 
 ## Svislý posun hlavy nad krkem o dl × rampa (lineární v dl → jeden blend shape b_neck_len pro obě strany).

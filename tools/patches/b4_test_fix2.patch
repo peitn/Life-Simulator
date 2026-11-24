@@ -1,0 +1,10 @@
+@@@FILE res://tests/test_lot_doors.gd
+@@@OLD
+	# door_traps: místnost 3 × 3 m s dveřmi, postava uvnitř.
+	var room := _room(world)
+@@@NEW
+	# door_traps: místnost 3 × 3 m s dveřmi, postava uvnitř. Načtení hry postavy vytvořilo znovu → nový odkaz.
+	sim = world.sims[0]
+	home = sim.global_position
+	var room := _room(world)
+@@@END

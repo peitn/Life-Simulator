@@ -67,8 +67,9 @@ front neck (chin to jugulum) 9.1 cm = 0.41 of the head height.
 
 `body.neck_length` moves the whole head above the neck by ±15 mm (about ±16 % of the front neck). It is a
 single linear blend shape of the head, `b_neck_len`: a vertical shift times a ramp that is 0 in the fully
-fitted seam band (loop height in that direction + 2 cm) and 1 below the chin at the front and at the base
-of the skull at the back. Eyes, mouth and ears move with the head; hair gets the key through morph transfer.
+fitted seam band (loop height in that direction + 13 mm) and 1 below the chin at the front, below the angle
+of the jaw at the side (1.605 m) and at the base of the skull at the back (since 12 Nov 2026; the earlier
+linear blend ended at 1.588 m at the side and folded the side of a short neck under a lateral bend). Eyes, mouth and ears move with the head; hair gets the key through morph transfer.
 The seam edge does not move, so the seam tests hold for ±1 combined with fat, muscle and a bent neck.
 `BodyMorphs.scales()` includes the shift, so the crown still lands exactly on `height_cm`. The value goes
 `BodyMorphs.head_links()` → `FaceMorphs.weights()` (signed link) → the head's blend shape. A blend shape
@@ -454,3 +455,31 @@ through the Czech TTS (see [audio.md](audio.md)): a text field (max. 200 charact
 je hezky."), **▶ Zkusit větu** (or Enter) and **Otázka**, which loads "Půjdeš se mnou zítra ven?" to hear the rising
 question melody. The selected style applies. Synthesis runs in `WorkerThreadPool`; previews are cached. Nothing is sent
 over the network.
+
+## Characters at a distance (crowd LOD)
+
+The appearance the player builds is always the source: level of detail only changes how much of it is drawn.
+The face keeps its blend shapes on every geometry LOD, so the face shape is the same up close and far away.
+Characters that take less than about 5.5 % of the screen height show the low-poly hair shell of their style group
+instead of strand cards and a frozen expression; the character preview in the editor is always close and keeps full
+detail. The "Detail postav v dálce" setting moves these thresholds. Details: `docs/reviews/crowd-lod-20261112.md`.
+
+### Hair in crowds (13 Nov 2026)
+Distant characters (LOD tier 2) keep their own hairstyle silhouette: a low-poly proxy generated from the
+strand cards replaces the generic helmet, follows the character's head and body morphs and uses the
+calibrated hair colour. See `docs/reviews/hair-proxy-20261113.md`.
+
+### Hair at medium distance (13 Nov 2026)
+In crowd tier 1 (about 5.5–20 % of the screen height) the hair uses a thinned card mesh that keeps the hairstyle's
+outline and coverage (silhouette IoU ≥ 0.965 against the full cards) at roughly half the triangles; the same shape
+morphs and skin apply. Box braids, dreads and cornrows drop rings along the strand while keeping their cross-section (17 Nov 2026). See `docs/reviews/hair-lod1-20261113.md` and `docs/reviews/hair-lod1-tubes-20261117.md`.
+Eyebrows and beards (17 Nov 2026) keep about half of their cards in tier 1, widened so the face is darkened by the
+same amount as up close; the brow and facial-hair density sliders keep working the same way at every distance (the
+reduction respects them instead of overriding them). The moustache is small enough to stay at full detail. See
+`docs/reviews/facial-lod1-20261117.md`.
+
+## Crowd LOD step 6 (18 Nov 2026)
+Distant characters (tier 2) no longer pay for blend-shape blending every frame: their current face/body/garment shape is baked into static meshes on a worker thread and restored exactly when anything changes or the character comes closer. Presentation only; nothing is replicated.
+
+## Crowd LOD step 7 (18 Nov 2026, evening)
+Fingers, toes and the bare torso now take part in the crowd LOD: automatic index LODs and tier-2 baking. Side effect fixed: the body-shape sliders no longer distort the lighting of fingers, feet and the bare torso (wrong normals from the old RELATIVE blend-shape encoding). Hand poses in the editor and the finger-skeleton view keep working at every tier. Details: `docs/asset-pipeline.md`, `docs/reviews/procedural-lod-20261118.md`.

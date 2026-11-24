@@ -1,0 +1,10 @@
+@@@FILE res://tests/test_lot_walls.gd
+@@@OLD
+	check(int(d["version"]) == 2 and (d["walls"] as Array).size() == 2 and int(d["next_wid"]) == 3, "snímek v2 se stěnami")
+@@@NEW
+	check(int(d["version"]) == LotGrid.VERSION and (d["walls"] as Array).size() == 2 and int(d["next_wid"]) == 3, "snímek (v2+) se stěnami")
+@@@OLD
+	check(int(lot.to_dict()["version"]) == 2, "parcela ve formátu v2")
+@@@NEW
+	check(int(lot.to_dict()["version"]) == LotGrid.VERSION, "parcela v aktuálním formátu (v3 od B4)")
+@@@END

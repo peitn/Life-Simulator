@@ -1,0 +1,235 @@
+@@@FILE res://scripts/world/lot_door.gd
+@@@OLD
+const OPEN_DEG := 100.0
+@@@NEW
+const LotGridDoor := preload("res://scripts/world/lot_grid.gd")
+const OPEN_DEG := 100.0
+@@@END
+@@@OLD
+	_lamp_mat.emission_energy_multiplier = 0.4 if lock_state == "" else 1.6
+
+
+const LotGridDoor := preload("res://scripts/world/lot_grid.gd")
+@@@NEW
+	_lamp_mat.emission_energy_multiplier = 0.4 if lock_state == "" else 1.6
+@@@END
+@@@FILE res://main.gd
+@@@OLD
+## B4: "open" [wid, druh, posun v buňkách] (dveře/okno do stěny); "unopen" [oid] (vybourat a zazdít).
+@@@NEW
+## B4: "open" [wid, druh, posun v buňkách] (dveře/okno do stěny); "unopen" [oid] (vybourat a zazdít).
+## B4b: "lock" [oid, zámek] – "" odemknout, "*" pro všechny, jméno uzlu postavy = projde jen ona. Kdo smí
+## zamykat za koho, hlídá NetSession (klient jen za sebe); tady se ověří existence postavy a pravidla parcely.
+@@@END
+@@@OLD
+			r = lot.remove_opening(args[0], now, actor)
+		_:
+			return {"ok": false, "reason": "unknown_item"}
+@@@NEW
+			r = lot.remove_opening(args[0], now, actor)
+		"lock":
+			if args.size() != 2:
+				return {"ok": false, "reason": "lock_bad"}
+			if typeof(args[1]) == TYPE_STRING and String(args[1]) != "" and String(args[1]) != LotGrid.LOCK_ALL \
+					and LotGrid.valid_lock(args[1]) and find_sim(String(args[1])) == null:
+				return {"ok": false, "reason": "lock_who"}
+			r = lot.set_lock(args[0], args[1], lot_sim_points())
+		_:
+			return {"ok": false, "reason": "unknown_item"}
+@@@END
+@@@OLD
+## Někdo předmět používá, jde k němu nebo ho má ve frontě příkazů → nesmí zmizet ani se přesunout.
+@@@NEW
+## B4b: [[jméno uzlu postavy, poloha (x, z)], …] všech postav – kontrola, že zámek nikoho nezavře.
+func lot_sim_points() -> Array:
+	var out: Array = []
+	for s in sims:
+		if is_instance_valid(s):
+			out.append([String(s.name), Vector2(s.global_position.x, s.global_position.z)])
+	return out
+
+
+## B4b: klíč „mé“ postavy pro zámek: v síti postava hráče, offline právě vybraná postava. "" = žádná.
+func lot_my_sim() -> String:
+	if net != null and net.mode != net.Mode.OFFLINE:
+		return String(net.my_sim)
+	if sims.is_empty():
+		return ""
+	var s = sims[clampi(selected, 0, sims.size() - 1)]
+	return String(s.name) if is_instance_valid(s) else ""
+
+
+## B4b: popis zámku pro UI („odemčeno“, „zamčeno pro všechny“, „zamčeno – jen Ana“).
+func lot_lock_text(lock: String) -> String:
+	if lock == "":
+		return "odemčeno"
+	if lock == LotGrid.LOCK_ALL:
+		return "zamčeno pro všechny"
+	var s := find_sim(lock)
+	var who := lock
+	if s != null and s.get("sim_name") != null:
+		who = String(s.get("sim_name")).split(" ")[0]
+	return "zamčeno – jen %s" % who
+
+
+## Někdo předmět používá, jde k němu nebo ho má ve frontě příkazů → nesmí zmizet ani se přesunout.
+@@@END
+@@@OLD
+			var hinge := Node3D.new()
+			hinge.name = "Hinge"
+			hinge.set_script(LotDoor)
+			hinge.position = Vector3(-width * 0.5 + fr, 0, t * 0.5 - 0.02)
+			holder.add_child(hinge)
+			hinge.set("world", self)
+			var lw := width - fr * 2.0 - 0.01
+@@@NEW
+			var hinge := Node3D.new()
+			hinge.name = "Hinge"
+			hinge.set_script(LotDoor)
+			hinge.position = Vector3(-width * 0.5 + fr, 0, t * 0.5 - 0.02)
+			var lw := width - fr * 2.0 - 0.01
+			# B4b: oid kvůli zámku (kontrolka, otevírání jen postavě s klíčem), šířka kvůli poloze kontrolky.
+			hinge.set("oid", oid)
+			hinge.set("leaf_w", lw)
+			hinge.set("world", self)
+			holder.add_child(hinge)
+@@@END
+@@@FILE res://scripts/net/net_session.gd
+@@@OLD
+const LOT_KINDS := ["buy", "sell", "move", "wall", "unwall", "open", "unopen"]
+@@@NEW
+const LOT_KINDS := ["buy", "sell", "move", "wall", "unwall", "open", "unopen", "lock"]
+@@@END
+@@@OLD
+	var want := 1 if k in ["sell", "unwall", "unopen"] else (3 if k == "open" else 4)
+@@@NEW
+	var want := 1 if k in ["sell", "unwall", "unopen"] else (3 if k == "open" else (2 if k == "lock" else 4))
+@@@END
+@@@OLD
+	elif not Protocol.valid_int(a[0], 1, 1000000000):
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+	# Osazení i vybourání otvoru jde přes stejný přísný limit jako stěny (vybourání dveří spouští BFS).
+	if (k == "open" or k == "unopen") and mode != Mode.OFFLINE:
+@@@NEW
+	elif k == "lock":
+		# Zámek dveří (B4b): [oid, zámek]. Zámek = "", "*" nebo platné jméno uzlu postavy (bez řídicích/bidi znaků).
+		if not Protocol.valid_int(a[0], 1, 1000000000) or not LotGridScript.valid_lock(a[1]):
+			stats["rejected"] += 1
+			return "Neplatný požadavek."
+	elif not Protocol.valid_int(a[0], 1, 1000000000):
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+	# B4b: klíče. Klient zamyká jen pro SVOU postavu nebo pro všechny; osobní zámek jiné (existující) postavy
+	# smí změnit jen její hráč – ostatním zbývá bušit, čekat, nebo dveře vybourat. Offline rozhoduje hráč sám.
+	if k == "lock" and mode != Mode.OFFLINE:
+		var mine := String(players[id].get("sim", ""))
+		var want_lock := String(a[1])
+		if want_lock != "" and want_lock != LotGridScript.LOCK_ALL and want_lock != mine:
+			stats["rejected"] += 1
+			return String(LotGridScript.REASON_TEXT["lock_who"])
+		var cur_lock: String = world.lot.lock_of(int(a[0]))
+		if cur_lock != "" and cur_lock != LotGridScript.LOCK_ALL and cur_lock != mine and world.find_sim(cur_lock) != null:
+			stats["rejected"] += 1
+			return String(LotGridScript.REASON_TEXT["lock_not_yours"])
+	# Osazení i vybourání otvoru jde přes stejný přísný limit jako stěny (vybourání dveří spouští BFS).
+	if (k == "open" or k == "unopen" or k == "lock") and mode != Mode.OFFLINE:
+@@@END
+@@@OLD
+		"unopen":
+			if int(r["refund"]) > 0:
+				_notify(id, "Vybouráno a zazděno (+%d kr – omyl do 24 h)." % int(r["refund"]))
+			else:
+				_notify(id, "Vybouráno a zazděno. Starý rám šel do sutě.")
+	return ""
+@@@NEW
+		"unopen":
+			if int(r["refund"]) > 0:
+				_notify(id, "Vybouráno a zazděno (+%d kr – omyl do 24 h)." % int(r["refund"]))
+			else:
+				_notify(id, "Vybouráno a zazděno. Starý rám šel do sutě.")
+		"lock":
+			var lk := String(a[1])
+			if lk == "":
+				_notify(id, "Odemčeno.")
+			elif lk == LotGridScript.LOCK_ALL:
+				_notify(id, "Zamčeno pro všechny.")
+			else:
+				_notify(id, "Zamčeno – projde jen %s." % _sim_display(lk))
+	return ""
+@@@END
+@@@FILE res://scripts/ui/buy_mode.gd
+@@@OLD
+	unopen_b.pressed.connect(demolish_selected_opening)
+	_open_box.add_child(unopen_b)
+@@@NEW
+	unopen_b.pressed.connect(demolish_selected_opening)
+	_open_box.add_child(unopen_b)
+	# B4b: zámek vybraných dveří (rozhoduje server: za sebe nebo pro všechny; cizí klíč neodemkneš).
+	_lock_box = HBoxContainer.new()
+	_lock_box.name = "LockBox"
+	_open_box.add_child(_lock_box)
+	for spec in [["LockMe", "Zamknout pro mě (L)", "me"], ["LockAll", "Pro všechny", "all"], ["Unlock", "Odemknout", "none"]]:
+		var lb := Button.new()
+		lb.name = String(spec[0])
+		lb.text = String(spec[1])
+		lb.focus_mode = Control.FOCUS_ALL
+		lb.pressed.connect(lock_selected.bind(String(spec[2])))
+		_lock_box.add_child(lb)
+@@@END
+@@@OLD
+var _open_label: Label
+@@@NEW
+var _open_label: Label
+var _lock_box: HBoxContainer
+@@@END
+@@@OLD
+		_open_label.text = "%s %s m · %s" % [String(LotGrid.OPENINGS[String(o["kind"])]["name"]),
+			_meters(LotGrid.opening_cells(String(o["kind"]))),
+			("vybourání vrátí " + _price(back3)) if back3 > 0 else "vybourání nic nevrátí"]
+		_open_box.visible = true
+@@@NEW
+		_open_label.text = "%s %s m · %s" % [String(LotGrid.OPENINGS[String(o["kind"])]["name"]),
+			_meters(LotGrid.opening_cells(String(o["kind"]))),
+			("vybourání vrátí " + _price(back3)) if back3 > 0 else "vybourání nic nevrátí"]
+		var is_door := LotGrid.is_door(String(o["kind"]))
+		if is_door and main.has_method("lot_lock_text"):
+			_open_label.text += " · " + String(main.lot_lock_text(String(o.get("lock", ""))))
+		if _lock_box != null:
+			_lock_box.visible = is_door
+			var lk := String(o.get("lock", ""))
+			(_lock_box.get_node("Unlock") as Button).disabled = lk == ""
+			(_lock_box.get_node("LockAll") as Button).disabled = lk == LotGrid.LOCK_ALL
+			(_lock_box.get_node("LockMe") as Button).disabled = main.lot_my_sim() == "" or lk == main.lot_my_sim()
+		_open_box.visible = true
+@@@END
+@@@OLD
+func demolish_selected_wall() -> void:
+@@@NEW
+## B4b: "me" = zamknout pro mou postavu, "all" = pro všechny, "none" = odemknout, "toggle" = L (moje ↔ odemčeno).
+func lock_selected(how: String) -> void:
+	if selected_oid == 0 or main == null or main.lot == null or not main.lot.openings.has(selected_oid):
+		return
+	var cur: String = main.lot.lock_of(selected_oid)
+	var mine: String = main.lot_my_sim()
+	var want := ""
+	match how:
+		"me":
+			want = mine
+		"all":
+			want = LotGrid.LOCK_ALL
+		"none":
+			want = ""
+		"toggle":
+			want = "" if cur != "" else mine
+		_:
+			return
+	if (how == "me" or (how == "toggle" and cur == "")) and mine == "":
+		if main.hud != null:
+			main.hud.show_notice("Nemáš postavu, pro kterou zamknout.")
+		return
+	main.request_lot_action("lock", [selected_oid, want])
+
+
+func demolish_selected_wall() -> void:
+@@@END

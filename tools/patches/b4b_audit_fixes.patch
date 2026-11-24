@@ -1,0 +1,241 @@
+@@@FILE res://scripts/world/lot_grid.gd
+@@@OLD
+## Zavřel by zámek lk na dveřích oid někoho bez klíče, ke komu se z jeho pohledu dosud dalo dojít od ulice?
+func lock_traps(oid: int, lk: String, pts: Array) -> bool:
+	if not openings.has(oid):
+		return false
+	var saved_v := nav_viewer
+	var saved_u := _nav_unlock
+	_nav_unlock = 0
+	var trapped := false
+	var probe := {"lock": lk}
+	for e in pts:
+		if typeof(e) != TYPE_ARRAY or (e as Array).size() != 2 or typeof(e[0]) != TYPE_STRING or typeof(e[1]) != TYPE_VECTOR2:
+			continue
+		var who := String(e[0])
+		var p: Vector2 = e[1]
+		if who == "" or not is_finite(p.x) or not is_finite(p.y) or door_passable(probe, who):
+			continue
+		var c := cell_of_world(p)
+		if not _in_grid(c.x, c.y):
+			continue
+		var ci := _idx(c.x, c.y)
+		nav_viewer = who
+		var before := _reachable({})
+		if not _target_reached(before, ci):
+			continue
+		var after := _reachable({}, oid)
+		if not _target_reached(after, ci):
+			trapped = true
+			break
+	nav_viewer = saved_v
+	_nav_unlock = saved_u
+	return trapped
+@@@NEW
+## Zavřel by zámek lk na dveřích oid někoho bez klíče, ke komu se z jeho pohledu dosud dalo dojít od ulice?
+## Postavy se stejnou sadou zámků proti sobě sdílí jeden pár BFS (audit Gemini 24. 11.: dřív 2 BFS na postavu).
+func lock_traps(oid: int, lk: String, pts: Array) -> bool:
+	if not openings.has(oid):
+		return false
+	var probe := {"lock": lk}
+	var groups := _view_groups(pts, oid)
+	var saved_v := nav_viewer
+	var saved_u := _nav_unlock
+	_nav_unlock = 0
+	var trapped := false
+	for sig in groups:
+		var g: Dictionary = groups[sig]
+		var cells: Array = []
+		for k in g["cells"].size():
+			if not door_passable(probe, String(g["who"][k])):
+				cells.append(int(g["cells"][k]))
+		if cells.is_empty():
+			continue
+		nav_viewer = String(g["who"][0])
+		var before := _reachable({})
+		var was: Array = []
+		for ci in cells:
+			if _target_reached(before, ci):
+				was.append(ci)
+		if was.is_empty():
+			continue
+		var after := _reachable({}, oid)
+		for ci in was:
+			if not _target_reached(after, ci):
+				trapped = true
+				break
+		if trapped:
+			break
+	nav_viewer = saved_v
+	_nav_unlock = saved_u
+	return trapped
+
+
+## Postavy [[klíč, Vector2], …] seskupené podle sady zamčených dveří, které je nepustí (bez skip_oid):
+## {podpis: {"who": [klíče], "cells": [indexy buněk]}}. Nesmyslné záznamy a polohy mimo mřížku se vynechají.
+func _view_groups(pts: Array, skip_oid: int = 0) -> Dictionary:
+	var groups := {}
+	for e in pts:
+		if typeof(e) != TYPE_ARRAY or (e as Array).size() != 2 or typeof(e[0]) != TYPE_STRING or typeof(e[1]) != TYPE_VECTOR2:
+			continue
+		var who := String(e[0])
+		var p: Vector2 = e[1]
+		if who == "" or not is_finite(p.x) or not is_finite(p.y):
+			continue
+		var c := cell_of_world(p)
+		if not _in_grid(c.x, c.y):
+			continue
+		var sig_parts: Array = []
+		for loid in locked_against(who):
+			if int(loid) != skip_oid:
+				sig_parts.append(str(loid))
+		var sig := ",".join(sig_parts)
+		if not groups.has(sig):
+			groups[sig] = {"who": [], "cells": []}
+		groups[sig]["who"].append(who)
+		groups[sig]["cells"].append(_idx(c.x, c.y))
+	return groups
+
+
+## B4b: stavební kontrola „nikoho to nezavře“ (zeď, vybourání dveří) i z pohledu postav, kterým zámky
+## zavírají jiné cesty. check(polohy: Array[Vector2]) -> bool se volá s nastaveným nav_viewer jednou za skupinu
+## postav se stejnými zámky (jen skupiny, proti kterým nějaký zámek je – pohled bez zámků řeší volající).
+func traps_in_lock_views(check: Callable, pts: Array) -> bool:
+	if not has_locks():
+		return false
+	var groups := _view_groups(pts)
+	var saved_v := nav_viewer
+	var saved_u := _nav_unlock
+	_nav_unlock = 0
+	var trapped := false
+	for sig in groups:
+		if String(sig) == "":
+			continue
+		var g: Dictionary = groups[sig]
+		var where: Array = []
+		for ci in g["cells"]:
+			where.append(origin + (Vector2(int(ci) % gw, int(ci) / gw) + Vector2(0.5, 0.5)) * CELL)
+		nav_viewer = String(g["who"][0])
+		if bool(check.call(where)):
+			trapped = true
+			break
+	nav_viewer = saved_v
+	_nav_unlock = saved_u
+	return trapped
+@@@END
+@@@FILE res://main.gd
+@@@OLD
+			if lot.wall_traps(args[0], args[1], args[2], args[3], sim_pts):
+				return {"ok": false, "reason": "traps_sim"}
+@@@NEW
+			if lot.wall_traps(args[0], args[1], args[2], args[3], sim_pts):
+				return {"ok": false, "reason": "traps_sim"}
+			# B4b: … ani postavu, které jinou cestu zavírá zamčené dveře (zeď by ji uvěznila za cizím zámkem).
+			if lot.traps_in_lock_views(func(p: Array) -> bool: return lot.wall_traps(args[0], args[1], args[2], args[3], p), lot_sim_points()):
+				return {"ok": false, "reason": "traps_sim"}
+@@@END
+@@@OLD
+			if lot.opening_traps(args[0], door_pts):
+				return {"ok": false, "reason": "door_traps"}
+@@@NEW
+			if lot.opening_traps(args[0], door_pts):
+				return {"ok": false, "reason": "door_traps"}
+			if lot.traps_in_lock_views(func(p: Array) -> bool: return lot.opening_traps(args[0], p), lot_sim_points()):
+				return {"ok": false, "reason": "door_traps"}
+@@@END
+@@@FILE res://scripts/net/net_session.gd
+@@@OLD
+		var cur_lock: String = world.lot.lock_of(int(a[0]))
+		if cur_lock != "" and cur_lock != LotGridScript.LOCK_ALL and cur_lock != mine and world.find_sim(cur_lock) != null:
+			stats["rejected"] += 1
+			return String(LotGridScript.REASON_TEXT["lock_not_yours"])
+@@@NEW
+		# Osobní zámek chrání jen postavu, kterou má hráč (připojený nebo čekající na návrat). Postava bez hráče
+		# (odešel natrvalo, AI) ani smazaná postava klíč neuplatní – jinak by opuštěný zámek blokoval dům navždy.
+		var cur_lock: String = world.lot.lock_of(int(a[0]))
+		if cur_lock != "" and cur_lock != LotGridScript.LOCK_ALL and cur_lock != mine and world.find_sim(cur_lock) != null \
+				and sim_has_player(cur_lock):
+			stats["rejected"] += 1
+			return String(LotGridScript.REASON_TEXT["lock_not_yours"])
+@@@END
+@@@OLD
+## Veřejný snímek parcely klientům (po změně všem, po vstupu jen novému hráči).
+@@@NEW
+## B4b: má postava (jméno uzlu) hráče – připojeného, nebo drženého v době na návrat?
+func sim_has_player(sim_node: String) -> bool:
+	if sim_node == "":
+		return false
+	for pid in players:
+		if String(players[pid].get("sim", "")) == sim_node:
+			return true
+	for hk in _held:
+		if String(_held[hk].get("sim", "")) == sim_node:
+			return true
+	return false
+
+
+## Veřejný snímek parcely klientům (po změně všem, po vstupu jen novému hráči).
+@@@END
+@@@FILE res://tests/test_door_locks.gd
+@@@OLD
+	check(two.check_lock(1, "Ana", [["Cyril", inside]]) == "", "Cyril má klíč od druhých dveří → odejde jimi")
+@@@NEW
+	check(two.check_lock(1, "Ana", [["Cyril", inside]]) == "", "Cyril má klíč od druhých dveří → odejde jimi")
+	# Stavební kontroly z pohledu zámků: vybourání odemčených dveří by Boba uvěznilo za cizím zámkem.
+	var three = _empty_room()
+	three.build_opening(4, "door", 4, 1000.0)
+	three.set_lock(1, "Ana", [])
+	check(not three.opening_traps(2, [inside]), "pohled bez zámků: Bob by odešel dveřmi Any")
+	check(three.traps_in_lock_views(func(p: Array) -> bool: return three.opening_traps(2, p), [["Bob", inside]]),
+		"z pohledu Boba by ho vybourání druhých dveří zavřelo")
+	check(not three.traps_in_lock_views(func(p: Array) -> bool: return three.opening_traps(2, p), [["Ana", inside], ["Bob", outside]]),
+		"Ana s klíčem uvnitř a Bob venku: v pořádku")
+	check(three.traps_in_lock_views(func(p: Array) -> bool: return three.wall_traps(60, 22, 72, 22, p), [["Bob", inside]]) == false
+		and three.nav_viewer == "", "neplatná stěna nikoho nezavře, pohled vrácen")
+	var groups: Dictionary = three._view_groups([["Bob", inside], ["Cyril", inside], ["Ana", inside], ["X", Vector2(NAN, 0)]])
+	check(groups.size() == 2 and (groups["1"]["who"] as Array).size() == 2 and (groups[""]["who"] as Array) == ["Ana"],
+		"skupiny pohledů: Bob a Cyril sdílí BFS, Ana zvlášť, nesmysly ven", str(groups))
+@@@END
+@@@OLD
+	b._walk(0.1)
+	check(is_equal_approx(float(b.relationships.get(a.sim_name, 0.0)), rel1), "druhé bušení do 6 h vztah dál nezhorší")
+	dummy.free()
+@@@NEW
+	b._walk(0.1)
+	check(is_equal_approx(float(b.relationships.get(a.sim_name, 0.0)), rel1), "druhé bušení do 6 h vztah dál nezhorší")
+	dummy.free()
+	# Stavění z pohledu zámků: druhé dveře, B uvnitř; jejich vybourání by B zavřelo za zámkem A.
+	a.global_position = home_a
+	var bottom: int = int(room["walls"][3])
+	var d2: Dictionary = {}
+	for at in [4, 5, 3, 6, 2, 7]:
+		if lot.check_opening(bottom, "door", at) == "":
+			d2 = world.lot_apply_action("open", [bottom, "door", at], "Test")
+			break
+	check(bool(d2.get("ok", false)), "druhé dveře do místnosti", str(d2))
+	if bool(d2.get("ok", false)):
+		b.global_position = inside
+		var ru: Dictionary = world.lot_apply_action("unopen", [int(d2["oid"])], "Test")
+		check(not bool(ru["ok"]) and String(ru["reason"]) == "door_traps" and lot.openings.has(int(d2["oid"])),
+			"vybourání jediných dveří, kterými B smí, odmítnuto (door_traps z pohledu zámků)", str(ru))
+		b.global_position = home_b
+		check(bool(world.lot_apply_action("unopen", [int(d2["oid"])], "Test")["ok"]), "bez B uvnitř jde vybourat")
+@@@END
+@@@OLD
+	var cap: Dictionary = load("res://scripts/save/game_save.gd").capture(server, true)
+@@@NEW
+	# Opuštěný zámek: postava A bez hráče (odešel) → klíč neplatí, odemkne kdokoli z domácnosti.
+	if a_peer > 1:
+		await wait_seconds(2.2)
+		var keep_sim := String(server.net.players[a_peer]["sim"])
+		check(server.net.sim_has_player(keep_sim) and not server.net.sim_has_player("Nikdo"), "sim_has_player: A má hráče")
+		server.net.players[a_peer]["sim"] = ""
+		b.request_lot_action("lock", [oid, ""])
+		var freed: bool = await wait_until(func(): return server.lot.lock_of(oid) == "", 3.0)
+		server.net.players[a_peer]["sim"] = keep_sim
+		check(freed, "zámek postavy bez hráče odemkne B")
+		await wait_seconds(2.2)
+		a.request_lot_action("lock", [oid, a.net.my_sim])
+		check(await wait_until(func(): return server.lot.lock_of(oid) == a.net.my_sim, 3.0), "A se zase zamkl")
+	var cap: Dictionary = load("res://scripts/save/game_save.gd").capture(server, true)
+@@@END

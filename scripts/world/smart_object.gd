@@ -10,6 +10,10 @@ var use_offsets: Array = [Vector3(0, 0, 1.0)]
 ## Lokální body, kde postava během akce sedí/leží (prázdné = zůstane u use_offset).
 var pose_offsets: Array = []
 var users: Array = []
+## Kvalita předmětu (B1 nákup): násobí kladné přírůstky komfortu, energie a zábavy z akcí. Výchozí nábytek 1,0.
+var quality := 1.0
+## uid v LotGrid (0 = výchozí nábytek domu, nedá se prodat).
+var lot_uid := 0
 var _duvet: MeshInstance3D = null
 var _duvet_raised: MeshInstance3D = null
 

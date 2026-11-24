@@ -15,7 +15,7 @@ func _init()->void:
 	if not G.owns(lease):quit(2);return
 	var path:="res://assets/models/manifest.json"
 	var manifest:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(path))
-	result["realism_revision"]="2026-10-30-v3"
+	result["realism_revision"]="2026-11-12-v6-neck-bend"
 	manifest["character"]=result
 	var f:=FileAccess.open(path,FileAccess.WRITE)
 	f.store_string(JSON.stringify(manifest,"  "))

@@ -679,3 +679,18 @@ may voice offline (see [audio.md](audio.md)); it is never serialised or replicat
 and a recent hurt: social initiative drops (chat score 32.7 → 17.0) but never to zero, confiding remains possible, and
 rumination opens a voluntary professional-help option. High distress never creates an automatic dangerous action;
 self-harm and suicide remain non-playable.
+
+## Betrayal aftermath (21 November 2026)
+
+`scripts/sim/betrayal_wound.gd` is a psyche axis (`PsycheExt.betrayal`) for the character who was cheated on. `Infidelity` decides what happened and `SimAgent.on_betrayal` applies the immediate relationship damage; this axis carries the long tail.
+
+- **One wound per person who betrayed** (keyed by the private character uid, at most four). `acute` pain fades over about two weeks, faster once it is processed; the `scar` (caution in trust) fades over months; `processed` is recovery progress. A repeat betrayal by the same person hurts more and halves earlier progress.
+- **Rumination:** discovery opens a grievance loop in the inner voice. While the pain is strong, an intrusive question appears at most once per game hour, mostly when idle or awake at night.
+- **Self-worth:** the pain can turn inward. Its strength scales with the private `self_defectiveness` belief, which is only read and never changed. Self-blame thoughts are worded as intrusive thoughts with distance, and the owner's text says plainly that feeling it does not make it true.
+- **Withdrawal:** less appetite for ordinary socialising, flirting and dating; more appetite for confiding, journalling, walks and seeking help. The character avoids the person who cheated and the affair partner. Nothing is forced or forbidden (multipliers are bounded).
+- **Unhealthy coping:** alcohol numbs the pain for three hours and then it comes back stronger. Drinking again while numb helps less each time and the rebound accumulates, so it cannot be drunk away.
+- **Reminders:** seeing them together, meeting the affair partner, or hearing gossip about the affair reopens the wound (at most once per six hours per person).
+- **Hypervigilance:** the scar makes suspicion grow faster in a later relationship.
+- **Recovery is never closed:** confiding in someone else, journalling, therapy and an accepted (or partly accepted) apology all help. Forgiving does not erase the scar, but time eventually does.
+- **Content settings:** with mental-health topics off, every multiplier is exactly 1 and there are no lines, moodlets or thoughts. Time still heals in the background.
+- **Privacy and authority:** computed only on the server. The owner sees words (moodlet labels, private lines), never numbers or uids. Nothing is replicated publicly; a real ENet test confirms that another player receives nothing.

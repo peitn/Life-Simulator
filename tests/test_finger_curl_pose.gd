@@ -5,6 +5,7 @@ extends SceneTree
 const Preview := preload("res://scripts/ui/character_preview.gd")
 const Data := preload("res://scripts/character/character_data.gd")
 const G := preload("res://tools/automation_lock.gd")
+const Hand := preload("res://scripts/assets/hand_detail_builder.gd")
 
 var passes := 0
 var failures := 0
@@ -35,7 +36,8 @@ func run() -> void:
         check(mesh.get_blend_shape_count()==40,label+" includes ten body morphs, 10 curls and 20 C14 joint morphs")
         var source:PackedVector3Array=mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
         var morphs:Array=mesh.surface_get_blend_shape_arrays(0)
-        var chunk:int=51 if part==skin else 9
+        # topology since the 161/9-vertex digit rings (this assertion predated them: 51)
+        var chunk:int=Hand.SKIN_PER_DIGIT if part==skin else Hand.NAIL_PER_DIGIT
         check(source.size()==chunk*10,label+" deterministic per-digit vertex grouping")
         for digit in 10:
             var name:StringName=StringName("finger_curl_"+str(digit))
@@ -50,9 +52,9 @@ func run() -> void:
             var spill:=0
             var max_delta:=0.0
             for v in source.size():
-                # RELATIVE target array stores zero for unaffected vertices,
-                # not their rest-space absolute positions.
-                var displacement:float=verts[v].length()
+                # C-LOD step 7: absolute NORMALIZED targets; displacement = target - rest
+                # (zero for unaffected vertices, as before).
+                var displacement:float=(verts[v]-source[v]).length()
                 max_delta=maxf(max_delta,displacement)
                 if v/chunk==digit and displacement>.00001:
                     changed+=1

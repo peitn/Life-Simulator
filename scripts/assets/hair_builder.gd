@@ -123,7 +123,10 @@ const LEAN_Y0 := 1.38
 const LEAN_Y1 := 1.50
 
 ## Rozpočty trojúhelníků (test_hair).
-const BUDGET_SCALP := 26000
+## Běh main-claude-1794381713: realism pass 30. 10. zjemnil mřížku lebky (32×36×20), ze které účesy vyrůstají –
+## husté účesy mají 26–39,5 tis. trojúhelníků (afro 39 525). Vědomě přijato jako rozpočet LOD0 (cíl = realismus);
+## LOD pro dav a vzdálené postavy je samostatný krok (docs/asset-pipeline.md „Triangle budgets“).
+const BUDGET_SCALP := 40000
 const BUDGET_BROWS := 1200
 const BUDGET_BEARD := 9000
 

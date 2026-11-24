@@ -1,0 +1,59 @@
+@@@FILE res://scripts/world/lot_grid.gd
+@@@OLD
+			out.append([a + dir * (float(s) * CELL), ab[1]])
+	_seg_cache[wid] = out
+	return out
+@@@NEW
+			out.append([a + dir * (float(s) * CELL), ab[1]])
+	_seg_cache[ck] = out
+	return out
+@@@END
+@@@FILE res://scripts/world/lot_nav.gd
+@@@OLD
+	var sc := snap_cell(lot, a)
+	var gc := snap_cell(lot, b)
+	if sc.x >= 0 and gc.x >= 0:
+		for oid in locked:
+@@@NEW
+	var sc := snap_cell(lot, a)
+	var gc := snap_cell(lot, b)
+	# Cesta s aktuálními zámky existuje → zámek není důvod (blokuje něco jiného, nebo nic).
+	if sc.x >= 0 and gc.x >= 0 and Pathfinder.find_path(lot, sc, gc).is_empty():
+		for oid in locked:
+@@@END
+@@@FILE res://scripts/world/lot_door.gd
+@@@OLD
+		if s is Node3D and is_instance_valid(s):
+@@@NEW
+		if is_instance_valid(s) and s is Node3D:
+@@@END
+@@@FILE res://tests/test_door_locks.gd
+@@@OLD
+	lot.build_opening(4, "door", 6, 1000.0)
+	lot.build_opening(2, "window", 6, 1000.0)
+	lot.set_lock(1, "Ana", [])
+	lot.set_lock(4, "*", [])
+	return lot
+@@@NEW
+	lot.build_opening(4, "door", 6, 1000.0)
+	lot.build_opening(2, "window", 6, 1000.0)
+	lot.set_lock(1, "Ana", [])
+	lot.set_lock(2, "*", [])
+	return lot
+@@@END
+@@@OLD
+	check(int(d["version"]) == 4 and (d["openings"][0] as Dictionary).size() == 7 and locks == {1: "Ana", 4: "*", 5: ""}, "snímek v4 se zámky", str(locks))
+@@@NEW
+	check(int(d["version"]) == 4 and (d["openings"][0] as Dictionary).size() == 7 and locks == {1: "Ana", 2: "*", 3: ""}, "snímek v4 se zámky", str(locks))
+@@@END
+@@@OLD
+	check(bool(r2["ok"]) and _json(l2) == _json(lot) and l2.lock_of(1) == "Ana" and l2.lock_of(4) == "*", "JSON → obnova → stejné bit po bitu", str(r2))
+@@@NEW
+	check(bool(r2["ok"]) and _json(l2) == _json(lot) and l2.lock_of(1) == "Ana" and l2.lock_of(2) == "*", "JSON → obnova → stejné bit po bitu",
+		_json(l2) + " VS " + _json(lot))
+@@@END
+@@@OLD
+	check(cl.apply_public(pub) and cl.lock_of(1) == "Ana" and cl.lock_of(4) == "*" and cl.lock_of(5) == "", "klient převzal zámky")
+@@@NEW
+	check(cl.apply_public(pub) and cl.lock_of(1) == "Ana" and cl.lock_of(2) == "*" and cl.lock_of(3) == "", "klient převzal zámky")
+@@@END

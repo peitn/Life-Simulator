@@ -1,0 +1,107 @@
+@@@FILE res://docs/world-building.md
+@@@OLD
+## Known limitations / next steps
+@@@NEW
+## Door locks (B4b, 24 November 2026)
+
+Doors carry a lock (`LotGrid` format v4): `""` unlocked, `"*"` locked for everybody, or a character key (the
+character's node name) – only that character can pass ("she locked herself in the bathroom"). Windows cannot be
+locked. Locks cost nothing and are not written to the money ledger.
+
+- **Per-character navigation.** `LotGrid.nav_viewer` selects whose point of view the door spans are computed from.
+  `SimAgent._walk` sets it to its own key only for the duration of `LotNav.next_point` and resets it to `""`.
+  For a character without the key, a locked door is a solid wall for the cell BFS, the pathfinder and the wall
+  segments used for smoothing. Caches (wall segments, reachability) are keyed by a view key that collapses to the
+  lock-free view whenever no lock applies to that character, so the common case shares one cache.
+- **Building checks stay lock-free**, plus one extra check: building a wall or demolishing a door may not trap a
+  character behind somebody else's lock (`traps_in_lock_views`, characters grouped by the set of locks that apply
+  to them, one BFS pair per group).
+- **Rules.** A lock may not trap a character without the key who can currently reach the street (`lock_traps`);
+  locking for everybody may not cut off item use points (`lock_seals`). A personal lock *may* cut other people off
+  from the bathroom or bedroom – that is the point (privacy, conflict). At most 16 locked doors per lot.
+- **Consequences.** When a character cannot reach its target, `LotNav.lock_blocker` finds out whether a lock is the
+  reason and whose. The character remembers the target as unreachable for two game hours (no endless banging),
+  gets a mood penalty, records a "rejection" in social memory (interpreted through vigilance) and loses 2 points of
+  relationship with the person who locked themselves in – at most once per 6 game hours per person. The person
+  inside hears knocking if within 10 m. A character without a key who ends up inside a locked room (old save) uses
+  the existing escape mode rather than being stuck.
+- **Visuals.** `LotDoor` reads the lock from the lot on each poll: the leaf only opens for characters who may pass,
+  and a small lamp by the handle shows the state (green unlocked, amber personal, red everybody).
+- **UI.** In buy mode a selected door shows *Lock for me (L)*, *For everybody* (Shift+L) and *Unlock*.
+
+AI characters do not lock doors on their own yet.
+
+## Known limitations / next steps
+@@@END
+@@@OLD
+- Doors cannot be locked yet; door frames, leaves and windows are procedural (Blender assets to do). Item placement
+@@@NEW
+- Door frames, leaves and windows are procedural (Blender assets to do); AI does not lock doors by itself and there
+  is no break-in or lock picking yet. Item placement
+@@@END
+@@@FILE res://docs/multiplayer.md
+@@@OLD
+- The victim cap and slander gates are enforced on the server for both player commands and AI decisions.
+@@@NEW
+- The victim cap and slander gates are enforced on the server for both player commands and AI decisions.
+
+### Door locks (B4b, 24 November 2026)
+
+- Lot action `lock` with arguments `[oid, lock]` through the existing `_c2s_lot` RPC. The server validates the
+  types, the lock string (`""`, `"*"` or a valid node name without control, bidi or zero-width characters, at most
+  64 characters) and applies both the general lot rate limit and the stricter builder limit (the check runs BFS).
+- Key rules: a client may lock a door only for **its own** character or for everybody. A personal lock of another
+  character can only be changed by that character's player while the character has a player (connected or held
+  for reconnection); a lock of a character without a player (left for good, AI-controlled) or of a deleted
+  character can be cleared by anyone in the household, so an abandoned lock cannot block the house forever.
+  Otherwise the remaining options are knocking, waiting or demolishing the door (which costs household money).
+  Spectators cannot lock. Offline, the player controls the whole household and may set any lock.
+- The lock is part of the public lot snapshot (7th element of each opening; v3 servers send 6). Clients re-validate
+  it (valid lock string, doors only, at most 16 locks) and the door leaf/lamp follow it locally.
+@@@END
+@@@FILE res://docs/testing.md
+@@@OLD
+### Doors and windows (B4a, 23 November 2026)
+@@@NEW
+### Door locks (B4b, 24 November 2026)
+
+`tests/test_door_locks.tscn` – 119 checks: lock string validation (20 malformed variants), rules (doors only, same
+lock, 16-lock cap, `lock_seals`, `lock_traps` with one and two doors, building checks from lock views), navigation
+per character (pathfinder, wall segments, `LotNav`, `lock_blocker`, alternating views against the caches, escape),
+save v4 / v3 migration / 9 malformed variants / 17-lock forgery, public snapshot (6 forgeries, old v3 server, 200
+mutation fuzz), performance, the world (authority, `LotDoor` lamp and opening only for the key holder, the real
+`SimAgent._walk` consequence: unreachable memory, relationship −2, mood, social memory, knocking, cooldown;
+demolishing the last door a character may use is refused; disk save/load), the buy-mode UI (buttons, L, Shift+L)
+and a real ENet server with two clients (own key, foreign key refused, lock for another character refused,
+household-wide lock, spectator, 6 forged requests, abandoned lock, server save v4).
+`tests/test_lot_doors.tscn` was updated for format v4 (154 checks).
+
+### Doors and windows (B4a, 23 November 2026)
+@@@END
+@@@FILE res://docs/roadmap.md
+@@@OLD
+- 23 Nov 2026 (morning): **(b) B4a doors and windows** ✅@@@NEW
+- 24 Nov 2026 (morning): **(b) B4b door locks** ✅ – `LotGrid` format v4 lock per door (unlocked / everybody /
+  one character), per-character navigation views, no trapping and no cut-off items for household-wide locks, key
+  rules on the server (own character only, abandoned locks can be cleared), relationship and memory consequences
+  of being locked out, door lamp, buy-mode buttons. Blender door/window assets remain open.
+- 23 Nov 2026 (morning): **(b) B4a doors and windows** ✅@@@END
+@@@FILE res://README.md
+@@@OLD
+| ✅ B1 + B2 walls + B3 wall-aware pathfinding + B4a doors and windows (floors, rooms planned) |
+@@@NEW
+| ✅ B1 + B2 walls + B3 wall-aware pathfinding + B4a doors and windows + B4b door locks (floors, rooms planned) |
+@@@END
+@@@OLD
+godot --headless --path . res://tests/test_lot_doors.tscn       # doors and windows in walls (154 checks)
+@@@NEW
+godot --headless --path . res://tests/test_lot_doors.tscn       # doors and windows in walls (154 checks)
+godot --headless --path . res://tests/test_door_locks.tscn      # door locks, per-character navigation, ENet (119 checks)
+@@@END
+@@@FILE res://ROADMAP.md
+@@@OLD
+- ⬜ B4b: Blender assety dveří a oken (TODO – teď procedurální), zamykání dveří (soukromí, hádky, vloupání), ořez stěn kamerou, chůze ulicí kolem parcely.
+@@@NEW
+- ✅ B4b-1 (24. 11. ráno): zamykání dveří – LotGrid v4 zámek (odemčeno / pro všechny / jen jedna postava), navigace z pohledu postavy, lock_traps/lock_seals, stavění nesmí nikoho uvěznit za cizím zámkem, pravidla klíčů na serveru (jen za sebe, opuštěný zámek odemkne kdokoli), důsledky (odmítnutí, vztah −2, bušení), kontrolka na dveřích, UI L/Shift+L. Test test_door_locks 119/119.
+- ⬜ B4b-2: Blender assety dveří a oken (TODO – teď procedurální), AI sama zamyká (hádka, studená válka, sprcha), vloupání/vyražení dveří, ořez stěn kamerou, chůze ulicí kolem parcely.
+@@@END

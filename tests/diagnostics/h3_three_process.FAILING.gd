@@ -554,7 +554,7 @@ func _h3_install_build_probe(role: String) -> bool:
 	# TEST ONLY. Patch the already-preloaded SimVisual script resource IN MEMORY
 	# in each isolated child OS process; the production .gd file stays untouched.
 	const SOURCE_PATH := "res://scripts/sim/sim_visual.gd"
-	const SOURCE_SHA := "d9d88354d3730d1cd415bab2b544f9906b9bfe3308f37ed4299cf010efd15fbe"
+	const SOURCE_SHA := "d4e47daeb66372915273ceb2877b290e86eb1110219fa71cdc8c2a5e357fb98f"
 	if FileAccess.get_sha256(SOURCE_PATH) != SOURCE_SHA:
 		_trace(role, "simvisual_probe_error", {"reason": "source_sha_changed"})
 		return false
@@ -780,7 +780,7 @@ func _server() -> void:
 	var first_ok: bool = gate_acl and rpc_seen and can_read
 	_trace("server", "initial_read_rpc_observation", {"marker_seen": first_seen, "client_sent": sent_marker.get("sent", false), "rpc_limiter_seen": rpc_seen, "acl_after": can_read, "key": gate_key, "snapshot": _server_acl_snapshot(w, gate_peer, gate_key)})
 	_put("server_initial_diag", {"ok": first_ok, "first_key": gate_key, "peer_id": gate_peer, "client_sent": sent_marker.get("sent", false), "rpc_limiter_seen": rpc_seen, "can_read": can_read, "record_exists": w._character_records.has(gate_key)})
-	var both := await wait_until(func(): return not _read_marker("observer_forgery").is_empty(), 62.0)
+	var both := await wait_until(func(): return not _read_marker("observer_forgery").is_empty() and not _read_marker("owner_rejoined").is_empty(), 62.0)
 	var verdict := false
 	if both:
 		var rejoin_key: String = String(_read_marker("owner_rejoined").get("key", ""))
@@ -791,6 +791,7 @@ func _server() -> void:
 			if String(w.net.players[peer_id].get("name", "")) == "Observer":
 				observer_peer = int(peer_id)
 		verdict = actor != null and record != null and observer_peer > 1 and not w.net.server_can_edit_character(observer_peer, rejoin_key) and record.story.get("backstory", "") == "fictional_private_h3_marker" and record.identity.get("attracted_to", []) == ["zeny"]
+	_trace("server", "shutdown_gate_decision", {"observer_forgery_seen": both, "observer_initial_seen": not _read_marker("observer_initial").is_empty(), "observer_gone_seen": not _read_marker("observer_gone").is_empty(), "owner_rejoined_seen": not _read_marker("owner_rejoined").is_empty(), "verdict": verdict, "utc_ms": int(Time.get_unix_time_from_system() * 1000.0)})
 	_put("server_done", {"pid": OS.get_process_id(), "ok": both and verdict,
 		"verified": verdict, "spawned": w.net.stats["characters_spawned"]})
 	await wait_seconds(0.25)
@@ -852,9 +853,13 @@ func _owner() -> void:
 	w.queue_free()
 	await get_tree().process_frame
 	var gone := await wait_until(func(): return not _read_marker("observer_gone").is_empty(), 12.0)
+	_h3_owner_phase("rejoin_world_construct")
+	_trace("owner", "rejoin_world_begin", {"observer_seen": observer_seen, "observer_gone_seen": gone, "observer_gone_ok": bool(_read_marker("observer_gone").get("ok", false))})
 	var rejoin = _world("owner", code)
 	_attach_trace(rejoin, "owner")
-	var rejoined := await wait_until(func(): return rejoin.net.my_sim != "" and rejoin.find_sim(rejoin.net.my_sim) != null, 12.0)
+	_h3_owner_phase("rejoin_ready_wait")
+	var rejoined := await _probe_owner_ready(rejoin, 12.0)
+	_h3_owner_phase("rejoin_ready_done")
 	var new_key: String = String(rejoin.net.my_sim)
 	var second_reads: Array = []
 	rejoin.net.character_edit_snapshot.connect(func(k, d, r): second_reads.append({"key":k, "data":d, "rev":r}))
@@ -897,7 +902,9 @@ func _observer() -> void:
 	var gone := spawned and await wait_until(func(): return w.find_sim(first_key) == null, 12.0)
 	_trace("observer", "observer_gone_phase", {"elapsed_ms": Time.get_ticks_msec() - observer_start_ms, "had_first_spawn": spawned, "gone": gone, "first_still_visible": w.find_sim(first_key) != null, "sims": w.get_sims().size(), "roster": w.net.roster.size(), "transport": _transport_snapshot(w)})
 	_put("observer_gone", {"ok": gone, "spawned": spawned, "still_exists": w.find_sim(first_key) != null})
+	_trace("observer", "rejoin_marker_wait_start", {"utc_ms": int(Time.get_unix_time_from_system() * 1000.0), "gone": gone})
 	var rejoined := await wait_until(func(): return not _read_marker("owner_rejoined").is_empty(), 12.0)
+	_trace("observer", "rejoin_marker_wait_end", {"utc_ms": int(Time.get_unix_time_from_system() * 1000.0), "found": rejoined})
 	var new_key: String = String(_read_marker("owner_rejoined").get("key", ""))
 	var second_spawned := rejoined and await wait_until(func(): return w.find_sim(new_key) != null, 12.0)
 	var second_ok: bool = second_spawned and _public_ok(w, new_key)
@@ -986,6 +993,14 @@ func _parent() -> void:
 		var data := _read_marker(key)
 		check(done and data.get("ok", false) == true, key + " verified", JSON.stringify(data))
 	check(done and _read_marker("server_done").get("spawned", 0) >= 2, "server spawned two canonical creator-code incarnations")
+	# H3_SHUTDOWN_GATE_SAFE: fixture-only shutdown decision, no private payload.
+	var gate_trace_path := "user://h3_3proc_" + _token + "_trace_server.jsonl"
+	if FileAccess.file_exists(gate_trace_path):
+		for gate_line in FileAccess.get_file_as_string(gate_trace_path).split("\n", false):
+			var gate_event = JSON.parse_string(gate_line)
+			if gate_event is Dictionary and str(gate_event.get("phase", "")) == "shutdown_gate_decision":
+				var d: Dictionary = gate_event.get("details", {})
+				print("H3_SHUTDOWN_GATE_SAFE ", JSON.stringify({"utc_ms": gate_event.get("utc_ms", -1), "observer_forgery_seen": d.get("observer_forgery_seen", false), "observer_initial_seen": d.get("observer_initial_seen", false), "observer_gone_seen": d.get("observer_gone_seen", false), "owner_rejoined_seen": d.get("owner_rejoined_seen", false), "verdict": d.get("verdict", false)}))
 	var shutdown_report: Array = []
 	for role in ["server", "owner", "observer"]:
 		var trace_path: String = "user://h3_3proc_" + _token + "_trace_" + role + ".jsonl"
@@ -994,26 +1009,81 @@ func _parent() -> void:
 			print("H3_PROCESS_TRACE ", role, " total=", trace_lines.size())
 			# Preserve the first handshake/spawn events AND the last teardown
 			# events. A tail-only trace hid the original disconnect cause.
-			for i in range(mini(12, maxi(0, trace_lines.size() - 22))):
+			for i in range(0):
 				print("H3_TRACE_EARLY ", role, " ", String(trace_lines[i]).substr(0, 350))
-			for line in trace_lines.slice(maxi(0, trace_lines.size() - 22)):
+			for line in []:
 				print("H3_TRACE ", role, " ", String(line).substr(0, 350))
 			# Surface the exact child instance and its ready duration even when
 			# the event falls between the early and tail windows.
+			# H3_OWNER_READY_SAFE: bounded, explicitly whitelisted fixture-only diagnostic.
+			if role == "owner":
+				var safe_ready_events: Array[Dictionary] = []
+				for raw_ready_line in trace_lines:
+					var parsed_ready: Variant = JSON.parse_string(String(raw_ready_line))
+					if not parsed_ready is Dictionary:
+						continue
+					var phase_ready: String = str(parsed_ready.get("phase", ""))
+					if not phase_ready in ["owner_ready_start", "owner_transport_state", "owner_lifecycle_change", "owner_ready_result"]:
+						continue
+					var raw_details: Variant = parsed_ready.get("details", {})
+					if not raw_details is Dictionary:
+						continue
+					var safe_details: Dictionary = {}
+					for field in ["elapsed_ms", "status", "connected", "assigned", "visible", "sims", "roster", "ok", "transport_status", "max_frame_gap_ms"]:
+						var value: Variant = raw_details.get(field, null)
+						if typeof(value) in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT]:
+							safe_details[field] = value
+					var safe_owner_event: Dictionary = {"phase": phase_ready, "details": safe_details}
+					for clock_key in ["ms", "utc_ms"]:
+						var clock_value: Variant = parsed_ready.get(clock_key, null)
+						if typeof(clock_value) in [TYPE_INT, TYPE_FLOAT]:
+							safe_owner_event[clock_key] = clock_value
+					safe_ready_events.append(safe_owner_event)
+					if safe_ready_events.size() > 12:
+						safe_ready_events.pop_front()
+				for safe_ready_event in safe_ready_events:
+					print("H3_OWNER_READY_SAFE ", JSON.stringify(safe_ready_event))
 			if role == "server":
 				var acl_lines := 0
 				for line in trace_lines:
 					if (String(line).contains("\"phase\":\"server_roster_acl\"") or String(line).contains("\"phase\":\"initial_read_gate\"") or String(line).contains("\"phase\":\"initial_read_rpc_observation\"")) and acl_lines < 16:
-						print("H3_TRACE_ACL ", role, " ", String(line).substr(0, 950))
+						pass # Legacy verbose stdout suppressed; JSONL retained
 						acl_lines += 1
 				for line in trace_lines:
 					if String(line).contains("\"phase\":\"player_direct_child_"):
-						print("H3_TRACE_CHILD ", role, " ", String(line).substr(0, 550))
+						pass # Legacy verbose stdout suppressed; JSONL retained
+				# Bounded cross-process lifecycle evidence; never print peer IDs or payloads.
+				var safe_server_events: Array[Dictionary] = []
+				for raw_server_line in trace_lines:
+					var parsed_server: Variant = JSON.parse_string(String(raw_server_line))
+					if not parsed_server is Dictionary:
+						continue
+					var phase_server: String = str(parsed_server.get("phase", ""))
+					if not phase_server in ["peer_connected", "peer_disconnected", "server_peer_exit_context", "server_disconnected", "server_peer_timing", "server_lifecycle_change"]:
+						continue
+					var safe_server: Dictionary = {"phase": phase_server}
+					for clock_key in ["ms", "utc_ms"]:
+						var clock_value: Variant = parsed_server.get(clock_key, null)
+						if typeof(clock_value) in [TYPE_INT, TYPE_FLOAT]:
+							safe_server[clock_key] = clock_value
+					var raw_server_details: Variant = parsed_server.get("details", {})
+					if raw_server_details is Dictionary:
+						var safe_server_details: Dictionary = {}
+						for detail_key in ["status", "connected", "listening", "peer_count", "elapsed_ms"]:
+							var detail_value: Variant = raw_server_details.get(detail_key, null)
+							if typeof(detail_value) in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT]:
+								safe_server_details[detail_key] = detail_value
+						safe_server["details"] = safe_server_details
+					safe_server_events.append(safe_server)
+					if safe_server_events.size() > 16:
+						safe_server_events.pop_front()
+				for safe_server_event in safe_server_events:
+					print("H3_SERVER_LIFECYCLE_SAFE ", JSON.stringify(safe_server_event))
 			if role != "server":
 				var client_lines := 0
 				for line in trace_lines:
 					if String(line).contains("\"phase\":\"client_sim_") and client_lines < 28:
-						print("H3_TRACE_CLIENT ",role," ",String(line).substr(0,460))
+						pass # Legacy verbose stdout suppressed; JSONL retained
 						client_lines += 1
 			# Surface only non-sensitive event classes across process clocks for H3 timing correlation.
 			var correlation_count := 0
@@ -1021,18 +1091,18 @@ func _parent() -> void:
 				var event: Variant = JSON.parse_string(String(trace_line))
 				if event is Dictionary and String(event.get("phase", "")) in ["client_simvisual_ready", "owner_worker_frame_gap", "owner_stage", "owner_ready_start", "owner_transport_state", "owner_ready_result", "initial_owner_ready", "initial_read_result", "owner_transport_closed", "server_disconnected", "net_disconnected", "peer_connected", "peer_disconnected", "server_peer_exit_context", "server_peer_timing", "server_lifecycle_change", "owner_lifecycle_change", "observer_first_phase", "observer_gone_phase", "observer_second_phase", "owner_gate_wait_start", "owner_gate_wait_end", "owner_rpc_request_start", "owner_rpc_request_result", "owner_reply_wait_result", "owner_rpc_frame_probe", "server_rpc_frame_probe", "owner_initial_marker_written", "observer_marker_wait_start", "observer_marker_wait_end"] and correlation_count < 40:
 					var detail: Dictionary = event.get("details", {})
-					print("H3_CORRELATE ", JSON.stringify({"role": role, "utc_ms": event.get("utc_ms", 0), "phase": event.get("phase", ""), "details": detail}))
+					pass # Legacy verbose stdout suppressed; JSONL retained
 					correlation_count += 1
 			# Print EVERY measured subphase event, without early/tail or count caps.
 			for trace_line in trace_lines:
 				if String(trace_line).contains("\"phase\":\"simvisual_subphases\"") or String(trace_line).contains("\"phase\":\"simvisual_variant_parts\""):
-					print("H3_SUBPHASE ", role, " ", String(trace_line))
+					pass # Legacy verbose stdout suppressed; JSONL retained
 			for trace_line in trace_lines:
 				if String(trace_line).contains("h3_deferred_garment_done"):
-					print("H3_DEFERRED_GARMENT ", role, " ", String(trace_line))
+					pass # Legacy verbose stdout suppressed; JSONL retained
 			for trace_line in trace_lines:
 				if String(trace_line).contains("\"phase\":\"async_lifecycle_summary\""):
-					print("H3_ASYNC_LIFECYCLE ", role, " ", String(trace_line).substr(0, 12000))
+					pass # Legacy verbose stdout suppressed; JSONL retained
 			for trace_line in trace_lines:
 				var event: Variant = JSON.parse_string(String(trace_line))
 				if event is Dictionary and String(event.get("phase", "")).begins_with("intentional_shutdown_"):

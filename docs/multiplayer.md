@@ -143,3 +143,49 @@ The host and the dedicated server save the multiplayer world and restore it afte
 - Any invalid or corrupted snapshot falls back to `.bak`, then to a fresh household. Restore is refused for a non-empty world, with connected/pending peers, or on a client.
 - Config: `server_persistence` (default on in the real game, opt-in in injected tests), `server_save_directory` (default `user://server_world`), `server_autosave_seconds` (default 120). Saves also happen on game-day rollover, window close and scene exit while the session is live.
 - Not covered: DTLS (tokens travel unencrypted), a player who leaves on purpose between the last autosave and a crash is restored as a hold until the grace expires.
+
+
+## Walls (B2, 22 Nov 2026)
+
+- Clients request `wall` [x0, z0, x1, z1] (lattice points) and `unwall` [wid] through `_c2s_lot`. The server checks
+  the player (must control a character), the shared lot bucket and a stricter wall bucket (2, refill 0.5/s), integer
+  types and lattice bounds, then `LotGrid.check_wall` decides (geometry, surroundings, access, reachability, money).
+- Walls are in the public lot snapshot; clients re-check types, bounds, lengths and geometry and drop the whole
+  snapshot if anything is off. A real ENet test covers building, forged requests, late join and demolition.
+- Doors and windows (B4a, 23 Nov 2026): `open` [wid, kind, at] and `unopen` [oid] use the same path and the wall
+  bucket; the server checks types (kind is a known string of at most 16 characters, `at` 0..80) and `LotGrid` decides.
+  Closing a door is refused if it would shut a character in (`door_traps`) or cut off an access point. Openings are in
+  the public snapshot (`open`) and re-validated by clients. There is still one shared household lot: any player who
+  controls a character may build on it; per-lot ownership comes with the shared city.
+
+## Lot and buy mode (B1, 20 Nov 2026)
+
+- Clients request `buy` / `sell` / `move` with `_c2s_lot`; only the authority applies them through `LotGrid` (see [world-building.md](world-building.md)).
+- The server checks the sender is a player with a character (spectators cannot spend the household budget), a per-player rate limit (4 burst, 1/s), the request shape and value ranges (coordinates inside the grid, rotation 0–3, known catalog id).
+- The public lot snapshot (items with price and purchase time, budget; no ledger or player names) goes to all players after each change and to a new player right after the welcome. Clients sanitise it before rebuilding nodes.
+- Smart-object order is default furniture followed by purchased items by ascending uid, so object indices in player commands match on server and clients.
+
+
+## Slander across players (23 Nov 2026)
+
+- `_c2s_slander_verdict(vid, choice)` – any peer; the sender comes from the transport only. The server checks: registered player, shared command token bucket, the peer currently controls a character, `vid` is an `int`, `choice` is a `String` from `believe` / `dismiss` / `tell`, and the verdict belongs to that peer's character (a guessed `vid` of another character is rejected with `owner`). `default` can only be applied by the server (expiry, overflow, character leaving).
+- `_s2c_slander_pending(items)` – authority only, sent only to the listener's owner and only when the list changes (checked every 0.5 s; the host's own list is updated locally). Items are `[vid, author first name, rival first name, rumour line]`; the client sanitises the packet (types, at most 8 items, control/bidi characters removed, length limits). No relationship numbers or psyche data are sent.
+- Private notices go only to the listener's owner (and, after *tell*, to the victim's owner).
+- The victim cap and slander gates are enforced on the server for both player commands and AI decisions.
+
+### Door locks (B4b, 24 November 2026)
+
+- Lot action `lock` with arguments `[oid, lock]` through the existing `_c2s_lot` RPC. The server validates the
+  types, the lock string (`""`, `"*"` or a valid node name without control, bidi or zero-width characters, at most
+  64 characters) and applies both the general lot rate limit and the stricter builder limit (the check runs BFS).
+- Key rules: a client may lock a door only for **its own** character or for everybody. A personal lock of another
+  character can only be changed by that character's player while the character has a player (connected or held
+  for reconnection); a lock of a character without a player (left for good, AI-controlled) or of a deleted
+  character can be cleared by anyone in the household, so an abandoned lock cannot block the house forever.
+  Otherwise the remaining options are knocking, waiting or demolishing the door (which costs household money).
+  Spectators cannot lock. Offline, the player controls the whole household and may set any lock.
+- The lock is part of the public lot snapshot (7th element of each opening; v3 servers send 6). Clients re-validate
+  it (valid lock string, doors only, at most 16 locks) and the door leaf/lamp follow it locally.
+
+### Careers (K1, 24 November 2026)
+Career commands (`work_shift`, `work_hard`, `work_slack`, `work_scheme`, `call_in_sick`, `job_search`, `quit_job`) carry `career: true` and are validated by the server via `main.career_command_block` (schedule window, employment, sick/worked today, a running promotion contest for scheming, unemployment and cooldown for job search) after the usual ownership and rate-limit checks. Career data never leaves the server. A character at work has posture `away`; its node is parked below the world and client puppets hide. Wages are added to the shared lot budget and broadcast with the public lot snapshot. Scheming against another player's character is only possible inside a promotion contest between characters of the same track and level, and the harm is capped to once per victim per day. See [careers.md](careers.md).

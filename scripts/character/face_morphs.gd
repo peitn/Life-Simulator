@@ -21,7 +21,10 @@ const Schema := preload("res://scripts/character/character_schema.gd")
 ## (běh 9): jen tyto přesahovaly ~2 mm. Ostatní dvojice se sčítají lineárně s chybou < 1,3 mm.
 ## Běh 18 (delší oční štěrbina, C3+ B): vzdálenost × hloubka očí 2,9 mm (široko posazené vystouplé oči – vnější
 ## prstenec víček se opírá o zakřivení spánku) → třetí dvojice; ostatní dvojice morfů očí, obočí a lící ≤ 2,0 mm.
-const CORRECTIVE_PAIRS := [["nose_length", "nose_bridge"], ["nose_length", "nose_tip"], ["eye_distance", "eye_depth"]]
+## Běh main-claude-1794381713: + délka nosu × úhel špičky – oba posouvají spodinu nosu (sub_y), nosní dírky
+## jsou úzké prohlubně, a bez korekce se při kombinaci extrémů lineární míchání rozjíždělo o ~6 mm.
+const CORRECTIVE_PAIRS := [["nose_length", "nose_bridge"], ["nose_length", "nose_tip"], ["eye_distance", "eye_depth"],
+	["nose_length", "nose_tip_angle"]]
 
 ## Klíče hlavy řízené tělem (BodyMorphs.weights) – jen nárůst; hubnutí obličej nemění (hlava je štíhlá v základu).
 const BODY_LINKS := {"b_fat": "fat_hi", "b_muscle": "muscle_hi"}

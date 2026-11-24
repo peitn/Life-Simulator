@@ -49,6 +49,14 @@ const KINDS := {
 		"self": "o lidech mluvím za zády", "line": "Dej si bacha na: %s. Prý o tobě mluví za zády."},
 	"steals": {"sev": 0.6, "neg": true, "content": "", "about_listener": false, "fab": true,
 		"self": "beru ostatním věci", "line": "Prý %s bral{g} ostatním věci. Ale ode mě to nemáš."},
+	# Nevěra (Infidelity): whom = s kým. Drb k partnerovi subjektu zvedá podezření (main._apply_gossip_event).
+	"cheating": {"sev": 0.65, "neg": true, "content": "", "about_listener": false, "fab": false,
+		"self": "zahýbám", "line": "Ty jo, víš, že %s zahýbá? Fakt nehezký."},
+	"flirting": {"sev": 0.3, "neg": true, "content": "", "about_listener": false, "fab": false,
+		"self": "flirtuju, i když s někým jsem", "line": "%s flirtoval{g} s někým jiným. A to s někým chodí, ne?"},
+	# Rozchod: novinka (news) – šíří se, ale vztah posluchače k subjektu nemění.
+	"breakup": {"sev": 0.2, "neg": false, "news": true, "content": "", "about_listener": false, "fab": false,
+		"self": "jsem se rozešel{g}", "line": "Slyšels? %s to prý skončil{g}. Ze dne na den."},
 }
 const MAX_RUMORS := 160
 const MAX_KNOWN := 40
@@ -74,6 +82,12 @@ const EXPOSE_SEV := 12.0
 ## Podezřelí (od koho drb šel): platnost a limit na subjekt.
 const MAX_SUSPECTS := 8
 const SUSPECT_TTL_MIN := 14.0 * 1440.0
+## Přiznání: obviněný drb odvolá nejvýš u tolika POSLEDNÍCH posluchačů – jedno přiznání nesmaže celou síť
+## (lidé, kterým to řekl dávno, už to šířili dál; review Grok #430).
+const RETRACT_MAX := 5
+## Popření: každý další nezávislý zdroj, od kterého to posluchač slyšel, účinek popření tlumí
+## (sociální důkaz – „říkají to tři lidi“; review Grok #430). Účinek = základ / (1 + SOURCE_DAMP·(zdroje−1)).
+const DENY_SOURCE_DAMP := 0.5
 const STAT_KEYS := ["observed", "fabricated", "shared", "exposed", "debunked", "forgotten", "confronted", "retracted", "denied"]
 
 var rng := RandomNumberGenerator.new()
@@ -355,6 +369,102 @@ func share(teller: Dictionary, listener: Dictionary, now: float, content: Dictio
 	return [_transmit(best_rid, teller, listener, now, fabricated)]
 
 
+## Úmyslná pomluva soka (scripts/sim/rivalry.gd): `teller` řekne `listener`ovi něco na konkrétní osobu
+## `subject`. Žádný hod kostkou – rozhodnutí pomlouvat padlo už výběrem akce (AI nebo hráč).
+## 1) Co už ví: záporný drb o subjektu (víra >= SHARE_MIN_BELIEF, druh povolený nastavením obsahu, posluchači
+##    ho ještě neřekl). Přednost má PRAVDA („zbraň z pravdy“ – nedá se vyvrátit), pak kolující drby včetně
+##    vlastního dřívějšího výmyslu; mezi nimi rozhoduje závažnost × víra.
+## 2) Jinak výmysl s původcem = vypravěč: „mluví o tobě za zády“, když má posluchač subjekt rád (klín mezi
+##    ně), jinak „bere ostatním věci“. Tím funguje existující řetěz odhalení a konfrontace.
+## Vrací [] nebo [událost "shared"] (jako share); dopady aplikuje volající (main.rivalry_slander).
+func slander(teller: Dictionary, listener: Dictionary, subject: String, now: float, content: Dictionary, facts := {}) -> Array:
+	var tk := String(teller.get("key", ""))
+	var lk := String(listener.get("key", ""))
+	if not _key_ok(tk) or not _key_ok(lk) or not _key_ok(subject) or tk == lk or subject == tk \
+			or subject == lk or not is_finite(now):
+		return []
+	var best_rid := 0
+	var best_w := 0.0
+	var mine: Dictionary = know.get(tk, {})
+	var ids: Array = mine.keys()
+	ids.sort()
+	for rid in ids:
+		var r: Dictionary = rumors.get(rid, {})
+		if r.is_empty() or String(r["subject"]) != subject:
+			continue
+		var kd: Dictionary = KINDS[r["kind"]]
+		if not bool(kd["neg"]) or bool(kd.get("news", false)) or not content_ok(String(r["kind"]), content):
+			continue
+		if bool(kd["about_listener"]) and String(r["whom"]) != lk:
+			continue
+		var e: Dictionary = mine[rid]
+		if float(e["belief"]) < SHARE_MIN_BELIEF or (e["told"] as Array).has(lk):
+			continue
+		# Pravda má přednost (nedá se vyvrátit); mezi stejně pravdivými rozhoduje závažnost × víra.
+		var w := float(e["sev"]) * float(e["belief"]) + (1.0 if bool(r["truth"]) else 0.0)
+		if w > best_w:
+			best_w = w
+			best_rid = int(rid)
+	var fabricated := false
+	if best_rid == 0:
+		var lrel: Dictionary = listener.get("rel", {}) if typeof(listener.get("rel")) == TYPE_DICTIONARY else {}
+		var kind := "badmouth" if _f(lrel.get(subject, 0.0)) >= 20.0 else "steals"
+		var truth := false
+		if kind == "badmouth":
+			var fr: Dictionary = facts.get("rel", {}) if typeof(facts.get("rel")) == TYPE_DICTIONARY else {}
+			var srow = fr.get(subject, {})
+			truth = typeof(srow) == TYPE_DICTIONARY and _f(srow.get(lk, 0.0)) < -25.0
+		var sev := float(KINDS[kind]["sev"])
+		best_rid = _new_rumor(subject, kind, truth, tk, sev, now, lk if kind == "badmouth" else "")
+		if best_rid == 0:
+			return []
+		var own := _knows(tk)
+		own[best_rid] = _entry(1.0, "", now, sev, 0.0)
+		own[best_rid]["applied"] = 1.0
+		_trim_known(tk)
+		fabricated = true
+		stats["fabricated"] = int(stats["fabricated"]) + 1
+	return [_transmit(best_rid, teller, listener, now, fabricated)]
+
+
+## Posluchač pomluvu prokoukl / zapochyboval: víra v drb se tlumí (× factor 0..1). Vrací novou víru.
+func doubt(listener: String, rid: int, factor: float) -> float:
+	var e: Dictionary = know.get(listener, {}).get(rid, {})
+	if e.is_empty():
+		return 0.0
+	e["belief"] = clampf(float(e["belief"]) * clampf(factor, 0.0, 1.0), 0.0, 1.0)
+	return float(e["belief"])
+
+
+## Posluchač, který pomluvu prokoukl, to řekne oběti: „Hele, X o tobě vykládá…“. Oběť se dozví zdroj
+## (podezřelí → konfrontace), drb se počítá jako odhalený. Vrací [] nebo [událost "exposed"] (jako expose).
+func report_slander(informer: String, subject: String, source: String, rid: int, now: float) -> Array:
+	if not _key_ok(informer) or not _key_ok(subject) or not _key_ok(source) or not rumors.has(rid) \
+			or informer == subject or source == subject or not is_finite(now):
+		return []
+	var r: Dictionary = rumors[rid]
+	if String(r["subject"]) != subject:
+		return []
+	if not exposed.has(subject):
+		if exposed.size() >= MAX_KNOWERS:
+			return []
+		exposed[subject] = {}
+	exposed[subject][rid] = now
+	if exposed[subject].size() > MAX_KNOWN:
+		var ks: Array = exposed[subject].keys()
+		ks.sort()
+		exposed[subject].erase(ks[0])
+	stats["exposed"] = int(stats["exposed"]) + 1
+	_add_suspect(subject, source, rid, now)
+	var sev := float(r["sev"])
+	var delta_source := -(EXPOSE_BASE + EXPOSE_SEV * sev)
+	if bool(r["truth"]):
+		delta_source *= 0.7
+	return [{"type": "exposed", "informer": informer, "subject": subject, "rid": rid, "kind": String(r["kind"]),
+		"source": source, "origin_known": source == String(r["origin"]), "truth": bool(r["truth"]),
+		"sev": sev, "delta_source": delta_source, "delta_informer": 3.0}]
+
+
 func _transmit(rid: int, teller: Dictionary, listener: Dictionary, now: float, fabricated: bool) -> Dictionary:
 	var tk := String(teller["key"])
 	var lk := String(listener["key"])
@@ -420,6 +530,8 @@ static func _impact(kind: String, weight: float, rel_ls: float, stigma: float) -
 	if weight <= 0.0:
 		return 0.0
 	var d := 0.0
+	if bool(KINDS[kind].get("news", false)):
+		return 0.0  # novinka (rozchod) není prohřešek ani zásluha
 	if kind == "panic":
 		# Nemoc není prohřešek: hůř si myslí jen stigmatizující posluchač.
 		d = -NEG_IMPACT * weight * stigma
@@ -943,7 +1055,9 @@ func confront(subject: Dictionary, accused: Dictionary, now: float) -> Dictionar
 			# Obviněný to odvolá u lidí, kterým to řekl: lež ztratí víc než pravda.
 			if know.has(ak) and know[ak].has(rid):
 				var te: Dictionary = know[ak][rid]
-				for lk in te["told"]:
+				var told_list: Array = te["told"]
+				for i in range(told_list.size() - 1, maxi(told_list.size() - RETRACT_MAX, 0) - 1, -1):
+					var lk := String(told_list[i])
 					if know.has(lk) and know[lk].has(rid):
 						var e: Dictionary = know[lk][rid]
 						var before := float(e["belief"])
@@ -971,7 +1085,8 @@ func confront(subject: Dictionary, accused: Dictionary, now: float) -> Dictionar
 ## `subject` popírá před `listener`em záporné drby o sobě (ten nejsilnější, kterému posluchač věří).
 ## Subjekt neví, co posluchač ví – může narazit. Výsledky: nothing (posluchač nic neví), believed /
 ## doubted (víra klesla pod / zůstala nad hranicí šíření), caught (pravdu, kterou posluchač viděl sám,
-## popřít nejde → „lže mi do očí“). Jednou denně na dvojici. Vrací {} nebo událost {type "deny", subject,
+## popřít nejde → „lže mi do očí“). Jednou denně na dvojici. Víc nezávislých zdrojů = menší účinek; původce
+## lži popření nezmění. Vrací {} nebo událost {type "deny", subject,
 ## listener, rid, kind, outcome, truth, belief, delta_rel (posluchač → subjekt; návrat části dopadu)}.
 func deny(subject: Dictionary, listener: Dictionary, now: float, content: Dictionary) -> Dictionary:
 	var sk := String(subject.get("key", ""))
@@ -992,6 +1107,9 @@ func deny(subject: Dictionary, listener: Dictionary, now: float, content: Dictio
 		var r: Dictionary = rumors.get(rid, {})
 		if r.is_empty() or r["subject"] != sk or not bool(KINDS[r["kind"]]["neg"]) or not content_ok(String(r["kind"]), content):
 			continue
+		# Kdo lež sám vymyslel, ví, že je to lež – popření ho nijak nezmění (dělá, že nic neví).
+		if String(r["origin"]) == lk and not bool(r["truth"]):
+			continue
 		var e: Dictionary = mine[rid]
 		var w := float(e["belief"]) * float(e["sev"])
 		if float(e["belief"]) >= FORGET_BELIEF and w > pw:
@@ -1008,13 +1126,20 @@ func deny(subject: Dictionary, listener: Dictionary, now: float, content: Dictio
 	if truth and String(e2["from"]) == "":
 		base["outcome"] = "caught"
 		base["belief"] = float(e2["belief"])
-		base["delta_rel"] = -4.0
+		var pen := -4.0
+		if String(r2["kind"]) == "panic":
+			# Zapírat vlastní ataku je pochopitelné (stud, stigma) – nestigmatizující svědek to nebere jako lež
+			# do očí; ochladí to jen stigmatizujícího (audit Gemini 10. 11.).
+			pen *= clampf(_f(listener.get("stigma"), 0.0), 0.0, 1.0)
+		base["delta_rel"] = pen
 		stats["denied"] = int(stats.get("denied", 0)) + 1
 		return base
 	var lrel: Dictionary = listener.get("rel", {}) if typeof(listener.get("rel")) == TYPE_DICTIONARY else {}
 	var trust := clampf(0.4 + _f(lrel.get(sk, 0.0)) / 150.0, 0.1, 0.9)
 	var before := float(e2["belief"])
-	e2["belief"] = before * (1.0 - (0.6 if not truth else 0.25) * trust)
+	var n_src := maxi((e2["sources"] as Array).size(), 1)
+	var proof := 1.0 / (1.0 + DENY_SOURCE_DAMP * float(n_src - 1))
+	e2["belief"] = before * (1.0 - (0.6 if not truth else 0.25) * trust * proof)
 	# Část dopadu na vztah se vrátí (úměrně tomu, o kolik víra klesla pod už promítnutou úroveň).
 	var applied := float(e2["applied"])
 	var back := maxf(applied - float(e2["belief"]), 0.0)

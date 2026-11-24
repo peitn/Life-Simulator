@@ -1,0 +1,17 @@
+@@@FILE res://scripts/ui/buy_mode.gd
+@@@OLD
+			KEY_V:
+				set_open_tool("" if open_kind == "door" else "door")
+@@@NEW
+			KEY_V:
+				set_open_tool("" if open_kind == "door" else "door")
+			KEY_L:
+				# B4b: L zamkne vybrané dveře pro mou postavu / odemkne; Shift+L pro všechny.
+				if selected_oid != 0:
+					lock_selected("all" if event.shift_pressed else "toggle")
+@@@END
+@@@OLD
+	v.add_child(_label("Myš/Enter postavit · R otočit · klik na věc vybrat · Del prodat · M přesunout · T zeď · V dveře · O okno · Esc zavřít", 13, C_DIM))
+@@@NEW
+	v.add_child(_label("Myš/Enter postavit · R otočit · klik na věc vybrat · Del prodat · M přesunout · T zeď · V dveře · O okno · L zámek · Esc zavřít", 13, C_DIM))
+@@@END

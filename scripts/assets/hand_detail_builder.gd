@@ -146,6 +146,17 @@ static func _finger(skin: Dictionary, nail: Dictionary,
 
 ## A genuine compatible array mesh, with ten nearest-skin interpolated body
 ## delta fields; no new server schema and zero morph after default snapshot.
+##
+## C-LOD step 7 (18 Nov 2026): targets are ABSOLUTE (rest + delta) in
+## BLEND_SHAPE_MODE_NORMALIZED, like every other character mesh. The previous
+## RELATIVE encoding stored *delta* normals, but Godot stores blend-shape normals
+## octahedrally (always unit length) and the skinning shader computes
+## normalize(n + Σ w·unit(target_n)) in RELATIVE mode: a zero normal delta
+## decoded as (0,0,-1), so body morphs tilted finger/foot/torso normals by
+## ~50–78° on average on the GPU (tools/diag_procedural_blend.gd). With absolute
+## targets the shader computes normalize((1-Σw)·n + Σ w·target_n): body morphs
+## keep the base normal exactly, curls blend towards the rotated normal.
+## Positions are identical to the old encoding (rest + Σ w·delta).
 static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
         source_blends: Array, region: String = "hand") -> ArrayMesh:
     var vertices: PackedVector3Array=dst["vertices"]
@@ -153,9 +164,8 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
     if n<3:
         return null
     var output:=ArrayMesh.new()
-    # The source model uses normalized absolute targets; this new procedural
-    # mesh uses additive RELATIVE deltas, including the ten body keys.
-    output.blend_shape_mode=Mesh.BLEND_SHAPE_MODE_RELATIVE
+    # Same convention as the source model: normalized absolute targets.
+    output.blend_shape_mode=Mesh.BLEND_SHAPE_MODE_NORMALIZED
     for j in source.get_blend_shape_count():
         output.add_blend_shape(source.get_blend_shape_name(j))
     if region == "hand":
@@ -176,6 +186,7 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
     arrays[Mesh.ARRAY_BONES]=dst["bones"]
     arrays[Mesh.ARRAY_WEIGHTS]=dst["weights"]
     arrays[Mesh.ARRAY_INDEX]=dst["indices"]
+    var base_normals:PackedVector3Array=dst["normals"]
     var target_coords: Array=[]
     for j in source_blends.size():
         target_coords.append(PackedVector3Array())
@@ -235,53 +246,49 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
                 var vert_index:int=int(near[k][1])
                 delta+=(target[vert_index]-original[vert_index])*float(ws[k])/wtotal
             var target_points: PackedVector3Array = target_coords[target_id]
-            # Relative blend shapes encode displacement, not absolute positions.
-            target_points.append(delta)
+            # Absolute target = rest position + interpolated body displacement.
+            target_points.append(vtx+delta)
             target_coords[target_id] = target_points
     var morphs:Array=[]
     for target_id in target_coords.size():
         var shaped:Array=[]
         shaped.resize(Mesh.ARRAY_MAX)
         shaped[Mesh.ARRAY_VERTEX]=target_coords[target_id]
-        var neutral_normals:=PackedVector3Array()
-        neutral_normals.resize(n)
-        shaped[Mesh.ARRAY_NORMAL]=neutral_normals
+        # Body morphs keep the procedural normal (absolute target = base
+        # normal), so the shader leaves it unchanged for any weights.
+        shaped[Mesh.ARRAY_NORMAL]=base_normals.duplicate()
         morphs.append(shaped)
     if region == "hand":
         var chunk_size:int=SKIN_PER_DIGIT if n==DIGIT_COUNT*SKIN_PER_DIGIT else NAIL_PER_DIGIT
-        var base_normals:PackedVector3Array=dst["normals"]
         for digit in DIGIT_COUNT:
-            var shape_vertices:=PackedVector3Array()
-            shape_vertices.resize(n)
-            var shape_normals:=PackedVector3Array()
-            shape_normals.resize(n)
+            # Unaffected vertices keep rest position and normal (absolute targets).
+            var shape_vertices:=vertices.duplicate()
+            var shape_normals:=base_normals.duplicate()
             var start:int=digit*chunk_size
             for k in chunk_size:
                 var idx:int=start+k
                 var result:Dictionary=curl_geometry(vertices[idx],base_normals[idx],digit)
-                shape_vertices[idx]=(result["position"] as Vector3)-vertices[idx]
-                shape_normals[idx]=(result["normal"] as Vector3)-base_normals[idx]
+                shape_vertices[idx]=result["position"] as Vector3
+                shape_normals[idx]=result["normal"] as Vector3
             var shape:Array=[]
             shape.resize(Mesh.ARRAY_MAX)
             shape[Mesh.ARRAY_VERTEX]=shape_vertices
             shape[Mesh.ARRAY_NORMAL]=shape_normals
             morphs.append(shape)
         # Two separately weighted knuckle-like hinge regions per digit.
-        # These blend deltas are independent edit channels, not true
+        # These blend targets are independent edit channels, not true
         # collision-detecting phalange bones. Same topology for skin+nails.
         for digit in DIGIT_COUNT:
             for segment in ["proximal","distal"]:
-                var segment_vertices := PackedVector3Array()
-                segment_vertices.resize(n)
-                var segment_normals := PackedVector3Array()
-                segment_normals.resize(n)
+                var segment_vertices:=vertices.duplicate()
+                var segment_normals:=base_normals.duplicate()
                 var start:int=digit*chunk_size
                 for k in chunk_size:
                     var idx:int=start+k
                     var result:Dictionary=joint_geometry(
                         vertices[idx],base_normals[idx],digit,segment)
-                    segment_vertices[idx]=(result["position"] as Vector3)-vertices[idx]
-                    segment_normals[idx]=(result["normal"] as Vector3)-base_normals[idx]
+                    segment_vertices[idx]=result["position"] as Vector3
+                    segment_normals[idx]=result["normal"] as Vector3
                 var segment_shape:Array=[]
                 segment_shape.resize(Mesh.ARRAY_MAX)
                 segment_shape[Mesh.ARRAY_VERTEX]=segment_vertices
@@ -299,6 +306,20 @@ static func _bake(dst: Dictionary, source: Mesh, original: PackedVector3Array,
     output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays,morphs,{},
         Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
     return output
+
+## Displacement of vertex `i` in blend shape `shape` of `mesh`: target − rest for
+## NORMALIZED absolute targets, the stored value for RELATIVE deltas. Tests and
+## tools use it so they do not depend on the storage convention.
+static func morph_delta(mesh: Mesh, shape: int, i: int) -> Vector3:
+    if mesh == null or mesh.get_surface_count() == 0 or shape < 0 or shape >= mesh.get_blend_shape_count():
+        return Vector3.ZERO
+    var target: PackedVector3Array = mesh.surface_get_blend_shape_arrays(0)[shape][Mesh.ARRAY_VERTEX]
+    if i < 0 or i >= target.size():
+        return Vector3.ZERO
+    if mesh.blend_shape_mode == Mesh.BLEND_SHAPE_MODE_RELATIVE:
+        return target[i]
+    var rest: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+    return target[i] - rest[i]
 
 ## C14 paired independent visual hinges for real GPU skin and nail meshes.
 static func joint_key(digit:int, segment:String) -> StringName:

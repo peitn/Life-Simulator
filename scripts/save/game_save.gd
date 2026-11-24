@@ -9,6 +9,7 @@ const IntimacyState := preload("res://scripts/sim/intimacy_state.gd")
 const PsycheExt := preload("res://scripts/sim/psyche_ext.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const GossipNetwork := preload("res://scripts/sim/gossip_network.gd")
+const LotGrid := preload("res://scripts/world/lot_grid.gd")
 const VERSION := 1
 const MAGIC := "LS-HOUSEHOLD"
 const MAX_BYTES := 8 * 1024 * 1024
@@ -116,7 +117,10 @@ static func capture(world: Node, allow_authority: bool = false, max_sims: int = 
 			"witnessed_episode": sim._witnessed_episode,
 			"last_coping_result": sim.last_coping_result.duplicate(true),
 			"last_experience": sim.last_experience.duplicate(true),
-			"last_apology": sim.last_apology.duplicate(true)
+			"last_apology": sim.last_apology.duplicate(true),
+			# K1: postava v práci – návratový bod (poloha uzlu je zaparkovaná pod světem).
+			"away": bool(sim.get("away")),
+			"away_return": sim.away_return if typeof(sim.get("away_return")) == TYPE_VECTOR3 else Vector3.ZERO
 		}
 		out.append({"node": key, "character": world._character_records[key].to_dict(),
 			"revision": int(world._character_revisions.get(key, 0)), "state": state})
@@ -136,7 +140,12 @@ static func capture(world: Node, allow_authority: bool = false, max_sims: int = 
 		"prev_acting": d._prev_acting.duplicate(true),
 		"friction_day": d._friction_day.duplicate(true),
 		"morning": d._morning.duplicate(true), "cooked": d._cooked.duplicate(true),
-		"stats": d.stats.duplicate(true)
+		"stats": d.stats.duplicate(true),
+		"cold_war": d.cold_war.to_dict() if d.get("cold_war") != null else {},
+		"romance": d.romance.to_dict() if d.get("romance") != null else {},
+		"infidelity": d.infidelity.to_dict() if d.get("infidelity") != null else {},
+		"rivalry": d.rivalry.to_dict() if d.get("rivalry") != null else {},
+		"career": d.career.to_dict() if d.get("career") != null else {}
 	}
 	var data := {
 		"version": VERSION,
@@ -150,6 +159,9 @@ static func capture(world: Node, allow_authority: bool = false, max_sims: int = 
 	# Most ekonomika -> psychika (volitelný; sekce existuje jen když je zapnutý, jinak formát zůstává beze změny).
 	if d.economy_bridge != null:
 		data["economy"] = d.economy_bridge.to_dict()
+	# Parcela (B1): koupené předměty a rozpočet domácnosti. Starší save sekci nemá → výchozí parcela.
+	if world.get("lot") != null:
+		data["lot"] = world.lot.to_dict()
 	return {"ok": true, "data": data}
 
 
@@ -261,6 +273,8 @@ static func validate_data(data: Variant, world: Node = null, max_sims: int = MAX
 			return {"ok": false, "reason": "bad_cooldown"}
 	if data.has("gossip") and not GossipNetwork.validate_snapshot(data["gossip"]):
 		return {"ok": false, "reason": "bad_gossip"}
+	if data.has("lot") and LotGrid.validate_snapshot(data["lot"]) != "":
+		return {"ok": false, "reason": "bad_lot"}
 	var objs = data.get("objects")
 	if typeof(objs) != TYPE_ARRAY or typeof(data.get("dynamics")) != TYPE_DICTIONARY:
 		return {"ok": false, "reason": "bad_environment"}
@@ -280,13 +294,26 @@ static func validate_data(data: Variant, world: Node = null, max_sims: int = MAX
 			if typeof(name) != TYPE_STRING or not nodes.has(name):
 				return {"ok": false, "reason": "bad_reservation"}
 	if world != null:
-		if objs.size() != world.smart_objects.size():
+		# Očekávané objekty = výchozí nábytek + předměty, které obnova parcely skutečně postaví (B1).
+		var exp_tags: Array = []
+		var exp_caps: Array = []
+		if world.has_method("lot_expected_tags"):
+			var ex: Dictionary = world.lot_expected_tags(data.get("lot", {}))
+			if not bool(ex["ok"]):
+				return {"ok": false, "reason": "bad_lot"}
+			exp_tags = ex["tags"]
+			exp_caps = ex["caps"]
+		else:
+			for o in world.smart_objects:
+				exp_tags.append(String(o.object_tag))
+				exp_caps.append(int(o.capacity))
+		if objs.size() != exp_tags.size():
 			return {"ok": false, "reason": "changed_lot"}
 		for i in objs.size():
-			if typeof(objs[i]) != TYPE_DICTIONARY or String(objs[i].get("tag", "")) != String(world.smart_objects[i].object_tag):
+			if typeof(objs[i]) != TYPE_DICTIONARY or String(objs[i].get("tag", "")) != String(exp_tags[i]):
 				return {"ok": false, "reason": "changed_lot"}
 			var occupants = objs[i].get("users")
-			if typeof(occupants) != TYPE_ARRAY or occupants.size() > world.smart_objects[i].capacity:
+			if typeof(occupants) != TYPE_ARRAY or occupants.size() > int(exp_caps[i]):
 				return {"ok": false, "reason": "bad_reservation"}
 			for person in occupants:
 				if typeof(person) != TYPE_STRING or not nodes.has(person):
@@ -325,6 +352,11 @@ static func _restore_state(world: Node, sim: Node, data: Dictionary) -> void:
 	sim.walk_elapsed = float(data.get("walk_elapsed", 0.0))
 	sim.think_cooldown = float(data.get("think_cooldown", 1.0))
 	sim.last_action_id = String(data.get("last_action_id", ""))
+	# K1: uložená během směny zůstane v práci (návrat po směně); jinak se nikdy neobnoví „pod světem“.
+	if sim.has_method("restore_away"):
+		var fb: Vector3 = world.work_exit().global_position if world.has_method("work_exit") else Vector3(0.0, 0.0, 12.0)
+		var aw = data.get("away", false)
+		sim.restore_away(typeof(aw) == TYPE_BOOL and bool(aw), data.get("away_return"), fb)
 	for field in ["action_counts", "relationships", "last_talk", "last_tag_time", "insulted_by", "pending_complaints",
 			"last_coping_result", "last_experience", "last_apology"]:
 		if typeof(data.get(field)) == TYPE_DICTIONARY:
@@ -385,6 +417,11 @@ static func apply(world: Node, data: Variant, allow_authority: bool = false, max
 		world.gossip = GossipNetwork.new()
 		if data.has("gossip"):
 			world.gossip.from_dict(data["gossip"])
+	# Parcela před postavami: rezervace objektů (druhý průchod) indexují smart_objects včetně koupených.
+	if world.has_method("lot_restore"):
+		var lr: Dictionary = world.lot_restore(data.get("lot", {}))
+		if not bool(lr.get("ok", false)):
+			push_warning("Parcelu se nepodařilo obnovit: " + String(lr.get("reason", "")))
 	for item in data["sims"]:
 		var st: Dictionary = item["state"]
 		var created = world.spawn_character(CharacterCodec.migrate(item["character"])["data"], st["position"], int(st.get("seed", 1)), String(item["node"]))
@@ -409,6 +446,18 @@ static func apply(world: Node, data: Variant, allow_authority: bool = false, max
 		var key: String = pair[0]
 		if dy.has(key):
 			world.dynamics.set(pair[1], dy[key].duplicate(true) if typeof(dy[key]) in [TYPE_ARRAY, TYPE_DICTIONARY] else dy[key])
+	# Dusno/studená válka (starší uložené hry sekci nemají → začíná se bez napětí; from_dict sanitizuje).
+	world.dynamics.cold_war.from_dict(dy.get("cold_war", {}))
+	# Romantické vztahy (starší save bez sekce → nikdo s nikým nechodí; from_dict sanitizuje a vynutí monogamii).
+	world.dynamics.romance.from_dict(dy.get("romance", {}))
+	# Nevěra a podezření (starší save bez sekce → žádné románky ani podezření; from_dict sanitizuje).
+	world.dynamics.infidelity.from_dict(dy.get("infidelity", {}))
+	# Rivalita a pomluvy (starší save bez sekce → žádní soci; budoucí verze sekce se zahodí; from_dict sanitizuje).
+	if world.dynamics.get("rivalry") != null:
+		world.dynamics.rivalry.from_dict(dy.get("rivalry", {}))
+	# Práce (K1; starší save bez sekce → postavy se zaregistrují znovu podle příběhu; budoucí verze se zahodí).
+	if world.dynamics.get("career") != null:
+		world.dynamics.career.from_dict(dy.get("career", {}))
 	world.clock.total_minutes = float(data["clock"]["total_minutes"])
 	world.clock._last_hour = world.clock.get_hour()
 	world.clock._last_day = world.clock.get_day()

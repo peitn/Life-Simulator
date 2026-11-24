@@ -1,0 +1,704 @@
+@@@FILE res://scripts/world/lot_grid.gd
+@@@OLD
+## (wall_traps → "traps_sim", volá main.lot_apply_action s polohami postav).
+@@@NEW
+## (wall_traps → "traps_sim", volá main.lot_apply_action s polohami postav).
+##
+## DVEŘE A OKNA (B4, 23. 11. 2026, formát v3): otvor = atribut stěny {oid, wid, kind, at, built_at, paid};
+## at = posun v buňkách od normalizovaného začátku stěny (x0, z0), šířka podle druhu (OPENINGS). Pravidla (check_opening):
+##   * stěna existuje; nejméně OPENING_EDGE buňka plné zdi od obou konců (ostění), mezi otvory OPENING_GAP;
+##   * v rozsahu otvoru se do stěny nenapojuje jiná stěna (T-spoj/roh) – a nová stěna se nesmí napojit do otvoru;
+##   * dveře nesmí vést do nábytku, zdi domu ani jiné statické překážky (DOOR_DEPTH buněk na obě strany);
+##   * nejvýš MAX_OPENINGS otvorů na parcelu.
+## Dveře jsou PRŮCHOZÍ: hrany v jejich rozsahu se v BFS/pathfinderu neblokují a LotNav pracuje s plnými úseky
+## stěny (wall_segments). Okna průchozí nejsou, dávají atmosféru (světlo, výhled). Pevný předmět nesmí stát
+## v prostoru dveří ("blocks_door"; koberec smí). Vybourání dveří = jako stavba stěny: nesmí odříznout cestu
+## (door_close_seals → "seals_off") ani zazdít postavu (opening_traps → "traps_sim", volá main). Zbourání stěny
+## odstraní i její otvory (vratky podle stejného pravidla 24 h). Uzavřenou místnost lze postavit tak, že se dveře
+## osadí dřív, než poslední stěna místnost uzavře.
+@@@OLD
+const VERSION := 2
+@@@NEW
+const VERSION := 3
+@@@OLD
+const WALL_CLEAR := 0.02
+@@@NEW
+const WALL_CLEAR := 0.02
+## Otvory ve stěnách (B4): šířka v buňkách, cena, průchozí, parapet a nadpraží (vizuál, m), atmosféra.
+const OPENINGS := {
+	"door": {"name": "Dveře", "cells": 4, "price": 420, "pass": true, "sill": 0.0, "head": 2.05, "appeal": 0.0},
+	"window": {"name": "Okno", "cells": 4, "price": 360, "pass": false, "sill": 0.9, "head": 2.1, "appeal": 1.5},
+	"window_wide": {"name": "Široké okno", "cells": 6, "price": 540, "pass": false, "sill": 0.6, "head": 2.2, "appeal": 2.5},
+}
+const OPENING_ORDER := ["door", "window", "window_wide"]
+const MAX_OPENINGS := 64
+## Plná zeď od konce stěny k otvoru a mezi dvěma otvory (buňky).
+const OPENING_EDGE := 1
+const OPENING_GAP := 1
+## Prostor dveří: kolik buněk na každou stranu musí zůstat bez pevného nábytku a statických překážek.
+const DOOR_DEPTH := 2
+@@@OLD
+	"traps_sim": "Zeď by někoho zazdila.",
+}
+@@@NEW
+	"traps_sim": "Zeď by někoho zazdila.",
+	"opening_bad": "Neplatné dveře nebo okno.",
+	"opening_edge": "Otvor potřebuje kus zdi po obou stranách (aspoň 0,25 m).",
+	"opening_overlap": "Otvory jsou moc blízko u sebe.",
+	"opening_junction": "Tady se do zdi napojuje jiná zeď.",
+	"opening_limit": "Na parcele je už moc dveří a oken.",
+	"door_blocked": "Dveře by vedly do nábytku nebo do zdi.",
+	"blocks_door": "Zatarasilo by to dveře.",
+	"unknown_oid": "Ty dveře nebo okno už neexistují.",
+	"wall_at_opening": "Zeď nejde napojit do dveří nebo okna.",
+	"door_traps": "Bez těch dveří by někdo zůstal zavřený.",
+}
+@@@OLD
+var _enter := PackedByteArray()
+@@@NEW
+var _enter := PackedByteArray()
+## Prostor dveří (B4): 1 = buňka, kde nesmí stát pevný předmět.
+var _door_side := PackedByteArray()
+@@@OLD
+var next_wid := 1
+@@@NEW
+var next_wid := 1
+## oid -> {"oid", "wid", "kind", "at", "built_at", "paid"} (B4).
+var openings: Dictionary = {}
+var next_oid := 1
+## Cache plných úseků stěn pro LotNav (klíč = revize + rozložení).
+var _seg_key := ""
+var _seg_cache: Dictionary = {}
+@@@OLD
+	_enter.fill(0)
+	_layout_serial += 1
+@@@NEW
+	_enter.fill(0)
+	_door_side = PackedByteArray()
+	_door_side.resize(n)
+	_door_side.fill(0)
+	_layout_serial += 1
+@@@OLD
+	var uids := items.keys()
+	uids.sort()
+	for uid in uids:
+		_stamp(items[uid])
+@@@NEW
+	var uids := items.keys()
+	uids.sort()
+	for uid in uids:
+		_stamp(items[uid])
+	_stamp_doors()
+@@@OLD
+			if _clear[i] != 0 and _clear[i] != ignore_uid:
+				return "blocks_access"
+@@@NEW
+			if _clear[i] != 0 and _clear[i] != ignore_uid:
+				return "blocks_access"
+			if _door_side[i] == 1:
+				return "blocks_door"
+@@@OLD
+	for wid in walls:
+		var w: Dictionary = walls[wid]
+		if int(w["x1"]) < ax or int(w["x0"]) > bx or int(w["z1"]) < az or int(w["z0"]) > bz:
+			continue
+		why = _geometry_reason(WallGeometry.validate([{"x0": int(w["x0"]), "z0": int(w["z0"]), "x1": int(w["x1"]), "z1": int(w["z1"])}, cand], gw, gh))
+		if why != "":
+			return why
+@@@NEW
+	for wid in walls:
+		var w: Dictionary = walls[wid]
+		if int(w["x1"]) < ax or int(w["x0"]) > bx or int(w["z1"]) < az or int(w["z0"]) > bz:
+			continue
+		why = _geometry_reason(WallGeometry.validate([{"x0": int(w["x0"]), "z0": int(w["z0"]), "x1": int(w["x1"]), "z1": int(w["z1"])}, cand], gw, gh))
+		if why != "":
+			return why
+	# B4: konec nové stěny nesmí ležet v rozsahu dveří nebo okna jiné stěny (napojení do otvoru).
+	for oid in openings:
+		var o: Dictionary = openings[oid]
+		if not walls.has(int(o["wid"])):
+			continue
+		var ow: Dictionary = walls[int(o["wid"])]
+		var oc := opening_cells(String(o["kind"]))
+		if _on_span(ow, int(o["at"]), oc, ax, az) or _on_span(ow, int(o["at"]), oc, bx, bz):
+			return "wall_at_opening"
+@@@OLD
+func _build_edges(extra: Dictionary) -> void:
+	_hedge = PackedByteArray()
+	_hedge.resize(gw * (gh + 1))
+	_hedge.fill(0)
+	_vedge = PackedByteArray()
+	_vedge.resize((gw + 1) * gh)
+	_vedge.fill(0)
+	for wid in walls:
+		_stamp_edges(walls[wid])
+	if not extra.is_empty():
+		_stamp_edges(extra)
+
+
+func _stamp_edges(w: Dictionary) -> void:
+	# Uložené stěny jsou normalizované; mini/maxi je pojistka pro budoucí volající (audit Gemini 22. 11.).
+	var x0 := mini(int(w["x0"]), int(w["x1"]))
+	var z0 := mini(int(w["z0"]), int(w["z1"]))
+	var x1 := maxi(int(w["x0"]), int(w["x1"]))
+	var z1 := maxi(int(w["z0"]), int(w["z1"]))
+	if z0 == z1:
+		for x in range(maxi(x0, 0), mini(x1, gw)):
+			_hedge[z0 * gw + x] = 1
+	else:
+		for z in range(maxi(z0, 0), mini(z1, gh)):
+			_vedge[z * (gw + 1) + x0] = 1
+@@@NEW
+## Hrany blokované stěnami. extra = zkušební stěna (bez otvorů); closed_oid = dveře, které se počítají jako
+## zazděné (kontrola vybourání dveří). Hrany v rozsahu dveří zůstanou průchozí (B4).
+func _build_edges(extra: Dictionary, closed_oid: int = 0) -> void:
+	_hedge = PackedByteArray()
+	_hedge.resize(gw * (gh + 1))
+	_hedge.fill(0)
+	_vedge = PackedByteArray()
+	_vedge.resize((gw + 1) * gh)
+	_vedge.fill(0)
+	var spans := _door_spans(closed_oid)
+	for wid in walls:
+		_stamp_edges(walls[wid], spans.get(int(wid), []))
+	if not extra.is_empty():
+		_stamp_edges(extra)
+
+
+## gaps = [[od, do)] v buňkách od začátku stěny – průchozí rozsahy dveří.
+func _stamp_edges(w: Dictionary, gaps: Array = []) -> void:
+	# Uložené stěny jsou normalizované; mini/maxi je pojistka pro budoucí volající (audit Gemini 22. 11.).
+	var x0 := mini(int(w["x0"]), int(w["x1"]))
+	var z0 := mini(int(w["z0"]), int(w["z1"]))
+	var x1 := maxi(int(w["x0"]), int(w["x1"]))
+	var z1 := maxi(int(w["z0"]), int(w["z1"]))
+	if z0 == z1:
+		for x in range(maxi(x0, 0), mini(x1, gw)):
+			if not _in_gaps(gaps, x - x0):
+				_hedge[z0 * gw + x] = 1
+	else:
+		for z in range(maxi(z0, 0), mini(z1, gh)):
+			if not _in_gaps(gaps, z - z0):
+				_vedge[z * (gw + 1) + x0] = 1
+
+
+static func _in_gaps(gaps: Array, i: int) -> bool:
+	for g in gaps:
+		if i >= int(g[0]) and i < int(g[1]):
+			return true
+	return false
+
+
+## wid -> [[od, do)] průchozích rozsahů dveří (closed_oid se vynechá).
+func _door_spans(closed_oid: int = 0) -> Dictionary:
+	var out := {}
+	for oid in openings:
+		var o: Dictionary = openings[oid]
+		if int(oid) == closed_oid or not is_door(String(o["kind"])):
+			continue
+		var wid := int(o["wid"])
+		if not out.has(wid):
+			out[wid] = []
+		out[wid].append([int(o["at"]), int(o["at"]) + opening_cells(String(o["kind"]))])
+	return out
+@@@OLD
+func _reachable(extra: Dictionary) -> PackedByteArray:
+	_build_edges(extra)
+@@@NEW
+func _reachable(extra: Dictionary, closed_oid: int = 0) -> PackedByteArray:
+	_build_edges(extra, closed_oid)
+@@@OLD
+	tmp.walls = walls.duplicate(true)
+	tmp.next_uid = next_uid
+	tmp.rebuild()
+	return tmp
+@@@NEW
+	tmp.walls = walls.duplicate(true)
+	tmp.openings = openings.duplicate(true)
+	tmp.next_uid = next_uid
+	tmp.next_oid = next_oid
+	tmp.rebuild()
+	return tmp
+@@@OLD
+func remove_wall(wid: Variant, now: float, actor: String = "") -> Dictionary:
+	if typeof(wid) != TYPE_INT or not walls.has(int(wid)):
+		return {"ok": false, "reason": "unknown_wid"}
+	var refund := wall_refund_value(int(wid), now)
+	walls.erase(int(wid))
+	funds = mini(funds + refund, MAX_FUNDS)
+	_log(now, "unwall", "", refund, actor)
+	revision += 1
+	return {"ok": true, "reason": "", "refund": refund}
+@@@NEW
+func remove_wall(wid: Variant, now: float, actor: String = "") -> Dictionary:
+	if typeof(wid) != TYPE_INT or not walls.has(int(wid)):
+		return {"ok": false, "reason": "unknown_wid"}
+	var refund := wall_refund_value(int(wid), now)
+	# B4: s otvorem padají i jeho dveře a okna (vratka podle stejného pravidla 24 h).
+	var gone := 0
+	for o in openings_of(int(wid)):
+		refund += opening_refund_value(int(o["oid"]), now)
+		openings.erase(int(o["oid"]))
+		gone += 1
+	walls.erase(int(wid))
+	funds = mini(funds + refund, MAX_FUNDS)
+	_log(now, "unwall", "", refund, actor)
+	revision += 1
+	if gone > 0:
+		rebuild()
+	return {"ok": true, "reason": "", "refund": refund, "openings_removed": gone}
+@@@OLD
+## Stěna nejblíž bodu ve světě (do vzdálenosti tol), 0 = žádná.
+@@@NEW
+# ---------------------------------------------------------------- dveře a okna (B4, jen autorita mění)
+
+static func opening_cells(kind: String) -> int:
+	return int(OPENINGS[kind]["cells"]) if OPENINGS.has(kind) else 0
+
+
+static func opening_price(kind: String) -> int:
+	return int(OPENINGS[kind]["price"]) if OPENINGS.has(kind) else 0
+
+
+static func is_door(kind: String) -> bool:
+	return OPENINGS.has(kind) and bool(OPENINGS[kind]["pass"])
+
+
+func sorted_oids() -> Array:
+	var u := openings.keys()
+	u.sort()
+	return u
+
+
+## Otvory jedné stěny (vzestupně podle oid).
+func openings_of(wid: int) -> Array:
+	var out: Array = []
+	for oid in sorted_oids():
+		if int(openings[oid]["wid"]) == wid:
+			out.append(openings[oid])
+	return out
+
+
+## Leží mřížkový bod (px, pz) na stěně w v rozsahu [at, at + cells] (včetně krajů)?
+static func _on_span(w: Dictionary, at: int, cells: int, px: int, pz: int) -> bool:
+	var x0 := int(w["x0"])
+	var z0 := int(w["z0"])
+	if int(w["z0"]) == int(w["z1"]):
+		return pz == z0 and px >= x0 + at and px <= x0 + at + cells
+	return px == x0 and pz >= z0 + at and pz <= z0 + at + cells
+
+
+## Buňky prostoru dveří: DOOR_DEPTH řad na obě strany hrany v rozsahu [at, at + cells).
+static func _door_side_cells(w: Dictionary, at: int, cells: int) -> Array:
+	var out: Array = []
+	var x0 := int(w["x0"])
+	var z0 := int(w["z0"])
+	var horiz := int(w["z0"]) == int(w["z1"])
+	for i in range(at, at + cells):
+		for d in range(1, DOOR_DEPTH + 1):
+			if horiz:
+				out.append(Vector2i(x0 + i, z0 - d))
+				out.append(Vector2i(x0 + i, z0 + d - 1))
+			else:
+				out.append(Vector2i(x0 - d, z0 + i))
+				out.append(Vector2i(x0 + d - 1, z0 + i))
+	return out
+
+
+## Vedly by dveře do pevného předmětu nebo statické překážky (zeď domu, linka, strom)? Buňky mimo parcelu
+## (ulice) a průchozí koridory/chodník jsou v pořádku.
+func _door_side_blocked(w: Dictionary, at: int, cells: int) -> bool:
+	for c in _door_side_cells(w, at, cells):
+		if not _in_grid(c.x, c.y):
+			continue
+		var i := _idx(c.x, c.y)
+		if (_static[i] == 1 and _keepout[i] == 0) or _solid[i] != 0:
+			return true
+	return false
+
+
+func _stamp_doors() -> void:
+	for oid in openings:
+		var o: Dictionary = openings[oid]
+		if not is_door(String(o["kind"])) or not walls.has(int(o["wid"])):
+			continue
+		for c in _door_side_cells(walls[int(o["wid"])], int(o["at"]), opening_cells(String(o["kind"]))):
+			if _in_grid(c.x, c.y):
+				_door_side[_idx(c.x, c.y)] = 1
+
+
+## "" = otvor lze osadit; jinak kód důvodu. Bez kontroly peněz (to dělá build_opening).
+func check_opening(wid: Variant, kind: Variant, at: Variant) -> String:
+	if typeof(wid) != TYPE_INT or typeof(kind) != TYPE_STRING or typeof(at) != TYPE_INT or not OPENINGS.has(String(kind)):
+		return "opening_bad"
+	if not walls.has(int(wid)):
+		return "unknown_wid"
+	if openings.size() >= MAX_OPENINGS:
+		return "opening_limit"
+	var w: Dictionary = walls[int(wid)]
+	var k := String(kind)
+	var cells := opening_cells(k)
+	var a := int(at)
+	var wl := _wall_len(int(w["x0"]), int(w["z0"]), int(w["x1"]), int(w["z1"]))
+	if a < OPENING_EDGE or a + cells > wl - OPENING_EDGE:
+		return "opening_edge"
+	for oid in openings:
+		var o: Dictionary = openings[oid]
+		if int(o["wid"]) != int(wid):
+			continue
+		var oa := int(o["at"])
+		var ob := oa + opening_cells(String(o["kind"]))
+		if a < ob + OPENING_GAP and oa < a + cells + OPENING_GAP:
+			return "opening_overlap"
+	for owid in walls:
+		if int(owid) == int(wid):
+			continue
+		var ow: Dictionary = walls[owid]
+		if _on_span(w, a, cells, int(ow["x0"]), int(ow["z0"])) or _on_span(w, a, cells, int(ow["x1"]), int(ow["z1"])):
+			return "opening_junction"
+	if is_door(k) and _door_side_blocked(w, a, cells):
+		return "door_blocked"
+	return ""
+
+
+func build_opening(wid: Variant, kind: Variant, at: Variant, now: float, actor: String = "") -> Dictionary:
+	var why := check_opening(wid, kind, at)
+	if why != "":
+		return {"ok": false, "reason": why}
+	var price := opening_price(String(kind))
+	if price > funds:
+		return {"ok": false, "reason": "funds"}
+	var oid := next_oid
+	next_oid += 1
+	openings[oid] = {"oid": oid, "wid": int(wid), "kind": String(kind), "at": int(at),
+		"built_at": _finite_time(now), "paid": price}
+	funds -= price
+	_log(now, "opening", String(kind), -price, actor)
+	revision += 1
+	rebuild()
+	return {"ok": true, "reason": "", "oid": oid, "price": price}
+
+
+## Do 24 herních hodin plná vratka (omyl), potom nic – osazené dveře ani okno nikdo nevykoupí.
+func opening_refund_value(oid: int, now: float) -> int:
+	if not openings.has(oid):
+		return 0
+	var o: Dictionary = openings[oid]
+	var age := _finite_time(now) - float(o["built_at"])
+	return int(o["paid"]) if age >= 0.0 and age <= REFUND_FULL_MINUTES else 0
+
+
+## Odřízlo by zazdění dveří oid cestu k bodu použití, kam se dosud dalo dojít?
+func door_close_seals(oid: int) -> bool:
+	if not openings.has(oid) or not is_door(String(openings[oid]["kind"])):
+		return false
+	var targets := _access_targets()
+	if targets.is_empty():
+		return false
+	var before := _reach_before()
+	_build_edges({})
+	var was := PackedByteArray()
+	was.resize(targets.size())
+	for k in targets.size():
+		was[k] = 1 if _target_reached(before, targets[k]) else 0
+	var after := _reachable({}, oid)
+	for k in targets.size():
+		if was[k] == 1 and not _target_reached(after, targets[k]):
+			return true
+	return false
+
+
+## Zavřelo by zazdění dveří oid postavu, ke které se dosud dalo dojít od ulice? pts = polohy postav (x, z).
+func opening_traps(oid: Variant, pts: Array) -> bool:
+	if typeof(oid) != TYPE_INT or not openings.has(int(oid)) or not is_door(String(openings[int(oid)]["kind"])):
+		return false
+	var cells := PackedInt32Array()
+	var before := _reach_before()
+	_build_edges({})
+	for p in pts:
+		if typeof(p) != TYPE_VECTOR2 or not is_finite(p.x) or not is_finite(p.y):
+			continue
+		var c := cell_of_world(p)
+		if _in_grid(c.x, c.y) and _target_reached(before, _idx(c.x, c.y)):
+			cells.append(_idx(c.x, c.y))
+	if cells.is_empty():
+		return false
+	var after := _reachable({}, int(oid))
+	for i in cells:
+		if not _target_reached(after, i):
+			return true
+	return false
+
+
+func remove_opening(oid: Variant, now: float, actor: String = "") -> Dictionary:
+	if typeof(oid) != TYPE_INT or not openings.has(int(oid)):
+		return {"ok": false, "reason": "unknown_oid"}
+	if door_close_seals(int(oid)):
+		return {"ok": false, "reason": "seals_off"}
+	var refund := opening_refund_value(int(oid), now)
+	var o: Dictionary = openings[int(oid)]
+	openings.erase(int(oid))
+	funds = mini(funds + refund, MAX_FUNDS)
+	_log(now, "unopening", String(o["kind"]), refund, actor)
+	revision += 1
+	rebuild()
+	return {"ok": true, "reason": "", "refund": refund, "kind": String(o["kind"])}
+
+
+## Koncové body otvoru ve světě (x, z), ve směru stěny.
+func opening_world(o: Dictionary) -> Array:
+	var w: Dictionary = walls.get(int(o["wid"]), {})
+	if w.is_empty():
+		return [Vector2.ZERO, Vector2.ZERO]
+	var ab := wall_world(w)
+	var dir: Vector2 = ((ab[1] as Vector2) - (ab[0] as Vector2)).normalized()
+	var a: Vector2 = (ab[0] as Vector2) + dir * (float(o["at"]) * CELL)
+	return [a, a + dir * (float(opening_cells(String(o["kind"]))) * CELL)]
+
+
+## Otvor nejblíž bodu ve světě (do vzdálenosti tol), 0 = žádný.
+func opening_at_world(p: Vector2, tol: float = 0.25) -> int:
+	var best := 0
+	var best_d := tol
+	for oid in sorted_oids():
+		var ab := opening_world(openings[oid])
+		var q := Geometry2D.get_closest_point_to_segment(p, ab[0], ab[1])
+		var dd := q.distance_to(p)
+		if dd <= best_d:
+			best_d = dd
+			best = int(oid)
+	return best
+
+
+## Plné (neprůchozí) úseky stěny ve světě [[a, b], …] – bez rozsahů dveří. Okna se počítají jako plná zeď.
+## Zkušební stěna bez "wid" je jeden celý úsek. Cache podle revize a rozložení (LotNav to volá často).
+func wall_segments(w: Dictionary) -> Array:
+	var ab := wall_world(w)
+	if openings.is_empty() or not w.has("wid") or not walls.has(int(w["wid"])):
+		return [ab]
+	var key := "%d:%d" % [revision, _layout_serial]
+	if key != _seg_key:
+		_seg_key = key
+		_seg_cache.clear()
+	var wid := int(w["wid"])
+	if _seg_cache.has(wid):
+		return _seg_cache[wid]
+	var gaps: Array = _door_spans().get(wid, [])
+	var out: Array = []
+	if gaps.is_empty():
+		out = [ab]
+	else:
+		gaps.sort_custom(func(p, q): return int(p[0]) < int(q[0]))
+		var a: Vector2 = ab[0]
+		var dir: Vector2 = ((ab[1] as Vector2) - a).normalized()
+		var wl := _wall_len(int(w["x0"]), int(w["z0"]), int(w["x1"]), int(w["z1"]))
+		var s := 0
+		for g in gaps:
+			if int(g[0]) > s:
+				out.append([a + dir * (float(s) * CELL), a + dir * (float(g[0]) * CELL)])
+			s = int(g[1])
+		if s < wl:
+			out.append([a + dir * (float(s) * CELL), ab[1]])
+	_seg_cache[wid] = out
+	return out
+
+
+## Stěna nejblíž bodu ve světě (do vzdálenosti tol), 0 = žádná.
+@@@OLD
+		s += a * wgt
+	return clampf(s, -APPEAL_CAP, APPEAL_CAP)
+@@@NEW
+		s += a * wgt
+	# B4: okna (světlo, výhled) – jako položka se středem uprostřed otvoru.
+	for oid in sorted_oids():
+		var o: Dictionary = openings[oid]
+		var oa := float(OPENINGS[String(o["kind"])]["appeal"])
+		if oa == 0.0 or not walls.has(int(o["wid"])):
+			continue
+		var sp := opening_world(o)
+		var od := p.distance_to(((sp[0] as Vector2) + (sp[1] as Vector2)) * 0.5)
+		var ow := 1.0 if od <= APPEAL_NEAR else clampf((APPEAL_FAR - od) / (APPEAL_FAR - APPEAL_NEAR), 0.0, 1.0)
+		s += oa * ow
+	return clampf(s, -APPEAL_CAP, APPEAL_CAP)
+@@@OLD
+	var warr: Array = []
+	for wid in sorted_wids():
+		warr.append(_wall_record(walls[wid]))
+	return {"version": VERSION, "funds": funds, "next_uid": next_uid, "items": arr,
+		"ledger": ledger.duplicate(true), "next_wid": next_wid, "walls": warr}
+@@@NEW
+	var warr: Array = []
+	for wid in sorted_wids():
+		warr.append(_wall_record(walls[wid]))
+	var oarr: Array = []
+	for oid in sorted_oids():
+		oarr.append(_opening_record(openings[oid]))
+	return {"version": VERSION, "funds": funds, "next_uid": next_uid, "items": arr,
+		"ledger": ledger.duplicate(true), "next_wid": next_wid, "walls": warr,
+		"next_oid": next_oid, "openings": oarr}
+
+
+static func _opening_record(o: Dictionary) -> Dictionary:
+	return {"oid": int(o["oid"]), "wid": int(o["wid"]), "kind": String(o["kind"]), "at": int(o["at"]),
+		"built_at": float(o["built_at"]), "paid": int(o["paid"])}
+@@@OLD
+	# v1 (B1) stěny neměl – případný klíč se ignoruje (migrace = parcela bez stěn).
+	if int(d["version"]) >= 2:
+@@@NEW
+	# v1 (B1) stěny neměl – případný klíč se ignoruje (migrace = parcela bez stěn).
+	var wseen := {}
+	if int(d["version"]) >= 2:
+@@@OLD
+		if typeof(wa) != TYPE_ARRAY or (wa as Array).size() > MAX_WALLS:
+			return "bad_lot_walls"
+		var wseen := {}
+		for w in wa:
+@@@NEW
+		if typeof(wa) != TYPE_ARRAY or (wa as Array).size() > MAX_WALLS:
+			return "bad_lot_walls"
+		for w in wa:
+@@@OLD
+			if not _is_num(w.get("built_at"), -1.0e12, 1.0e12) or not _is_int(w.get("paid"), 0, MAX_FUNDS):
+				return "bad_lot_walls"
+	return ""
+@@@NEW
+			if not _is_num(w.get("built_at"), -1.0e12, 1.0e12) or not _is_int(w.get("paid"), 0, MAX_FUNDS):
+				return "bad_lot_walls"
+	# v2 otvory neměl (migrace = stěny bez dveří a oken). Geometrii otvorů ověří plan_restore proti stěnám.
+	if int(d["version"]) >= 3:
+		if not _is_int(d.get("next_oid"), 1, 1000000000):
+			return "bad_lot_openings"
+		var oa: Variant = d.get("openings")
+		if typeof(oa) != TYPE_ARRAY or (oa as Array).size() > MAX_OPENINGS:
+			return "bad_lot_openings"
+		var oseen := {}
+		for o in oa:
+			if typeof(o) != TYPE_DICTIONARY or (o as Dictionary).size() != 6:
+				return "bad_lot_openings"
+			if not _is_int(o.get("oid"), 1, int(d["next_oid"]) - 1) or oseen.has(int(o["oid"])):
+				return "bad_lot_openings"
+			oseen[int(o["oid"])] = true
+			if not _is_int(o.get("wid"), 1, 1000000000) or not wseen.has(int(o["wid"])):
+				return "bad_lot_openings"
+			if typeof(o.get("kind")) != TYPE_STRING or not OPENINGS.has(String(o["kind"])):
+				return "bad_lot_openings"
+			if not _is_int(o.get("at"), 0, WALL_MAX_CELLS):
+				return "bad_lot_openings"
+			if not _is_num(o.get("built_at"), -1.0e12, 1.0e12) or not _is_int(o.get("paid"), 0, MAX_FUNDS):
+				return "bad_lot_openings"
+	return ""
+@@@OLD
+			tmp.walls[wrec["wid"]] = wrec
+			kept_walls.append(wrec)
+@@@NEW
+			tmp.walls[wrec["wid"]] = wrec
+			kept_walls.append(wrec)
+	# B4: otvory po stěnách a před předměty (předmět v prostoru dveří se vyřadí, ne dveře).
+	var kept_openings: Array = []
+	var dropped_openings := 0
+	if int(d["version"]) >= 3:
+		var oarr: Array = (d["openings"] as Array).duplicate(true)
+		oarr.sort_custom(func(a, b): return int(a["oid"]) < int(b["oid"]))
+		for o in oarr:
+			var orec := {"oid": int(o["oid"]), "wid": int(o["wid"]), "kind": String(o["kind"]), "at": int(o["at"]),
+				"built_at": float(o["built_at"]), "paid": int(o["paid"])}
+			if tmp.check_opening(orec["wid"], orec["kind"], orec["at"]) != "":
+				dropped_openings += 1
+				refund += mini(int(orec["paid"]), opening_price(String(orec["kind"])))
+				continue
+			tmp.openings[orec["oid"]] = orec
+			kept_openings.append(orec)
+		tmp.rebuild()
+@@@OLD
+	return {"ok": true, "reason": "", "kept": kept, "dropped": dropped + dropped_walls, "refund": refund,
+		"kept_walls": kept_walls, "dropped_walls": dropped_walls}
+@@@NEW
+	return {"ok": true, "reason": "", "kept": kept, "dropped": dropped + dropped_walls + dropped_openings, "refund": refund,
+		"kept_walls": kept_walls, "dropped_walls": dropped_walls,
+		"kept_openings": kept_openings, "dropped_openings": dropped_openings}
+@@@OLD
+	for wrec in plan["kept_walls"]:
+		walls[int(wrec["wid"])] = wrec
+		next_wid = maxi(next_wid, int(wrec["wid"]) + 1)
+@@@NEW
+	for wrec in plan["kept_walls"]:
+		walls[int(wrec["wid"])] = wrec
+		next_wid = maxi(next_wid, int(wrec["wid"]) + 1)
+	openings.clear()
+	next_oid = int(d.get("next_oid", 1)) if int(d["version"]) >= 3 else 1
+	for orec in plan["kept_openings"]:
+		openings[int(orec["oid"])] = orec
+		next_oid = maxi(next_oid, int(orec["oid"]) + 1)
+@@@OLD
+	walls.clear()
+	next_wid = 1
+	funds = START_FUNDS
+@@@NEW
+	walls.clear()
+	next_wid = 1
+	openings.clear()
+	next_oid = 1
+	funds = START_FUNDS
+@@@OLD
+		warr.append([int(wid), int(w["x0"]), int(w["z0"]), int(w["x1"]), int(w["z1"]), float(w["built_at"]), int(w["paid"])])
+	return {"v": VERSION, "rev": revision, "funds": funds, "items": arr, "walls": warr}
+@@@NEW
+		warr.append([int(wid), int(w["x0"]), int(w["z0"]), int(w["x1"]), int(w["z1"]), float(w["built_at"]), int(w["paid"])])
+	var oarr: Array = []
+	for oid in sorted_oids():
+		var o: Dictionary = openings[oid]
+		oarr.append([int(oid), int(o["wid"]), String(o["kind"]), int(o["at"]), float(o["built_at"]), int(o["paid"])])
+	return {"v": VERSION, "rev": revision, "funds": funds, "items": arr, "walls": warr, "open": oarr}
+@@@OLD
+	if not geo.is_empty() and WallGeometry.validate(geo, gw, gh) != "":
+		return false
+	items = out
+	walls = wout
+@@@NEW
+	if not geo.is_empty() and WallGeometry.validate(geo, gw, gh) != "":
+		return false
+	# Otvory (v3): stěna musí existovat, rozsah s ostěním, odstupy a žádný T-spoj v otvoru – i u klienta,
+	# podvržený snímek nesmí postavit „dveře“ mimo stěnu.
+	var oout := {}
+	var ov: Variant = s.get("open", [])
+	if typeof(ov) != TYPE_ARRAY or (ov as Array).size() > MAX_OPENINGS:
+		return false
+	for e in ov:
+		if typeof(e) != TYPE_ARRAY or (e as Array).size() != 6:
+			return false
+		if not _is_int(e[0], 1, 1000000000) or oout.has(int(e[0])):
+			return false
+		if not _is_int(e[1], 1, 1000000000) or not wout.has(int(e[1])):
+			return false
+		if typeof(e[2]) != TYPE_STRING or not OPENINGS.has(String(e[2])) or not _is_int(e[3], 0, WALL_MAX_CELLS):
+			return false
+		if not _is_num(e[4], -1.0e12, 1.0e12) or not _is_int(e[5], 0, MAX_FUNDS):
+			return false
+		var ow: Dictionary = wout[int(e[1])]
+		var cells := opening_cells(String(e[2]))
+		var wl := _wall_len(int(ow["x0"]), int(ow["z0"]), int(ow["x1"]), int(ow["z1"]))
+		if int(e[3]) < OPENING_EDGE or int(e[3]) + cells > wl - OPENING_EDGE:
+			return false
+		for owid in wout:
+			if int(owid) == int(e[1]):
+				continue
+			var w2: Dictionary = wout[owid]
+			if _on_span(ow, int(e[3]), cells, int(w2["x0"]), int(w2["z0"])) or _on_span(ow, int(e[3]), cells, int(w2["x1"]), int(w2["z1"])):
+				return false
+		for k in oout:
+			var o2: Dictionary = oout[k]
+			if int(o2["wid"]) != int(e[1]):
+				continue
+			var oa := int(o2["at"])
+			var ob := oa + opening_cells(String(o2["kind"]))
+			if int(e[3]) < ob + OPENING_GAP and oa < int(e[3]) + cells + OPENING_GAP:
+				return false
+		oout[int(e[0])] = {"oid": int(e[0]), "wid": int(e[1]), "kind": String(e[2]), "at": int(e[3]),
+			"built_at": float(e[4]), "paid": int(e[5])}
+	items = out
+	walls = wout
+	openings = oout
+	next_oid = 1
+	for k in openings:
+		next_oid = maxi(next_oid, int(k) + 1)
+@@@END

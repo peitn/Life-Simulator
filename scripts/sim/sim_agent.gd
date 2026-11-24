@@ -12,6 +12,14 @@ const Planner := preload("res://scripts/sim/utility_planner.gd")
 const ActionLibrary := preload("res://scripts/sim/action_library.gd")
 const SimVisual := preload("res://scripts/sim/sim_visual.gd")
 const DiningDetour := preload("res://scripts/world/dining_detour.gd")
+const LotNav := preload("res://scripts/world/lot_nav.gd")
+## B3: jak dlouho (herní minuty) si postava pamatuje, že k předmětu se kvůli zdem nedá dojít.
+const NAV_BLOCK_MINUTES := 120.0
+const NAV_BLOCK_MAX := 32
+## B4b: zamčené dveře – o kolik klesne vztah k tomu, kdo se zamkl, a jak často (herní minuty) na osobu.
+const LOCKOUT_REL := 2.0
+const LOCKOUT_COOLDOWN := 360.0
+const LOCKOUT_HEAR_DIST := 10.0
 const MentalState := preload("res://scripts/sim/mental_state.gd")
 const PsycheModel := preload("res://scripts/psyche/psyche_model.gd")
 const RelLedger := preload("res://scripts/sim/rel_ledger.gd")
@@ -25,6 +33,10 @@ const AdultIntimacy := preload("res://scripts/sim/adult_intimacy_action.gd")
 const SocialPressure := preload("res://scripts/sim/social_pressure.gd")
 const SensitivePrivacyMask := preload("res://scripts/sim/sensitive_privacy_mask.gd")
 const PsycheExt := preload("res://scripts/sim/psyche_ext.gd")
+const ColdWar := preload("res://scripts/sim/cold_war.gd")
+const Romance := preload("res://scripts/sim/romance.gd")
+const Infidelity := preload("res://scripts/sim/infidelity.gd")
+const Rivalry := preload("res://scripts/sim/rivalry.gd")
 ## Volitelné externí rozhodování sociálních interakcí (experiment FCCS, jen headless test).
 static var social_oracle = null
 
@@ -162,6 +174,20 @@ var ledger
 var rng := RandomNumberGenerator.new()
 ## Svět – musí mít get_smart_objects() a get_sims().
 var world: Node = null
+## B3 navigace kolem postavených zdí: trasa aktuální chůze (LotNav cache), nedosažitelné předměty
+## (instance_id → do kdy, herní minuty; neukládá se – po načtení se cesta zkusí znovu) a příznak úniku.
+var _nav_cache := {}
+var nav_blocked := {}
+var _nav_escaped := false
+## B4b: kdy naposledy postavu kdo zamkl venku (klíč uzlu → herní minuta). Běhový stav, neukládá se.
+var _lockout_at := {}
+## K1 kariéry: postava je v práci (mimo parcelu). Uzel je skrytý a zaparkovaný daleko pod světem (mimo všechny
+## vzdálenostní kontroly – třenice, svědci, soci, zámky), po směně se vrátí na away_return.
+const AWAY_POS := Vector3(0.0, -200.0, 0.0)
+var away := false
+var away_return := Vector3.ZERO
+## Proč se akce přerušila ("panic" / "cancel" / "" = jiný důvod) – kariéra podle toho hodnotí odchod z práce.
+var _interrupt_reason := ""
 
 var state: int = State.IDLE
 var current_action: Dictionary = {}
@@ -203,6 +229,16 @@ var last_coping_result := {}
 ## Poslední prožitek dokončené akce {id, experienced, anticipated, surprise} a výsledek omluvy (testy).
 var last_experience := {}
 var last_apology := {}
+## Poslední pokus „vyříkat si to“ (testy, HUD): {target, outcome, p}.
+var last_clear_air := {}
+## Poslední pozvání / rozchod (testy, HUD): {action, target, outcome, p | hurt…}.
+var last_romance := {}
+## Poslední flirt / tajná schůzka / konfrontace kvůli nevěře / zrada (testy, ladění; jen autorita).
+var last_infidelity := {}
+## Poslední pomluva / usmíření (Rivalry) – pro testy a ladění.
+var last_rivalry := {}
+## Skupina pro romantickou přitažlivost z genderové identity (Romance.GROUP_OF); "" = neuvedeno.
+var romance_group := ""
 
 # --- replikovaný stav (čte MultiplayerSynchronizer; na klientu ho zapisuje do SimPuppet)
 var net_pos: Vector3:
@@ -318,6 +354,7 @@ func apply_character_private(cd: Dictionary, initialize_sensitivity: bool = true
 		"romantic_attraction": identity.get("attracted_to", []),
 		"libido": identity.get("libido", 0.5),
 		"drive_dysregulation": identity.get("drive_dysregulation", 0.0)})
+	romance_group = Romance.group_of(String(identity.get("gender_identity", "")))
 	sensory.configure(dispositions)
 	char_uid = String(cd.get("uid", "")) if typeof(cd.get("uid", "")) == TYPE_STRING else ""
 	# Živá úprava v editoru (initialize_sensitivity = false) zachová naučený stav rozšíření psychiky.
@@ -508,6 +545,8 @@ func _extra_moodlets() -> Array:
 		out.append_array(psy.psychosis.mood_entries(psy.k()))
 	if psy != null and not psy.subs.is_empty() and _clock != null:
 		out.append_array(psy.subs.mood_entries(now(), psy.sub_withdrawal, psy.sub_withdrawal_id, _subs_k()))
+	if psy != null and not psy.betrayal.is_empty() and _clock != null:
+		out.append_array(psy.betrayal.mood_entries(psy.k(), now()))
 	var gname := ""
 	var gmax := 0.0
 	for n in ledger.guilt:
@@ -614,9 +653,11 @@ func _enter_panic() -> void:
 		return
 	var resume: Dictionary = {}
 	if by_player and not current_action.is_empty() and not bool(current_action.get("involuntary", false)) \
-			and not bool(current_action.get("system", false)) and String(current_action.get("object", "")) != "sim":
+			and not bool(current_action.get("system", false)) and String(current_action.get("object", "")) != "sim" \
+			and not bool(current_action.get("away", false)):
 		resume = {"action": ActionLibrary.get_action(String(current_action.get("id", ""))), "target": target}
 	if state == State.ACTING:
+		_interrupt_reason = "panic"
 		_finish(true)
 	elif state == State.WALKING:
 		_abort()
@@ -722,7 +763,16 @@ func dismisses_confide(asker: Node3D) -> bool:
 
 
 func _decide() -> void:
-	var choice: Dictionary = Planner.choose(self, world.get_smart_objects(), world.get_sims(), rng, _clock.get_hour())
+	# K1: do práce posílá postavu rozvrh oboru (Career.ai_choice), ne planner (pracovní akce jsou player_only).
+	if world != null and world.has_method("career_ai_choice"):
+		var cid: String = world.career_ai_choice(self)
+		if cid != "":
+			var ca: Dictionary = ActionLibrary.get_action(cid)
+			if not ca.is_empty():
+				by_player = false
+				start_plan(ca, null)
+				return
+	var choice: Dictionary = Planner.choose(self, _reachable_objects(world.get_smart_objects()), world.get_sims(), rng, _clock.get_hour())
 	if choice.is_empty():
 		think_cooldown = 5.0
 		return
@@ -744,6 +794,16 @@ func start_plan(action: Dictionary, tgt: Node3D) -> void:
 	current_action = action
 	target = tgt
 	walk_elapsed = 0.0
+	_nav_cache.clear()
+	_nav_escaped = false
+	# K1: do práce se odchází po chodníku k ulici (zamčené dveře / zdi to můžou znemožnit – pak se nejde).
+	if bool(action.get("away", false)) and tgt == null and world != null and world.has_method("work_exit"):
+		var ex = world.work_exit()
+		if ex != null and is_instance_valid(ex):
+			target = ex
+			target_point = ex.global_position
+			state = State.WALKING
+			return
 	if tgt == null:
 		_begin_acting()
 		return
@@ -775,6 +835,42 @@ func leave_world() -> void:
 		_clock.day_changed.disconnect(_on_day_changed)
 
 
+## K1: odchod z parcely do práce / návrat (viz AWAY_POS).
+func _go_away() -> void:
+	away_return = global_position
+	away = true
+	target = null
+	global_position = AWAY_POS
+	visible = false
+
+
+func _come_back() -> void:
+	away = false
+	# Domů se přichází po chodníku (nestavitelný koridor): během směny mohl někdo na původním místě postavit
+	# zeď nebo zamknout místnost – postava ji při odchodu nehlídala (audit Gemini 24. 11. #5).
+	var ex = world.work_exit() if world != null and is_instance_valid(world) and world.has_method("work_exit") else null
+	global_position = ex.global_position if ex != null else away_return
+	visible = true
+
+
+## Obnova ze save (GameSave): postava uložená během směny zůstane v práci; vadný / chybějící návratový bod
+## = chodník u domu. Postava uložená „pod světem“ bez probíhající směny se vrátí na chodník.
+func restore_away(is_away: bool, ret: Variant, fallback: Vector3) -> void:
+	var ok_ret: bool = typeof(ret) == TYPE_VECTOR3 and is_finite(ret.x) and is_finite(ret.y) and is_finite(ret.z) \
+		and absf(ret.x) < 1.0e4 and absf(ret.z) < 1.0e4 and ret.y > -50.0 and ret.y < 100.0
+	var shift: bool = state == State.ACTING and bool(current_action.get("away", false))
+	if is_away and shift:
+		away = true
+		away_return = ret if ok_ret else fallback
+		global_position = AWAY_POS
+		visible = false
+		return
+	away = false
+	visible = true
+	if is_away or global_position.y < -50.0:
+		global_position = ret if ok_ret else fallback
+
+
 func command(action: Dictionary, tgt: Node3D) -> bool:
 	if action.get("id", "") == "cancel":
 		player_queue.clear()
@@ -783,6 +879,7 @@ func command(action: Dictionary, tgt: Node3D) -> bool:
 		if state == State.ACTING:
 			if current_action.get("tags", []).has("sleep"):
 				mood.add_moodlet("rozespaly", "Rozespalý – někdo ho vzbudil", "unaveny", -8.0, 120.0)
+			_interrupt_reason = "cancel"
 			_finish(true)
 		elif state == State.WALKING:
 			_abort()
@@ -830,7 +927,7 @@ func _run_queued() -> void:
 			if bool(cmd["action"].get("approach_only", false)):
 				if not tgt.accepts_support():
 					continue
-			elif not tgt.can_join_social(self):
+			elif not tgt.can_join_social(self) and not _clear_air_answer_only(cmd["action"], tgt):
 				continue
 		by_player = true
 		if _maybe_hesitate(cmd):
@@ -874,7 +971,8 @@ func _walk(dm: float) -> void:
 		return
 	if _is_sim(target):
 		var approach := bool(current_action.get("approach_only", false))
-		if (approach and not target.accepts_support()) or (not approach and not target.can_join_social(self)):
+		if (approach and not target.accepts_support()) or (not approach and not target.can_join_social(self) \
+				and not _clear_air_answer_only(current_action, target)):
 			_abort()
 			return
 		var off := global_position - target.global_position
@@ -882,13 +980,39 @@ func _walk(dm: float) -> void:
 		if off.length() < 0.01:
 			off = Vector3.RIGHT
 		target_point = target.global_position + off.normalized() * SOCIAL_TALK_DIST
-	var route_goal: Vector3 = DiningDetour.waypoint(global_position, target_point)
+	# B3: postavené zdi obejít (LotNav), teprve pak jídelní stůl (DiningDetour) na aktuálním úseku.
+	var leg_goal := target_point
+	var lot = world.get("lot") if world != null else null
+	if lot != null:
+		# B4b: trasa z pohledu této postavy (zamčené dveře bez klíče = zeď); pohled se hned vrátí.
+		lot.nav_viewer = String(name)
+		var nv: Dictionary = LotNav.next_point(lot, global_position, target_point, _nav_cache)
+		lot.nav_viewer = ""
+		match String(nv["mode"]):
+			"none":
+				var lk := ""
+				if lot.has_locks():
+					lk = LotNav.lock_blocker(lot, String(name), Vector2(global_position.x, global_position.z),
+						Vector2(target_point.x, target_point.z))
+				if lk != "":
+					_locked_out(lk)
+				else:
+					_nav_unreachable()
+				return
+			"escape":
+				if not _nav_escaped:
+					_nav_escaped = true
+					mood.add_moodlet("zazdeny", "Zazdili mě. Musel jsem se prodrat ven", "nesvuj", -5.0, 180.0)
+					say("Kdo mě sakra zazdil?!")
+			"route":
+				leg_goal = nv["point"]
+	var route_goal: Vector3 = DiningDetour.waypoint(global_position, leg_goal)
 	var to := route_goal - global_position
 	to.y = 0.0
 	var d := to.length()
 	if d <= ARRIVE_DIST:
-		if route_goal.distance_to(target_point) > ARRIVE_DIST:
-			# Reached a detour corner; re-evaluate the remaining unobstructed path.
+		if route_goal.distance_to(target_point) > ARRIVE_DIST or not leg_goal.is_equal_approx(target_point):
+			# Reached a detour corner (stůl nebo B3 roh kolem zdi); re-evaluate the remaining unobstructed path.
 			global_position = Vector3(route_goal.x, global_position.y, route_goal.z)
 			return
 		global_position = Vector3(target_point.x, global_position.y, target_point.z)
@@ -899,6 +1023,81 @@ func _walk(dm: float) -> void:
 	_face(dir)
 	if walk_elapsed > MAX_WALK_MINUTES:
 		_abort()
+
+
+## B3: cíl je od postavy odříznutý zdmi. Předmět si zapamatuje (AI ho chvíli nebude vybírat), znejistí a vzdá to.
+func _nav_unreachable() -> void:
+	_remember_unreachable_target()
+	mood.add_moodlet("nedostupne", "Nedá se tam dojít – samá zeď", "nesvuj", -3.0, 60.0)
+	if by_player or rng.randf() < 0.5:
+		say(["Tudy to nejde. Kdo sem sakra postavil zeď?", "Super. Zeď. Přesně tam, kam potřebuju.", "Tam se nedostanu."][rng.randi() % 3])
+	_abort()
+
+
+func _remember_unreachable_target() -> void:
+	if target != null and is_instance_valid(target) and not _is_sim(target):
+		nav_blocked[target.get_instance_id()] = now() + NAV_BLOCK_MINUTES
+		while nav_blocked.size() > NAV_BLOCK_MAX:
+			nav_blocked.erase(nav_blocked.keys()[0])
+
+
+## B4b: cestu zavřely zamčené dveře. lock_key "*" = zamčeno pro všechny, jinak jméno uzlu toho, kdo se zamkl.
+## Cíl si zapamatuje jako nedostupný (AI do dveří nebuší v cyklu). Osobní zámek někoho jiného bolí: moodlet,
+## vzpomínka „odmítl(a) mě“ s výkladem podle vigilance, vztah −LOCKOUT_REL (nejvýš jednou za LOCKOUT_COOLDOWN
+## na osobu) a zamčený uslyší bušení, když je blízko. Hra nic z toho neodměňuje ani netrestá navíc.
+func _locked_out(lock_key: String) -> void:
+	_remember_unreachable_target()
+	var locker: Node3D = null
+	if lock_key != "*" and world != null and world.has_method("find_sim"):
+		locker = world.find_sim(lock_key)
+	if locker == null or locker == self or not is_instance_valid(locker):
+		mood.add_moodlet("zamceno", "Zamčeno. Nikdo neotevře", "nesvuj", -3.0, 60.0)
+		if by_player or rng.randf() < 0.5:
+			say(["Zamčeno. Bezva.", "Kdo to sakra zamkl?", "Takže sem nesmím. Dobře vědět."][rng.randi() % 3])
+		_abort()
+		return
+	var key := String(locker.name)
+	var t_now := now()
+	var fresh := not _lockout_at.has(key) or t_now - float(_lockout_at[key]) >= LOCKOUT_COOLDOWN or t_now < float(_lockout_at[key])
+	mood.add_moodlet("zamceno_" + key, "%s se přede mnou zamyká" % locker.first_name(), "nastvany", -4.0, 120.0)
+	if fresh:
+		_lockout_at[key] = t_now
+		while _lockout_at.size() > 16:
+			_lockout_at.erase(_lockout_at.keys()[0])
+		var cur := float(relationships.get(locker.sim_name, 0.0))
+		var nv := clampf(cur - LOCKOUT_REL, -100.0, 100.0)
+		relationships[locker.sim_name] = nv
+		note_relationship_change(locker, cur, nv)
+		remember_social(locker, "rejection", 0.25, "self", interpret_intent(0.5))
+		if locker.has_method("hear_knocking") and locker.global_position.distance_to(global_position) <= LOCKOUT_HEAR_DIST:
+			locker.hear_knocking(self)
+	if by_player or rng.randf() < 0.6:
+		var fn: String = locker.first_name()
+		say(["%s, otevři ty zasraný dveře!" % fn, "Fajn, %s. Zamykej se přede mnou. Strašně dospělý." % fn,
+			"Klepu už potřetí, %s. Vím, že tam jsi." % fn][rng.randi() % 3])
+	_abort()
+
+
+## B4b: někdo buší na dveře, za kterými se postava zamkla. Napětí, žádný vztahový trest (ten nese ten venku).
+func hear_knocking(other: Node3D) -> void:
+	if other == null or not is_instance_valid(other):
+		return
+	mood.add_moodlet("busi_na_dvere", "%s mi buší na dveře" % other.first_name(), "napjaty", -2.0, 45.0)
+	if rng.randf() < 0.4:
+		say(["Jdi pryč!", "Dej mi aspoň chvíli pokoj.", "Neotvírám. Nech mě bejt."][rng.randi() % 3])
+
+
+## Předměty, ke kterým se postava nedávno nedostala, AI chvíli nevybírá (jinak by v cyklu narážela do zdi).
+func _reachable_objects(objs: Array) -> Array:
+	if nav_blocked.is_empty():
+		return objs
+	var t_now := now()
+	for k in nav_blocked.keys():
+		if float(nav_blocked[k]) <= t_now:
+			nav_blocked.erase(k)
+	if nav_blocked.is_empty():
+		return objs
+	return objs.filter(func(o): return o == null or not is_instance_valid(o) or not nav_blocked.has(o.get_instance_id()))
 
 
 func _arrive() -> void:
@@ -915,6 +1114,10 @@ func _arrive() -> void:
 	if _is_sim(target):
 		var partner: Node3D = target
 		if not partner.can_join_social(self):
+			# „Vyříkat si to“ bez napětí / hned po pokusu druhého nepřerušuje – odpověď přijde i zaneprázdněnému.
+			if _clear_air_answer_only(current_action, partner):
+				_start_clear_air(partner, current_action.duplicate(true))
+				return
 			_abort()
 			return
 		_start_social(partner)
@@ -923,6 +1126,14 @@ func _arrive() -> void:
 
 
 func _begin_acting() -> void:
+	if bool(current_action.get("away", false)) and not away:
+		# Server/offline zapíše začátek směny; když už nejde (pozdě, nemocenská…), postava zůstane doma.
+		var bg: Dictionary = world.career_begin(self, String(current_action.get("id", ""))) if world != null and world.has_method("career_begin") else {}
+		if not bool(bg.get("ok", false)):
+			_abort()
+			return
+		say(ActionLibrary.random_line("work_leave", rng))
+		_go_away()
 	state = State.ACTING
 	action_elapsed = 0.0
 	var id: String = current_action["id"]
@@ -983,10 +1194,15 @@ func _act(dm: float) -> void:
 			return
 	var dur: float = float(current_action.get("duration", 30.0))
 	var eff: Dictionary = current_action.get("effects", {})
+	# B1: kvalita koupeného předmětu (bazarová matrace, rozvrzaný gauč…) mění kladné přírůstky komfortu,
+	# energie a zábavy. Výchozí nábytek má 1,0 → beze změny.
+	var oq := _object_quality()
 	for k in eff:
 		var dv: float = float(eff[k]) * dm / dur
 		if k == "fun" and dv > 0.0:
 			dv *= mental.dep.fun_mult()  # anhedonie: totéž baví méně
+		if oq != 1.0 and dv > 0.0 and k in ["fun", "comfort", "energy"]:
+			dv *= oq
 		needs.add(k, dv)
 	var rate: Dictionary = current_action.get("rate", {})
 	var sq: float = mental.sleep_quality() if current_action.get("tags", []).has("sleep") else 1.0
@@ -998,8 +1214,13 @@ func _act(dm: float) -> void:
 		sq *= psy.subs.sleep_quality_mult(now(), _clock.get_hour())  # káva, Jiskra a hraní před spaním spánek zhorší
 	if sq != 1.0 and (not psy.voice.loops.is_empty() or psy.voice.hopelessness > 0.0):
 		sq *= psy.voice.sleep_quality_mult()  # přemítání a beznaděj zhoršují spánek
+	if sq != 1.0 and not psy.betrayal.is_empty():
+		sq *= psy.betrayal.sleep_quality_mult(psy.k(), now())  # zrada se vrací v noci
 	for k in rate:
-		needs.add(k, float(rate[k]) * dm / 60.0 * (sq if k == "energy" else 1.0))
+		var rv: float = float(rate[k]) * dm / 60.0 * (sq if k == "energy" else 1.0)
+		if oq != 1.0 and rv > 0.0 and k in ["fun", "comfort", "energy"]:
+			rv *= oq
+		needs.add(k, rv)
 	# Panická ataka končí, když odezní aktivace (řídí MentalState).
 	if bool(current_action.get("involuntary", false)) and not mental.panic_active:
 		_finish(false)
@@ -1009,6 +1230,12 @@ func _act(dm: float) -> void:
 		if target == null or not is_instance_valid(target) or not target.accepts_support():
 			_finish(false)
 			return
+	# K1: budík – spící postava vstane, když jí za chvíli začíná směna (a dnes do práce jít má).
+	if action_elapsed > 30.0 and current_action.get("tags", []).has("sleep") and world != null \
+			and world.has_method("career_alarm") and world.career_alarm(self):
+		mood.add_moodlet("budik", "Zvonil budík", "unaveny", -3.0, 60.0)
+		_finish(false)
+		return
 	# Spánek do plna – ale v noci se nevstává (jen ráno nebo přes den).
 	var uf: String = current_action.get("until_full", "")
 	if uf != "" and needs.values[uf] >= 99.0 and action_elapsed > 30.0:
@@ -1026,7 +1253,7 @@ func _act(dm: float) -> void:
 		_finish(false)
 		return
 	# Roztěkanost: autonomní soustředěná činnost může „vyšumět“ (nikdy hráčův příkaz, nikdy rozhovor).
-	if not by_player and social_partner == null and not psy.is_neutral():
+	if not by_player and social_partner == null and not psy.is_neutral() and not bool(current_action.get("away", false)):
 		var lam: float = psy.neuro.drift_hazard(current_action, by_player, action_elapsed, psy.k())
 		if lam > 0.0 and psy.rng.randf() < 1.0 - exp(-lam * dm):
 			mood.add_moodlet("nd_odbihani", "Myšlenky mi utekly jinam", "nesvuj", -2.0, 60.0)
@@ -1050,8 +1277,25 @@ func _act(dm: float) -> void:
 			_finish(true)
 
 
+## Kvalita cílového předmětu (SmartObject.quality, B1), 1,0 pro postavy, výchozí nábytek a akce bez cíle.
+func _object_quality() -> float:
+	if target == null or not is_instance_valid(target):
+		return 1.0
+	var q: Variant = target.get("quality")
+	if typeof(q) != TYPE_FLOAT and typeof(q) != TYPE_INT:
+		return 1.0
+	return clampf(float(q), 0.5, 1.5)
+
+
 func _finish(interrupted: bool) -> void:
 	var id: String = current_action.get("id", "")
+	# K1: pracovní akce – podíl odpracovaného, důvod přerušení; postava v práci se nejdřív vrátí domů.
+	var career_act: Dictionary = current_action if bool(current_action.get("career", false)) else {}
+	var career_frac := clampf(action_elapsed / maxf(float(current_action.get("duration", 30.0)), 1.0), 0.0, 1.0) if interrupted else 1.0
+	var career_reason := _interrupt_reason if interrupted else ""
+	_interrupt_reason = ""
+	if away:
+		_come_back()
 	if id == "adult_consensual_sex" and not interrupted and not _intimacy_resolved:
 		var gs := get_node_or_null("/root/GameSettings")
 		var enabled: bool = gs != null and gs.allows_content("adult_intimacy")
@@ -1061,6 +1305,8 @@ func _finish(interrupted: bool) -> void:
 			_intimacy_resolved = true
 			partner._intimacy_resolved = true
 			# Sensitive sexual facts are never written to replicated memories.
+			# Mimo vlastní vztah je to nevěra (Infidelity eviduje jen to, že k zradě došlo, ne podrobnosti).
+			_infidelity_after_intimacy(partner)
 		else:
 			interrupted = true
 	if id == "adult_consensual_sex" and interrupted:
@@ -1081,7 +1327,9 @@ func _finish(interrupted: bool) -> void:
 		# Řešení přemítání: deník je jedna z cest, odborná pomoc uleví i beznaději.
 		if cop == "journal" and frac > 0.5:
 			psy.voice.resolve("", 0.3)
+			_betrayal_support(0.25, null)
 		elif cop == "seek_help" and frac > 0.5:
+			_betrayal_support(1.0, null)
 			if not psy.psychosis.is_empty():
 				psy.psychosis.on_help(now())
 			psy.voice.resolve("", 0.3)
@@ -1150,6 +1398,8 @@ func _finish(interrupted: bool) -> void:
 	target = null
 	state = State.IDLE
 	think_cooldown = rng.randf_range(1.0, 4.0)
+	if not career_act.is_empty() and world != null and world.has_method("career_finished"):
+		world.career_finished(self, career_act, career_frac, interrupted, career_reason)
 	action_finished.emit(self, id, interrupted)
 
 
@@ -1324,6 +1574,30 @@ func _start_social(partner: Node3D) -> void:
 	if String(act.get("id", "")) == "apologize":
 		_start_apology(partner, act)
 		return
+	if String(act.get("id", "")) == "clear_air":
+		_start_clear_air(partner, act)
+		return
+	if String(act.get("id", "")) == "ask_out":
+		_start_ask_out(partner, act)
+		return
+	if String(act.get("id", "")) == "break_up":
+		_start_break_up(partner, act)
+		return
+	if String(act.get("id", "")) == "flirt":
+		_start_flirt(partner, act)
+		return
+	if String(act.get("id", "")) == "secret_date":
+		_start_secret_date(partner, act)
+		return
+	if String(act.get("id", "")) == "confront_cheating":
+		_start_confront_cheating(partner, act)
+		return
+	if String(act.get("id", "")) == "slander_rival":
+		_start_slander(partner, act)
+		return
+	if String(act.get("id", "")) == "bury_hatchet":
+		_start_hatchet(partner, act)
+		return
 	if String(act.get("id", "")) in ["confront_gossip", "deny_gossip"]:
 		_start_gossip_talk(partner, act)
 		return
@@ -1351,6 +1625,9 @@ func _start_social(partner: Node3D) -> void:
 		partner_act["effects"] = {"social": 2.0, "fun": -8.0}
 		say(ActionLibrary.random_line("insult", rng))
 		_social_outcome(partner, -rng.randf_range(9.0, 15.0), "insult")
+		var cw_i = _cold_war()
+		if cw_i != null:
+			cw_i.note(sim_name, partner.sim_name, "insult", now())
 		partner.join_social(self, partner_act)
 		_social_positive = false
 		partner._social_positive = false
@@ -1559,6 +1836,7 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 		remember_social(partner, "support", 0.5)
 		_share_memory_with(partner)
 		psy.voice.resolve("", 0.25)
+		_betrayal_support(0.5, partner)
 		inner_positive("warm", partner)
 		emotions.impulse("confided", partner.sim_name)
 		partner.emotions.impulse("comforted_other", sim_name, 0.7)
@@ -1581,6 +1859,10 @@ func _start_confide(partner: Node3D, act: Dictionary) -> void:
 ## Výsledek a dopady počítá autorita (main.gossip_talk); tady jen repliky, popisky a průběh rozhovoru.
 ## Bez čeho mluvit (nikdo nic neví / podezření už vyřešené) druhého NEPŘERUŠÍ – jen krátce odpoví.
 var last_gossip_talk := {}
+## Svědci hádky, která vznikla z konfrontace kvůli drbům, si odnesou drb se sníženou závažností
+## (tlumí spirálu „hádka o drbech → nové drby“; review Grok #430).
+const GOSSIP_ESCALATION_WITNESS_SEV := 0.6
+var _witness_sev_mult := 1.0
 
 
 func _start_gossip_talk(partner: Node3D, act: Dictionary) -> void:
@@ -1617,9 +1899,13 @@ func _start_gossip_talk(partner: Node3D, act: Dictionary) -> void:
 		partner.say(ActionLibrary.random_line("confront_escalate", partner.rng))
 		act["label"] = "Hádá se kvůli drbům s: " + partner.first_name()
 		partner.current_action["label"] = "Hádá se kvůli drbům s: " + first_name()
+		_witness_sev_mult = GOSSIP_ESCALATION_WITNESS_SEV
 		_social_outcome(partner, -rng.randf_range(6.0, 12.0), "argue")
+		_witness_sev_mult = 1.0
 	else:
 		var key := ("confront_" if confront else "deny_") + outcome
+		if key == "deny_caught" and String(ev.get("kind", "")) == "panic":
+			key = "deny_caught_gentle"
 		partner.say(ActionLibrary.random_line(key, partner.rng))
 	_social_positive = positive
 	partner._social_positive = positive
@@ -1651,10 +1937,13 @@ func _start_apology(partner: Node3D, act: Dictionary) -> void:
 			# Řešení: omluva uvolní přemítání o tom člověku u obou.
 			psy.voice.resolve(memory_key(partner), 0.5)
 			partner.psy.voice.resolve(memory_key(self), 0.5)
+			if partner.psy.betrayal.on_repair(memory_key(self), true, t):
+				partner._detail_dirty = true
 			inner_positive("relief", partner)
 		"partial":
 			partner.remember_social(self, "apology", 0.3)
 			psy.voice.resolve(memory_key(partner), 0.25)
+			partner.psy.betrayal.on_repair(memory_key(self), false, t)
 		"rejected":
 			remember_social(partner, "rejection", 0.5, "self", "none")
 			inner_trigger("failure", partner, 0.4)
@@ -1844,10 +2133,12 @@ func _social_outcome(partner: Node3D, delta: float, kind: String) -> void:
 
 ## Násobič chuti na akci z rozšíření psychiky (utility AI). Neutrální postava → přesně 1,0.
 func psyche_action_weight(a: Dictionary) -> float:
-	if psy == null or (psy.is_neutral() and psy.voice.loops.is_empty() and psy.voice.hopelessness <= 0.0 and not psy.eating.active()):
+	if psy == null or (psy.is_neutral() and psy.voice.loops.is_empty() and psy.voice.hopelessness <= 0.0 and not psy.eating.active() \
+			and psy.betrayal.is_empty()):
 		return 1.0
 	psy._mastery = mental.mastery
 	psy._support = mental.support
+	psy._now = now() if _clock != null else 0.0
 	if psy.eating.food_anxiety > 0.0 and (a.get("tags", []) as Array).has("food"):
 		return psy.action_weight(a, _clock.get_hour() if _clock != null else 12) \
 			* psy.eating.food_weight(_others_near(4.0), float(needs.values["hunger"]))
@@ -1864,6 +2155,7 @@ func psyche_action_weight(a: Dictionary) -> float:
 func psyche_target_weight(other: Node3D, a: Dictionary) -> float:
 	if psy == null or other == null:
 		return 1.0
+	psy._now = now() if _clock != null else 0.0
 	return psy.target_weight(float(relationships.get(other.sim_name, 0.0)), a, memory_key(other))
 
 
@@ -1953,6 +2245,8 @@ func _psyche_tick(dm: float) -> void:
 		_update_memory_views()
 	mental.dep.chronic_floor = psy.mood.chronic_floor(psy.k())
 	_inner_tick(dm)
+	if not psy.betrayal.is_empty():
+		_betrayal_tick(dm)
 	_eating_tick(dm)
 	if psy.is_neutral():
 		return
@@ -2016,8 +2310,9 @@ func psyche_gate(kind: String) -> float:
 		return 0.0
 	match kind:
 		"help":
-			return maxf(maxf(maxf(psy.voice.help_need(), clampf(psy.subs.max_dependence() - 0.5, 0.0, 1.0) * _subs_k()),
-				psy.eating.help_need()), psy.psychosis.help_need() * psy.k())
+			return maxf(maxf(maxf(maxf(psy.voice.help_need(), clampf(psy.subs.max_dependence() - 0.5, 0.0, 1.0) * _subs_k()),
+				psy.eating.help_need()), psy.psychosis.help_need() * psy.k()),
+				psy.betrayal.help_need(now()) * psy.k() if _clock != null else 0.0)
 		"ocd_ritual":
 			return psy.ocd.gate("ritual") * psy.k()
 		"ocd_resist":
@@ -2064,6 +2359,94 @@ func _inner_tick(dm: float) -> void:
 				+ "Linka první psychické pomoci 116 123 (nonstop, zdarma), findahelpline.com.")
 	if was_hopeless < v.HOPELESS_SHOW and v.hopelessness >= v.HOPELESS_SHOW:
 		remember("Bylo mi hodně těžko")
+
+
+# ---------------------------------------------------------------- následky zrady (BetrayalWound)
+
+## Zrada odhalena: otevře (nebo rozdře) ránu a rozjede přemítání o křivdě. Vnitřní přesvědčení
+## self_defectiveness se jen čte (stabilní soukromý posuvník, nikdy se nemění).
+func _betrayal_open(cheater: Node3D, lover: Node3D, sev: float) -> void:
+	if psy == null or _clock == null or cheater == null:
+		return
+	var lk := memory_key(lover) if lover != null and is_instance_valid(lover) else ""
+	var ln := String(lover.sim_name) if lover != null and is_instance_valid(lover) else ""
+	psy.betrayal.open(memory_key(cheater), String(cheater.sim_name), lk, ln, sev, now(), self_defectiveness_belief)
+	inner_trigger("grievance", cheater, 0.45 + 0.35 * clampf(sev, 0.0, 1.0))
+	_detail_dirty = true
+
+
+## Opora (svěření, deník, terapie): rána se zpracovává. Svěřit se tomu, kdo zradil, zpracování nepočítá.
+func _betrayal_support(strength: float, partner: Node3D) -> void:
+	if psy == null or _clock == null or psy.betrayal.is_empty():
+		return
+	if psy.betrayal.on_support(strength, now(), memory_key(partner) if partner != null else ""):
+		if psy.k() > 0.0 and strength >= 0.5:
+			_push_thought(psy.betrayal.healing_thought(now()), "inner_relief")
+		_detail_dirty = true
+
+
+## Hypervigilance po zradě: podezření v (dalším) vztahu přibývá rychleji. Bez rány přesně 1,0.
+func betrayal_suspicion_mult() -> float:
+	if psy == null or psy.betrayal.is_empty():
+		return 1.0
+	return psy.betrayal.suspicion_mult(psy.k())
+
+
+## Spouštěč zvenku (drb o nevěře toho, kdo zradil): rozdře ránu, nejvýš jednou za 6 h.
+func betrayal_reminder(other: Node3D, amount: float) -> void:
+	if psy == null or _clock == null or other == null or psy.betrayal.is_empty():
+		return
+	if psy.betrayal.on_reminder(memory_key(other), amount, now()):
+		inner_trigger("grievance", other, 0.15)
+		_detail_dirty = true
+
+
+## Krok rány: časové hojení, rušivé otázky (hodinově, hlavně v nečinnosti a v noci) a spouštěče –
+## vidět toho, kdo zradil, s milencem/milenkou, nebo milence samotného. Jen na autoritě (SimAgent).
+func _betrayal_tick(dm: float) -> void:
+	var b = psy.betrayal
+	var t := now()
+	b.tick(t)
+	if b.is_empty():
+		_detail_dirty = true
+		return
+	if int(t / 60.0) == int((t - dm) / 60.0) or _is_sleeping():
+		return
+	var kk: float = psy.k()
+	var idle := state == State.IDLE or (state == State.ACTING and ((current_action.get("tags", []) as Array).has("quiet") \
+		or (current_action.get("tags", []) as Array).has("rest")))
+	var night: bool = _clock.is_night() if _clock != null else false
+	var th: Dictionary = b.intrusive_thought(t, idle or night, kk)
+	if not th.is_empty():
+		var who := _sim_by_uid(String(th["about"]))
+		_push_thought(String(th["text"]), "inner_betrayal", String(who.grammar) if who != null else "m")
+		if bool(th["self_blame"]):
+			inner_trigger("self_critical", null, 0.12)
+		elif who != null:
+			inner_trigger("grievance", who, 0.08)
+	if world == null:
+		return
+	for w in b.wounds:
+		var cheater := _sim_by_uid(String(w["about"]))
+		var lover := _sim_by_uid(String(w["lover"])) if String(w["lover"]) != "" else null
+		if cheater != null and lover != null and cheater.global_position.distance_to(global_position) < 12.0 \
+				and lover.global_position.distance_to(cheater.global_position) < 3.0 and not cheater._is_sleeping():
+			if b.on_reminder(String(w["about"]), 0.15, t) and kk > 0.0:
+				mood.add_moodlet("bw_spolu_" + String(cheater.name), "Viděl%s je spolu" % Grammar.past(grammar), "nastvany", -6.0 * kk, 240.0)
+				inner_trigger("grievance", cheater, 0.2)
+				_detail_dirty = true
+		elif lover != null and lover.global_position.distance_to(global_position) < 8.0:
+			if b.on_reminder(String(w["lover"]), 0.06, t):
+				_detail_dirty = true
+
+
+func _sim_by_uid(uid: String) -> Node3D:
+	if world == null or uid == "":
+		return null
+	for o in world.get_sims():
+		if o != self and memory_key(o) == uid:
+			return o
+	return null
 
 
 ## Psychotické prožívání: spouštěče (spánek, extrémní stres, látky), průběh a zotavení; jen omezené
@@ -2141,6 +2524,8 @@ func _substance_after_finish(id: String, interrupted: bool) -> void:
 		return
 	var res: Dictionary = psy.subs.on_use(sid, now(), kk)
 	_psyche_stress("substance_relief", float(res.get("stress", 0.0)))
+	if sid == "alcohol" and not psy.betrayal.is_empty() and psy.k() > 0.0:
+		psy.betrayal.on_numb(now())  # otupí na pár hodin, pak se bolest vrátí silnější
 	var liking := float(res.get("liking", 0.0))
 	if liking >= 1.0:
 		mood.add_moodlet("sub_" + sid, "Na chvíli úleva", "spokojeny", liking, 90.0)
@@ -2335,6 +2720,7 @@ func psyche_private_lines() -> PackedStringArray:
 	out.append_array(psy.worldview.private_lines())
 	if _clock != null:
 		out.append_array(psy.subs.private_lines(now(), _subs_k()))
+		out.append_array(psy.betrayal.private_lines(psy.k(), now()))
 	if world != null and world.has_method("gossip_private_lines"):
 		out.append_array(world.gossip_private_lines(self))
 	return out
@@ -2517,10 +2903,10 @@ func _witness_conflict(partner: Node3D, cfg: Dictionary, kind := "argue") -> voi
 			# Svědek má o čem mluvit (drby).
 			if world.has_method("gossip_observe"):
 				if kind == "insult":
-					world.gossip_observe(o, self, "insult", 1.0, partner)
+					world.gossip_observe(o, self, "insult", _witness_sev_mult, partner)
 				else:
-					world.gossip_observe(o, self, "fight", 1.0, partner)
-					world.gossip_observe(o, partner, "fight", 1.0, self)
+					world.gossip_observe(o, self, "fight", _witness_sev_mult, partner)
+					world.gossip_observe(o, partner, "fight", _witness_sev_mult, self)
 
 
 ## Žárliví nesou těžce, když se jejich blízký (vztah ≥ 40) baví s někým jiným.
@@ -2578,6 +2964,9 @@ func _object_index(obj) -> int:
 ## Přepočítá replikované vlastnosti. Synchronizer posílá jen změny (ON_CHANGE).
 func _update_net(dm: float) -> void:
 	net_label = "Soukromá chvíle" if current_action.get("id", "") == "adult_consensual_sex" else display_action()
+	# Tajná schůzka se ostatním hráčům ukazuje jako obyčejné povídání (jinak by ji prozradil HUD, ne svět).
+	if current_action.get("id", "") == "secret_date" and social_partner != null and is_instance_valid(social_partner):
+		net_label = "Povídá si: " + social_partner.first_name()
 	net_emotion = mood.emotion
 	net_mood = int(round(mood.value))
 	net_posture = current_posture()
@@ -2589,6 +2978,8 @@ func _update_net(dm: float) -> void:
 	net_needs = nb
 	if state == State.ACTING and current_action.has("id"):
 		net_action = "private_moment|-1" if current_action["id"] == "adult_consensual_sex" else "%s|%d" % [current_action["id"], _object_index(target)]
+		if current_action["id"] == "secret_date":
+			net_action = "chat|-1"
 	else:
 		net_action = ""
 	_detail_timer -= dm
@@ -2669,6 +3060,878 @@ func _face(dir: Vector3) -> void:
 
 
 func _update_visual() -> void:
-	if visual == null:
+	if visual == null or away:
 		return
 	visual.apply(current_posture(), mood.value, mood.emotion, sim_name, display_action(), speech, emotions.crying, String(current_action.get("id", "")) if state == State.ACTING else "")
+
+
+# ---------------------------------------------------------------- dusno / studená válka
+
+## ColdWar stav domácnosti (jen autorita; klientská loutka ho nemá) nebo null.
+func _cold_war():
+	if world == null or not is_instance_valid(world):
+		return null
+	var d = world.get("dynamics")
+	if d == null:
+		return null
+	return d.get("cold_war")
+
+
+## „Vyříkat si to“, které jen dostane odpověď (bez napětí / hned po pokusu) – nepotřebuje, aby
+## se druhý připojil k rozhovoru, takže ho nezastaví ani nezahodí.
+func _clear_air_answer_only(action: Dictionary, partner: Node3D) -> bool:
+	if String(action.get("id", "")) != "clear_air" or partner == null:
+		return false
+	var cw = _cold_war()
+	return cw != null and cw.clear_air_block(sim_name, partner.sim_name, now()) != ""
+
+
+## „Vyříkat si to“ s partnerem ve studené válce / v dusnu. Výsledek: průlom, příměří, výbuch
+## (skutečná hádka). Bez napětí nebo hned po minulém pokusu druhého NEPŘERUŠÍ – jen odpoví.
+func _start_clear_air(partner: Node3D, act: Dictionary) -> void:
+	var cw = _cold_war()
+	var t := now()
+	if cw == null:
+		_abort()
+		return
+	var block: String = cw.clear_air_block(sim_name, partner.sim_name, t)
+	if block != "":
+		cw.stats[block] += 1
+		say(ActionLibrary.random_line("clear_air", rng))
+		act["label"] = "Chce si to vyříkat: " + partner.first_name()
+		act["duration"] = 6.0
+		act["effects"] = {}
+		partner.say(ActionLibrary.random_line("clear_air_" + block, partner.rng))
+		last_clear_air = {"target": partner.sim_name, "outcome": block, "p": 0.0}
+		current_action = act
+		target = null
+		_begin_acting()
+		return
+	var h: float = cw.heat(sim_name, partner.sim_name)
+	var rel_avg := (float(relationships.get(partner.sim_name, 0.0)) + float(partner.relationships.get(sim_name, 0.0))) * 0.5
+	var p: float = ColdWar.clear_air_p(h, Traits.sum_param(partner.trait_profile, "forgiveness"),
+		Traits.sum_param(trait_profile, "forgiveness"), (mental.stress + partner.mental.stress) * 0.5,
+		rel_avg, deescalation_chance(partner))
+	var outcome: String = cw.resolve_clear_air(sim_name, partner.sim_name, p, rng.randf(), t)
+	last_clear_air = {"target": partner.sim_name, "outcome": outcome, "p": p}
+	say(ActionLibrary.random_line("clear_air", rng))
+	match outcome:
+		"breakthrough":
+			act["label"] = "Vyříkává si to s: " + partner.first_name()
+			_social_outcome(partner, rng.randf_range(6.0, 10.0), "chat")
+			for pr in [[self, partner], [partner, self]]:
+				var a: Node3D = pr[0]
+				var b: Node3D = pr[1]
+				a.ledger.soften(b.sim_name, 15.0)
+				a.mood.remove_moodlet("dusno_" + String(b.name))
+				a.mood.remove_moodlet("hadka_" + String(b.name))
+				a.add_joy_moodlet("vyrikali_" + String(b.name), "Vyříkali jsme si to: " + b.first_name(), "spokojeny", 8.0, 360.0)
+				a.remember("Vyříkal(a) jsem si to – %s" % b.sim_name)
+				if a.psy != null:
+					a.psy.voice.resolve(memory_key(b), 0.5)
+				a.inner_positive("relief", b)
+		"truce":
+			act["label"] = "Uzavírá příměří s: " + partner.first_name()
+			_social_outcome(partner, 2.0, "chat")
+			for pr in [[self, partner], [partner, self]]:
+				var a2: Node3D = pr[0]
+				var b2: Node3D = pr[1]
+				a2.ledger.soften(b2.sim_name, 5.0)
+				a2.mood.add_moodlet("primeri_" + String(b2.name), "Aspoň příměří", "spokojeny", 3.0, 240.0)
+				if a2.psy != null:
+					a2.psy.voice.resolve(memory_key(b2), 0.2)
+		_:
+			act["label"] = "Hádá se s: " + partner.first_name()
+			act["effects"] = {"social": 8.0, "fun": -8.0}
+			act["duration"] = 20.0
+			_social_outcome(partner, -rng.randf_range(8.0, 14.0), "argue")
+			for pr in [[self, partner], [partner, self]]:
+				var a3: Node3D = pr[0]
+				var b3: Node3D = pr[1]
+				a3.mental.on_stressor("argue", 6.0 * Traits.mult_param(a3.trait_profile, "stress_gain"), a3.mental_cfg())
+				var lbl: String = ("Chtěl(a) jsem to vyřešit a vybuchlo to".replace("(a)", Grammar.past(a3.grammar))) if a3 == self else "Zase hádka: " + b3.first_name()
+				a3.mood.add_moodlet("vybuch_" + String(b3.name), lbl, "nastvany", -8.0, 300.0)
+	var partner_act: Dictionary = act.duplicate(true)
+	partner_act["label"] = String(act["label"]).split(":")[0] + ": " + first_name()
+	partner.join_social(self, partner_act)
+	partner.say(ActionLibrary.random_line("clear_air_" + outcome, partner.rng))
+	var ok := outcome != "blowup"
+	_social_positive = ok
+	partner._social_positive = ok
+	_detail_dirty = true
+	partner._detail_dirty = true
+	conversation.emit(self, partner, {"success": ok, "argued": not ok, "outcome": "chat" if ok else "argue",
+		"avg_mood": (mood.value + partner.mood.value) * 0.5, "complaint": "", "deescalated": false, "p": p,
+		"clear_air": true})
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
+## Romance domácnosti (jen autorita; klientská loutka ji nemá) nebo null.
+func _romance():
+	if world == null or not is_instance_valid(world):
+		return null
+	var d = world.get("dynamics")
+	if d == null:
+		return null
+	return d.get("romance")
+
+
+## Profil pro Romance.fits: věk, aromantičnost, romantická přitažlivost a skupina podle genderové
+## identity (NE podle těla ani jména). Soukromé – čte jen autorita, nikam se nereplikuje.
+func romance_profile() -> Dictionary:
+	return {"age": intimacy.age, "aromantic": intimacy.aromantic,
+		"attracted_to": intimacy.romantic_attraction.duplicate(), "group": romance_group}
+
+
+## Ovládá postavu v MP nějaký hráč? (Pak za ni AI na romantický návrh neodpovídá.)
+func romance_owned_by_player() -> bool:
+	if world == null or not is_instance_valid(world):
+		return false
+	var n = world.get("net")
+	return n != null and is_instance_valid(n) and n.has_method("owner_peer_of") and int(n.owner_peer_of(String(name))) != 0
+
+
+static func _owner_peer(s: Node) -> int:
+	if s == null or s.get("world") == null or not is_instance_valid(s.world):
+		return 0
+	var n = s.world.get("net")
+	if n == null or not is_instance_valid(n) or not n.has_method("owner_peer_of"):
+		return 0
+	return int(n.owner_peer_of(String(s.name)))
+
+
+## Krátká výměna bez změny vztahu (blokace pozvání / rozchod s někým, s kým postava nechodí).
+func _romance_short_reply(partner: Node3D, act: Dictionary, opener: String, reply: String, label: String, outcome: String) -> void:
+	say(ActionLibrary.random_line(opener, rng).replace("(a)", Grammar.past(grammar)))
+	act["label"] = label + partner.first_name()
+	act["duration"] = 6.0
+	act["effects"] = {}
+	partner.say(ActionLibrary.random_line(reply, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	last_romance = {"action": String(act.get("id", "")), "target": partner.sim_name, "outcome": outcome, "p": 0.0}
+	current_action = act
+	target = null
+	_begin_acting()
+
+
+## „Pozvat na rande“. Odpověď: ano (začnou spolu chodit) / ještě ne / ne / mám někoho / „nedá si
+## říct“ (opakované dotírání po odmítnutí – druhého to štve a vztah to poškodí). Odmítnutí je
+## skutečné odmítnutí (RejectionResponse; tlumí se podle nastavení obsahu jako ostatní psychika).
+func _start_ask_out(partner: Node3D, act: Dictionary) -> void:
+	var ro = _romance()
+	var t := now()
+	if ro == null:
+		_abort()
+		return
+	var block: String = ro.ask_block(sim_name, partner.sim_name, t)
+	# Pojistka (audit Gemini): postava JINÉHO hráče v MP neodpovídá automaticky, ani když se vlastnictví
+	# změnilo mezi zadáním a provedením příkazu (server takový příkaz odmítá už při zadání).
+	if block == "" and partner.romance_owned_by_player() and _owner_peer(partner) != _owner_peer(self):
+		block = "not_now"
+	if block != "":
+		ro.stats["blocked"] += 1
+		_romance_short_reply(partner, act, "ask_out", "ask_out_already" if block == "already" else "ask_out_not_now",
+			"Zve na rande: ", block)
+		return
+	var p: float = Romance.accept_p(float(partner.relationships.get(sim_name, 0.0)), partner.ledger.trust_in(sim_name),
+		float(partner.mood.value))
+	var outcome: String = ro.resolve_ask(sim_name, partner.sim_name, romance_profile(), partner.romance_profile(), p, rng.randf(), t)
+	if not by_player:
+		ro.note_ai_ask(sim_name, t)  # odstup AI pozvánek; hráčův příkaz ho nespotřebuje
+	last_romance = {"action": "ask_out", "target": partner.sim_name, "outcome": outcome, "p": p}
+	say(ActionLibrary.random_line("ask_out", rng).replace("(a)", Grammar.past(grammar)))
+	var partner_label := ""
+	match outcome:
+		"yes":
+			act["label"] = "Má rande s: " + partner.first_name()
+			partner_label = "Má rande s: "
+			_social_outcome(partner, rng.randf_range(4.0, 8.0), "chat")
+			for pr in [[self, partner], [partner, self]]:
+				var a: Node3D = pr[0]
+				var b: Node3D = pr[1]
+				a.add_joy_moodlet("rande_" + String(b.name), "Chodíme spolu: " + b.first_name(), "stastny", 10.0, 1440.0)
+				a.remember("Začali jsme spolu chodit – %s" % b.sim_name)
+				a.emotions.impulse("life_good", b.sim_name, 0.8)
+				a._detail_dirty = true
+		"not_yet":
+			act["label"] = "Zve na rande: " + partner.first_name()
+			partner_label = "Váhá: "
+			_social_outcome(partner, 1.0, "chat")
+			mood.add_moodlet("mozna_" + String(partner.name), "Možná, jednou?: " + partner.first_name(), "nesvuj", -2.0, 360.0)
+		_:
+			act["label"] = "Dostává košem od: " + partner.first_name()
+			act["duration"] = 10.0
+			act["effects"] = {"fun": -4.0}
+			partner_label = "Odmítá: "
+			mood.add_moodlet("kosem_" + String(partner.name),
+				"Dostal(a) jsem košem: ".replace("(a)", Grammar.past(grammar)) + partner.first_name(), "smutny", -8.0, 720.0)
+			_on_rejection_cue("real", partner)
+			remember("Dostal(a) jsem košem – %s" % partner.sim_name)
+			if outcome == "pushy":
+				# Hranice byla řečena dvakrát. Dotírání není romantika – druhého to štve a vztah to nese.
+				partner.relationships[sim_name] = clampf(float(partner.relationships.get(sim_name, 0.0)) - 6.0, -100.0, 100.0)
+				partner.ledger.grudges[sim_name] = clampf(partner.ledger.grudge(sim_name) + 6.0, 0.0, 100.0)
+				partner.mood.add_moodlet("neda_si_rict_" + String(name), "Nedá si říct: " + first_name(), "nastvany", -6.0, 480.0)
+				partner.mental.on_stressor("pressure", 2.0 * Traits.mult_param(partner.trait_profile, "stress_gain"), partner.mental_cfg())
+	var partner_act: Dictionary = act.duplicate(true)
+	partner_act["label"] = partner_label + first_name()
+	partner.join_social(self, partner_act)
+	partner.say(ActionLibrary.random_line("ask_out_" + outcome, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	var warm := outcome in ["yes", "not_yet"]
+	_social_positive = warm
+	partner._social_positive = outcome != "pushy"
+	_detail_dirty = true
+	partner._detail_dirty = true
+	conversation.emit(self, partner, {"success": warm, "argued": outcome == "pushy",
+		"outcome": "chat" if warm else ("argue" if outcome == "pushy" else "awkward"),
+		"avg_mood": (mood.value + partner.mood.value) * 0.5, "complaint": "", "deescalated": false, "p": p,
+		"romance": true})
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
+## „Rozejít se“. Bolí podle závazku a podle toho, jak spokojený byl ten druhý; reakce: zraněná /
+## naštvaná / úleva (když už to nefungovalo ani jemu/jí). Následky trvají: zlomené srdce, zášť nebo
+## vina, dusno doma (bydlí-li spolu), trapné chvíle s ex. Nic z toho hra neodměňuje.
+func _start_break_up(partner: Node3D, act: Dictionary) -> void:
+	var ro = _romance()
+	var t := now()
+	if ro == null:
+		_abort()
+		return
+	var info: Dictionary = ro.breakup(sim_name, partner.sim_name, t)
+	if info.is_empty():
+		_romance_short_reply(partner, act, "break_up", "break_up_nothing", "Chce se rozejít: ", "nothing")
+		return
+	var c := float(info["commitment"])
+	var my_sat := float(info["sat_a"])
+	var their_sat := float(info["sat_b"])
+	var hurt := clampf((0.4 + 0.6 * c) * (0.5 + their_sat), 0.15, 1.5)
+	var reaction := "hurt"
+	if their_sat < Romance.LOW:
+		reaction = "relief"
+		hurt *= 0.4
+	elif partner.rng.randf() > deescalation_chance(partner) + 0.25:
+		reaction = "angry"
+	last_romance = {"action": "break_up", "target": partner.sim_name, "outcome": reaction, "hurt": hurt,
+		"commitment": c, "status_before": String(info["status_before"])}
+	say(ActionLibrary.random_line("break_up", rng).replace("(a)", Grammar.past(grammar)))
+	act["label"] = "Rozchází se s: " + partner.first_name()
+	if reaction == "angry":
+		act["effects"] = {"social": 4.0, "fun": -10.0}
+	# Ten, s kým se končí.
+	var pcfg: Dictionary = partner.mental_cfg()
+	partner.mood.remove_moodlet("rande_" + String(name))
+	partner.mood.remove_moodlet("spolu_vazne_" + String(name))
+	partner.mood.add_moodlet("rozchod_" + String(name),
+		"Rozešel(a) se se mnou: ".replace("(a)", Grammar.past(grammar)) + first_name(), "smutny",
+		-(6.0 + 16.0 * hurt), 1440.0 * (1.0 + 2.0 * hurt))
+	partner.mental.on_stressor("breakup", 10.0 * hurt * Traits.mult_param(partner.trait_profile, "stress_gain"), pcfg)
+	if reaction != "relief":
+		partner._on_rejection_cue("real", self)
+	partner.emotions.impulse("rejection_real" if reaction != "relief" else "life_bad", sim_name, clampf(hurt, 0.2, 1.0))
+	partner.relationships[sim_name] = clampf(float(partner.relationships.get(sim_name, 0.0)) - (6.0 + 18.0 * hurt), -100.0, 100.0)
+	partner.ledger.grudges[sim_name] = clampf(partner.ledger.grudge(sim_name) + 12.0 * hurt * (1.5 if reaction == "angry" else 1.0), 0.0, 100.0)
+	partner.remember(("%s se se mnou rozešel(a)" % sim_name).replace("(a)", Grammar.past(grammar)))
+	# Ten, kdo končí: taky to není zadarmo (smutek podle závazku, vina podle toho, jak to druhého bolí).
+	mood.remove_moodlet("rande_" + String(partner.name))
+	mood.remove_moodlet("spolu_vazne_" + String(partner.name))
+	mood.add_moodlet("rozchod_" + String(partner.name), "Rozchod: " + partner.first_name(), "smutny",
+		-(3.0 + 7.0 * c), 1440.0 * (0.5 + c))
+	if my_sat < 0.2:
+		add_joy_moodlet("volnost", "Konečně volnost", "spokojeny", 4.0, 720.0)
+	ledger.guilt[partner.sim_name] = clampf(ledger.guilt_of(partner.sim_name) + 10.0 * c * their_sat, 0.0, 100.0)
+	mental.on_stressor("breakup", 3.0 * (0.5 + c) * Traits.mult_param(trait_profile, "stress_gain"), mental_cfg())
+	relationships[partner.sim_name] = clampf(float(relationships.get(partner.sim_name, 0.0)) - (4.0 + 6.0 * c), -100.0, 100.0)
+	remember("Rozešel(a) jsem se – %s" % partner.sim_name)
+	# Pod jednou střechou po rozchodu zůstává dusno (žár studené války, ne „hádka“ – ta přijde jen při výbuchu).
+	var cw = _cold_war()
+	if cw != null:
+		cw.note(sim_name, partner.sim_name, "breakup", t)
+	# Rozchod je novinka: kdo je u toho, ten to ví (drb „breakup“ vztahy posluchačů nemění).
+	if world != null and world.has_method("gossip_observe"):
+		for o in _onlookers(partner, WITNESS_DIST):
+			world.gossip_observe(o, self, "breakup", 1.0, partner)
+	var partner_act: Dictionary = act.duplicate(true)
+	partner_act["label"] = "Rozchod s: " + first_name()
+	partner.join_social(self, partner_act)
+	partner.say(ActionLibrary.random_line("break_up_" + reaction, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	_social_positive = reaction == "relief"
+	partner._social_positive = reaction == "relief"
+	_detail_dirty = true
+	partner._detail_dirty = true
+	conversation.emit(self, partner, {"success": reaction == "relief", "argued": reaction == "angry",
+		"outcome": "argue" if reaction == "angry" else "awkward",
+		"avg_mood": (mood.value + partner.mood.value) * 0.5, "complaint": "", "deescalated": false, "p": hurt,
+		"romance": true})
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
+# ------------------------------------------------------------------ nevěra a žárlivost (Infidelity)
+
+## Nevěra / podezření domácnosti (jen autorita; klientská loutka je nemá) nebo null.
+## Rivalita domácnosti (jen autorita; klientská loutka ji nemá) nebo null.
+func _rivalry():
+	if world == null or not is_instance_valid(world):
+		return null
+	var d = world.get("dynamics")
+	if d == null:
+		return null
+	return d.get("rivalry")
+
+
+## Krátká výměna bez následků u rivality (blokace, MP pojistka).
+func _rivalry_short_reply(partner: Node3D, act: Dictionary, opener: String, reply: String, label: String) -> void:
+	say(ActionLibrary.random_line(opener, rng).replace("(a)", Grammar.past(grammar)))
+	act["label"] = label + partner.first_name()
+	act["duration"] = 5.0
+	act["effects"] = {}
+	if reply != "":
+		partner.say(ActionLibrary.random_line(reply, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	current_action = act
+	target = null
+	_begin_acting()
+
+
+## Pomluva soka před posluchačem `partner`. Soka i celé vyhodnocení určuje autorita (main.rivalry_slander);
+## tady jen repliky, štítky a svědomí autora. Hra pomluvu ničím neodměňuje.
+func _start_slander(partner: Node3D, act: Dictionary) -> void:
+	var rv = _rivalry()
+	if rv == null or world == null or not world.has_method("rivalry_slander"):
+		_abort()
+		return
+	var t := now()
+	var ev: Dictionary = world.rivalry_slander(self, partner)
+	var outcome := String(ev.get("outcome", "blocked"))
+	last_rivalry = {"action": "slander_rival", "target": String(partner.sim_name), "outcome": outcome,
+		"block": String(ev.get("block", "")), "rival": String(ev.get("rival", "")),
+		"reported": bool(ev.get("reported", false))}
+	if not by_player:
+		rv.note_ai(sim_name, "slander", t)  # odstup AI; hráčův příkaz ho nespotřebuje (server má vlastní odstup)
+	if outcome == "blocked":
+		_rivalry_short_reply(partner, act, "slander_blocked", "", "Rozmýšlí si to: ")
+		return
+	act["label"] = "Pomlouvá soka před: " + partner.first_name()
+	var partner_act: Dictionary = act.duplicate(true)
+	partner_act["label"] = "Poslouchá řeči od: " + first_name()
+	partner_act["effects"] = {"social": 2.0}
+	partner.join_social(self, partner_act)
+	partner.say(ActionLibrary.random_line("slander_" + outcome, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	if outcome == "saw_through":
+		mood.add_moodlet("pomluva_neprosla", "Prokoukl(a) mě: ".replace("(a)", Grammar.past(partner.grammar))
+			+ partner.first_name(), "nesvuj", -4.0, 240.0)
+	# Svědomí: poctivější autor si to vyčítá (vina vůči sokovi); velmi nepoctivý skoro ne.
+	var hon := float(infidelity_profile("")["honesty"])
+	var rival_name := String(ev.get("rival", ""))
+	if hon >= 0.35 and rival_name != "":
+		ledger.on_hurt_other(rival_name, 4.0 + 10.0 * hon)
+	var ok := outcome != "saw_through"
+	_social_positive = ok
+	partner._social_positive = ok
+	_detail_dirty = true
+	partner._detail_dirty = true
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
+## „Zakopat válečnou sekeru“ se sokem `partner`: přijetí = rivalita obou směrů opadne a přibude respekt;
+## odmítnutí = odstup 2 dny. Bez rivality nebo hned po odmítnutí jen krátká odpověď (nikoho nepřeruší).
+func _start_hatchet(partner: Node3D, act: Dictionary) -> void:
+	var rv = _rivalry()
+	if rv == null:
+		_abort()
+		return
+	var t := now()
+	var block: String = rv.hatchet_block(sim_name, partner.sim_name, t)
+	# Pojistka: postava JINÉHO hráče v MP za něj AI nepřijme ani neodmítne (server to odmítá už při zadání).
+	if block == "" and partner.has_method("romance_owned_by_player") and partner.romance_owned_by_player() \
+			and _owner_peer(partner) != _owner_peer(self):
+		block = "not_now"
+	if not by_player:
+		rv.note_ai(sim_name, "hatchet", t)
+	if block != "":
+		last_rivalry = {"action": "bury_hatchet", "target": String(partner.sim_name), "outcome": block, "p": 0.0}
+		_rivalry_short_reply(partner, act, "hatchet", "hatchet_" + ("not_now" if block == "self" else block), "Chce to zakopat: ")
+		return
+	var hon := float(infidelity_profile("")["honesty"])
+	var p: float = Rivalry.hatchet_p(rv.heat(partner.sim_name, sim_name, t), Traits.sum_param(partner.trait_profile, "forgiveness"),
+		float(partner.relationships.get(sim_name, 0.0)), hon)
+	var outcome: String = rv.resolve_hatchet(sim_name, partner.sim_name, p, rng.randf(), t)
+	last_rivalry = {"action": "bury_hatchet", "target": String(partner.sim_name), "outcome": outcome, "p": p}
+	say(ActionLibrary.random_line("hatchet", rng).replace("(a)", Grammar.past(grammar)))
+	var partner_act: Dictionary = act.duplicate(true)
+	if outcome == "accepted":
+		act["label"] = "Zakopává válečnou sekeru s: " + partner.first_name()
+		partner_act["label"] = "Zakopává válečnou sekeru s: " + first_name()
+		for pr in [[self, partner], [partner, self]]:
+			var x: Node3D = pr[0]
+			var y: Node3D = pr[1]
+			x.relationships[y.sim_name] = clampf(float(x.relationships.get(y.sim_name, 0.0)) + 6.0, -100.0, 100.0)
+			x.ledger.soften(y.sim_name, 10.0)
+			x.mood.remove_moodlet("sok_" + String(y.name))
+			x.add_joy_moodlet("sekera_" + String(y.name), "Zakopali jsme válečnou sekeru: " + y.first_name(), "spokojeny", 5.0, 360.0)
+			x.remember("Usmířil(a) jsem se se sokem – %s".replace("(a)", Grammar.past(x.grammar)) % y.sim_name)
+	else:
+		act["label"] = "Chce to zakopat: " + partner.first_name()
+		act["effects"] = {"social": 1.0}
+		partner_act["label"] = "Odmítá usmíření od: " + first_name()
+		mood.add_moodlet("sekera_ne_" + String(partner.name), "Odmítl(a) mě: ".replace("(a)", Grammar.past(partner.grammar))
+			+ partner.first_name(), "nastvany", -4.0, 240.0)
+	partner.join_social(self, partner_act)
+	partner.say(ActionLibrary.random_line("hatchet_" + outcome, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	_social_positive = outcome == "accepted"
+	partner._social_positive = outcome == "accepted"
+	_detail_dirty = true
+	partner._detail_dirty = true
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
+func _infidelity():
+	if world == null or not is_instance_valid(world):
+		return null
+	var d = world.get("dynamics")
+	if d == null:
+		return null
+	return d.get("infidelity")
+
+
+## Je postava `n` vzhůru a blíž než `dist`? (AI si tajnou schůzku nedá s partnerem za zády.)
+func partner_nearby(n: String, dist: float) -> bool:
+	var p := _sim_by_name(n)
+	return p != null and not p._is_sleeping() and p.global_position.distance_to(global_position) < dist
+
+
+## Profil pro Infidelity (soukromý, jen autorita): spokojenost ve vztahu s `partner_name`, poctivost
+## (HEXACO 0..1), impulzivita a žárlivost (síla rysu 0..1).
+func infidelity_profile(partner_name: String) -> Dictionary:
+	var ro = _romance()
+	var sat := Romance.SAT_BASE
+	if ro != null and partner_name != "":
+		sat = ro.satisfaction(sim_name, partner_name)
+	var h = hexaco.get("honesty", 0.0)
+	var hon := 0.5
+	if typeof(h) in [TYPE_FLOAT, TYPE_INT] and is_finite(float(h)):
+		hon = clampf((float(h) + 1.0) * 0.5, 0.0, 1.0)
+	return {"sat": sat, "honesty": hon, "impulsive": Traits.flag_strength(trait_profile, "impulsive"),
+		"jealous": Traits.flag_strength(trait_profile, "jealous")}
+
+
+## Kdo z okolí (vzhůru, do vzdálenosti `reach`) vidí tuhle postavu – kromě ní a `other`.
+func _onlookers(other: Node3D, reach: float) -> Array:
+	var out: Array = []
+	if world == null:
+		return out
+	for o in world.get_sims():
+		if o == self or o == other or not is_instance_valid(o) or not o.has_method("command") or o._is_sleeping():
+			continue
+		if o.global_position.distance_to(global_position) <= reach:
+			out.append(o)
+	return out
+
+
+## Krátká výměna bez následků (blokace, MP pojistka).
+func _infidelity_short_reply(partner: Node3D, act: Dictionary, opener: String, reply: String, label: String, outcome: String) -> void:
+	say(ActionLibrary.random_line(opener, rng).replace("(a)", Grammar.past(grammar)))
+	act["label"] = label + partner.first_name()
+	act["duration"] = 6.0
+	act["effects"] = {}
+	partner.say(ActionLibrary.random_line(reply, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	last_infidelity = {"action": String(act.get("id", "")), "target": partner.sim_name, "outcome": outcome, "p": 0.0}
+	current_action = act
+	target = null
+	_begin_acting()
+
+
+## Věrnost 0..1 postavy `s` ve vztahu s `p_name` (poctivost a spokojenost; pro šanci opětovat flirt).
+static func _loyalty(s: Node3D, p_name: String) -> float:
+	var tp: Dictionary = s.infidelity_profile(p_name)
+	return clampf(0.55 * float(tp["honesty"]) + 0.45 * float(tp["sat"]) / 0.8, 0.0, 1.0)
+
+
+## Šance, že `partner` opětuje flirt / kývne na schůzku od této postavy.
+func _infidelity_p(partner: Node3D, ro) -> float:
+	var pp: String = ro.partner_of(partner.sim_name) if ro != null else ""
+	var taken := pp != "" and pp != sim_name
+	var loyal := _loyalty(partner, pp) if taken else 0.0
+	return Infidelity.flirt_p(float(partner.relationships.get(sim_name, 0.0)), partner.ledger.trust_in(sim_name),
+		partner.mood.value, taken, loyal)
+
+
+## Žárlivost partnera, který viděl flirt: každý to nese, žárliví víc. seen_back = flirt byl opětovaný.
+func _partner_saw_flirt(p: Node3D, lover: Node3D, seen_back: bool) -> void:
+	var inf = _infidelity()
+	var ro = _romance()
+	var t := now()
+	var j := 0.35 + 0.65 * Traits.flag_strength(p.trait_profile, "jealous")
+	var cfg: Dictionary = p.mental_cfg()
+	p.mental.on_stressor("jealousy", (4.0 + 6.0 * j) * (1.0 if seen_back else 0.5), cfg)
+	p.emotions.impulse("jealousy", sim_name, clampf(j, 0.2, 1.0))
+	p.mood.add_moodlet("zarli_flirt_" + String(name), "Flirtuje s jinými: " + first_name(), "nastvany",
+		-(4.0 + 8.0 * j) * (1.0 if seen_back else 0.6), 300.0)
+	p.relationships[lover.sim_name] = clampf(float(p.relationships.get(lover.sim_name, 0.0)) - 3.0 * j, -100.0, 100.0)
+	p.ledger.grudges[lover.sim_name] = clampf(p.ledger.grudge(lover.sim_name) + 4.0 * j, 0.0, 100.0)
+	if inf != null:
+		inf.notice(p.sim_name, sim_name, Infidelity.SUSP_SEEN_FLIRT * (0.5 + 0.5 * j) * (1.0 if seen_back else 0.5) * p.betrayal_suspicion_mult(),
+			Infidelity.EV_SEEN_FLIRT if seen_back else 0.1, lover.sim_name, t)
+	if ro != null:
+		ro.note(sim_name, p.sim_name, "flirt_seen", t)
+	p._detail_dirty = true
+	if p.speech == "" and p.rng.randf() < 0.6 * j:
+		p.say(ActionLibrary.random_line("jealous_partner", p.rng))
+
+
+## „Flirtovat“. S vlastním partnerem je to milé; s někým jiným vzniká jiskra (a riziko). Kdo flirtuje,
+## i když je zadaný, riskuje žárlivost partnera (pokud je u toho) a drby (pokud to vidí jiní).
+func _start_flirt(partner: Node3D, act: Dictionary) -> void:
+	var inf = _infidelity()
+	var ro = _romance()
+	var t := now()
+	if inf == null:
+		_abort()
+		return
+	# Pojistka dospělosti (i pro poškozená data): s nikým mladším 18 let se neflirtuje – akce se tiše zruší.
+	if int(romance_profile().get("age", 0)) < 18 or int(partner.romance_profile().get("age", 0)) < 18:
+		_abort()
+		return
+	var own: bool = ro != null and ro.together(sim_name, partner.sim_name)
+	# MP pojistka: postava JINÉHO hráče na flirt automaticky neodpovídá (server příkaz odmítá už při zadání).
+	if not own and partner.romance_owned_by_player() and _owner_peer(partner) != _owner_peer(self):
+		_infidelity_short_reply(partner, act, "flirt", "flirt_brushed_off", "Flirtuje: ", "blocked")
+		return
+	var fits_ba := Romance.fits(romance_profile(), partner.romance_profile())
+	var p := _infidelity_p(partner, ro)
+	var outcome: String = inf.resolve_flirt(sim_name, partner.sim_name, ro, fits_ba, p, rng.randf(), t)
+	if not by_player:
+		inf.note_ai(sim_name, "flirt", t)
+	var bt: Dictionary = Infidelity.betrayals(sim_name, partner.sim_name, ro)
+	last_infidelity = {"action": "flirt", "target": partner.sim_name, "outcome": outcome, "p": p,
+		"betrays": bt.duplicate()}
+	say(ActionLibrary.random_line("flirt", rng).replace("(a)", Grammar.past(grammar)))
+	var partner_label := ""
+	match outcome:
+		"own_partner":
+			act["label"] = "Flirtuje s: " + partner.first_name()
+			partner_label = "Flirtuje s: "
+			for pr in [[self, partner], [partner, self]]:
+				pr[0].add_joy_moodlet("flirt_" + String(pr[1].name), "Flirt s: " + pr[1].first_name(), "stastny", 5.0, 240.0)
+		"reciprocated":
+			act["label"] = "Flirtuje s: " + partner.first_name()
+			partner_label = "Flirtuje s: "
+			for pr in [[self, partner], [partner, self]]:
+				var me: Node3D = pr[0]
+				me.add_joy_moodlet("jiskra_" + String(pr[1].name), "Jiskra: " + pr[1].first_name(), "stastny", 6.0, 240.0)
+				var mine := String(bt.get(me.sim_name, ""))
+				if mine != "":
+					# Svědomí: kdo je zadaný, cítí výčitky podle poctivosti (nikdo jiný o tom zatím neví).
+					var hon := float(me.infidelity_profile(mine)["honesty"])
+					me.ledger.on_hurt_other(mine, 2.0 + 4.0 * hon)
+		"brushed_off":
+			act["label"] = "Zkouší flirtovat s: " + partner.first_name()
+			act["duration"] = 6.0
+			partner_label = "Odbývá flirt od: "
+			mood.add_moodlet("odbyl_" + String(partner.name), "Odbyl(a) mě: ".replace("(a)", Grammar.past(partner.grammar)) + partner.first_name(),
+				"nesvuj", -3.0, 240.0)
+		_:  # uncomfortable
+			act["label"] = "Trapně flirtuje s: " + partner.first_name()
+			act["duration"] = 6.0
+			act["effects"] = {"fun": -2.0}
+			partner_label = "Nepříjemný flirt od: "
+			partner.mood.add_moodlet("neprijemny_flirt_" + String(name), "Nepříjemný flirt: " + first_name(), "nesvuj", -5.0, 240.0)
+			partner.relationships[sim_name] = clampf(float(partner.relationships.get(sim_name, 0.0)) - 4.0, -100.0, 100.0)
+			mood.add_moodlet("trapas_flirt", "Trapas", "nesvuj", -4.0, 180.0)
+	# Svědci (jen flirt mimo vlastní vztah; přistižení partnera bolí každého, drby jen když je někdo zadaný).
+	if outcome != "own_partner" and world != null:
+		for o in _onlookers(partner, WITNESS_DIST):
+			if String(bt[sim_name]) == o.sim_name:
+				_partner_saw_flirt(o, partner, outcome == "reciprocated")
+			elif String(bt[partner.sim_name]) == o.sim_name and outcome == "reciprocated":
+				partner._partner_saw_flirt(o, self, true)
+			elif world.has_method("gossip_observe"):
+				if String(bt[sim_name]) != "":
+					world.gossip_observe(o, self, "flirting", 1.0 if outcome == "reciprocated" else 0.6, partner)
+				if String(bt[partner.sim_name]) != "" and outcome == "reciprocated":
+					world.gossip_observe(o, partner, "flirting", 1.0, self)
+	var partner_act: Dictionary = act.duplicate(true)
+	partner_act["label"] = partner_label + first_name()
+	partner.join_social(self, partner_act)
+	partner.say(ActionLibrary.random_line("flirt_" + outcome, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	var warm: bool = outcome in ["own_partner", "reciprocated"]
+	_social_positive = warm
+	partner._social_positive = warm
+	_detail_dirty = true
+	partner._detail_dirty = true
+	conversation.emit(self, partner, {"success": warm, "argued": false,
+		"outcome": "chat" if warm else "awkward",
+		"avg_mood": (mood.value + partner.mood.value) * 0.5, "complaint": "", "deescalated": false, "p": p,
+		"romance": not own})
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
+## Následky nevěry u přistižení na místě (svědek je zrazený partner).
+func _caught_by(p: Node3D, lover: Node3D, how: String) -> void:
+	var inf = _infidelity()
+	if inf != null:
+		inf.mark_known(p.sim_name, sim_name, lover.sim_name, now())
+		inf.stats["caught"] += 1
+	p.say(ActionLibrary.random_line("caught", p.rng).replace("(a)", Grammar.past(grammar)))
+	p.on_betrayal(self, lover, how)
+
+
+## „Tajná schůzka“ (náznak, fade-to-black). Jen když je aspoň jeden z dvojice zadaný a mezi nimi je jiskra.
+## Zrazený partner/ka, který/á je nablízku, je přistihne. Jiní svědci z toho mají drb.
+func _start_secret_date(partner: Node3D, act: Dictionary) -> void:
+	var inf = _infidelity()
+	var ro = _romance()
+	var t := now()
+	if inf == null:
+		_abort()
+		return
+	if int(romance_profile().get("age", 0)) < 18 or int(partner.romance_profile().get("age", 0)) < 18:
+		_abort()
+		return
+	var block: String = inf.date_block(sim_name, partner.sim_name, ro, t)
+	if block == "" and partner.romance_owned_by_player() and _owner_peer(partner) != _owner_peer(self):
+		block = "not_now"
+	if block != "":
+		_infidelity_short_reply(partner, act, "secret_date", "secret_date_blocked", "Navrhuje schůzku: ", block)
+		return
+	var fits_ba := Romance.fits(romance_profile(), partner.romance_profile())
+	var p := _infidelity_p(partner, ro) * (0.4 + 0.6 * float(inf.spark(sim_name, partner.sim_name, t)))
+	var outcome: String = inf.resolve_date(sim_name, partner.sim_name, ro, fits_ba, p, rng.randf(), t)
+	if not by_player:
+		inf.note_ai(sim_name, "date", t)
+	var bt: Dictionary = Infidelity.betrayals(sim_name, partner.sim_name, ro)
+	last_infidelity = {"action": "secret_date", "target": partner.sim_name, "outcome": outcome, "p": p,
+		"betrays": bt.duplicate(), "caught": false}
+	say(ActionLibrary.random_line("secret_date", rng).replace("(a)", Grammar.past(grammar)))
+	var partner_act: Dictionary = act.duplicate(true)
+	if outcome != "yes":
+		act["label"] = "Navrhuje schůzku: " + partner.first_name()
+		act["duration"] = 8.0
+		act["effects"] = {"fun": -3.0}
+		mood.add_moodlet("odmitl_schuzku_" + String(partner.name),
+			"Odmítl(a) mě: ".replace("(a)", Grammar.past(partner.grammar)) + partner.first_name(), "smutny", -6.0, 360.0)
+		_on_rejection_cue("real", partner)
+		partner_act["label"] = "Odmítá schůzku s: " + first_name()
+		partner_act["duration"] = 8.0
+		partner_act["effects"] = {}
+		partner.join_social(self, partner_act)
+		partner.say(ActionLibrary.random_line("secret_date_no", partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+		_social_positive = false
+		partner._social_positive = false
+		_detail_dirty = true
+		partner._detail_dirty = true
+		conversation.emit(self, partner, {"success": false, "argued": false, "outcome": "awkward",
+			"avg_mood": (mood.value + partner.mood.value) * 0.5, "complaint": "", "deescalated": false, "p": p,
+			"romance": true})
+		current_action = act
+		social_partner = partner
+		_begin_acting()
+		return
+	# Přijato: obě strany to táhne, kdo je zadaný, toho hryže svědomí (podle poctivosti).
+	act["label"] = "Tajná schůzka s: " + partner.first_name()
+	partner_act["label"] = "Tajná schůzka s: " + first_name()
+	for pr in [[self, partner], [partner, self]]:
+		var me: Node3D = pr[0]
+		var other: Node3D = pr[1]
+		me.add_joy_moodlet("tajne_" + String(other.name), "Tajně s: " + other.first_name(), "stastny", 7.0, 360.0)
+		var mine := String(bt.get(me.sim_name, ""))
+		if mine != "":
+			var hon := float(me.infidelity_profile(mine)["honesty"])
+			me.ledger.on_hurt_other(mine, 3.0 + 9.0 * hon)
+			me.mood.add_moodlet("vycitky_" + String(other.name), "Výčitky", "nesvuj", -(2.0 + 7.0 * hon), 720.0)
+			me.mental.on_stressor("secret", 1.0 + 3.0 * hon, me.mental_cfg())
+			# Změny chování si partner/ka časem všimne (vymlouvání, pozdní příchody, telefon).
+			var pn := _sim_by_name(mine)
+			var jl := Traits.flag_strength(pn.trait_profile, "jealous") if pn != null else 0.0
+			inf.notice(mine, me.sim_name, Infidelity.SUSP_BEHAVIOR * (0.6 + 0.8 * jl) * (pn.betrayal_suspicion_mult() if pn != null else 1.0), 0.02, "", t)
+		me._detail_dirty = true
+	partner.join_social(self, partner_act)
+	partner.say(ActionLibrary.random_line("secret_date_yes", partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	_social_positive = true
+	partner._social_positive = true
+	# Svědci: zrazený partner/ka na doslech = přistižení; ostatní z toho mají drb.
+	var caught := false
+	for o in _onlookers(partner, WITNESS_DIST * 0.6):
+		if String(bt[sim_name]) == o.sim_name:
+			_caught_by(o, partner, "caught")
+			caught = true
+		elif String(bt[partner.sim_name]) == o.sim_name:
+			partner._caught_by(o, self, "caught")
+			caught = true
+		elif world != null and world.has_method("gossip_observe"):
+			for cheater in [self, partner]:
+				if String(bt[cheater.sim_name]) != "":
+					world.gossip_observe(o, cheater, "cheating", 1.0, partner if cheater == self else self)
+	last_infidelity["caught"] = caught
+	if caught:
+		act["label"] = "Přistižen(a) s: ".replace("(a)", Grammar.past(grammar)) + partner.first_name()
+		act["duration"] = 10.0
+		act["effects"] = {"fun": -8.0}
+		partner.current_action["label"] = "Přistižen(a) s: ".replace("(a)", Grammar.past(partner.grammar)) + first_name()
+		partner.current_action["duration"] = 10.0
+	_detail_dirty = true
+	partner._detail_dirty = true
+	# Bez „rozhovoru“ do statistik domácnosti: schůzka není hádka ani běžný hovor (romance = true → stav se
+	# nemění; cold war: neutrální „chat“ jen mezi milenci).
+	conversation.emit(self, partner, {"success": true, "argued": false, "outcome": "chat",
+		"avg_mood": (mood.value + partner.mood.value) * 0.5, "complaint": "", "deescalated": false, "p": p,
+		"romance": true})
+	current_action = act
+	social_partner = partner
+	_begin_acting()
+
+
+## Intimní chvíle (fade-to-black) dokončena: pokud je někdo z dvojice zadaný jinde, je to nevěra.
+## Žádné sexuální podrobnosti se nikam nezapisují (ani do replikovaných vzpomínek, ani do drbů).
+func _infidelity_after_intimacy(partner: Node3D) -> void:
+	var inf = _infidelity()
+	var ro = _romance()
+	if inf == null or partner == null or not is_instance_valid(partner):
+		return
+	var t := now()
+	var bt: Dictionary = inf.note_intimacy(sim_name, partner.sim_name, ro, t)
+	if bt.is_empty():
+		return
+	for me in [self, partner]:
+		var mine := String(bt.get(me.sim_name, ""))
+		if mine == "":
+			continue
+		var hon := float(me.infidelity_profile(mine)["honesty"])
+		me.ledger.on_hurt_other(mine, 4.0 + 10.0 * hon)
+		var pn := _sim_by_name(mine)
+		var jl := Traits.flag_strength(pn.trait_profile, "jealous") if pn != null else 0.0
+		inf.notice(mine, me.sim_name, Infidelity.SUSP_BEHAVIOR * (0.6 + 0.8 * jl) * (pn.betrayal_suspicion_mult() if pn != null else 1.0), 0.02, "", t)
+	for o in _onlookers(partner, WITNESS_DIST * 0.6):
+		if String(bt.get(sim_name, "")) == o.sim_name:
+			_caught_by(o, partner, "caught")
+		elif String(bt.get(partner.sim_name, "")) == o.sim_name:
+			partner._caught_by(o, self, "caught")
+
+
+## Tahle postava (zrazený partner/ka) se dozvěděla o nevěře `cheater` s `lover`.
+## how: "caught" (přistižení), "confess" (přiznání), "caught_lying" (usvědčení ze lži).
+## Trvalé následky: důvěra, zášť, spokojenost ve vztahu, dusno doma, stres a odmítnutí. Rozchod
+## nevynucuje – rozhodne hráč, nebo AI podle (teď nízké) spokojenosti.
+func on_betrayal(cheater: Node3D, lover: Node3D, how: String) -> void:
+	var inf = _infidelity()
+	var ro = _romance()
+	var t := now()
+	var dates := 1
+	if inf != null and lover != null:
+		dates = maxi(1, int(inf.affair_dates(cheater.sim_name, lover.sim_name)))
+	var sev := clampf(0.6 + 0.1 * float(dates), 0.6, 1.0) * (1.15 if how in ["caught", "caught_lying"] else 0.85)
+	var cfg := mental_cfg()
+	mental.on_stressor("betrayal", 18.0 * sev * Traits.mult_param(trait_profile, "stress_gain"), cfg)
+	_on_rejection_cue("real", cheater)
+	emotions.impulse("rejection_real", cheater.sim_name, clampf(sev, 0.2, 1.0))
+	_betrayal_open(cheater, lover, sev)
+	mood.remove_moodlet("rande_" + String(cheater.name))
+	mood.remove_moodlet("spolu_vazne_" + String(cheater.name))
+	mood.add_moodlet("zrada_" + String(cheater.name),
+		"Podvedl(a) mě: ".replace("(a)", Grammar.past(cheater.grammar)) + cheater.first_name(), "nastvany",
+		-(14.0 + 14.0 * sev), 1440.0 * (2.0 + 3.0 * sev))
+	relationships[cheater.sim_name] = clampf(float(relationships.get(cheater.sim_name, 0.0)) - (15.0 + 25.0 * sev), -100.0, 100.0)
+	ledger.on_hurt_by(cheater.sim_name, 30.0 + 30.0 * sev, t)
+	ledger.record_trust(cheater.sim_name, "hurt", -20.0)
+	if how == "caught_lying":
+		ledger.record_trust(cheater.sim_name, "hurt", -10.0)  # lež do očí bere důvěru navíc
+	remember_social(cheater, "trust_breach", clampf(sev, 0.1, 1.0), "self", "intended", "", lover)
+	remember(("%s mě podvedl(a)" % cheater.sim_name).replace("(a)", Grammar.past(cheater.grammar)))
+	if lover != null and is_instance_valid(lover):
+		relationships[lover.sim_name] = clampf(float(relationships.get(lover.sim_name, 0.0)) - (10.0 + 15.0 * sev), -100.0, 100.0)
+		ledger.grudges[lover.sim_name] = clampf(ledger.grudge(lover.sim_name) + 20.0 * sev, 0.0, 100.0)
+		lover.mood.add_moodlet("prasklo_" + String(name), "Prasklo to", "nesvuj", -5.0, 720.0)
+		# Milenec/milenka partnera je od teď sok v lásce (Rivalry; soukromé, jen autorita).
+		var rv_b = _rivalry()
+		if rv_b != null:
+			rv_b.on_lover_revealed(sim_name, lover.sim_name, t)
+		lover._detail_dirty = true
+	if ro != null:
+		ro.note(cheater.sim_name, sim_name, "betrayal", t)
+	var cw = _cold_war()
+	if cw != null:
+		cw.note(cheater.sim_name, sim_name, "betrayal", t)
+	# Nevěrník/nevěrnice: vina podle poctivosti, stud, strach z toho, co bude.
+	var hon := float(cheater.infidelity_profile(sim_name)["honesty"])
+	cheater.ledger.on_hurt_other(sim_name, 10.0 + 20.0 * hon)
+	cheater.mood.add_moodlet("prasklo_" + String(name), "Prasklo to", "nesvuj", -(6.0 + 8.0 * hon), 1440.0)
+	cheater.mental.on_stressor("exposed", 6.0 + 6.0 * hon, cheater.mental_cfg())
+	cheater._detail_dirty = true
+	say(ActionLibrary.random_line("betrayed", rng).replace("(a)", Grammar.past(cheater.grammar)))
+	# Zrazený o tom může mluvit dál (vlastní svědectví → drb s plnou vírou).
+	if world != null and world.has_method("gossip_observe"):
+		world.gossip_observe(self, cheater, "cheating", 1.2, lover)
+	last_infidelity = {"action": "betrayed", "target": cheater.sim_name, "outcome": how, "dates": dates, "sev": sev}
+	_detail_dirty = true
+
+
+## „Konfrontovat kvůli nevěře“ (jen s vlastním partnerem/partnerkou). Odpověď závisí na tom, zda je co
+## skrývat, na poctivosti, vině a důkazech. Bezdůvodná žárlivá scéna druhého zraní.
+func _start_confront_cheating(partner: Node3D, act: Dictionary) -> void:
+	var inf = _infidelity()
+	var ro = _romance()
+	var t := now()
+	if inf == null:
+		_abort()
+		return
+	var block: String = inf.confront_block(sim_name, partner.sim_name, ro, t)
+	if block != "":
+		var reply := "confront_not_partners" if block == "not_partners" else "confront_denied"
+		_infidelity_short_reply(partner, act, "confront_cheating", reply, "Konfrontuje: ", block)
+		return
+	var tp: Dictionary = partner.infidelity_profile(sim_name)
+	var res: Dictionary = inf.resolve_confront(sim_name, partner.sim_name, float(tp["honesty"]),
+		clampf(partner.ledger.guilt_of(sim_name) / 100.0, 0.0, 1.0), partner.rng.randf(), t)
+	var outcome := String(res["outcome"])
+	last_infidelity = {"action": "confront_cheating", "target": partner.sim_name, "outcome": outcome,
+		"lover": String(res["lover"]), "evidence": float(res["evidence"])}
+	say(ActionLibrary.random_line("confront_cheating", rng).replace("(a)", Grammar.past(partner.grammar)))
+	partner.say(ActionLibrary.random_line("confront_" + outcome, partner.rng).replace("(a)", Grammar.past(partner.grammar)))
+	act["label"] = "Konfrontuje kvůli nevěře: " + partner.first_name()
+	var partner_act: Dictionary = act.duplicate(true)
+	partner_act["label"] = "Čelí obvinění z nevěry: " + first_name()
+	partner.join_social(self, partner_act)
+	var argued := false
+	match outcome:
+		"confess", "caught_lying":
+			var lover := _sim_by_name(String(res["lover"]))
+			on_betrayal(partner, lover, outcome)
+			if outcome == "caught_lying":
+				relationships[partner.sim_name] = clampf(float(relationships.get(partner.sim_name, 0.0)) - 8.0, -100.0, 100.0)
+			argued = outcome == "caught_lying" or rng.randf() > deescalation_chance(partner)
+		"denied":
+			mood.add_moodlet("zapira_" + String(partner.name), "Zapírá?", "nesvuj", -4.0, 360.0)
+			partner.mood.add_moodlet("vyslychani_" + String(name), "Vyslýchá mě", "nesvuj", -3.0, 240.0)
+		_:  # innocent – žárlivá scéna bez důvodu
+			partner.ledger.on_hurt_by(sim_name, 10.0, t)
+			partner.relationships[sim_name] = clampf(float(partner.relationships.get(sim_name, 0.0)) - 6.0, -100.0, 100.0)
+			partner.mood.add_moodlet("zarliva_scena_" + String(name), "Žárlivá scéna", "nastvany", -6.0, 480.0)
+			partner.remember_social(self, "grievance", 0.35, "self", "intended")
+			mood.add_moodlet("prehnal_" + String(partner.name), "Možná jsem to přehnal(a)".replace("(a)", Grammar.past(grammar)),
+				"nesvuj", -3.0, 360.0)
+			if ro != null:
+				ro.note(sim_name, partner.sim_name, "false_accusation", t)
+			argued = rng.randf() > deescalation_chance(partner) + 0.3
+	if argued:
+		_social_outcome(partner, -rng.randf_range(6.0, 12.0), "argue")
+	_social_positive = false
+	partner._social_positive = false
+	_detail_dirty = true
+	partner._detail_dirty = true
+	conversation.emit(self, partner, {"success": false, "argued": argued,
+		"outcome": "argue" if argued else "awkward",
+		"avg_mood": (mood.value + partner.mood.value) * 0.5, "complaint": "", "deescalated": false, "p": 0.0,
+		"romance": true})
+	current_action = act
+	social_partner = partner
+	_begin_acting()

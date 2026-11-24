@@ -1,0 +1,44 @@
+@@@FILE res://tests/test_lot_doors.gd
+@@@OLD
+	check(int(o["wid"]) == 1 and String(o["kind"]) == "door" and int(o["at"]) == 6 and (o as Dictionary).size() == 6, "záznam otvoru")
+@@@NEW
+	check(int(o["wid"]) == 1 and String(o["kind"]) == "door" and int(o["at"]) == 6 and (o as Dictionary).size() == 7 and String(o["lock"]) == "",
+		"záznam otvoru (B4b: + odemčený zámek)")
+@@@END
+@@@OLD
+	check(int(d["version"]) == 3 and (d["openings"] as Array).size() == 3 and int(d["next_oid"]) == 4, "snímek v3 s otvory")
+@@@NEW
+	check(int(d["version"]) == LotGrid.VERSION and (d["openings"] as Array).size() == 3 and int(d["next_oid"]) == 4, "snímek (v3+) s otvory")
+@@@END
+@@@OLD
+	check(int(lot3.to_dict()["version"]) == 3, "znovu uloženo jako v3")
+@@@NEW
+	check(int(lot3.to_dict()["version"]) == LotGrid.VERSION, "znovu uloženo v aktuální verzi")
+@@@END
+@@@OLD
+	check((pub["open"] as Array).size() == 3 and (pub["open"][0] as Array).size() == 6, "snímek obsahuje otvory jako pole")
+@@@NEW
+	check((pub["open"] as Array).size() == 3 and (pub["open"][0] as Array).size() == 7, "snímek obsahuje otvory jako pole (B4b: + zámek)")
+@@@END
+@@@OLD
+	f3["open"].append([9, 1, "window", 11, 1.0, 360])
+	f3["open"].append([10, 1, "window", 13, 1.0, 360])
+@@@NEW
+	f3["open"].append([9, 1, "window", 11, 1.0, 360, ""])
+	f3["open"].append([10, 1, "window", 13, 1.0, 360, ""])
+@@@END
+@@@OLD
+	f7["open"] = range(65).map(func(i): return [i + 1, 1, "window", 1, 1.0, 360])
+@@@NEW
+	f7["open"] = range(65).map(func(i): return [i + 1, 1, "window", 1, 1.0, 360, ""])
+@@@END
+@@@OLD
+	check(int(lot.to_dict()["version"]) == 3, "parcela ve formátu v3")
+@@@NEW
+	check(int(lot.to_dict()["version"]) == LotGrid.VERSION, "parcela v aktuálním formátu (v3+)")
+@@@END
+@@@OLD
+	check(bool(cap.get("ok", false)) and cap["data"]["lot"].has("openings") and int(cap["data"]["lot"]["version"]) == 3, "serverový snímek světa ukládá otvory (v3)")
+@@@NEW
+	check(bool(cap.get("ok", false)) and cap["data"]["lot"].has("openings") and int(cap["data"]["lot"]["version"]) == LotGrid.VERSION, "serverový snímek světa ukládá otvory")
+@@@END

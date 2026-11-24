@@ -1,0 +1,67 @@
+@@@FILE res://scripts/world/lot_grid.gd
+@@@OLD
+	var queue := PackedInt32Array()
+	for x in gw:
+		for z in [0, gh - 1]:
+			var i: int = z * gw + x
+			if seen[i] == 0 and _walkable(i):
+				seen[i] = 1
+				queue.append(i)
+	for z in gh:
+		for x in [0, gw - 1]:
+			var i2: int = z * gw + x
+			if seen[i2] == 0 and _walkable(i2):
+				seen[i2] = 1
+				queue.append(i2)
+@@@NEW
+	var queue := PackedInt32Array()
+	# Krajní buňky jsou spojené s ulicí jen přes hranu, kterou neblokuje stěna postavená po hranici parcely
+	# (B4 oprava: dřív se zakládaly všechny krajní buňky → místnost u kraje parcely nikdy nebyla „uzavřená“).
+	for x in gw:
+		for z in [0, gh - 1]:
+			var i: int = z * gw + x
+			if seen[i] == 0 and _walkable(i) and _street_open(x, z):
+				seen[i] = 1
+				queue.append(i)
+	for z in gh:
+		for x in [0, gw - 1]:
+			var i2: int = z * gw + x
+			if seen[i2] == 0 and _walkable(i2) and _street_open(x, z):
+				seen[i2] = 1
+				queue.append(i2)
+@@@OLD
+## Buňky bodů použití (výchozí i koupený nábytek) – cíle, ke kterým musí zůstat cesta. skip_uid = vynechat položku.
+@@@NEW
+## Vede z krajní buňky (x, z) volná hrana na ulici (mimo mřížku)? Hrany musí odpovídat _build_edges.
+func _street_open(x: int, z: int) -> bool:
+	if x == 0 and _vedge[z * (gw + 1)] == 0:
+		return true
+	if x == gw - 1 and _vedge[z * (gw + 1) + gw] == 0:
+		return true
+	if z == 0 and _hedge[x] == 0:
+		return true
+	if z == gh - 1 and _hedge[gh * gw + x] == 0:
+		return true
+	return false
+
+
+## Buňky bodů použití (výchozí i koupený nábytek) – cíle, ke kterým musí zůstat cesta. skip_uid = vynechat položku.
+@@@FILE res://tests/test_lot_doors.gd
+@@@OLD
+	var win_id: int = int(room.build_opening(2, "window", 4, 1000.0)["oid"])
+	check(not room.opening_traps(win_id, [inside]), "okno nikoho nezavře (není průchozí)")
+@@@NEW
+	var win_id: int = int(room.build_opening(2, "window", 4, 1000.0)["oid"])
+	check(not room.opening_traps(win_id, [inside]), "okno nikoho nezavře (není průchozí)")
+	# Místnost u kraje parcely: stěna po hranici odděluje od ulice (oprava BFS v B4).
+	var edge = _syn(false)
+	var ed: Dictionary = edge.build_wall(0, 10, 12, 10, 1000.0)
+	var eo: Dictionary = edge.build_opening(int(ed["wid"]), "door", 4, 1000.0)
+	edge.build_wall(12, 10, 12, 22, 1000.0)
+	edge.build_wall(0, 22, 12, 22, 1000.0)
+	var in_edge := Vector2(1.5, 4.0)
+	check(bool(eo["ok"]) and not edge.opening_traps(int(eo["oid"]), [in_edge]), "bez stěny po hranici je místnost otevřená do ulice")
+	check(bool(edge.build_wall(0, 10, 0, 22, 1000.0)["ok"]), "stěna po hranici parcely")
+	check(edge.opening_traps(int(eo["oid"]), [in_edge]), "teď by zazdění dveří postavu zavřelo")
+	check(edge.wall_traps(0, 0, 0, 2, [Vector2(0.1, 0.3)]) == false and edge.check_wall(0, 10, 0, 22) == "wall_overlap", "kontroly hranice konzistentní")
+@@@END

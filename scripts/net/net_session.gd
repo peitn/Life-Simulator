@@ -20,12 +20,15 @@ const AdultIntimacy := preload("res://scripts/sim/adult_intimacy_action.gd")
 const CharacterCodec := preload("res://scripts/character/character_codec.gd")
 const CharacterData := preload("res://scripts/character/character_data.gd")
 const CharacterValidator := preload("res://scripts/character/character_validator.gd")
+const SlanderPolicy := preload("res://scripts/net/slander_policy.gd")
 
 signal chat_received(from: String, text: String, system: bool)
 signal roster_changed(roster: Dictionary)
 signal notice(text: String)
 signal welcomed(my_sim: String)
 signal disconnected(reason: String)
+## Změnil se seznam čekajících verdiktů o řečech (pomluva přes hranici hráčů) pro tohoto hráče.
+signal slander_inbox_changed(items: Array)
 
 enum Mode { OFFLINE, HOST, DEDICATED, CLIENT }
 
@@ -65,6 +68,15 @@ var stats := {"rejected": 0, "commands": 0, "chat_sent": 0, "chat_blocked": 0, "
 	"held": 0, "resumed": 0, "resume_failed": 0, "hold_expired": 0, "restored_held": 0}
 ## Server: poslední důvod odmítnutí postavy (testy, log).
 var last_character_error := String()
+
+## Server: pravidla pomluvy přes hranici hráčů – verdikty posluchačů-hráčů a strop na oběť (SlanderPolicy).
+var slander_policy = SlanderPolicy.new()
+## Klient (i hostitel pro sebe): čekající verdikty [[vid, autor, sok, věta], …] – jen veřejné shrnutí.
+var slander_inbox: Array = []
+const SLANDER_SYNC_INTERVAL := 0.5
+var _slander_timer := 0.0
+## Server: peer_id -> hash naposledy odeslaného seznamu verdiktů (posílá se jen při změně).
+var _slander_sent := {}
 
 ## Délka nouzové pauzy (s) – konfigurovatelná kvůli testům.
 var emergency_pause_seconds: float = Protocol.EMERGENCY_PAUSE
@@ -318,6 +330,300 @@ func request_command(sim_node: String, action_id: String, target: Variant = "") 
 				notice.emit(err)
 
 
+# ---------------------------------------------------------------- pomluva přes hranici hráčů (23. 11. 2026)
+
+## Hráč rozhodl, zda věří řečem, které jeho postava slyšela od postavy jiného hráče / AI (SlanderPolicy).
+## choice: "believe" / "dismiss" / "tell". Klient pošle žádost, hostitel ji vyřídí rovnou.
+func request_slander_verdict(vid: int, choice: String) -> void:
+	match mode:
+		Mode.OFFLINE:
+			notice.emit("Tohle jde jen v multiplayeru.")
+			return
+		Mode.CLIENT:
+			if _connected:
+				_c2s_slander_verdict.rpc_id(1, vid, choice)
+		_:
+			var err := handle_slander_verdict(1, vid, choice)
+			if err != "":
+				notice.emit(err)
+	# Okamžitá odezva UI; skutečný seznam stejně přepíše server.
+	slander_inbox = slander_inbox.filter(func(it): return int(it[0]) != vid)
+	slander_inbox_changed.emit(slander_inbox)
+
+
+## Server: ověří a provede verdikt. "" = úspěch, jinak důvod odmítnutí. Odesílatele určuje transport
+## (multiplayer.get_remote_sender_id), vid i volba jsou jen data – vlastnictví se ověřuje přes postavu,
+## kterou peer právě ovládá (verdikt jiné postavy nejde vyřídit ani uhodnutým vid).
+func handle_slander_verdict(id: int, vid: Variant, choice: Variant) -> String:
+	if mode == Mode.OFFLINE:
+		return "Tohle jde jen v multiplayeru."
+	if not players.has(id):
+		stats["rejected"] += 1
+		return "Neznámý hráč."
+	if not players[id]["cmd"].allow(_now()):
+		stats["rejected"] += 1
+		return "Příliš mnoho příkazů najednou."
+	var sim_node := String(players[id].get("sim", ""))
+	if sim_node == "" or owner_peer_of(sim_node) != id:
+		stats["rejected"] += 1
+		return "Nemáš postavu."
+	if world == null or not world.has_method("rivalry_slander_verdict"):
+		stats["rejected"] += 1
+		return "Tohle teď nejde."
+	var res: Dictionary = slander_policy.resolve(sim_node, vid, choice)
+	if not bool(res["ok"]):
+		stats["rejected"] += 1
+		return {"unknown": "Tohle už je vyřízené.", "owner": "Tohle není tvoje rozhodnutí."}.get(String(res["reason"]), "Neplatná volba.")
+	world.rivalry_slander_verdict(res["entry"], String(choice))
+	slander_sync(sim_node)
+	return ""
+
+
+## Server: soukromé upozornění vlastníkovi postavy (nikomu jinému). Bez vlastníka nic.
+func slander_notify(owner_sim: String, text: String) -> void:
+	if not is_authority() or mode == Mode.OFFLINE:
+		return
+	var pid := owner_peer_of(owner_sim)
+	if pid != 0:
+		_notify(pid, Protocol.sanitize_chat(text))
+
+
+## Server: pošle vlastníkovi postavy aktuální seznam jeho verdiktů (jen při změně).
+func slander_sync(owner_sim: String) -> void:
+	if not is_authority() or mode == Mode.OFFLINE:
+		return
+	var pid := owner_peer_of(owner_sim)
+	if pid != 0:
+		_slander_push(pid, owner_sim)
+
+
+func _slander_push(pid: int, owner_sim: String) -> void:
+	var items: Array = slander_policy.pending_for(owner_sim)
+	var h := hash(items)
+	if _slander_sent.has(pid) and int(_slander_sent[pid]) == h:
+		return
+	_slander_sent[pid] = h
+	if pid == 1 and mode == Mode.HOST:
+		slander_inbox = SlanderPolicy.sanitize_inbox(items)
+		slander_inbox_changed.emit(slander_inbox)
+	else:
+		_s2c_slander_pending.rpc_id(pid, items)
+
+
+func _slander_sync_all() -> void:
+	for pid in players.keys():
+		var s := String(players[pid].get("sim", ""))
+		if s != "":
+			_slander_push(int(pid), s)
+
+
+## Server: verdikty, kterým vypršela lhůta, se vyhodnotí výchozím verdiktem („napůl zapochyboval(a)“).
+func _slander_expire() -> void:
+	if world == null or clock == null or not world.has_method("rivalry_slander_verdict"):
+		return
+	for e in slander_policy.expire(float(clock.total_minutes)):
+		world.rivalry_slander_verdict(e, "default")
+
+
+@rpc("authority", "call_remote", "reliable")
+func _s2c_slander_pending(items: Variant) -> void:
+	slander_inbox = SlanderPolicy.sanitize_inbox(items)
+	slander_inbox_changed.emit(slander_inbox)
+
+
+# ---------------------------------------------------------------- parcela: nákup (B1, 20. 11. 2026)
+## Rate limit nákupů na hráče: [kapacita, doplnění za s].
+const LOT_BUCKET := [4.0, 1.0]
+const LotGridScript := preload("res://scripts/world/lot_grid.gd")
+const LOT_KINDS := ["buy", "sell", "move", "wall", "unwall", "open", "unopen", "lock"]
+## Stavba stěny navíc spouští BFS dosažitelnosti (~8 ms na startovní parcele, až ~35 ms na největší povolené
+## mřížce) → přísnější vlastní limit, aby dávka požadavků nezasekla server (audit Gemini 22. 11.).
+const WALL_BUCKET := [2.0, 0.5]
+var _lot_limiters := {}
+var _wall_limiters := {}
+
+
+## UI → autorita. Offline/host provede hned, klient pošle RPC.
+func request_lot_action(kind: String, args: Array) -> void:
+	match mode:
+		Mode.CLIENT:
+			if _connected:
+				_c2s_lot.rpc_id(1, kind, args)
+		_:
+			var err := handle_lot_action(1, kind, args)
+			if err != "":
+				notice.emit(err)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _c2s_lot(kind: Variant, args: Variant) -> void:
+	if not multiplayer.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	var err := handle_lot_action(id, kind, args)
+	if err != "" and players.has(id):
+		_s2c_notice.rpc_id(id, err)
+
+
+## Server/offline: ověří VŠE od klienta (typy, rozsahy, právo, rychlost) a teprve pak volá svět.
+## Vrací "" (úspěch) nebo text pro hráče.
+func handle_lot_action(id: int, kind: Variant, args: Variant) -> String:
+	if world == null or world.get("lot") == null:
+		return "Nákup tu není k dispozici."
+	if mode == Mode.CLIENT:
+		return "Nakupovat smí jen server."
+	var actor := my_name
+	if mode != Mode.OFFLINE:
+		if not players.has(id):
+			stats["rejected"] += 1
+			return "Nejsi ve hře."
+		if String(players[id].get("sim", "")) == "":
+			stats["rejected"] += 1
+			return "Divák nemůže utrácet peníze domácnosti."
+		var now := _now()
+		if not _lot_limiters.has(id):
+			_lot_limiters[id] = Protocol.RateLimiter.new(LOT_BUCKET[0], LOT_BUCKET[1], now)
+		if not _lot_limiters[id].allow(now):
+			stats["rejected"] += 1
+			return "Pomaleji – obchod nestíhá."
+		actor = String(players[id]["name"])
+	if typeof(kind) != TYPE_STRING or not LOT_KINDS.has(String(kind)) or typeof(args) != TYPE_ARRAY:
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+	var a: Array = args
+	var k := String(kind)
+	var want := 1 if k in ["sell", "unwall", "unopen"] else (3 if k == "open" else (2 if k == "lock" else 4))
+	if a.size() != want:
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+	if k == "buy":
+		if not Protocol.valid_id(a[0]):
+			stats["rejected"] += 1
+			return "Neplatný požadavek."
+	elif k == "wall":
+		# Stěna: čtyři celá čísla = mřížkové body hran 0..gw × 0..gh (B2). Geometrii a pravidla ověří LotGrid.
+		var gw := int(world.lot.gw)
+		var gh := int(world.lot.gh)
+		if not Protocol.valid_int(a[0], 0, gw) or not Protocol.valid_int(a[1], 0, gh) \
+				or not Protocol.valid_int(a[2], 0, gw) or not Protocol.valid_int(a[3], 0, gh):
+			stats["rejected"] += 1
+			return "Neplatný požadavek."
+		if mode != Mode.OFFLINE:
+			var wnow := _now()
+			if not _wall_limiters.has(id):
+				_wall_limiters[id] = Protocol.RateLimiter.new(WALL_BUCKET[0], WALL_BUCKET[1], wnow)
+			if not _wall_limiters[id].allow(wnow):
+				stats["rejected"] += 1
+				return "Pomaleji – zedník nestíhá."
+	elif k == "open":
+		# Dveře/okno (B4): [wid, druh, posun v buňkách od začátku stěny]. Pravidla ověří LotGrid.check_opening.
+		if not Protocol.valid_int(a[0], 1, 1000000000) or typeof(a[1]) != TYPE_STRING or String(a[1]).length() > 16 \
+				or not LotGridScript.OPENINGS.has(String(a[1])) or not Protocol.valid_int(a[2], 0, LotGridScript.WALL_MAX_CELLS):
+			stats["rejected"] += 1
+			return "Neplatný požadavek."
+	elif k == "lock":
+		# Zámek dveří (B4b): [oid, zámek]. Zámek = "", "*" nebo platné jméno uzlu postavy (bez řídicích/bidi znaků).
+		if not Protocol.valid_int(a[0], 1, 1000000000) or not LotGridScript.valid_lock(a[1]):
+			stats["rejected"] += 1
+			return "Neplatný požadavek."
+	elif not Protocol.valid_int(a[0], 1, 1000000000):
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+	# B4b: klíče. Klient zamyká jen pro SVOU postavu nebo pro všechny; osobní zámek jiné (existující) postavy
+	# smí změnit jen její hráč – ostatním zbývá bušit, čekat, nebo dveře vybourat. Offline rozhoduje hráč sám.
+	if k == "lock" and mode != Mode.OFFLINE:
+		var mine := String(players[id].get("sim", ""))
+		var want_lock := String(a[1])
+		if want_lock != "" and want_lock != LotGridScript.LOCK_ALL and want_lock != mine:
+			stats["rejected"] += 1
+			return String(LotGridScript.REASON_TEXT["lock_who"])
+		# Osobní zámek chrání jen postavu, kterou má hráč (připojený nebo čekající na návrat). Postava bez hráče
+		# (odešel natrvalo, AI) ani smazaná postava klíč neuplatní – jinak by opuštěný zámek blokoval dům navždy.
+		var cur_lock: String = world.lot.lock_of(int(a[0]))
+		if cur_lock != "" and cur_lock != LotGridScript.LOCK_ALL and cur_lock != mine and world.find_sim(cur_lock) != null \
+				and sim_has_player(cur_lock):
+			stats["rejected"] += 1
+			return String(LotGridScript.REASON_TEXT["lock_not_yours"])
+	# Osazení i vybourání otvoru jde přes stejný přísný limit jako stěny (vybourání dveří spouští BFS).
+	if (k == "open" or k == "unopen" or k == "lock") and mode != Mode.OFFLINE:
+		var onow := _now()
+		if not _wall_limiters.has(id):
+			_wall_limiters[id] = Protocol.RateLimiter.new(WALL_BUCKET[0], WALL_BUCKET[1], onow)
+		if not _wall_limiters[id].allow(onow):
+			stats["rejected"] += 1
+			return "Pomaleji – zedník nestíhá."
+	# Souřadnice jen uvnitř mřížky parcely (audit Gemini: zbytečné výpočty pro nesmyslné hodnoty).
+	if want == 4 and k != "wall" and (not Protocol.valid_int(a[1], 0, int(world.lot.gw) - 1) or not Protocol.valid_int(a[2], 0, int(world.lot.gh) - 1) \
+			or not Protocol.valid_int(a[3], 0, 3)):
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+	var r: Dictionary = world.lot_apply_action(String(kind), a.duplicate(), actor)
+	if not bool(r.get("ok", false)):
+		return String(LotGridScript.REASON_TEXT.get(String(r.get("reason", "")), "Tohle nejde."))
+	broadcast_lot()
+	var Cat = LotGridScript.Catalog
+	match String(kind):
+		"buy":
+			_notify(id, "Koupeno: %s (−%d kr). Zbývá %d kr." % [String(Cat.get_item(String(a[0]))["name"]), int(r["price"]), int(world.lot.funds)])
+		"sell":
+			_notify(id, "Prodáno: %s (+%d kr). Rozpočet %d kr." % [String(Cat.get_item(String(r["id"]))["name"]), int(r["refund"]), int(world.lot.funds)])
+		"wall":
+			_notify(id, "Zeď postavena (−%d kr). Zbývá %d kr." % [int(r["price"]), int(world.lot.funds)])
+		"unwall":
+			if int(r["refund"]) > 0:
+				_notify(id, "Zeď zbourána (+%d kr – omyl do 24 h)." % int(r["refund"]))
+			else:
+				_notify(id, "Zeď zbourána. Suť nikdo nevykoupí.")
+		"open":
+			_notify(id, "Osazeno: %s (−%d kr). Zbývá %d kr." % [String(LotGridScript.OPENINGS[String(a[1])]["name"]), int(r["price"]), int(world.lot.funds)])
+		"unopen":
+			if int(r["refund"]) > 0:
+				_notify(id, "Vybouráno a zazděno (+%d kr – omyl do 24 h)." % int(r["refund"]))
+			else:
+				_notify(id, "Vybouráno a zazděno. Starý rám šel do sutě.")
+		"lock":
+			var lk := String(a[1])
+			if lk == "":
+				_notify(id, "Odemčeno.")
+			elif lk == LotGridScript.LOCK_ALL:
+				_notify(id, "Zamčeno pro všechny.")
+			else:
+				_notify(id, "Zamčeno – projde jen %s." % _sim_display(lk))
+	return ""
+
+
+## B4b: má postava (jméno uzlu) hráče – připojeného, nebo drženého v době na návrat?
+func sim_has_player(sim_node: String) -> bool:
+	if sim_node == "":
+		return false
+	for pid in players:
+		if String(players[pid].get("sim", "")) == sim_node:
+			return true
+	for hk in _held:
+		if String(_held[hk].get("sim", "")) == sim_node:
+			return true
+	return false
+
+
+## Veřejný snímek parcely klientům (po změně všem, po vstupu jen novému hráči).
+func broadcast_lot(only_peer: int = -1) -> void:
+	if world == null or world.get("lot") == null or not is_networked() or not is_authority():
+		return
+	var snap: Dictionary = world.lot.public_snapshot()
+	for pid in _remote_players():
+		if only_peer < 0 or pid == only_peer:
+			_s2c_lot.rpc_id(pid, snap)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _s2c_lot(snap: Variant) -> void:
+	if multiplayer.is_server() or world == null or not world.has_method("lot_apply_public"):
+		return
+	if not world.lot_apply_public(snap):
+		push_warning("Neplatný snímek parcely od serveru – ignorován.")
+
+
+
 ## Nouzová pauza – zastaví čas všem na emergency_pause_seconds (s cooldownem pro hráče).
 func request_emergency_pause() -> void:
 	match mode:
@@ -473,6 +779,16 @@ func _c2s_command(sim_node: Variant, action_id: Variant, target: Variant) -> voi
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _c2s_slander_verdict(vid: Variant, choice: Variant) -> void:
+	if not multiplayer.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	var err := handle_slander_verdict(id, vid, choice)
+	if err != "" and players.has(id):
+		_s2c_notice.rpc_id(id, err)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _c2s_speed_vote(index: Variant) -> void:
 	if multiplayer.is_server():
 		_handle_vote(multiplayer.get_remote_sender_id(), index)
@@ -524,6 +840,9 @@ func _register_player(id: int, raw_name: Variant, character := {}, resume := {})
 		if sim != String():
 			_issue_reconnect_token(id)
 	_refresh_visibility()
+	# B1: aktuální parcela (koupené předměty, rozpočet) novému hráči.
+	if id > 1:
+		broadcast_lot(id)
 	# Spawner replays original spawn data. Catch a newly introduced peer up
 	# with the current canonical look after earlier edits. The client buffers
 	# these authoritative packets until its puppet exists.
@@ -611,6 +930,9 @@ func _on_peer_connected(id: int) -> void:
 
 
 func _on_peer_disconnected(id: int) -> void:
+	_slander_sent.erase(id)
+	_lot_limiters.erase(id)
+	_wall_limiters.erase(id)
 	_edit_limiters.erase(id)
 	_public_resync_limiters.erase(id)
 	pending.erase(id)
@@ -651,6 +973,10 @@ func _on_peer_disconnected(id: int) -> void:
 
 
 func _despawn_own(s: Node) -> void:
+	# Čekající verdikty postavy, která odchází natrvalo, se uzavřou výchozím verdiktem (nic nevisí).
+	if world.has_method("rivalry_slander_verdict"):
+		for e in slander_policy.drop_owner(String(s.name)):
+			world.rivalry_slander_verdict(e, "default")
 	if s.has_method("leave_world"):
 		s.leave_world()
 	world.unregister_sim(s)
@@ -880,6 +1206,17 @@ func _handle_intimacy_command(peer_id: int, actor, partner, action_id: String) -
 	return ""
 
 
+## Peer, který postavu v MP ovládá (0 = nikdo / offline). Romantický návrh postavě jiného hráče by
+## jinak za něj „odsouhlasila“ AI – dokud není potvrzovací dialog, server takový návrh odmítá.
+func owner_peer_of(sim_node: String) -> int:
+	if mode == Mode.OFFLINE:
+		return 0
+	for pid in players:
+		if String(players[pid].get("sim", "")) == sim_node:
+			return int(pid)
+	return 0
+
+
 ## Ověří a provede příkaz hráče. Vrací "" při úspěchu, jinak důvod odmítnutí.
 func handle_command(id: int, sim_node: Variant, action_id: Variant, target: Variant) -> String:
 	if mode != Mode.OFFLINE:
@@ -936,6 +1273,64 @@ func handle_command(id: int, sim_node: Variant, action_id: Variant, target: Vari
 				or not world.gossip_can_confront(sim, tgt)):
 			stats["rejected"] += 1
 			return "Nevíš o žádných řečech, které by o tobě %s %s." % [tgt.gendered("šířil(a)"), tgt.first_name()]
+		# Vyříkat si to jde jen při dusnu / studené válce (jinak by šlo cizí postavu bezdůvodně zastavovat).
+		if String(action_id) == "clear_air" and (not world.has_method("cold_war_stage") or world.cold_war_stage(sim, tgt) <= 0):
+			stats["rejected"] += 1
+			return "Mezi vámi teď není co vyříkávat."
+		# Rozejít se jde jen s tím, s kým postava chodí; pozvat nejde, když už spolu jsou nebo je hráčova
+		# postava zadaná (monogamní veřejný vztah; nevěra je zvlášť – flirt / tajná schůzka níže). Odstupy po
+		# odmítnutí řeší Romance sama.
+		if String(action_id) == "break_up" and (not world.has_method("romance_status") or not world.romance_status(sim, tgt) in ["dating", "partners"]):
+			stats["rejected"] += 1
+			return "S %s spolu nechodíte." % tgt.first_name()
+		if String(action_id) == "ask_out":
+			var rb: String = world.romance_ask_block(sim, tgt) if world.has_method("romance_ask_block") else "self"
+			if rb in ["self", "already", "taken_self"]:
+				stats["rejected"] += 1
+				return "Teď nemůžeš %s pozvat na rande." % tgt.first_name()
+			var tgt_owner := owner_peer_of(String(tgt.name))
+			if tgt_owner != 0 and tgt_owner != id:
+				stats["rejected"] += 1
+				return "%s patří jinému hráči – za něj AI na rande neodpoví (potvrzení mezi hráči zatím není)." % tgt.first_name()
+		# Nevěra: flirt a tajná schůzka s postavou JINÉHO hráče by za něj rozhodovala AI → odmítnuto (kromě
+		# flirtu s vlastním partnerem). Konfrontace kvůli nevěře jen s vlastním partnerem/partnerkou.
+		if String(action_id) in ["flirt", "secret_date"]:
+			# Dospělost: romantické akce jen mezi dospělými (pojistka i pro poškozená data na serveru).
+			if not sim.has_method("romance_profile") or int(sim.romance_profile().get("age", 0)) < 18 \
+					or int(tgt.romance_profile().get("age", 0)) < 18:
+				stats["rejected"] += 1
+				return "Tohle nejde."
+			var together: bool = world.has_method("romance_status") and world.romance_status(sim, tgt) in ["dating", "partners"]
+			if String(action_id) == "secret_date" and together:
+				stats["rejected"] += 1
+				return "S %s spolu chodíte – tajit není co." % tgt.first_name()
+			var tgt_owner2 := owner_peer_of(String(tgt.name))
+			if not together and tgt_owner2 != 0 and tgt_owner2 != id:
+				stats["rejected"] += 1
+				return "%s patří jinému hráči – za něj AI neodpoví." % tgt.first_name()
+		if String(action_id) == "confront_cheating" and (not world.has_method("infidelity_confront_block") \
+				or world.infidelity_confront_block(sim, tgt) in ["self", "not_partners"]):
+			stats["rejected"] += 1
+			return "S %s spolu nechodíte." % tgt.first_name()
+		# Pomluva soka: soka vybírá server (klient ho nemůže podstrčit); bez soka / v odstupu odmítnuto.
+		if String(action_id) == "slander_rival":
+			var sbk: String = world.rivalry_slander_block(sim, tgt) if world.has_method("rivalry_slander_block") else "self"
+			if sbk != "":
+				stats["rejected"] += 1
+				return {"no_rival": "Nemáš žádného soka, kterého bys tu %s pomlouvat." % sim.gendered("mohl(a)"),
+					"not_now": "Na další pomluvu je moc brzo.",
+					"repeat": "Tohle už %s dnes %s." % [tgt.first_name(), tgt.gendered("slyšel(a)")],
+					"victim_cap": "Tvého soka dnes pomlouvá kdekdo – další řeči by nikdo nebral vážně."}.get(sbk, "Tohle nejde.")
+		# Usmíření se sokem: jen při rivalitě; postava JINÉHO hráče za něj AI nepřijme (potvrzení mezi hráči zatím není).
+		if String(action_id) == "bury_hatchet":
+			var hb: String = world.rivalry_hatchet_block(sim, tgt) if world.has_method("rivalry_hatchet_block") else "self"
+			if hb in ["self", "no_rivalry"]:
+				stats["rejected"] += 1
+				return "Mezi vámi žádná rivalita není."
+			var tgt_owner3 := owner_peer_of(String(tgt.name))
+			if tgt_owner3 != 0 and tgt_owner3 != id:
+				stats["rejected"] += 1
+				return "%s patří jinému hráči – za něj AI neodpoví." % tgt.first_name()
 	else:
 		var objs: Array = world.get_smart_objects()
 		if not Protocol.valid_int(target, 0, objs.size() - 1):
@@ -945,6 +1340,12 @@ func handle_command(id: int, sim_node: Variant, action_id: Variant, target: Vari
 		if tgt.object_tag != obj_tag:
 			stats["rejected"] += 1
 			return "Tuhle akci objekt nenabízí."
+	# K1 kariéry: rozvrh, nemocenská, souboj o povýšení, zaměstnání – rozhoduje server (klient nic nepodstrčí).
+	if bool(action.get("career", false)):
+		var cb: String = world.career_command_block(sim, String(action_id)) if world.has_method("career_command_block") else "unknown"
+		if cb != "":
+			stats["rejected"] += 1
+			return world.career_block_text(cb) if world.has_method("career_block_text") else "Tohle teď nejde."
 	if String(action_id) in ["intimacy_offer", "intimacy_withdraw", "adult_consensual_sex"]:
 		var reason: String = _handle_intimacy_command(id, sim, tgt, String(action_id))
 		if reason != "":
@@ -1098,6 +1499,11 @@ func _process(delta: float) -> void:
 	if _private_timer <= 0.0:
 		_private_timer = PRIVATE_INTERVAL
 		_send_private_state()
+	_slander_timer -= delta
+	if _slander_timer <= 0.0:
+		_slander_timer = SLANDER_SYNC_INTERVAL
+		_slander_expire()
+		_slander_sync_all()
 
 
 ## Soukromý stav postavy jen jejímu vlastníkovi (a jen při změně).
@@ -1213,6 +1619,8 @@ func _on_server_disconnected() -> void:
 	_public_look_revisions.clear()
 	_pending_public_looks.clear()
 	_public_resync_requested.clear()
+	slander_inbox = []
+	slander_inbox_changed.emit(slander_inbox)
 	_add_chat("", "Spojení se serverem bylo ukončeno.", true)
 	disconnected.emit("Server ukončil spojení.")
 

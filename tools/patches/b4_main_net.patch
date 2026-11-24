@@ -1,0 +1,240 @@
+@@@FILE res://main.gd
+@@@OLD
+const LOT_APPEAL_BAD := -4.0
+@@@NEW
+const LOT_APPEAL_BAD := -4.0
+## B4: pant křídla dveří (vizuál).
+const LotDoor := preload("res://scripts/world/lot_door.gd")
+var _open_mats: Array = []
+@@@OLD
+## "move" [uid, cx, cz, rot]; "wall" [x0, z0, x1, z1] (mřížkové body hran); "unwall" [wid].
+@@@NEW
+## "move" [uid, cx, cz, rot]; "wall" [x0, z0, x1, z1] (mřížkové body hran); "unwall" [wid];
+## B4: "open" [wid, druh, posun v buňkách] (dveře/okno do stěny); "unopen" [oid] (vybourat a zazdít).
+@@@OLD
+		"unwall":
+			if args.size() != 1:
+				return {"ok": false, "reason": "unknown_wid"}
+			r = lot.remove_wall(args[0], now, actor)
+@@@NEW
+		"unwall":
+			if args.size() != 1:
+				return {"ok": false, "reason": "unknown_wid"}
+			r = lot.remove_wall(args[0], now, actor)
+		"open":
+			if args.size() != 3:
+				return {"ok": false, "reason": "opening_bad"}
+			r = lot.build_opening(args[0], args[1], args[2], now, actor)
+		"unopen":
+			if args.size() != 1:
+				return {"ok": false, "reason": "unknown_oid"}
+			# Zazdění dveří nesmí nikoho zavřít (stejně jako stavba zdi – B3 traps_sim).
+			var door_pts: Array = []
+			for s in sims:
+				if is_instance_valid(s):
+					door_pts.append(Vector2(s.global_position.x, s.global_position.z))
+			if lot.opening_traps(args[0], door_pts):
+				return {"ok": false, "reason": "door_traps"}
+			r = lot.remove_opening(args[0], now, actor)
+@@@OLD
+static func _wall_key(w: Dictionary) -> String:
+	return "%d,%d,%d,%d" % [int(w["x0"]), int(w["z0"]), int(w["x1"]), int(w["z1"])]
+@@@NEW
+## Klíč uzlu stěny: souřadnice + otvory (osazení/vybourání dveří uzel postaví znovu).
+func _wall_key(w: Dictionary) -> String:
+	var k := "%d,%d,%d,%d" % [int(w["x0"]), int(w["z0"]), int(w["x1"]), int(w["z1"])]
+	if lot != null and w.has("wid"):
+		for o in lot.openings_of(int(w["wid"])):
+			k += "|%d:%s@%d" % [int(o["oid"]), String(o["kind"]), int(o["at"])]
+	return k
+@@@OLD
+	body.rotation_degrees = Vector3(0, 0.0 if is_equal_approx(a.y, b.y) else 90.0, 0)
+	var shape := CollisionShape3D.new()
+@@@NEW
+	body.rotation_degrees = Vector3(0, 0.0 if is_equal_approx(a.y, b.y) else 90.0, 0)
+	var ops: Array = lot.openings_of(int(w["wid"])) if w.has("wid") else []
+	if not ops.is_empty():
+		_build_wall_with_openings(body, a.distance_to(b), ops, not is_equal_approx(a.y, b.y))
+		return body
+	var shape := CollisionShape3D.new()
+@@@OLD
+func _lot_remove_node(uid: int) -> void:
+@@@NEW
+## B4: stěna s otvory – plné kusy (omítka + sokl), nadpraží, parapety, zárubně/rámy, sklo, křídla dveří.
+## Lokální osa X = délka stěny; s = vzdálenost od začátku stěny (x0, z0). Svislá stěna je otočená o 90°, takže
+## lokální +X tam míří k menšímu z → s se převádí se znaménkem (sgn). Kolize: plné kusy, nadpraží, parapety
+## a celé okno; rozsah dveří kolizi nemá. TODO(Blender): nahradit procedurální zárubně a křídla assety.
+func _build_wall_with_openings(body: StaticBody3D, wall_len: float, ops: Array, vertical: bool) -> void:
+	if _open_mats.is_empty():
+		var frame := StandardMaterial3D.new()
+		frame.albedo_color = Color(0.9, 0.88, 0.83)
+		frame.roughness = 0.45
+		var leaf := StandardMaterial3D.new()
+		leaf.albedo_color = Color(0.36, 0.25, 0.17)
+		leaf.roughness = 0.6
+		var glass := StandardMaterial3D.new()
+		glass.albedo_color = Color(0.72, 0.82, 0.86, 0.22)
+		glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glass.roughness = 0.04
+		glass.metallic_specular = 0.9
+		glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var metal := StandardMaterial3D.new()
+		metal.albedo_color = Color(0.7, 0.68, 0.62)
+		metal.metallic = 0.9
+		metal.roughness = 0.3
+		_open_mats = [frame, leaf, glass, metal]
+	var h := LotGrid.WALL_HEIGHT
+	var t := LotGrid.WALL_THICK
+	var sgn := -1.0 if vertical else 1.0
+	var half := wall_len * 0.5
+	var fr := 0.06
+	var spans: Array = []
+	for o in ops:
+		var s0 := float(o["at"]) * LotGrid.CELL
+		spans.append([s0, s0 + float(LotGrid.opening_cells(String(o["kind"]))) * LotGrid.CELL, o])
+	spans.sort_custom(func(p, q): return float(p[0]) < float(q[0]))
+	# Plné kusy mezi otvory; krajní prodloužené o půl tloušťky (spáry v rozích jako u plné stěny).
+	var s := -t * 0.5
+	var idx := 0
+	for sp in spans:
+		_ow_piece(body, "Body_%d" % idx, s, float(sp[0]), 0.0, h, sgn, half, true)
+		s = float(sp[1])
+		idx += 1
+	_ow_piece(body, "Body_%d" % idx, s, wall_len + t * 0.5, 0.0, h, sgn, half, true)
+	for sp in spans:
+		var o: Dictionary = sp[2]
+		var k := String(o["kind"])
+		var info: Dictionary = LotGrid.OPENINGS[k]
+		var oid := int(o["oid"])
+		var s0: float = sp[0]
+		var s1: float = sp[1]
+		var head := float(info["head"])
+		var sill := float(info["sill"])
+		_ow_piece(body, "Header_%d" % oid, s0, s1, head, h, sgn, half, false)
+		if sill > 0.0:
+			_ow_piece(body, "Sill_%d" % oid, s0, s1, 0.0, sill, sgn, half, true)
+		var mid := ((s0 + s1) * 0.5 - half) * sgn
+		var width := s1 - s0
+		var holder := Node3D.new()
+		holder.name = ("Door_%d" if LotGrid.is_door(k) else "Window_%d") % oid
+		holder.position = Vector3(mid, 0, 0)
+		holder.set_meta("lot_opening", oid)
+		body.add_child(holder)
+		_ow_box(holder, "JambA", Vector3(fr, head - sill, t + 0.03), Vector3(-width * 0.5 + fr * 0.5, (sill + head) * 0.5, 0), _open_mats[0])
+		_ow_box(holder, "JambB", Vector3(fr, head - sill, t + 0.03), Vector3(width * 0.5 - fr * 0.5, (sill + head) * 0.5, 0), _open_mats[0])
+		_ow_box(holder, "FrameTop", Vector3(width, fr, t + 0.03), Vector3(0, head - fr * 0.5, 0), _open_mats[0])
+		if LotGrid.is_door(k):
+			# Křídlo na pantu u sloupku A; otevírá ho LotDoor, když jde kolem postava (jen vizuál, bez kolize).
+			var hinge := Node3D.new()
+			hinge.name = "Hinge"
+			hinge.set_script(LotDoor)
+			hinge.position = Vector3(-width * 0.5 + fr, 0, t * 0.5 - 0.02)
+			holder.add_child(hinge)
+			hinge.set("world", self)
+			var lw := width - fr * 2.0 - 0.01
+			_ow_box(hinge, "Leaf", Vector3(lw, head - fr - 0.012, 0.04), Vector3(lw * 0.5, (head - fr) * 0.5, -0.02), _open_mats[1])
+			_ow_box(hinge, "Handle", Vector3(0.12, 0.025, 0.05), Vector3(lw - 0.1, 1.02, 0.025), _open_mats[3])
+			_ow_box(hinge, "HandleBack", Vector3(0.12, 0.025, 0.05), Vector3(lw - 0.1, 1.02, -0.065), _open_mats[3])
+		else:
+			_ow_box(holder, "FrameBottom", Vector3(width, fr, t + 0.03), Vector3(0, sill + fr * 0.5, 0), _open_mats[0])
+			_ow_box(holder, "Mullion", Vector3(0.04, head - sill - fr * 2.0, 0.05), Vector3(0, (sill + head) * 0.5, 0), _open_mats[0])
+			var gl := _ow_box(holder, "Glass", Vector3(width - fr * 2.0, head - sill - fr * 2.0, 0.012), Vector3(0, (sill + head) * 0.5, 0), _open_mats[2])
+			gl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_ow_box(holder, "SillBoard", Vector3(width + 0.08, 0.03, t + 0.1), Vector3(0, sill - 0.015, 0), _open_mats[0])
+			# Okno je pro postavy neprůchozí → kolize přes celý otvor.
+			var cs := CollisionShape3D.new()
+			cs.name = "WindowCollision_%d" % oid
+			var bs := BoxShape3D.new()
+			bs.size = Vector3(width, head - sill, t)
+			cs.shape = bs
+			cs.position = Vector3(mid, (sill + head) * 0.5, 0)
+			body.add_child(cs)
+
+
+## Kus omítnuté stěny od s0 do s1 (podél stěny) a od výšky y0 do y1, s kolizí; od podlahy i sokl.
+func _ow_piece(body: StaticBody3D, pname: String, s0: float, s1: float, y0: float, y1: float, sgn: float, half: float, skirt: bool) -> void:
+	var length := s1 - s0
+	if length <= 0.001 or y1 - y0 <= 0.001:
+		return
+	var t := LotGrid.WALL_THICK
+	var cx := ((s0 + s1) * 0.5 - half) * sgn
+	var mi := _ow_box(body, pname, Vector3(length, y1 - y0, t), Vector3(cx, (y0 + y1) * 0.5, 0), _wall_mats[0])
+	mi.set_meta("wall_piece", true)
+	var shape := CollisionShape3D.new()
+	shape.name = pname + "_Col"
+	var box := BoxShape3D.new()
+	box.size = Vector3(length, y1 - y0, t)
+	shape.shape = box
+	shape.position = Vector3(cx, (y0 + y1) * 0.5, 0)
+	body.add_child(shape)
+	if skirt and y0 <= 0.0:
+		var sk := _ow_box(body, pname + "_Skirting", Vector3(maxf(length - 0.004, 0.001), 0.09, t + 0.024), Vector3(cx, 0.045, 0), _wall_mats[1])
+		sk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _ow_box(parent: Node3D, bname: String, size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.name = bname
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+func _lot_remove_node(uid: int) -> void:
+@@@OLD
+	if lot == null or lot.items.is_empty():
+		_lot_appeal_minutes = 0.0
+		return
+@@@NEW
+	if lot == null or (lot.items.is_empty() and lot.openings.is_empty()):
+		_lot_appeal_minutes = 0.0
+		return
+@@@FILE res://scripts/net/net_session.gd
+@@@OLD
+const LOT_KINDS := ["buy", "sell", "move", "wall", "unwall"]
+@@@NEW
+const LOT_KINDS := ["buy", "sell", "move", "wall", "unwall", "open", "unopen"]
+@@@OLD
+	var want := 1 if k == "sell" or k == "unwall" else 4
+@@@NEW
+	var want := 1 if k in ["sell", "unwall", "unopen"] else (3 if k == "open" else 4)
+@@@OLD
+	elif not Protocol.valid_int(a[0], 1, 1000000000):
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+@@@NEW
+	elif k == "open":
+		# Dveře/okno (B4): [wid, druh, posun v buňkách od začátku stěny]. Pravidla ověří LotGrid.check_opening.
+		if not Protocol.valid_int(a[0], 1, 1000000000) or typeof(a[1]) != TYPE_STRING or String(a[1]).length() > 16 \
+				or not LotGridScript.OPENINGS.has(String(a[1])) or not Protocol.valid_int(a[2], 0, LotGridScript.WALL_MAX_CELLS):
+			stats["rejected"] += 1
+			return "Neplatný požadavek."
+	elif not Protocol.valid_int(a[0], 1, 1000000000):
+		stats["rejected"] += 1
+		return "Neplatný požadavek."
+	# Osazení i vybourání otvoru jde přes stejný přísný limit jako stěny (vybourání dveří spouští BFS).
+	if (k == "open" or k == "unopen") and mode != Mode.OFFLINE:
+		var onow := _now()
+		if not _wall_limiters.has(id):
+			_wall_limiters[id] = Protocol.RateLimiter.new(WALL_BUCKET[0], WALL_BUCKET[1], onow)
+		if not _wall_limiters[id].allow(onow):
+			stats["rejected"] += 1
+			return "Pomaleji – zedník nestíhá."
+@@@OLD
+			else:
+				_notify(id, "Zeď zbourána. Suť nikdo nevykoupí.")
+@@@NEW
+			else:
+				_notify(id, "Zeď zbourána. Suť nikdo nevykoupí.")
+		"open":
+			_notify(id, "Osazeno: %s (−%d kr). Zbývá %d kr." % [String(LotGridScript.OPENINGS[String(a[1])]["name"]), int(r["price"]), int(world.lot.funds)])
+		"unopen":
+			if int(r["refund"]) > 0:
+				_notify(id, "Vybouráno a zazděno (+%d kr – omyl do 24 h)." % int(r["refund"]))
+			else:
+				_notify(id, "Vybouráno a zazděno. Starý rám šel do sutě.")
+@@@END

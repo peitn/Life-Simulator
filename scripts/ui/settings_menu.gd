@@ -21,6 +21,7 @@ var _voices: OptionButton
 var _audio_enabled: CheckBox
 var _sh_ed: CheckBox
 var _adult_intimacy: CheckBox
+var _crowd: OptionButton
 var _syncing := false
 
 
@@ -208,6 +209,10 @@ func _build_menu() -> void:
 	_voices.set_item_disabled(2, not (NeuralVoice.supported("kasandra") and NeuralVoice.supported("jirka")))
 	_voices.set_item_tooltip(2, "Vyžaduje lokální Python a české modely Piper; web zatím není podporován.")
 	_voices.item_selected.connect(func(i: int): _apply("character_voices", VOICE_IDS[i]))
+	_crowd = _option(v, "Detail postav v dálce (výkon)", ["Nízký (rychlejší)", "Střední", "Vysoký"])
+	_crowd.name = "CrowdDetail"
+	_crowd.tooltip_text = "Vzdálené postavy mají jednodušší vlasy a tvář. Vyšší detail = hezčí dav, nižší = plynulejší hra."
+	_crowd.item_selected.connect(func(i: int): _apply("crowd_detail", i))
 	_profanity = _check(v, "Sprostá mluva v dialozích (vypnuto = cenzura k***a)")
 	_profanity.toggled.connect(func(on: bool): _apply("profanity", on))
 	_sh_ed = _check(v, "Sebepoškozování a poruchy příjmu potravy (jen přes emoce a vztahy; zatím ve hře nejsou)")
@@ -278,6 +283,8 @@ func _sync_from_settings() -> void:
 	_addiction.button_pressed = bool(_settings.get_value("addiction"))
 	_audio_enabled.button_pressed = bool(_settings.get_value("audio_enabled"))
 	_profanity.button_pressed = bool(_settings.get_value("profanity"))
+	if _crowd != null:
+		_crowd.select(clampi(int(_settings.get_value("crowd_detail")), 0, 2))
 	if _voices != null:
 		_voices.select(maxi(VOICE_IDS.find(String(_settings.get_value("character_voices"))), 0))
 	_sh_ed.button_pressed = bool(_settings.get_value("sh_ed_topics"))

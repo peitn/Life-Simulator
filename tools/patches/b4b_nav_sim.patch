@@ -1,0 +1,168 @@
+@@@FILE res://scripts/world/lot_nav.gd
+@@@OLD
+## Čisté a deterministické: stejný stav parcely a polohy = stejná trasa na serveru i v testech.
+@@@NEW
+## B4b (24. 11. 2026): zamčené dveře. Volající (SimAgent) nastaví lot.nav_viewer = klíč postavy jen na dobu
+## next_point; zamčené dveře bez klíče jsou pak pro tuto postavu plná zeď (úseky, pathfinder, BFS). Když cíl
+## není dosažitelný, lock_blocker() zjistí, čí zámek cestu zavřel (pro sociální důsledky v SimAgent).
+## Čisté a deterministické: stejný stav parcely a polohy = stejná trasa na serveru i v testech.
+@@@END
+@@@OLD
+	var key := "%d|%d|%d|%d" % [lot.revision, lot._layout_serial, gcell.x, gcell.y]
+@@@NEW
+	var key := "%d|%d|%d|%d|%s" % [lot.revision, lot._layout_serial, gcell.x, gcell.y, lot._view_key()]
+@@@END
+@@@OLD
+## Zapomene trasu, ale nechá čítač plánování (diagnostika a testy výkonu).
+@@@NEW
+## B4b: postava `who` se z a do b nedostane – je to kvůli zámku? Vrací klíč zámku dveří, jejichž odemčení by
+## cestu otevřelo ("*" = zamčeno pro všechny, jméno uzlu = osobní zámek), nebo "" (zeď, nábytek, žádný zámek).
+## Zkouší dveře po jedněch (vzestupně oid); když je potřeba odemknout víc dveří najednou, vrátí první z nich.
+## Pohled parcely (nav_viewer, _nav_unlock) vrátí do původního stavu.
+static func lock_blocker(lot: RefCounted, who: String, a: Vector2, b: Vector2) -> String:
+	if lot == null or who == "" or lot.gw <= 0 or lot.gh <= 0:
+		return ""
+	var locked: Array = lot.locked_against(who)
+	if locked.is_empty():
+		return ""
+	var saved_v: String = lot.nav_viewer
+	var saved_u: int = lot._nav_unlock
+	var out := ""
+	lot.nav_viewer = who
+	lot._nav_unlock = 0
+	var sc := snap_cell(lot, a)
+	var gc := snap_cell(lot, b)
+	if sc.x >= 0 and gc.x >= 0:
+		for oid in locked:
+			lot._nav_unlock = int(oid)
+			if not Pathfinder.find_path(lot, sc, gc).is_empty():
+				out = lot.lock_of(int(oid))
+				break
+		if out == "":
+			# Víc zamčených dveří za sebou: bez zámků cesta vede → první zámek je viník.
+			lot._nav_unlock = 0
+			lot.nav_viewer = ""
+			var sc2 := snap_cell(lot, a)
+			var gc2 := snap_cell(lot, b)
+			if sc2.x >= 0 and gc2.x >= 0 and not Pathfinder.find_path(lot, sc2, gc2).is_empty():
+				out = lot.lock_of(int(locked[0]))
+	lot.nav_viewer = saved_v
+	lot._nav_unlock = saved_u
+	lot._build_edges({})
+	return out
+
+
+## Zapomene trasu, ale nechá čítač plánování (diagnostika a testy výkonu).
+@@@END
+@@@FILE res://scripts/sim/sim_agent.gd
+@@@OLD
+const NAV_BLOCK_MAX := 32
+@@@NEW
+const NAV_BLOCK_MAX := 32
+## B4b: zamčené dveře – o kolik klesne vztah k tomu, kdo se zamkl, a jak často (herní minuty) na osobu.
+const LOCKOUT_REL := 2.0
+const LOCKOUT_COOLDOWN := 360.0
+const LOCKOUT_HEAR_DIST := 10.0
+@@@END
+@@@OLD
+var _nav_escaped := false
+@@@NEW
+var _nav_escaped := false
+## B4b: kdy naposledy postavu kdo zamkl venku (klíč uzlu → herní minuta). Běhový stav, neukládá se.
+var _lockout_at := {}
+@@@END
+@@@OLD
+	if lot != null:
+		var nv: Dictionary = LotNav.next_point(lot, global_position, target_point, _nav_cache)
+		match String(nv["mode"]):
+			"none":
+				_nav_unreachable()
+				return
+@@@NEW
+	if lot != null:
+		# B4b: trasa z pohledu této postavy (zamčené dveře bez klíče = zeď); pohled se hned vrátí.
+		lot.nav_viewer = String(name)
+		var nv: Dictionary = LotNav.next_point(lot, global_position, target_point, _nav_cache)
+		lot.nav_viewer = ""
+		match String(nv["mode"]):
+			"none":
+				var lk := ""
+				if lot.has_locks():
+					lk = LotNav.lock_blocker(lot, String(name), Vector2(global_position.x, global_position.z),
+						Vector2(target_point.x, target_point.z))
+				if lk != "":
+					_locked_out(lk)
+				else:
+					_nav_unreachable()
+				return
+@@@END
+@@@OLD
+## B3: cíl je od postavy odříznutý zdmi. Předmět si zapamatuje (AI ho chvíli nebude vybírat), znejistí a vzdá to.
+func _nav_unreachable() -> void:
+	if target != null and is_instance_valid(target) and not _is_sim(target):
+		nav_blocked[target.get_instance_id()] = now() + NAV_BLOCK_MINUTES
+		while nav_blocked.size() > NAV_BLOCK_MAX:
+			nav_blocked.erase(nav_blocked.keys()[0])
+	mood.add_moodlet@@@NEW
+## B3: cíl je od postavy odříznutý zdmi. Předmět si zapamatuje (AI ho chvíli nebude vybírat), znejistí a vzdá to.
+func _nav_unreachable() -> void:
+	_remember_unreachable_target()
+	mood.add_moodlet@@@END
+@@@OLD
+## Předměty, ke kterým se postava nedávno nedostala, AI chvíli nevybírá (jinak by v cyklu narážela do zdi).
+@@@NEW
+func _remember_unreachable_target() -> void:
+	if target != null and is_instance_valid(target) and not _is_sim(target):
+		nav_blocked[target.get_instance_id()] = now() + NAV_BLOCK_MINUTES
+		while nav_blocked.size() > NAV_BLOCK_MAX:
+			nav_blocked.erase(nav_blocked.keys()[0])
+
+
+## B4b: cestu zavřely zamčené dveře. lock_key "*" = zamčeno pro všechny, jinak jméno uzlu toho, kdo se zamkl.
+## Cíl si zapamatuje jako nedostupný (AI do dveří nebuší v cyklu). Osobní zámek někoho jiného bolí: moodlet,
+## vzpomínka „odmítl(a) mě“ s výkladem podle vigilance, vztah −LOCKOUT_REL (nejvýš jednou za LOCKOUT_COOLDOWN
+## na osobu) a zamčený uslyší bušení, když je blízko. Hra nic z toho neodměňuje ani netrestá navíc.
+func _locked_out(lock_key: String) -> void:
+	_remember_unreachable_target()
+	var locker: Node3D = null
+	if lock_key != "*" and world != null and world.has_method("find_sim"):
+		locker = world.find_sim(lock_key)
+	if locker == null or locker == self or not is_instance_valid(locker):
+		mood.add_moodlet("zamceno", "Zamčeno. Nikdo neotevře", "nesvuj", -3.0, 60.0)
+		if by_player or rng.randf() < 0.5:
+			say(["Zamčeno. Bezva.", "Kdo to sakra zamkl?", "Takže sem nesmím. Dobře vědět."][rng.randi() % 3])
+		_abort()
+		return
+	var key := String(locker.name)
+	var t_now := now()
+	var fresh := not _lockout_at.has(key) or t_now - float(_lockout_at[key]) >= LOCKOUT_COOLDOWN or t_now < float(_lockout_at[key])
+	mood.add_moodlet("zamceno_" + key, "%s se přede mnou zamyká" % locker.first_name(), "nastvany", -4.0, 120.0)
+	if fresh:
+		_lockout_at[key] = t_now
+		while _lockout_at.size() > 16:
+			_lockout_at.erase(_lockout_at.keys()[0])
+		var cur := float(relationships.get(locker.sim_name, 0.0))
+		var nv := clampf(cur - LOCKOUT_REL, -100.0, 100.0)
+		relationships[locker.sim_name] = nv
+		note_relationship_change(locker, cur, nv)
+		remember_social(locker, "rejection", 0.25, "self", interpret_intent(0.5))
+		if locker.has_method("hear_knocking") and locker.global_position.distance_to(global_position) <= LOCKOUT_HEAR_DIST:
+			locker.hear_knocking(self)
+	if by_player or rng.randf() < 0.6:
+		var fn := locker.first_name()
+		say(["%s, otevři ty zasraný dveře!" % fn, "Fajn, %s. Zamykej se přede mnou. Strašně dospělý." % fn,
+			"Klepu už potřetí, %s. Vím, že tam jsi." % fn][rng.randi() % 3])
+	_abort()
+
+
+## B4b: někdo buší na dveře, za kterými se postava zamkla. Napětí, žádný vztahový trest (ten nese ten venku).
+func hear_knocking(other: Node3D) -> void:
+	if other == null or not is_instance_valid(other):
+		return
+	mood.add_moodlet("busi_na_dvere", "%s mi buší na dveře" % other.first_name(), "napjaty", -2.0, 45.0)
+	if rng.randf() < 0.4:
+		say(["Jdi pryč!", "Dej mi aspoň chvíli pokoj.", "Neotvírám. Nech mě bejt."][rng.randi() % 3])
+
+
+## Předměty, ke kterým se postava nedávno nedostala, AI chvíli nevybírá (jinak by v cyklu narážela do zdi).
+@@@END

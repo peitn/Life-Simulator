@@ -15,12 +15,15 @@ extends RefCounted
 ## použije primitivní náhradu.
 
 const MODELS_DIR := "res://assets/models/"
+const CharacterLod := preload("res://scripts/assets/character_lod.gd")
 
 ## Dedikovaný server bez obrazu modely nepotřebuje.
 static var enabled := true
 static var _cache := {}          # jméno -> PackedScene, nebo null (chybí / chyba)
 static var _textures := {}       # klíč -> Texture2D (sdílené detailní textury)
 static var load_count := 0       # kolikrát se GLB skutečně četl z disku (test cache)
+## C-LOD: při načtení GLB doplnit sítím automatické LOD (CharacterLod.with_lods). Testy to mohou vypnout.
+static var generate_lods := true
 
 
 static func model_path(model_name: String) -> String:
@@ -58,6 +61,9 @@ static func _get_scene(model_name: String) -> PackedScene:
 					enhance_mesh(mi as MeshInstance3D)
 					if is_skin_mesh(mi as MeshInstance3D) or part_material_name(mi) in ["skin_lips","eye_iris","eye_limbus","eye_sclera","eye_pupil"]:
 						add_rest_positions(mi as MeshInstance3D)
+					# C-LOD: automatické indexové LOD (sdílené všemi instancemi) – až po CUSTOM0, ať je mají i LOD.
+					if generate_lods:
+						(mi as MeshInstance3D).mesh = CharacterLod.with_lods((mi as MeshInstance3D).mesh)
 				ps = PackedScene.new()
 				if ps.pack(root) != OK:
 					ps = null

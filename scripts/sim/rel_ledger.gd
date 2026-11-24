@@ -182,7 +182,7 @@ func warmth_mult(who: String) -> float:
 func sincerity(who: String, now: float) -> float:
 	var recent := 0
 	for t in apologies_from.get(who, []):
-		if now - float(t) < RECENT_WINDOW:
+		if now >= float(t) and now - float(t) < RECENT_WINDOW:
 			recent += 1
 	return clampf(1.0 - 0.3 * recent - 0.35 * float(broken.get(who, 0.0)), 0.0, 1.0)
 
@@ -192,14 +192,14 @@ func sincerity(who: String, now: float) -> float:
 ## forgiveness = povaha (+ smířlivější), rel = můj vztah k němu, stress = můj stres.
 func evaluate_apology(who: String, now: float, rel: float, forgiveness: float, stress: float, roll: float) -> Dictionary:
 	var log: Array = apologies_from.get(who, [])
-	if not log.is_empty() and now - float(log[-1]) < SPAM_WINDOW:
+	if not log.is_empty() and now >= float(log[-1]) and now - float(log[-1]) < SPAM_WINDOW:
 		return {"outcome": "spam", "p": 0.0, "reason": "zase"}
 	var g := grudge(who)
 	if g < 3.0:
 		return {"outcome": "none", "p": 1.0, "reason": "nic se nestalo"}
 	var p := 0.3 + 0.35 * sincerity(who, now) + rel / 250.0 + forgiveness - g / 140.0 - stress / 350.0
 	var reason := ""
-	if now - float(hurt_at.get(who, -1.0e9)) < TOO_SOON:
+	if now >= float(hurt_at.get(who, -1.0e9)) and now - float(hurt_at.get(who, -1.0e9)) < TOO_SOON:
 		p -= 0.35
 		reason = "příliš brzy"
 	p = clampf(p, 0.03, 0.95)

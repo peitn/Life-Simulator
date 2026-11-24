@@ -114,7 +114,9 @@ func _check_composed_character(e: Dictionary) -> void:
 	check(int(LSX.decode(FileAccess.get_file_as_string("res://assets/src/character_head.lsx"))["head"]["v"]) == 3, "LSX v3 (hlava) je stále čitelné")
 	# Od C3 má postava skutečný obličej (víčka, rty, uši a oči jako geometrie, ~7 800 tri) → rozpočet 18 000.
 	# Běh 21 (C3++): + řasy (~730) a ústa – zuby, dáseň, jazyk (~1 600) → rozpočet 20 000.
-	check(int(e.get("tris", 0)) > 8000 and int(e.get("tris", 0)) <= 20000, "character: rozpočet trojúhelníků ≤ 20 000 (hlavní postava s obličejem, řasami a ústy)", str(e.get("tris")))
+	# Realism pass 30. 10. (jemnější hlava 18 302) → 27 418; běh main-claude-1794381713 to přijal jako rozpočet LOD0
+	# (cíl projektu = realismus, LOD pro dav samostatně) – docs/asset-pipeline.md „Triangle budgets“.
+	check(int(e.get("tris", 0)) > 8000 and int(e.get("tris", 0)) <= 28500, "character: rozpočet trojúhelníků LOD0 ≤ 28 500 (hlavní postava s obličejem, řasami a ústy)", str(e.get("tris")))
 	check(FileAccess.file_exists("res://assets/models/character.glb"), "character.glb existuje")
 
 

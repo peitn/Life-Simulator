@@ -380,6 +380,59 @@ func _build_furniture() -> void:
 	box(tm, Vector3(0.8, 0.25, 0.1), Vector3(0, 1.25, -0.8), dark)
 
 
+## B1 (20. 11. 2026): popis parcely pro LotGrid – hranice, stěny, dveřní koridory, vestavěné kusy, stromy,
+## chodník a výchozí nábytek (pevné položky s přístupovými zónami). Musí odpovídat geometrii z build().
+const LOT_MIN := Vector2(-12.0, -12.0)
+const LOT_MAX := Vector2(12.0, 12.75)
+const LOT_MAX_EIGHT := Vector2(20.0, 12.75)
+const TREE_SPOTS := [Vector2(-10, -8), Vector2(-12, 3), Vector2(10, -9), Vector2(12, 4), Vector2(-9, 10),
+	Vector2(9, 11), Vector2(0, -11), Vector2(-15, -3), Vector2(23, -7)]
+## Půdorysy výchozího nábytku podle tagu (m); postel podle kapacity.
+const FIXED_SIZES := {"fridge": Vector2(0.85, 0.75), "stove": Vector2(0.9, 0.7), "tv": Vector2(1.8, 0.45),
+	"sofa": Vector2(2.2, 0.9), "bookshelf": Vector2(1.4, 0.35), "shower": Vector2(1.2, 1.2),
+	"treadmill": Vector2(0.8, 1.8), "bed2": Vector2(1.7, 2.15), "bed1": Vector2(1.0, 2.1)}
+
+
+static func _r(x0: float, z0: float, x1: float, z1: float) -> Rect2:
+	return Rect2(Vector2(x0, z0), Vector2(x1 - x0, z1 - z0))
+
+
+func describe_lot(lot) -> void:
+	lot.setup(LOT_MIN, LOT_MAX_EIGHT if include_eight_suite else LOT_MAX)
+	lot.add_interior_rect(_r(-6.0, -4.5, 6.0, 4.5))
+	# Stěny domu (včetně snížených cutaway stěn – i přes nízkou zeď nic nepostavíš).
+	for r in [_r(-6.2, -4.7, 6.2, -4.5), _r(-6.2, -4.7, -6.0, 4.7), _r(6.0, -4.7, 6.2, 4.7),
+			_r(-6.1, 4.5, -0.9, 4.7), _r(0.9, 4.5, 6.1, 4.7), _r(-3.575, 3.0, -3.425, 4.6), _r(-6.0, 1.425, -3.5, 1.575)]:
+		lot.add_static_rect(r)
+	# Dveřní koridory: vchod a koupelna musí zůstat průchozí (nestavitelné, ale průchozí – B2 kontrola cesty).
+	lot.add_keepout_rect(_r(-1.4, 3.4, 1.0, 5.8))
+	lot.add_keepout_rect(_r(-4.4, 1.5, -2.6, 3.0))
+	# Vestavěná kuchyňská linka a jídelní stůl se židlemi (zatím nejsou prodejné).
+	lot.add_static_rect(_r(-3.75, -4.35, -1.75, -3.65))
+	lot.add_static_rect(_r(-3.85, -2.55, -2.15, -0.25))
+	# Chodník k ulici (průchozí) a záhon u domu.
+	lot.add_keepout_rect(_r(-0.8, 4.7, 0.8, 12.75))
+	lot.add_static_rect(_r(-6.0, 6.5, -2.0, 7.5))
+	for s in TREE_SPOTS:
+		if include_eight_suite and tree_in_annex(Vector3(s.x, 0.0, s.y)):
+			continue
+		lot.add_static_rect(Rect2(s - Vector2(0.3, 0.3), Vector2(0.6, 0.6)))
+	if include_eight_suite:
+		# Přístavba s ložnicemi je v tomto kroku nestavitelná (úzké pokoje, chodba).
+		lot.add_static_rect(Rect2(ANNEX_MIN, ANNEX_MAX - ANNEX_MIN))
+	for o in objects:
+		var key: String = String(o.object_tag)
+		if key == "bed":
+			key = "bed2" if int(o.capacity) >= 2 else "bed1"
+		var sz: Vector2 = FIXED_SIZES.get(key, Vector2(1.0, 1.0))
+		var access: Array = []
+		for u in o.use_offsets:
+			var g: Vector3 = o.transform * (u as Vector3)
+			access.append(Vector2(g.x, g.z))
+		lot.add_fixed(String(o.display_name), Vector2(o.position.x, o.position.z), sz.x, sz.y, o.rotation_degrees.y, access)
+	lot.rebuild()
+
+
 ## Půdorys přístavby (_build_eight_suite_rooms: podlaha 13,3 × 6,7 m se středem 12,7 / 1,36) rozšířený
 ## o dosah koruny stromu (až 0,6 m posun + 1,5 m poloměr).
 const ANNEX_MIN := Vector2(6.05, -1.99)

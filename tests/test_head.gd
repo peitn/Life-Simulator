@@ -15,6 +15,9 @@ const Codec := preload("res://scripts/character/character_codec.gd")
 const AssetLibrary := preload("res://scripts/assets/asset_library.gd")
 const SimVisual := preload("res://scripts/sim/sim_visual.gd")
 
+## Rozpočet LOD0 hlavy + očí (viz _test_glb_and_visual a docs/asset-pipeline.md „Triangle budgets“).
+const HEAD_TRI_BUDGET := 19000
+
 var data: Dictionary
 var topo
 var p0: PackedVector3Array
@@ -130,14 +133,21 @@ func _lip_gap(p: PackedVector3Array) -> float:
 
 
 ## Plochy, jejichž normála se po morfu otočila o víc než 90° (přeložení geometrie).
-func _flipped(p: PackedVector3Array) -> int:
-	var n := 0
+## x = viditelné plochy (kůže, rty, uši, oči…), y = malé klíny zadního víčka očnice (materiál "eye_socket", recept "ec");
+## od běhu main-claude-1794424928 musí být obě čísla 0 (dřív se u koutků překlápěly 1–4 klíny – vada parametrizace).
+func _flipped(p: PackedVector3Array) -> Vector2i:
+	var n := Vector2i.ZERO
 	for f in topo.faces:
 		var idx: PackedInt32Array = f[2]
 		var a := (p0[idx[1]] - p0[idx[0]]).cross(p0[idx[2]] - p0[idx[0]])
 		var b := (p[idx[1]] - p[idx[0]]).cross(p[idx[2]] - p[idx[0]])
 		if a.length() > 1e-12 and b.length() > 1e-12 and a.dot(b) < 0.0:
-			n += 1
+			# Gemini audit: tolerovat jen přesně vymezenou vadu – klín víčka "ec" v eye_socket s plochou < 1 mm²;
+			# větší přeložená plocha víčka se počítá jako viditelná chyba.
+			if String(f[1]) == "eye_socket" and String(topo.recipes[idx[0]][0]) == "ec" and a.length() * 0.5 < 1e-6:
+				n.y += 1
+			else:
+				n.x += 1
 	return n
 
 
@@ -320,6 +330,7 @@ func _test_intersections() -> void:
 	var worst_eye := 1e9
 	var worst_lip := 1e9
 	var worst_flip := 0
+	var worst_cap := 0
 	var samples := 0
 	# Rohy podprostoru „oči a víčka“ (nejrizikovější) + náhodné extrémy všech polí.
 	var eye_keys := ["eye_size", "eye_depth", "eye_distance", "eyelid_hood", "eye_tilt", "brow_ridge", "brow_height", "asym_eyes"]
@@ -330,18 +341,25 @@ func _test_intersections() -> void:
 		var w := FM.weights(f, {"fat_hi": rng.randf()})
 		var p := _blend(w)
 		worst_eye = minf(worst_eye, _eye_clearance(p))
-		worst_flip = maxi(worst_flip, _flipped(p))
+		var fl := _flipped(p)
+		worst_flip = maxi(worst_flip, fl.x)
+		worst_cap = maxi(worst_cap, fl.y)
 		samples += 1
 	for s in 24:
 		var w := FM.weights(_random_face(rng, true), {"fat_hi": rng.randf(), "muscle_hi": rng.randf()})
 		var p := _blend(w)
 		worst_eye = minf(worst_eye, _eye_clearance(p))
 		worst_lip = minf(worst_lip, _lip_gap(p))
-		worst_flip = maxi(worst_flip, _flipped(p))
+		var fl := _flipped(p)
+		worst_flip = maxi(worst_flip, fl.x)
+		worst_cap = maxi(worst_cap, fl.y)
 		samples += 1
 	check(worst_eye > 0.0003, "kůže a víčka nikdy neproniknou okem (%d kombinací, nejmenší vůle %.2f mm)" % [samples, worst_eye * 1000.0])
 	check(worst_lip > -0.00005, "horní a dolní ret se nepřekříží (nejmenší mezera %.3f mm)" % (worst_lip * 1000.0))
-	check(worst_flip <= 2, "žádné přeložené plochy (nejhůř %d z %d)" % [worst_flip, topo.faces.size()])
+	check(worst_flip == 0, "žádné přeložené viditelné plochy (nejhůř %d z %d)" % [worst_flip, topo.faces.size()])
+	# Zadní víčko očnice: běh main-claude-1794424928 přestavěl prstenec 5 + víčko do azimutálně délkojevné mapy
+	# (invariant monotónního azimutu hlídá tests/test_eye_socket_cap.gd) → tolerance klínů zrušena, mez je 0.
+	check(worst_cap == 0, "zadní víčko očnice (skryté za okem): žádný přeložený klín (nejhůř %d)" % worst_cap)
 	check(_eye_clearance(p0) > 0.0005, "výchozí hlava: vůle kůže–oko %.2f mm" % (_eye_clearance(p0) * 1000.0))
 
 
@@ -373,7 +391,9 @@ func _test_glb_and_visual() -> void:
 			unknown.append(nm)
 	check(unknown.is_empty() and names.size() >= 50, "blend shapes v GLB = morfy HeadBuilderu (%d)" % names.size(), str(unknown.slice(0, 5)))
 	# běh 21: + řasy (~830 trojúhelníků) a ústa (zuby, dáseň, jazyk ~1 700) → 11 500
-	check(tris <= 11500, "rozpočet hlavy a očí %d trojúhelníků (≤ 11 500)" % tris)
+	# realism pass 30. 10. (mřížka 32×36×20, uši 10×32, oči 48 segmentů) → 18 302. Běh main-claude-1794381713:
+	# vědomě přijato jako rozpočet LOD0 hlavy (cíl projektu = realismus); LOD pro dav je samostatný krok.
+	check(tris <= HEAD_TRI_BUDGET, "rozpočet hlavy a očí %d trojúhelníků (LOD0 ≤ %d)" % [tris, HEAD_TRI_BUDGET])
 	var hair_keys := 0
 	for mi in AssetLibrary.parts_in_group(root, "hair_long"):
 		hair_keys += (mi.mesh as ArrayMesh).get_blend_shape_count()

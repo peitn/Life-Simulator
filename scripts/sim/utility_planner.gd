@@ -132,6 +132,21 @@ static func score_action(sim, a: Dictionary, hour: int) -> float:
 		if sim.ledger == null or sim.ledger.max_guilt() < APOLOGY_GUILT:
 			return 0.0
 		gain = maxf(gain, 1.0)
+	if a["id"] == "confront_gossip":
+		# Bez silné zášti si nikdo nic nevyčítá (levná brána); konkrétní cíl a podezření z odhalení řeší
+		# choose() / confront_score(). Bez minimální přitažlivosti by AI konfrontaci nikdy nezvolila
+		# (base_appeal 0, potřeby skoro nic nedají) – stejně jako omluva.
+		var max_grudge := 0.0
+		if sim.ledger != null:
+			for v in sim.ledger.grudges.values():
+				max_grudge = maxf(max_grudge, float(v))
+		if max_grudge < CONFRONT_GRUDGE:
+			return 0.0
+		gain = maxf(gain, 1.0)
+	if a["id"] in ["ask_out", "break_up", "flirt", "secret_date", "confront_cheating"]:
+		# Konkrétní cíl a chuť řeší Romance / Infidelity v choose(); o rozchodu, pozvání, flirtu, nevěře
+		# ani konfrontaci nerozhodují potřeby.
+		gain = maxf(gain, 1.0)
 	# Těšení se na zážitek (wanting): naučené očekávání radosti, zesílené rysy (gurmán u vaření…)
 	# a zkreslené pesimismem v depresi.
 	var ml: Array = a.get("moodlet", [])
@@ -248,6 +263,7 @@ static func apology_score(sim, other, base: float, friendship: float) -> float:
 ## zášť ≥ CONFRONT_GRUDGE. Vznětliví a nepřívětiví do toho jdou spíš, úzkostní se tomu vyhýbají (base
 ## už nese násobiče úzkosti a deprese).
 const CONFRONT_GRUDGE := 20.0
+const CONFRONT_URGENCY := 0.6
 
 
 static func confront_score(sim, other, base: float) -> float:
@@ -259,7 +275,30 @@ static func confront_score(sim, other, base: float) -> float:
 		return 0.0
 	var hx: Dictionary = sim.get("hexaco") if typeof(sim.get("hexaco")) == TYPE_DICTIONARY else {}
 	var agree := clampf(float(hx.get("agreeableness", 0.0)), -1.0, 1.0)
-	return base * clampf(g / 40.0, 0.5, 1.5) * (1.0 - 0.35 * agree)
+	# Naléhavost roste se záští (jako omluva s vinou): zášť 20 ≈ 12×, 50 ≈ 30× základ – při zasycených
+	# potřebách to konkuruje běžným činnostem, hlad nebo únava mají pořád přednost. Spam brání spotřeba
+	# podezření (jedna konfrontace na jedno odhalení).
+	return base * g * CONFRONT_URGENCY * (1.0 - 0.35 * agree)
+
+
+## ColdWar domácnosti postavy (jen autorita), jinak null.
+static func _cold_war_of(sim):
+	return sim._cold_war() if sim.has_method("_cold_war") else null
+
+
+## Romance domácnosti postavy (jen autorita), jinak null.
+static func _romance_of(sim):
+	return sim._romance() if sim.has_method("_romance") else null
+
+
+## Rivalita domácnosti postavy (jen autorita), jinak null.
+static func _rivalry_of(sim):
+	return sim._rivalry() if sim.has_method("_rivalry") else null
+
+
+## Nevěra / podezření domácnosti postavy (jen autorita), jinak null.
+static func _infidelity_of(sim):
+	return sim._infidelity() if sim.has_method("_infidelity") else null
 
 
 ## Vrátí {"action": Dictionary, "target": Node3D|null, "score": float} nebo {}.
@@ -294,6 +333,50 @@ static func choose(sim, objects: Array, sims: Array, rng: RandomNumberGenerator,
 						cands.append({"action": a, "target": other,
 							"score": sc / (1.0 + sim.global_position.distance_to(other.global_position) / DISTANCE_SCALE)})
 					continue
+				if a["id"] == "clear_air":
+					var cw = _cold_war_of(sim)
+					var sc_c: float = cw.ai_clear_air_score(sim, other, base, sim.now()) if cw != null else 0.0
+					if sc_c > 0.0:
+						cands.append({"action": a, "target": other,
+							"score": sc_c / (1.0 + sim.global_position.distance_to(other.global_position) / DISTANCE_SCALE)})
+					continue
+				if a["id"] in ["ask_out", "break_up"]:
+					var ro = _romance_of(sim)
+					var sc_r := 0.0
+					if ro != null:
+						sc_r = ro.ai_ask_score(sim, other, base, sim.now()) if a["id"] == "ask_out" else ro.ai_breakup_score(sim, other, base, sim.now())
+					if sc_r > 0.0:
+						cands.append({"action": a, "target": other,
+							"score": sc_r / (1.0 + sim.global_position.distance_to(other.global_position) / DISTANCE_SCALE)})
+					continue
+				if a["id"] in ["flirt", "secret_date", "confront_cheating"]:
+					var inf = _infidelity_of(sim)
+					var ro3 = _romance_of(sim)
+					var sc_i := 0.0
+					if inf != null:
+						match String(a["id"]):
+							"flirt":
+								sc_i = inf.ai_flirt_score(sim, other, base, ro3, sim.now())
+							"secret_date":
+								sc_i = inf.ai_date_score(sim, other, base, ro3, sim.now())
+							"confront_cheating":
+								sc_i = inf.ai_confront_score(sim, other, base, ro3, sim.now())
+					if sc_i > 0.0:
+						cands.append({"action": a, "target": other,
+							"score": sc_i / (1.0 + sim.global_position.distance_to(other.global_position) / DISTANCE_SCALE)})
+					continue
+				if a["id"] in ["slander_rival", "bury_hatchet"]:
+					var rv = _rivalry_of(sim)
+					var sc_v := 0.0
+					if rv != null:
+						if a["id"] == "slander_rival":
+							sc_v = rv.ai_slander_score(sim, other, base, sim.now())
+						else:
+							sc_v = rv.ai_hatchet_score(sim, other, base, Traits.sum_param(sim.trait_profile, "forgiveness"), sim.now())
+					if sc_v > 0.0:
+						cands.append({"action": a, "target": other,
+							"score": sc_v / (1.0 + sim.global_position.distance_to(other.global_position) / DISTANCE_SCALE)})
+					continue
 				if a["id"] == "apologize":
 					var sa := apology_score(sim, other, base, friendship)
 					if sa > 0.0:
@@ -305,6 +388,18 @@ static func choose(sim, objects: Array, sims: Array, rng: RandomNumberGenerator,
 				if friendship < -40.0:
 					s *= 0.35
 				s *= avoidance_weight(sim, other, a)
+				# Dusno / studená válka: s tím druhým se moc nemluví (ne nulově – život jde dál).
+				var cw2 = _cold_war_of(sim)
+				if cw2 != null:
+					s *= cw2.avoid_weight(String(sim.sim_name), String(other.sim_name), String(a["id"]))
+				# Partner/ka: o trochu víc kontaktu; čerstvý ex: spíš se míjí.
+				var ro2 = _romance_of(sim)
+				if ro2 != null:
+					s *= ro2.contact_weight(String(sim.sim_name), String(other.sim_name), String(a["id"]), sim.now())
+				# Sok: běžnému kontaktu se lidi spíš vyhýbají (Rivalry.contact_weight, min 0,4).
+				var rv2 = _rivalry_of(sim)
+				if rv2 != null:
+					s *= rv2.contact_weight(String(sim.sim_name), String(other.sim_name), String(a["id"]), sim.now())
 				if sim.has_method("emotional_target_weight"):
 					s *= sim.emotional_target_weight(other.sim_name, String(a["id"]))
 				if sim.has_method("psyche_target_weight"):

@@ -1,0 +1,309 @@
+@@@FILE res://scripts/ui/buy_mode.gd
+@@@OLD
+## UI NIKDY nemění LotGrid samo: posílá požadavek main.request_lot_action (offline/host hned, klient RPC);
+@@@NEW
+## Nástroj Dveře/Okno (B4, 23. 11. 2026): V = dveře, O = okno, Shift+O = široké okno; najeď myší na zeď
+## (duch otvoru se přichytí na mřížku podél zdi), klik = osadit; klik na otvor = vybrat, Delete = vybourat a zazdít.
+## UI NIKDY nemění LotGrid samo: posílá požadavek main.request_lot_action (offline/host hned, klient RPC);
+@@@OLD
+var _wall_cache_reason := ""
+@@@NEW
+var _wall_cache_reason := ""
+## Nástroj Dveře/Okno (B4): druh z LotGrid.OPENINGS, "" = vypnuto; cíl {"wid", "at"} pod myší.
+var open_kind := ""
+var open_target: Dictionary = {}
+var selected_oid := 0
+var _open_ghost: MeshInstance3D
+var _open_mat: StandardMaterial3D
+var _open_btns := {}
+var _open_box: VBoxContainer
+var _open_label: Label
+@@@OLD
+	v.add_child(_wall_btn)
+@@@NEW
+	v.add_child(_wall_btn)
+	var orow := HBoxContainer.new()
+	orow.name = "OpeningTools"
+	v.add_child(orow)
+	var keys := {"door": "V", "window": "O", "window_wide": "⇧O"}
+	for k in LotGrid.OPENING_ORDER:
+		var ob := Button.new()
+		ob.name = "Open_" + k
+		ob.toggle_mode = true
+		ob.text = "%s (%s)" % [String(LotGrid.OPENINGS[k]["name"]), String(keys.get(k, ""))]
+		ob.tooltip_text = "%s · %s · najeď na zeď a klikni. Vybourání do 24 hodin vrátí celou cenu." % [
+			String(LotGrid.OPENINGS[k]["name"]), _price(LotGrid.opening_price(k))]
+		ob.toggled.connect(func(on: bool): set_open_tool(k if on else ""))
+		orow.add_child(ob)
+		_open_btns[k] = ob
+@@@OLD
+	demo_b.pressed.connect(demolish_selected_wall)
+	_wall_box.add_child(demo_b)
+@@@NEW
+	demo_b.pressed.connect(demolish_selected_wall)
+	_wall_box.add_child(demo_b)
+	_open_box = VBoxContainer.new()
+	_open_box.visible = false
+	v.add_child(_open_box)
+	_open_label = _label("", 15, C_TEXT)
+	_open_label.custom_minimum_size = Vector2(PANEL_W - 20, 0)
+	_open_box.add_child(_open_label)
+	var unopen_b := Button.new()
+	unopen_b.name = "Unopen"
+	unopen_b.text = "Vybourat a zazdít (Del)"
+	unopen_b.pressed.connect(demolish_selected_opening)
+	_open_box.add_child(unopen_b)
+@@@OLD
+	v.add_child(_label("Myš/Enter postavit · R otočit · klik na věc vybrat · Del prodat · M přesunout · T zeď · Esc zavřít", 13, C_DIM))
+@@@NEW
+	v.add_child(_label("Myš/Enter postavit · R otočit · klik na věc vybrat · Del prodat · M přesunout · T zeď · V dveře · O okno · Esc zavřít", 13, C_DIM))
+@@@OLD
+	else:
+		_wall_box.visible = false
+@@@NEW
+	else:
+		_wall_box.visible = false
+	if selected_oid != 0 and not main.lot.openings.has(selected_oid):
+		selected_oid = 0
+	if selected_oid != 0:
+		var o: Dictionary = main.lot.openings[selected_oid]
+		var now3 := float(main.clock.total_minutes) if main.clock != null else 0.0
+		var back3: int = main.lot.opening_refund_value(selected_oid, now3)
+		_open_label.text = "%s %s m · %s" % [String(LotGrid.OPENINGS[String(o["kind"])]["name"]),
+			_meters(LotGrid.opening_cells(String(o["kind"]))),
+			("vybourání vrátí " + _price(back3)) if back3 > 0 else "vybourání nic nevrátí"]
+		_open_box.visible = true
+	else:
+		_open_box.visible = false
+@@@OLD
+	if wall_tool:
+		set_wall_tool(false)
+	selected_id = id
+@@@NEW
+	if wall_tool:
+		set_wall_tool(false)
+	if open_kind != "":
+		set_open_tool("")
+	selected_id = id
+@@@OLD
+	if main != null:
+		main.add_child(_wall_ghost)
+@@@NEW
+	if main != null:
+		main.add_child(_wall_ghost)
+	_open_mat = _ghost_mat.duplicate()
+	_open_ghost = MeshInstance3D.new()
+	_open_ghost.name = "OpeningGhost"
+	_open_ghost.mesh = BoxMesh.new()
+	_open_ghost.material_override = _open_mat
+	_open_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_open_ghost.visible = false
+	if main != null:
+		main.add_child(_open_ghost)
+@@@OLD
+	if _wall_ghost != null and is_instance_valid(_wall_ghost):
+		_wall_ghost.queue_free()
+@@@NEW
+	if _wall_ghost != null and is_instance_valid(_wall_ghost):
+		_wall_ghost.queue_free()
+	if _open_ghost != null and is_instance_valid(_open_ghost):
+		_open_ghost.queue_free()
+@@@OLD
+func _process(_delta: float) -> void:
+	if main == null or main.lot == null:
+		return
+@@@NEW
+func _process(_delta: float) -> void:
+	if main == null or main.lot == null:
+		return
+	if open_kind != "":
+		_ghost.visible = false
+		var og: Variant = _mouse_ground()
+		if og != null:
+			aim_opening(og)
+		update_open_ghost()
+		return
+@@@OLD
+func set_wall_tool(on: bool) -> void:
+	wall_tool = on
+@@@NEW
+func set_wall_tool(on: bool) -> void:
+	if on and open_kind != "":
+		set_open_tool("")
+	wall_tool = on
+@@@OLD
+func demolish_selected_wall() -> void:
+@@@NEW
+# ---------------------------------------------------------------- nástroj Dveře/Okno (B4)
+
+## kind = druh z LotGrid.OPENINGS, "" = vypnout.
+func set_open_tool(kind: String) -> void:
+	if kind != "" and not LotGrid.OPENINGS.has(kind):
+		kind = ""
+	if kind != "" and wall_tool:
+		set_wall_tool(false)
+	open_kind = kind
+	open_target = {}
+	for k in _open_btns:
+		var b: Button = _open_btns[k]
+		if b.button_pressed != (k == kind):
+			b.set_pressed_no_signal(k == kind)
+	if kind != "":
+		selected_id = ""
+		moving_uid = 0
+		selected_uid = 0
+		_desc.text = "%s: najeď myší na postavenou zeď a klikni. Potřebuje kus zdi po obou stranách%s." % [
+			String(LotGrid.OPENINGS[kind]["name"]),
+			" a volný prostor před i za dveřmi" if LotGrid.is_door(kind) else ""]
+	else:
+		_status.text = ""
+		_status.add_theme_color_override("font_color", Color(0.95, 0.55, 0.45))
+	update_open_ghost()
+	_refresh()
+
+
+## Zaměří otvor na stěnu nejblíž bodu p (x, z): střed otvoru pod myší, přichycený na buňky podél stěny.
+func aim_opening(p: Vector2) -> void:
+	open_target = {}
+	if open_kind == "" or main == null or main.lot == null:
+		return
+	var wid: int = main.lot.wall_at_world(p, 0.45)
+	if wid == 0:
+		return
+	var w: Dictionary = main.lot.walls[wid]
+	var ab: Array = main.lot.wall_world(w)
+	var a: Vector2 = ab[0]
+	var b: Vector2 = ab[1]
+	var wl := absi(int(w["x1"]) - int(w["x0"])) + absi(int(w["z1"]) - int(w["z0"]))
+	var cells := LotGrid.opening_cells(open_kind)
+	var along := (p - a).dot((b - a).normalized()) / LotGrid.CELL
+	var at := int(roundf(along - float(cells) * 0.5))
+	at = clampi(at, LotGrid.OPENING_EDGE, maxi(LotGrid.OPENING_EDGE, wl - LotGrid.OPENING_EDGE - cells))
+	open_target = {"wid": wid, "at": at}
+
+
+## Náhled otvoru: poloha a barva podle lokální kontroly (rozhoduje server).
+func update_open_ghost() -> void:
+	if _open_ghost == null:
+		return
+	if open_kind == "" or main == null or main.lot == null:
+		_open_ghost.visible = false
+		return
+	if open_target.is_empty() or not main.lot.walls.has(int(open_target["wid"])):
+		_open_ghost.visible = false
+		last_reason = "opening_bad"
+		_status.text = "Najeď myší na postavenou zeď."
+		_status.add_theme_color_override("font_color", C_DIM)
+		return
+	var info: Dictionary = LotGrid.OPENINGS[open_kind]
+	var probe := {"oid": 0, "wid": int(open_target["wid"]), "kind": open_kind, "at": int(open_target["at"])}
+	var ab: Array = main.lot.opening_world(probe)
+	var mid: Vector2 = ((ab[0] as Vector2) + (ab[1] as Vector2)) * 0.5
+	var sill := float(info["sill"])
+	var head := float(info["head"])
+	(_open_ghost.mesh as BoxMesh).size = Vector3(float(LotGrid.opening_cells(open_kind)) * LotGrid.CELL, head - sill, LotGrid.WALL_THICK + 0.06)
+	_open_ghost.position = Vector3(mid.x, (sill + head) * 0.5, mid.y)
+	var w: Dictionary = main.lot.walls[int(open_target["wid"])]
+	_open_ghost.rotation_degrees = Vector3(0, 0.0 if int(w["z0"]) == int(w["z1"]) else 90.0, 0)
+	_open_ghost.visible = true
+	last_reason = main.lot.check_opening(int(open_target["wid"]), open_kind, int(open_target["at"]))
+	var price := LotGrid.opening_price(open_kind)
+	if last_reason == "" and price > int(main.lot.funds):
+		last_reason = "funds"
+	_open_mat.albedo_color = C_OK if last_reason == "" else C_BAD
+	if last_reason == "":
+		_status.text = "%s · %s" % [String(info["name"]), _price(price)]
+		_status.add_theme_color_override("font_color", C_TEXT)
+	else:
+		_status.text = String(LotGrid.REASON_TEXT.get(last_reason, ""))
+		_status.add_theme_color_override("font_color", Color(0.95, 0.55, 0.45))
+
+
+func place_opening() -> void:
+	if main == null or open_kind == "":
+		return
+	update_open_ghost()
+	if last_reason != "":
+		if main.hud != null and not open_target.is_empty():
+			main.hud.show_notice(String(LotGrid.REASON_TEXT.get(last_reason, "Tohle nejde.")))
+		return
+	main.request_lot_action("open", [int(open_target["wid"]), open_kind, int(open_target["at"])])
+	update_open_ghost()
+
+
+func demolish_selected_opening() -> void:
+	if selected_oid == 0 or main == null:
+		return
+	main.request_lot_action("unopen", [selected_oid])
+
+
+func demolish_selected_wall() -> void:
+@@@OLD
+	var uid: int = main.lot.uid_at_world(g)
+	if uid == 0:
+		var wid: int = main.lot.wall_at_world(g)
+		if wid == 0:
+			return false
+		selected_wid = wid
+		selected_uid = 0
+@@@NEW
+	var oid: int = main.lot.opening_at_world(g, 0.3)
+	if oid != 0:
+		selected_oid = oid
+		selected_wid = 0
+		selected_uid = 0
+		selected_id = ""
+		moving_uid = 0
+		_refresh()
+		return true
+	selected_oid = 0
+	var uid: int = main.lot.uid_at_world(g)
+	if uid == 0:
+		var wid: int = main.lot.wall_at_world(g)
+		if wid == 0:
+			_refresh()
+			return false
+		selected_wid = wid
+		selected_uid = 0
+@@@OLD
+func _unhandled_input(event: InputEvent) -> void:
+@@@NEW
+func _unhandled_input(event: InputEvent) -> void:
+	if open_kind != "" and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if _over_panel():
+			return
+		if not event.pressed:
+			var og: Variant = _mouse_ground()
+			if og != null:
+				aim_opening(og)
+			place_opening()
+		get_viewport().set_input_as_handled()
+		return
+@@@OLD
+				if selected_wid != 0:
+					demolish_selected_wall()
+@@@NEW
+				if selected_oid != 0:
+					demolish_selected_opening()
+				elif selected_wid != 0:
+					demolish_selected_wall()
+@@@OLD
+			KEY_T:
+				set_wall_tool(not wall_tool)
+@@@NEW
+			KEY_T:
+				set_wall_tool(not wall_tool)
+			KEY_V:
+				set_open_tool("" if open_kind == "door" else "door")
+			KEY_O:
+				var ok := "window_wide" if event.shift_pressed else "window"
+				set_open_tool("" if open_kind == ok else ok)
+@@@OLD
+				elif wall_tool:
+					set_wall_tool(false)
+@@@NEW
+				elif wall_tool:
+					set_wall_tool(false)
+				elif open_kind != "":
+					set_open_tool("")
+@@@END

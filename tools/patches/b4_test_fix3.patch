@@ -1,0 +1,24 @@
+@@@FILE res://tests/test_lot_doors.gd
+@@@OLD
+			if ok:
+				var c: Vector2 = lot.origin + Vector2(x + 6, z + 6) * LotGrid.CELL
+				return {"oid": oid, "cx": c.x, "cz": c.y, "walls": built}
+@@@NEW
+			if ok:
+				# Průchozí buňka uvnitř místnosti, kam se dá dojít od ulice (dveřmi) – tam se postaví postava.
+				var before: PackedByteArray = lot._reach_before()
+				lot._build_edges({})
+				for iz in range(z + 2, z + 11):
+					for ix in range(x + 2, x + 11):
+						var ci: int = lot._idx(ix, iz)
+						if lot._walkable(ci) and lot._target_reached(before, ci):
+							var c: Vector2 = lot.origin + (Vector2(ix, iz) + Vector2(0.5, 0.5)) * LotGrid.CELL
+							return {"oid": oid, "cx": c.x, "cz": c.y, "walls": built}
+@@@OLD
+		var rt: Dictionary = world.lot_apply_action("unopen", [int(room["oid"])], "Test")
+		check(not bool(rt["ok"]) and String(rt["reason"]) == "door_traps" and lot.openings.has(int(room["oid"])), "zazdění dveří se postavou uvnitř odmítnuto")
+@@@NEW
+		var rt: Dictionary = world.lot_apply_action("unopen", [int(room["oid"])], "Test")
+		check(not bool(rt["ok"]) and String(rt["reason"]) == "door_traps" and lot.openings.has(int(room["oid"])), "zazdění dveří se postavou uvnitř odmítnuto",
+			"%s; sim %s; room %s" % [str(rt), str(sim.global_position), str(room)])
+@@@END

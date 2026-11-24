@@ -67,6 +67,16 @@ func run() -> void:
             for k in 4:
                 w+=weights[vi*4+k]
             max_err=maxf(max_err,absf(1.0-w))
+        var invalid_indices := 0
+        for index_value in indices:
+            if index_value < 0 or index_value >= verts.size():
+                invalid_indices += 1
+        check(invalid_indices == 0, name + " all triangle indices reference existing vertices")
+        if invalid_indices > 0:
+            preview.queue_free()
+            await process_frame
+            quit(2)
+            return
         for i in range(0,indices.size(),3):
             var a:int=indices[i]
             var b:int=indices[i+1]

@@ -369,11 +369,24 @@ func _unit_persistence() -> void:
 		cont_a.append_array(a.share(prof("p%d" % (i % 5), 0.1, 0.9, {"p0": -60.0}, {"p0": 70.0}), prof("q%d" % (i % 3)), 50000.0 + i, ALL))
 		cont_r.append_array(r.share(prof("p%d" % (i % 5), 0.1, 0.9, {"p0": -60.0}, {"p0": 70.0}), prof("q%d" % (i % 3)), 50000.0 + i, ALL))
 	check(JSON.stringify(cont_a) == JSON.stringify(cont_r) and JSON.stringify(a.to_dict()) == JSON.stringify(r.to_dict()), "po načtení pokračuje stejně jako bez přerušení")
+	# Valid legacy v1: remove v2-only suspects and preserve persisted state on migration.
+	var legacy: Dictionary = snap.duplicate(true)
+	legacy["v"] = Gossip.MIN_VERSION
+	legacy.erase("suspects")
+	check(Gossip.validate_snapshot(legacy), "platný historický v1 snímek přijímán")
+	var migrated = Gossip.new(123)
+	check(migrated.from_dict(legacy), "historický v1 snímek se načte")
+	var upgraded: Dictionary = migrated.to_dict()
+	var expected: Dictionary = snap.duplicate(true)
+	expected["suspects"] = {}
+	check(upgraded.get("v") == Gossip.VERSION and JSON.stringify(upgraded) == JSON.stringify(expected),
+		"v1 migrace zachová drby, znalosti, RNG, jména, statistiky a dopady; přidá prázdné suspects")
 	# Fuzz / podvržené snímky.
 	var bad: Array = []
 	var m: Dictionary
 	m = snap.duplicate(true); m["evil"] = 1; bad.append(["neznámý klíč", m])
 	m = snap.duplicate(true); m["v"] = Gossip.VERSION + 1; bad.append(["verze", m])
+	m = snap.duplicate(true); m["v"] = Gossip.MIN_VERSION - 1; bad.append(["verze pod minimem", m])
 	m = snap.duplicate(true); m["rng_state"] = 1.5; bad.append(["rng typ", m])
 	m = snap.duplicate(true); m["rumors"][0]["truth"] = "yes"; bad.append(["truth typ", m])
 	m = snap.duplicate(true); m["rumors"][0]["sev"] = 1.5; bad.append(["sev rozsah", m])

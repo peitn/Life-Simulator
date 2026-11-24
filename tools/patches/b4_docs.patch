@@ -1,0 +1,133 @@
+@@@FILE res://ROADMAP.md
+@@@OLD
+- 🟡 B3 (22. 11. večer): ✅ postavy obcházejí postavené zdi (LotNav: BFS + vyhlazení, nedosažitelný cíl = přerušení a paměť, zazděná postava vyleze), ✅ kontrola cesty při nákupu/přesunu (blocks_path, access_unreachable), ✅ zeď nesmí zazdít postavu (traps_sim). ⬜ B4: dveře a okna ve stěnách, chůze ulicí kolem parcely, ořez stěn kamerou.
+- ⬜ B4: podlahy a tapety, místnosti (detekce uzavřených prostor → atmosféra místnosti), Blender assety pro styly katalogu, opotřebení a rozbití věcí, úvěry a dluhy s ekonomikou.
+@@@NEW
+- 🟡 B3 (22. 11. večer): ✅ postavy obcházejí postavené zdi (LotNav: BFS + vyhlazení, nedosažitelný cíl = přerušení a paměť, zazděná postava vyleze), ✅ kontrola cesty při nákupu/přesunu (blocks_path, access_unreachable), ✅ zeď nesmí zazdít postavu (traps_sim).
+- ✅ B4a (23. 11. ráno): dveře, okno a široké okno jako otvory ve stěnách (LotGrid v3 openings: ostění, odstupy, žádný T-spoj v otvoru, prostor dveří bez nábytku, dveře průchozí pro BFS/pathfinder/LotNav, okna neprůchozí + atmosféra), zazdění dveří nesmí odříznout cestu ani zavřít postavu (seals_off / door_traps), zbourání zdi bere i otvory, save v3 + migrace v2, MP open/unopen se serverovou autoritou, uzly stěny s otvory (zárubně, sklo, křídlo se otevře u postavy), nástroj Dveře/Okno (V/O/Shift+O). Oprava BFS: zeď po hranici parcely odděluje od ulice. test_lot_doors 147/147.
+- ⬜ B4b: Blender assety dveří a oken (TODO – teď procedurální), zamykání dveří (soukromí, hádky, vloupání), ořez stěn kamerou, chůze ulicí kolem parcely.
+- ⬜ B5: podlahy a tapety, místnosti (detekce uzavřených prostor → atmosféra místnosti, okna = denní světlo), Blender assety pro styly katalogu, opotřebení a rozbití věcí, úvěry a dluhy s ekonomikou.
+@@@OLD
+- 22. 11. 2026 večer (main-claude-20261122b-nav): (b) **B3 navigace kolem zdí** ✅ – LotNav v SimAgent, reach_check při nákupu/přesunu, traps_sim. test_lot_nav 85/85, regrese 11 sad PASS. Další: rotace (c) nebo B4 dveře/okna.
+@@@NEW
+- 22. 11. 2026 večer (main-claude-20261122b-nav): (b) **B3 navigace kolem zdí** ✅ – LotNav v SimAgent, reach_check při nákupu/přesunu, traps_sim. test_lot_nav 85/85, regrese 11 sad PASS. Další: rotace (c) nebo B4 dveře/okna.
+- 23. 11. 2026 ráno (main-claude-20261123a-doors): (b) **B4a dveře a okna** ✅ – LotGrid v3 openings, průchod dveřmi v BFS/LotNav, seals_off/door_traps při zazdění, save v3, MP open/unopen, uzly s otvory, nástroj V/O; oprava BFS na hranici parcely. test_lot_doors 147/147, regrese 16 sad PASS. Další: rotace (c) – pomluva postavě jiného hráče / rivalita v práci.
+@@@FILE res://docs/roadmap.md
+@@@OLD
+- 🟡 Build mode: walls with reachability check (B2); characters path around built walls, purchases may not cut off paths, walls may not trap a character (B3); doors, windows, floors and rooms (B4) next.
+@@@NEW
+- 🟡 Build mode: walls with reachability check (B2); characters path around built walls, purchases may not cut off paths, walls may not trap a character (B3); doors and windows cut into walls, passable doors, closing a door may not cut off paths or shut anyone in (B4a). Next: Blender door/window assets, door locks, floors, wallpapers and rooms.
+@@@OLD
+- 22 Nov 2026 (evening): **(b) B3 navigation around built walls** ✅ – `LotNav` (grid BFS + smoothing, only when a built wall blocks the straight line), unreachable targets abort and are remembered for 2 game hours, walled-in characters escape, purchases/moves are checked for reachability, walls cannot trap a character; `test_lot_nav` 85/85. Next: (c) rotation or B4 doors/windows.
+@@@NEW
+- 22 Nov 2026 (evening): **(b) B3 navigation around built walls** ✅ – `LotNav` (grid BFS + smoothing, only when a built wall blocks the straight line), unreachable targets abort and are remembered for 2 game hours, walled-in characters escape, purchases/moves are checked for reachability, walls cannot trap a character; `test_lot_nav` 85/85. Next: (c) rotation or B4 doors/windows.
+- 23 Nov 2026 (morning): **(b) B4a doors and windows** ✅ – openings as wall attributes (`LotGrid` format v3), doors passable for the reachability BFS, pathfinder and `LotNav`, windows solid but add appeal, door clearance, closing a door checked like building a wall, save v3 with v2 migration, server-authoritative `open`/`unopen`, wall nodes with frames, glass and a door leaf that swings open near a character, Door/Window tool in buy mode; fixed the reachability BFS so a wall along the lot boundary separates the lot from the street. `test_lot_doors` 147/147.
+@@@FILE res://docs/world-building.md
+@@@OLD
+Pathfinding runs only where characters are simulated (offline or on the server); clients see the result through
+the replicated positions.
+
+## Tests
+
+@@@NEW
+Pathfinding runs only where characters are simulated (offline or on the server); clients see the result through
+the replicated positions.
+
+## Doors and windows (B4a, 23 Nov 2026)
+
+An opening is an attribute of a built wall, not a separate wall piece: `{oid, wid, kind, at, built_at, paid}` in
+`LotGrid.openings` (save format v3). `at` is the offset in 0.25 m cells from the wall's normalised start point.
+
+| kind | width | price | passable | sill / head | appeal |
+|---|---|---|---|---|---|
+| `door` | 1.0 m | 420 | yes | 0 / 2.05 m | 0 |
+| `window` | 1.0 m | 360 | no | 0.9 / 2.1 m | +1.5 |
+| `window_wide` | 1.5 m | 540 | no | 0.6 / 2.2 m | +2.5 |
+
+Rules (`check_opening`): the wall exists; at least one cell of solid wall at both ends (`opening_edge`) and between
+two openings (`opening_overlap`); no other wall may end inside the opening, edges included (`opening_junction`), and a
+new wall may not end inside an existing opening (`wall_at_opening`); a door needs two free cell rows on both sides —
+no furniture and no static obstacle except walk-through corridors (`door_blocked`); at most 64 openings per lot.
+Furniture may not later be placed in that door clearance (`blocks_door`); rugs may.
+
+Doors are passable: their edges are left open when wall edges are stamped, so the reachability BFS, the cell
+pathfinder and `LotNav` (which now works with the solid wall segments from `LotGrid.wall_segments`) all route through
+them. Windows stay solid for walking. A room can therefore be closed completely as long as a door is fitted before the
+last wall goes up. Removing a door is treated like building a wall: it is refused if it would cut a reachable access
+point off from the street (`seals_off`, `LotGrid.door_close_seals`) or shut a character in (`door_traps`,
+`LotGrid.opening_traps`, called by `main.lot_apply_action`). Demolishing a wall removes its openings. Refunds follow the
+wall rule: full price within 24 game hours, nothing afterwards (and nothing when the clock was rewound).
+
+Saving: v3 adds `next_oid` and `openings`; v2 saves load with no openings. On restore, openings are re-checked after
+the walls and before the items: invalid openings are dropped and refunded at most at the list price, and an item
+standing in a door's clearance is dropped rather than the door. The public snapshot carries `open` rows; clients
+re-check types, wall membership, end clearance, spacing and junctions and reject the whole snapshot otherwise.
+
+Visuals (`main._build_wall_with_openings`): a wall with openings is built from solid plaster pieces with skirting,
+headers, sills, frames, a glass pane with a mullion, a window board and a door leaf on a hinge
+(`scripts/world/lot_door.gd`) that swings open while a character is within 1.4 m. Collision covers the solid pieces,
+headers, sills and whole windows; the door span has none. The frames and leaves are procedural primitives for now.
+
+A bug found by the B4 tests was fixed at the same time: the reachability BFS used to seed every walkable border cell
+as "connected to the street", so a room built against the lot edge could never be closed. Border cells are now seeded
+only through a border edge that no wall blocks (`LotGrid._street_open`).
+
+## Tests
+
+@@@OLD
+- `tests/test_lot_walls.tscn` (128 checks): wall rules, items vs. walls, refunds, save v2 and v1 migration,
+@@@NEW
+- `tests/test_lot_doors.tscn` (147 checks): opening rules, navigation through doors (BFS edges, cell path, `LotNav`
+  never crossing a solid segment, windows solid, closed rooms, door closing vs. `seals_off` and trapped characters,
+  rooms against the lot edge), door clearance vs. items, wall demolition and refunds, save v3, v2 migration,
+  16 malformed variants and restore drops, public snapshot fuzz, performance, world nodes and collision, the door leaf
+  opening near a character, disk save/load, `door_traps` through the world, the Door/Window UI and real ENet authority.
+- `tests/test_lot_walls.tscn` (128 checks): wall rules, items vs. walls, refunds, save v2 and v1 migration,
+@@@OLD
+- Build mode (walls, doors, windows, floors, rooms), multiple storeys and buildable annex rooms.
+- Walls do not shade appeal. The walk graph ends at the lot edge: a wall across the whole lot makes the other
+  side unreachable instead of sending characters round by the street. Characters keep only 0.1 m from the wall
+  axis, so a shoulder can visually touch a wall.
+- Doors and windows in walls, floors/wallpapers, rooms and a cut-away camera for player walls.
+@@@NEW
+- Floors, rooms, multiple storeys and buildable annex rooms.
+- Walls do not shade appeal and windows add appeal regardless of daylight. The walk graph ends at the lot edge: a
+  wall across the whole lot makes the other side unreachable instead of sending characters round by the street.
+  Characters keep only 0.1 m from the wall axis, so a shoulder can visually touch a wall.
+- Doors cannot be locked yet; door frames, leaves and windows are procedural (Blender assets to do). Item placement
+  treats a wall with a door as solid (a rug cannot run through a doorway). Floors/wallpapers and a cut-away camera.
+@@@FILE res://docs/multiplayer.md
+@@@OLD
+- Walls are in the public lot snapshot; clients re-check types, bounds, lengths and geometry and drop the whole
+  snapshot if anything is off. A real ENet test covers building, forged requests, late join and demolition.
+@@@NEW
+- Walls are in the public lot snapshot; clients re-check types, bounds, lengths and geometry and drop the whole
+  snapshot if anything is off. A real ENet test covers building, forged requests, late join and demolition.
+- Doors and windows (B4a, 23 Nov 2026): `open` [wid, kind, at] and `unopen` [oid] use the same path and the wall
+  bucket; the server checks types (kind is a known string of at most 16 characters, `at` 0..80) and `LotGrid` decides.
+  Closing a door is refused if it would shut a character in (`door_traps`) or cut off an access point. Openings are in
+  the public snapshot (`open`) and re-validated by clients. There is still one shared household lot: any player who
+  controls a character may build on it; per-lot ownership comes with the shared city.
+@@@FILE res://docs/testing.md
+@@@OLD
+and escapes an enclosure. The older isolated tests `test_lot_pathfinder.gd` and `test_lot_pathfinder_walls.gd` run as
+scripts: `godot --headless -s res://tests/test_lot_pathfinder.gd`.
+@@@NEW
+and escapes an enclosure. The older isolated tests `test_lot_pathfinder.gd` and `test_lot_pathfinder_walls.gd` run as
+scripts: `godot --headless -s res://tests/test_lot_pathfinder.gd`.
+
+### Doors and windows (B4a, 23 November 2026)
+
+`tests/test_lot_doors.tscn` – 147 checks: opening rules (types, end clearance, spacing, T-junctions, door clearance,
+money, 64-opening cap, determinism), navigation through doors (open BFS edges, cell path, `LotNav` never crossing a
+solid segment, windows solid, closing a room, `seals_off` and trapped characters, rooms against the lot boundary),
+items vs. door clearance, demolition and refunds, save v3 / v2 migration / 16 malformed variants / restore drops,
+public snapshot fuzz (300 mutations), performance, world nodes and collision, door leaf animation, disk save/load,
+`door_traps` through the world, the Door/Window UI and a real ENet server with two clients. The isolated B4 probes
+`test_b4_wall_gap_contract.gd` and `test_b4_gap_navigation.gd` expose `static run()` and are called from a script.
+@@@FILE res://README.md
+@@@OLD
+| World: lot grid, buy mode (22 items, budget, resale, quality, appeal), save and multiplayer authority | ✅ B1 + B2 walls + B3 wall-aware pathfinding (doors, floors planned) |
+@@@NEW
+| World: lot grid, buy mode (22 items, budget, resale, quality, appeal), save and multiplayer authority | ✅ B1 + B2 walls + B3 wall-aware pathfinding + B4a doors and windows (floors, rooms planned) |
+@@@END
